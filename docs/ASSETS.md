@@ -5,4 +5,4 @@ Policy: CC0 or permissive only, unless the user buys a pack.
 
 | Asset | Source | Licence | Used for | Added |
 |---|---|---|---|---|
-| (none yet) | | | | |
+| `assets/quaternius/animation_library.glb` (Universal Animation Library, Standard) | Quaternius, via https://opengameart.org/content/universal-animation-library | CC0 1.0 (`assets/quaternius/LICENSE.txt`) | Human skeleton and 46 animation clips (walk, jog, sprint, spell cast, hit, death, roll). The mannequin mesh itself is not shown. | 2026-11-13 |

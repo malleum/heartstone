@@ -81,7 +81,8 @@ static func joints(s: Dictionary) -> PackedVector3Array:
 
 static func build(s: Dictionary) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
-	var J := joints(s)
+	# A sourced rig (see human_rig.gd) supplies its own joint positions.
+	var J: PackedVector3Array = s.rig_joints if s.has("rig_joints") else joints(s)
 	var H: float = s.height
 	var u := H / 1.8
 	# Gear first: it decides which hand grips a weapon.
@@ -139,6 +140,12 @@ static func build(s: Dictionary) -> Dictionary:
 		gear.append(pm)
 	for e in eyes:
 		_eye(body, head_xf * (e.pos * s.head_size * u), e.r * s.head_size * u, head_xf.basis * e.dir, e.iris)
+	if s.has("rig_bones"):
+		# Generator bone indices -> the sourced skeleton's bone indices.
+		var remap: PackedInt32Array = s.rig_bones
+		for m: Sdf.MeshData in [body, gear]:
+			for i in m.bones.size():
+				m.bones[i] = remap[m.bones[i]]
 	var out := {spec = s, joints = J, body = body.arrays(), tris = (body.idx.size() + gear.idx.size()) / 3}
 	if gear.verts.size() > 0:
 		out.gear = gear.arrays()
@@ -397,6 +404,17 @@ static func instantiate(data: Dictionary) -> Walker:
 		sk.set_bone_pose_position(i, local)
 		skin.add_bind(i, Transform3D(Basis.IDENTITY, -J[i]))
 	root.add_child(sk)
+	var mi := MeshInstance3D.new()
+	mi.name = "Mesh"
+	mi.mesh = make_mesh(data)
+	mi.skin = skin
+	sk.add_child(mi)
+	mi.skeleton = NodePath("..")
+	mi.custom_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 6, 6))
+	root.setup(data, sk)
+	return root
+
+static func make_mesh(data: Dictionary) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, data.body)
 	if _mat == null:
@@ -409,13 +427,4 @@ static func instantiate(data: Dictionary) -> Walker:
 			_gear_mat = ShaderMaterial.new()
 			_gear_mat.shader = load("res://shaders/gear.gdshader")
 		mesh.surface_set_material(1, _gear_mat)
-	var mi := MeshInstance3D.new()
-	mi.name = "Mesh"
-	mi.mesh = mesh
-	mi.skin = skin
-	sk.add_child(mi)
-	mi.skeleton = NodePath("..")
-	# Skinned bounds are unknown to the engine; pad so nothing is culled mid-stride.
-	mi.custom_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 6, 6))
-	root.setup(data, sk)
-	return root
+	return mesh

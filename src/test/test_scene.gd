@@ -169,6 +169,35 @@ func _mode_humans() -> void:
 	if args.has("walk"):
 		follow = walkers[n / 2]; follow_off = Vector3(sin(ang) * d, 0.2, cos(ang) * d)
 
+## Hybrid humans: generated body and clothes on the sourced rig, playing a clip.
+## --mode=rig --clip=Walk [--n=3] [--then=Spell_Simple_Shoot --at=30]
+func _mode_rig() -> void:
+	var n := int(_f("n", 3))
+	var outfits: Array = Species.HUMAN.outfit
+	var seed0 := int(_f("seed", 1))
+	var specs := []
+	for i in n:
+		var o := {outfit = outfits[(i + seed0) % outfits.size()]}
+		o.fem = 1.0 if o.outfit in ["aes_sedai", "domani"] else 0.0
+		if o.fem > 0.5: o.hair = "long"
+		var s := Species.roll(Species.HUMAN, seed0 + i, o)
+		HumanRig.fit(s)
+		specs.append(s)
+	var data := _generate(specs)
+	Terrain.amp = 0.0
+	var rigs := []
+	for i in n:
+		var r := HumanRig.instantiate(data[i])
+		r.position = Vector3((i - (n - 1) * 0.5) * 1.3, 0, 0)
+		add_child(r)
+		rigs.append(r)
+		(r.get_meta("anim") as AnimationPlayer).play(args.get("clip", "Walk"))
+	if args.has("then"):
+		events[int(_f("at", 30))] = func() -> void:
+			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)
+	var d := _f("dist", 4.2); var ang := deg_to_rad(_f("yaw", 25))
+	_look(Vector3(sin(ang) * d, _f("camy", 1.3), cos(ang) * d), Vector3(0, _f("aty", 1.0), 0))
+
 ## Idle line-up, seen from roughly where a third-person player camera would sit.
 func _mode_lineup() -> void:
 	var n := int(_f("n", 8))
