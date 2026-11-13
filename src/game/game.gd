@@ -17,6 +17,7 @@ var cam_dist := 3.6
 var face_yaw := 0.0            # my character faces its travel direction, or the aim while weaving
 var aim_t := 0.0               # seconds left facing the aim after a cast
 var selected := 0
+var shake := 0.0               # camera trauma, 0..1, decays every frame
 var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
@@ -156,9 +157,17 @@ func _process(dt: float) -> void:
 		var view := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch)
 		var want := pivot + view * Vector3(0.6, 0.15, cam_dist)
 		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
-		cam.position = want
-		cam.basis = view
+		# Trauma-squared shake: small hits barely register, big ones kick.
+		shake = maxf(shake - dt * 1.8, 0.0)
+		var k := shake * shake
+		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
+		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
+
+## Blasts shake the camera by size and nearness.
+func shake_at(at: Vector3, radius: float) -> void:
+	if me:
+		shake = minf(1.0, shake + clampf(radius * 2.2 / maxf(at.distance_to(me.position), 3.0), 0.0, 0.8))
 
 # --- mirroring the sim ----------------------------------------------------------------
 

@@ -31,6 +31,58 @@ static func _light(col: Color, energy: float, reach: float) -> OmniLight3D:
 	l.light_color = col; l.light_energy = energy; l.omni_range = reach
 	return l
 
+static var _dot: GradientTexture2D
+
+## Soft round sprite shared by every particle system.
+static func _sprite() -> GradientTexture2D:
+	if _dot == null:
+		var gr := Gradient.new()
+		gr.set_color(0, Color(1, 1, 1, 1)); gr.set_color(1, Color(1, 1, 1, 0))
+		_dot = GradientTexture2D.new()
+		_dot.gradient = gr; _dot.fill = GradientTexture2D.FILL_RADIAL
+		_dot.fill_from = Vector2(0.5, 0.5); _dot.fill_to = Vector2(1.0, 0.5)
+		_dot.width = 64; _dot.height = 64
+	return _dot
+
+## Additive billboard particles fading from a white-hot core colour to nothing.
+## `speed` in m/s, `gravity` negative pulls sparks down, positive lets smoke rise.
+static func _particles(col: Color, amount: int, life: float, size: float, speed: float, gravity: float, spread := 180.0) -> GPUParticles3D:
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = size * 0.6
+	pm.direction = Vector3.UP; pm.spread = spread
+	pm.initial_velocity_min = speed * 0.35; pm.initial_velocity_max = speed
+	pm.gravity = Vector3(0, gravity, 0)
+	pm.damping_min = speed * 0.4; pm.damping_max = speed * 0.8
+	pm.scale_min = 0.5; pm.scale_max = 1.3
+	var ramp := Gradient.new()
+	ramp.set_color(0, col.lerp(Color.WHITE, 0.35)); ramp.set_color(1, Color(col.r * 0.6, col.g * 0.25, col.b * 0.25, 0.0))
+	ramp.add_point(0.35, col)
+	var rt := GradientTexture1D.new(); rt.gradient = ramp
+	pm.color_ramp = rt
+	var sc := Curve.new(); sc.add_point(Vector2(0, 0.6)); sc.add_point(Vector2(0.2, 1.0)); sc.add_point(Vector2(1, 0.15))
+	var st := CurveTexture.new(); st.curve = sc
+	pm.scale_curve = st
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = _sprite()
+	mat.albedo_color = Color(1.25, 1.25, 1.25)   # over 1 so the glow pass picks it up
+	var q := QuadMesh.new(); q.size = Vector2(size, size); q.material = mat
+	var p := GPUParticles3D.new()
+	p.process_material = pm; p.draw_pass_1 = q
+	p.amount = amount; p.lifetime = life
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
+	p.one_shot = true; p.explosiveness = 0.92
+	g.add_child(p); p.position = at; p.emitting = true
+	g.get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
+
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
 static func live(g: Node3D, kind: String) -> Node3D:
 	var n := Node3D.new()
@@ -38,7 +90,10 @@ static func live(g: Node3D, kind: String) -> Node3D:
 	match kind:
 		"projectile":
 			var s := SphereMesh.new(); s.radius = 0.28; s.height = 0.56
-			n.add_child(_mesh(s, TINT.fire, 7.0)); n.add_child(_light(TINT.fire, 3.0, 7.0))
+			n.add_child(_mesh(s, Color(1.0, 0.72, 0.35), 5.0)); n.add_child(_light(TINT.fire, 4.0, 9.0))
+			# Flames stay in world space, so a moving ball drags a tail behind it.
+			var trail := _particles(TINT.fire, 70, 0.4, 0.34, 0.9, 1.2)
+			n.add_child(trail)
 		"mover":
 			var b := BoxMesh.new(); b.size = Vector3(2.4, 3.2, 0.08)
 			n.add_child(_mesh(b, Color(0.05, 0.02, 0.08), 0.0)); n.add_child(_light(TINT.spirit, 2.5, 8.0))
@@ -66,6 +121,20 @@ static func blast(g: Node3D, at: Vector3, radius: float, weave: String) -> void:
 	tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.4)
 	tw.tween_property(l, "light_energy", 0.0, 0.4)
 	tw.chain().tween_callback(mi.queue_free)
+	# Shockwave hugging the ground, sparks thrown out, and fire rolling upward: three
+	# layers at three speeds read as an explosion; one sphere reads as a balloon.
+	var ring := TorusMesh.new(); ring.inner_radius = 0.82; ring.outer_radius = 1.0
+	var ri := _mesh(ring, col.lerp(Color.WHITE, 0.4), 6.0)
+	ri.position = at + Vector3(0, 0.15, 0); ri.scale = Vector3(0.4, 0.25, 0.4)
+	g.add_child(ri)
+	var tr := g.create_tween().set_parallel()
+	tr.tween_property(ri, "scale", Vector3(radius * 1.7, 0.1, radius * 1.7), 0.38).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+	tr.tween_property(ri.material_override, "albedo_color:a", 0.0, 0.38)
+	tr.chain().tween_callback(ri.queue_free)
+	_once(_particles(col, int(40 + radius * 30), 0.9, 0.16, 5.0 + radius * 3.0, -9.0, 80.0), g, at + Vector3(0, 0.3, 0))
+	_once(_particles(col, int(30 + radius * 16), 0.7, 0.9 + radius * 0.35, 1.5 + radius, 2.5), g, at + Vector3(0, 0.5, 0))
+	if g.has_method("shake_at"):
+		g.shake_at(at, radius)
 
 ## Instant weaves that the sim resolves in one tick.
 static func cast(g: Node3D, e: Dictionary) -> void:

@@ -8,7 +8,8 @@ when working on abilities).
 ## Dev environment
 - `nix develop` gives Godot 4, sway, grim, ffmpeg, imagemagick. `nix run` launches the
   project for anyone (`nix run .#horde` for the horde scene).
-- The dev desktop has no GUI session and is used over SSH.
+- The dev desktop is often used over SSH with no GUI session, and sometimes has a real
+  desktop session running. Rendering must never depend on, or appear on, that session.
 
 ## Render workflow: look at it, don't just test it
 - `tools/render.sh <out-dir> [frames] [-- game args]` renders off-screen on the real GPU
