@@ -1,8 +1,9 @@
 # Heartstone
 
 3D Wheel of Time game in Godot 4 (Forward+), GDScript. Co-op PvE: channellers vs
-Shadowspawn hordes. Design background is in `prompt.md`; weave/progression design
-is in `weaves.md` (only read it when working on abilities).
+Shadowspawn hordes. A private game for the user and friends. The vision is in
+`docs/VISION.md`; weave research is in `weaves.md` (the user maintains it; only read it
+when working on abilities).
 
 ## Dev environment
 - `nix develop` gives Godot 4, sway, grim, ffmpeg, imagemagick. `nix run` launches the
@@ -23,10 +24,12 @@ is in `weaves.md` (only read it when working on abilities).
   before calling anything visual done.
 
 ## Read first
-- `docs/ARCHITECTURE.md`: decisions and reasons. Keep it current when a decision changes.
+- `docs/VISION.md`: what the game is meant to be.
+- `docs/ARCHITECTURE.md`: decisions and reasons, the asset/licence table, next steps.
+  Keep it current when a decision changes.
 - `docs/PLAYTEST.md`: anything that needs the user's hands (camera, timing, hit feel)
   goes here with the assumed value. Never block on the user: assume, note, continue.
-- `docs/ASSETS.md`: every third-party asset and its licence (CC0/permissive only).
+- Third-party assets must be CC0/permissive and listed in ARCHITECTURE.md.
 - `tools/test.sh` runs the headless rules tests and a localhost co-op session. Run it
   after touching `src/core`, `src/net` or `data/`.
 
@@ -38,12 +41,13 @@ is in `weaves.md` (only read it when working on abilities).
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
 - `src/anim/walker.gd`: procedural gait (planted feet, IK legs, hit-react, death).
 - `src/game/`: the playable view (main scene). `-- --auto` lets a bot play it.
-- `src/gen/human_rig.gd`: generated humans on the sourced Quaternius rig and clips.
-- `src/test/test_scene.gd`: test bench (`TEST=1 tools/render.sh ...`). Modes via `-- --mode=lineup|walk|horde|humans`
+- `src/gen/hero.gd`: player characters (sourced Quaternius models and clips), built by
+  `tools/blender/build_heroes.py`. `human_rig.gd`: older generated humans, bench only.
+- `tools/bl.py`: run Python in the user's open Blender (full permission granted).
+- `src/test/test_scene.gd`: test bench (`TEST=1 tools/render.sh ...`). Modes via `-- --mode=lineup|walk|horde|humans|heroes`
   plus `--n --seed --dist --yaw --speed --hit=<frame> --die=<frame> --bench=<frames>`.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
-- Findings of the procedural-character spike: `docs/trolloc-test-log.md`.
 
 ## Architecture principles
 - Data over code: creatures are parameter tables plus a seed; weaves will be data rows.
@@ -54,3 +58,8 @@ is in `weaves.md` (only read it when working on abilities).
 ## Git
 - Branch is `master` (not `main`). Commit directly and push at natural finishing points.
   No pull requests unless asked. Don't commit large render outputs.
+
+## Working with the user
+- They are not watching live. Say what you are about to do, then do it.
+- Ask before anything destructive, any system-wide change, or anything expensive to
+  reverse.
