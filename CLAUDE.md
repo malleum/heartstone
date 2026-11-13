@@ -37,7 +37,9 @@ is in `weaves.md` (only read it when working on abilities).
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
 - `src/anim/walker.gd`: procedural gait (planted feet, IK legs, hit-react, death).
-- `src/test/test_scene.gd`: test bench. Modes via `-- --mode=lineup|walk|horde|humans`
+- `src/game/`: the playable view (main scene). `-- --auto` lets a bot play it.
+- `src/gen/human_rig.gd`: generated humans on the sourced Quaternius rig and clips.
+- `src/test/test_scene.gd`: test bench (`TEST=1 tools/render.sh ...`). Modes via `-- --mode=lineup|walk|horde|humans`
   plus `--n --seed --dist --yaw --speed --hit=<frame> --die=<frame> --bench=<frames>`.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.

@@ -36,7 +36,7 @@
 
       packages = forAll (pkgs: rec {
         default = launcher pkgs "heartstone" "";
-        horde = launcher pkgs "heartstone-horde" "-- --mode=horde";
+        horde = launcher pkgs "heartstone-horde" "res://src/test/test_scene.tscn -- --mode=horde";
       });
 
       apps = forAll (pkgs: {

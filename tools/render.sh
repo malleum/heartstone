@@ -6,7 +6,7 @@
 #
 # Frames land in <out-dir>/f00000000.png ... (Godot movie writer, fixed 30 fps,
 # so results are deterministic and independent of real frame rate).
-# Env: RES=1280x720  SCENE=res://path.tscn  KEEP_EVERY=n (delete other frames)
+# Env: RES=1280x720  SCENE=res://path.tscn (default: the game; TEST=1 = the test bench)  KEEP_EVERY=n (delete other frames)
 #      LAST=1 (keep only the final frame, as <out-dir>/last.png: use for stills)
 #      NOMOVIE=1 (run realtime, no frame dump: use for fps measurements)
 set -euo pipefail
@@ -54,6 +54,7 @@ if [[ -z ${NOMOVIE:-} ]]; then
   mkdir -p "$out"; rm -f "$out"/f*.png "$out"/f.wav
   args+=(--write-movie "$out/f.png" --fixed-fps 30 --quit-after "$frames")
 fi
+[[ -n ${TEST:-} ]] && SCENE=res://src/test/test_scene.tscn
 [[ -n ${SCENE:-} ]] && args+=("$SCENE")
 # Script errors can leave Godot alive after the last frame: never wait forever.
 timeout "${TIMEOUT:-240}" godot "${args[@]}" -- "$@" 2>&1 | grep -vE "^(Godot Engine|\$)|FIFO protocol|xdg-toplevel-icon|wayland_thread.cpp|^-+\$|render time:|Encoding time:|recorded in|Movie Maker mode" || true

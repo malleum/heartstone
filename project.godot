@@ -2,7 +2,7 @@ config_version=5
 
 [application]
 config/name="Heartstone"
-run/main_scene="res://src/test/test_scene.tscn"
+run/main_scene="res://src/game/game.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]
