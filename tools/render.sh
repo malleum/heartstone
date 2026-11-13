@@ -39,6 +39,13 @@ if ! sway_up; then
 fi
 export WAYLAND_DISPLAY=$(cat "$dpyfile")
 
+# class_name lookups come from the editor's import cache; refresh it when scripts change.
+cache=.godot/global_script_class_cache.cfg
+if [[ ! -f $cache || -n $(find src -name '*.gd' -newer $cache -print -quit) ]]; then
+  godot --headless --path . --import >/dev/null 2>&1 || true
+  touch $cache
+fi
+
 # --- render ------------------------------------------------------------------
 res=${RES:-1280x720}
 args=(--path . --display-driver wayland --rendering-method forward_plus --resolution "$res")
@@ -47,7 +54,8 @@ if [[ -z ${NOMOVIE:-} ]]; then
   args+=(--write-movie "$out/f.png" --fixed-fps 30 --quit-after "$frames")
 fi
 [[ -n ${SCENE:-} ]] && args+=("$SCENE")
-godot "${args[@]}" -- "$@" 2>&1 | grep -vE '^(Godot Engine|$)' || true
+# Script errors can leave Godot alive after the last frame: never wait forever.
+timeout "${TIMEOUT:-240}" godot "${args[@]}" -- "$@" 2>&1 | grep -vE "^(Godot Engine|\$)|FIFO protocol|xdg-toplevel-icon|wayland_thread.cpp|^-+\$|render time:|Encoding time:|recorded in|Movie Maker mode" || true
 
 if [[ -z ${NOMOVIE:-} ]]; then
   rm -f "$out/f.wav"

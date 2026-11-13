@@ -18,6 +18,7 @@
           dir="''${XDG_CACHE_HOME:-$HOME/.cache}/heartstone/project"
           mkdir -p "$dir"
           rsync -a --delete --chmod=u+w --exclude .godot --exclude renders ${self}/ "$dir/"
+          godot --headless --path "$dir" --import >/dev/null 2>&1 || true
           exec godot --path "$dir" ${args} "$@"
         '';
       };
