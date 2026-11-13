@@ -4,19 +4,23 @@ extends Node3D
 ## Sim reports, which is why single-player, host and client all share this file.
 ##
 ##   godot -- [--activity=tarwins_gap_watch] [--name=Egwene] [--join=host] [--auto]
-## Controls: WASD move, mouse look, 1-9 weave at the crosshair, Esc release mouse.
+## Controls: WASD run (camera-relative), mouse look, left click weaves the selected
+## weave at the crosshair, 1-9 / wheel / Q,E select, Esc frees the mouse.
 
 var args := {}
 var session: Session
 var profile: Dictionary
 var cam: Camera3D
 var cam_yaw := PI
-var cam_pitch := -0.28
+var cam_pitch := -0.18
+var cam_dist := 3.6
+var face_yaw := 0.0            # my character faces its travel direction, or the aim while weaving
+var aim_t := 0.0               # seconds left facing the aim after a cast
+var selected := 0
 var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
 var variants: Array = []       # generated Trolloc data, shared between enemies
-var human_data: Dictionary
 var hud: Label
 var banner: Label
 var known: Array = []
@@ -33,7 +37,7 @@ func _ready() -> void:
 	World.build(self)
 	Terrain.amp = 0.45
 	add_child(Terrain.build_mesh(220.0, 0.75))
-	cam = Camera3D.new(); cam.fov = 62.0; add_child(cam)
+	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
 	_hud()
 	var name_: String = args.get("name", "Novice")
 	profile = Profile.load_profile(name_)
@@ -44,13 +48,9 @@ func _ready() -> void:
 	var specs := []
 	for i in 8:
 		specs.append(Species.roll(Species.TROLLOC, 20 + i, {lod = 1.7, head = ["boar", "wolf", "ram", "hawk", "bear"][i % 5]}))
-	var hs := Species.roll(Species.HUMAN, hash(name_), {outfit = profile.origin, fem = 1.0 if profile.power == "saidar" else 0.0, hair = "long" if profile.power == "saidar" else "short"})
-	HumanRig.fit(hs)
-	specs.append(hs)
 	var out := []; out.resize(specs.size())
 	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
 	WorkerThreadPool.wait_for_group_task_completion(id)
-	human_data = out.pop_back()
 	variants = out
 	session = Session.new()
 	add_child(session)
@@ -71,27 +71,64 @@ func _ground(p: Vector3) -> Vector3:
 # --- input ------------------------------------------------------------------------
 
 func _unhandled_input(ev: InputEvent) -> void:
+	var n_known := maxi(known.size(), 1)
 	if ev is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		cam_yaw -= ev.relative.x * 0.003
-		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.1, 0.3)
+		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.2, 0.7)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif ev.keycode == KEY_Q:
+			selected = posmod(selected - 1, n_known)
+		elif ev.keycode == KEY_E:
+			selected = posmod(selected + 1, n_known)
 		var n: int = ev.keycode - KEY_1
 		if n >= 0 and n < known.size():
-			session.cast(known[n], _aim_point())
+			selected = n
 	elif ev is InputEventMouseButton and ev.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		elif ev.button_index == MOUSE_BUTTON_LEFT:
+			_cast_selected()
+		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			selected = posmod(selected + 1, n_known)
+		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
+			selected = posmod(selected - 1, n_known)
 
-## Where the crosshair meets the ground (marched along the view ray).
+func _cast_selected() -> void:
+	if known.is_empty() or me == null:
+		return
+	var at := _aim_point()
+	session.cast(known[selected], at)
+	# Turn to the target at once so the cast animation throws the right way.
+	face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
+	aim_t = 1.2
+
+## What the crosshair means: the enemy nearest the view ray if one is close to it,
+## otherwise the ground the ray lands on. Players aim at Trollocs, not at dirt.
 func _aim_point() -> Vector3:
 	var from := cam.global_position
 	var dir := -cam.global_transform.basis.z
-	for i in 160:
-		var p := from + dir * (i * 0.5)
+	var best := Vector3.ZERO
+	var best_miss := 1.4
+	for id in actors:
+		var a: Dictionary = actors[id]
+		if a.kind == "player" or a.get("dead", false) or not is_instance_valid(a.node):
+			continue
+		var c: Vector3 = a.node.position + Vector3(0, 1.2, 0)
+		var along := (c - from).dot(dir)
+		if along < 2.0 or along > 90.0:
+			continue
+		var miss := (c - (from + dir * along)).length() - along * 0.012
+		if miss < best_miss:
+			best_miss = miss; best = a.node.position
+	if best != Vector3.ZERO:
+		return best
+	for i in 240:
+		var p := from + dir * (i * 0.4)
 		if p.y <= Terrain.height(p.x, p.z):
 			return p
-	return from + dir * 60.0
+	return _ground(from + dir * 45.0)
 
 func _process(dt: float) -> void:
 	frame += 1
@@ -105,14 +142,22 @@ func _process(dt: float) -> void:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		v += Vector2(float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)), float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
 		var move := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
-		session.send_input(move, cam_yaw + PI)
+		aim_t -= dt
+		if aim_t <= 0.0 and move.length() > 0.1:
+			face_yaw = atan2(move.x, move.z)
+		session.send_input(move, face_yaw)
 	_draw_actors(dt)
 	_draw_fx(dt)
 	if me:
-		var pivot := me.position + Vector3(0, 1.65, 0)
-		var back := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch) * Vector3(0.55, 0.25, 4.2)
-		cam.position = pivot + back
-		cam.look_at(pivot + Basis(Vector3.UP, cam_yaw) * Vector3(0.55, 0, -6))
+		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
+		# looking down the ground at your feet. The shoulder offset keeps the character
+		# off the crosshair.
+		var pivot := me.position + Vector3(0, 1.55, 0)
+		var view := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch)
+		var want := pivot + view * Vector3(0.6, 0.15, cam_dist)
+		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
+		cam.position = want
+		cam.basis = view
 	_draw_hud()
 
 # --- mirroring the sim ----------------------------------------------------------------
@@ -184,7 +229,7 @@ func _on_snapshot(s: Dictionary) -> void:
 		var id: int = e[0]
 		if not actors.has(id):
 			# Anything we were not told about by a spawn event is a player.
-			var rig := HumanRig.instantiate(human_data)
+			var rig := Hero.instantiate(Hero.kind_for(profile) if id == session.my_id else Hero.KINDS[id % Hero.KINDS.size()], id)
 			add_child(rig)
 			rig.position = _ground(Vector3(e[1], 0, e[2]))
 			actors[id] = {node = rig, kind = "player", target = rig.position, busy = 0.0}
@@ -223,7 +268,7 @@ func _draw_actors(dt: float) -> void:
 			n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			if a.busy <= 0.0:
-				_play(a, "Jog_Fwd" if speed > 0.6 else "Idle")
+				_play(a, ("Sprint" if speed > 6.5 else "Jog_Fwd") if speed > 0.6 else "Idle")
 	for w in walkers:
 		w.compute(dt)
 		w.apply()
@@ -244,7 +289,9 @@ func _hud() -> void:
 	banner.add_theme_font_size_override("font_size", 28)
 	banner.add_theme_color_override("font_outline_color", Color.BLACK); banner.add_theme_constant_override("outline_size", 6)
 	var cross := Label.new(); cross.text = "+"; layer.add_child(cross)
-	cross.set_anchors_preset(Control.PRESET_CENTER)
+	cross.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	cross.add_theme_font_size_override("font_size", 22)
+	cross.add_theme_color_override("font_outline_color", Color.BLACK); cross.add_theme_constant_override("outline_size", 4)
 
 var _banner_t := 0.0
 func _banner(text: String, secs: float) -> void:
@@ -258,7 +305,7 @@ func _draw_hud() -> void:
 		"Health %d" % int(maxf(my_hp, 0.0)), ""]
 	for i in known.size():
 		var w: Dictionary = Rules.weaves[known[i]]
-		lines.append("%d  %s  (mastery %d)" % [i + 1, w.name, Rules.mastery_level(profile, known[i])])
+		lines.append("%s %d  %s  (mastery %d)" % [">" if i == selected else "  ", i + 1, w.name, Rules.mastery_level(profile, known[i])])
 	if refusal_t > 0.0:
 		lines.append(""); lines.append("Cannot weave: " + last_refusal)
 	hud.text = "\n".join(lines)

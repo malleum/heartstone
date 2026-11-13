@@ -26,11 +26,12 @@ if [[ ${1:-} =~ ^[0-9]+$ ]]; then frames=$1; shift; fi
 # A headless sway gives it a Wayland surface backed by the GPU that nobody sees.
 rt=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 dpyfile=$rt/heartstone-sway.display
-sway_up() { [[ -f $dpyfile && -S $rt/$(cat "$dpyfile") ]]; }
+# The pgrep matters: after a reboot the recorded name can belong to a real desktop session.
+sway_up() { [[ -f $dpyfile && -S $rt/$(cat "$dpyfile") ]] && pgrep -f sway-headless.conf >/dev/null; }
 if ! sway_up; then
   rm -f "$dpyfile"
   cmd="env -u WAYLAND_DISPLAY -u DISPLAY WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 sway -c $PWD/tools/sway-headless.conf"
-  if [[ -n ${TMUX:-} ]]; then
+  if [[ -n ${TMUX:-} ]] && tmux info >/dev/null 2>&1; then
     tmux new-window -d -n heartstone-sway "$cmd"
   else
     setsid nohup $cmd >"$rt/heartstone-sway.log" 2>&1 &
@@ -39,6 +40,7 @@ if ! sway_up; then
   sway_up || { echo "headless sway failed to start" >&2; exit 1; }
 fi
 export WAYLAND_DISPLAY=$(cat "$dpyfile")
+unset DISPLAY   # never fall back to X11: that would open windows on a real desktop
 
 # class_name lookups come from the editor's import cache; refresh it when scripts change.
 cache=.godot/global_script_class_cache.cfg

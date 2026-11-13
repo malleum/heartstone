@@ -198,6 +198,22 @@ func _mode_rig() -> void:
 	var d := _f("dist", 4.2); var ang := deg_to_rad(_f("yaw", 25))
 	_look(Vector3(sin(ang) * d, _f("camy", 1.3), cos(ang) * d), Vector3(0, _f("aty", 1.0), 0))
 
+func _mode_heroes() -> void:
+	Terrain.amp = 0.0
+	var rigs := []
+	for i in Hero.KINDS.size():
+		var r := Hero.instantiate(Hero.KINDS[i])
+		r.position = Vector3((i - 1.5) * 1.1, 0, 0)
+		add_child(r); rigs.append(r)
+		var ap: AnimationPlayer = r.get_meta("anim")
+		if i == 0 and not args.has("quiet"): print("HERO clips ", ap.get_animation_list())
+		ap.play(args.get("clip", "Idle"))
+	if args.has("then"):
+		events[int(_f("at", 30))] = func() -> void:
+			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)
+	var d := _f("dist", 4.4); var ang := deg_to_rad(_f("yaw", 20))
+	_look(Vector3(sin(ang) * d, _f("camy", 1.3), cos(ang) * d), Vector3(0, _f("aty", 1.0), 0))
+
 ## Idle line-up, seen from roughly where a third-person player camera would sit.
 func _mode_lineup() -> void:
 	var n := int(_f("n", 8))
