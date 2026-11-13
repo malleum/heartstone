@@ -1,0 +1,73 @@
+extends SceneTree
+## Co-op smoke test. One process hosts a holdout, others join as bot clients:
+##   godot --headless -s tests/net_test.gd -- host <players>
+##   godot --headless -s tests/net_test.gd -- client <name>
+## Each prints one "NET ..." line that tools/test.sh checks.
+
+var s: Session
+var role := ""
+var foes := {}
+var last_snap := {}
+var snaps := 0
+var cast_t := 0.0
+
+func _init() -> void:
+	var a := OS.get_cmdline_user_args()
+	role = a[0]
+	s = Session.new()
+	root.add_child.call_deferred(s)
+	await process_frame
+	if role == "host":
+		# A dedicated host with no character of its own: it only referees.
+		var err := s.host("tarwins_gap_watch", {})
+		print("NET host listening err=%d" % err)
+		s.events.connect(func(list: Array) -> void:
+			for e in list:
+				if e.e == "over":
+					print("NET host over success=%s players=%d t=%.0f" % [e.success, s.sim.tallies.size(), s.sim.t])
+					create_timer(1.0).timeout.connect(quit))
+		# Do not start the clock until everyone is in.
+		s.set_physics_process(false)
+		var want := int(a[1])
+		while s._peer_ent.size() < want:
+			await process_frame
+		s.set_physics_process(true)
+	else:
+		var p := Profile.create({name = "Net " + a[1], potential_pts = 8})
+		var before: float = p.channelled
+		s.join("127.0.0.1", p)
+		s.events.connect(func(list: Array) -> void:
+			for e in list:
+				if e.e == "spawn": foes[e.id] = true
+				elif e.e == "die": foes.erase(e.id))
+		s.snapshot.connect(func(snap: Dictionary) -> void:
+			last_snap = snap; snaps += 1)
+		s.finished.connect(func(ok: bool, report: Array) -> void:
+			var saved := Profile.load_profile(p.name)
+			print("NET client %s done success=%s snaps=%d channelled %.0f->%.0f saved_renown=%.0f report=%d" % [a[1], ok, snaps, before, p.channelled, saved.renown, report.size()])
+			quit())
+		process_frame.connect(_client_bot)
+	create_timer(170.0).timeout.connect(func() -> void:
+		print("NET %s TIMEOUT" % role); quit(1))
+
+## Clients know only what snapshots tell them, like a real player.
+func _client_bot() -> void:
+	if s.my_id == 0 or last_snap.is_empty():
+		return
+	var me := Vector3.ZERO
+	for e in last_snap.ents:
+		if e[0] == s.my_id: me = Vector3(e[1], 0, e[2])
+	var best := 1e9; var target := Vector3.ZERO
+	for e in last_snap.ents:
+		if foes.has(e[0]):
+			var d := me.distance_to(Vector3(e[1], 0, e[2]))
+			if d < best:
+				best = d; target = Vector3(e[1], 0, e[2])
+	if best > 1e8:
+		return
+	var to := (target - me).normalized()
+	s.send_input(-to if best < 7.0 else Vector3.ZERO, atan2(to.x, to.z))
+	cast_t -= 1.0 / 60.0
+	if cast_t <= 0.0:
+		cast_t = 0.3
+		s.cast("fireball", target)

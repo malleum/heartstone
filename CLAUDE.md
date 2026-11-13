@@ -22,7 +22,17 @@ is in `weaves.md` (only read it when working on abilities).
 - Several bugs are invisible to tests and obvious in one screenshot. Render and look
   before calling anything visual done.
 
+## Read first
+- `docs/ARCHITECTURE.md`: decisions and reasons. Keep it current when a decision changes.
+- `docs/PLAYTEST.md`: anything that needs the user's hands (camera, timing, hit feel)
+  goes here with the assumed value. Never block on the user: assume, note, continue.
+- `docs/ASSETS.md`: every third-party asset and its licence (CC0/permissive only).
+- `tools/test.sh` runs the headless rules tests and a localhost co-op session. Run it
+  after touching `src/core`, `src/net` or `data/`.
+
 ## Code map
+- `src/core/`: rules with no nodes (Rules, Profile, Progression, Sim, Bot). `data/*.json`
+  holds weaves, enemies, activities. `src/net/session.gd`: host-authoritative co-op.
 - `src/gen/sdf.gd`: signed-distance "clay" + surface nets mesher; weights, colour, AO.
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
