@@ -22,6 +22,17 @@ is in `weaves.md` (only read it when working on abilities).
 - Several bugs are invisible to tests and obvious in one screenshot. Render and look
   before calling anything visual done.
 
+## Code map
+- `src/gen/sdf.gd`: signed-distance "clay" + surface nets mesher; weights, colour, AO.
+- `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
+- `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
+- `src/anim/walker.gd`: procedural gait (planted feet, IK legs, hit-react, death).
+- `src/test/test_scene.gd`: test bench. Modes via `-- --mode=lineup|walk|horde|humans`
+  plus `--n --seed --dist --yaw --speed --hit=<frame> --die=<frame> --bench=<frames>`.
+- `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
+  gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
+- Findings of the procedural-character spike: `docs/trolloc-test-log.md`.
+
 ## Architecture principles
 - Data over code: creatures are parameter tables plus a seed; weaves will be data rows.
   Adding a creature or weave should mean adding data, not engine code.

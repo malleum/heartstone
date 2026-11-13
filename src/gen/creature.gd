@@ -98,7 +98,7 @@ static func build(s: Dictionary) -> Dictionary:
 			if p.bone == HAND + RIGHT * side:
 				bb = bb.merge(p.aabb)
 		hands.append(bb.grow(0.02 * u))
-	var head_xf := Transform3D(Basis.from_euler(Vector3(s.hunch * 0.25, 0, 0)), J[HEAD])
+	var head_xf := Transform3D(Basis.from_euler(Vector3(s.hunch * 0.08, 0, 0)), J[HEAD])
 	sd.place(head_xf, s.head_size * u)
 	var eyes: Array = Heads.build(sd, s)
 	sd.place()
@@ -165,6 +165,10 @@ static func _shell(sh: Dictionary, grids: Array[Sdf.Grid], regions: Array, body_
 		var box := g.box().intersection(mb)
 		if box.size.x <= g.c * 2.0 or box.size.y <= g.c * 2.0 or box.size.z <= g.c * 2.0:
 			continue
+		if gi > 0 and sh.get("coarse_only", false):
+			continue
+		if sh.has("solid"):
+			box = g.box().intersection(mb.merge((sh.solid as Sdf).bounds().grow(0.05)))
 		var lg := Sdf.Grid.make(box, g.c)
 		mask.fill(lg)
 		var ox := roundi((lg.o.x - g.o.x) / g.c); var oy := roundi((lg.o.y - g.o.y) / g.c); var oz := roundi((lg.o.z - g.o.z) / g.c)
@@ -183,12 +187,16 @@ static func _shell(sh: Dictionary, grids: Array[Sdf.Grid], regions: Array, body_
 						mf += _rag.get_noise_3d(lg.o.x + x * g.c, lg.o.y + y * g.c, lg.o.z + z * g.c) * rag
 					lg.f[i] = maxf(bf - thick, mf)
 					i += 1
+		if sh.has("solid"):
+			for sp in (sh.solid as Sdf).prims:
+				Sdf.splat(lg, sp)
 		var skip: Array[AABB] = []
-		if gi == 0:
+		if gi == 0 and not sh.get("coarse_only", false):
 			for rj in range(1, regions.size()):
 				skip.append((regions[rj][0] as AABB).grow(-g.c))
 		var m := Sdf.surface(lg, skip, 0.045 * u)
-		Sdf.skin(m, body_prims, paint, NB, 0.03 * u, 0.012 * u, sh.col)
+		# Loose garments (skirts) take broad weights so they drape between the legs.
+		Sdf.skin(m, body_prims, paint, NB, (0.09 if sh.get("wide", false) else 0.03) * u, 0.012 * u, sh.col)
 		out.append(m)
 		shells.append([lg, thick])
 
@@ -226,12 +234,13 @@ static func _body(sd: Sdf, s: Dictionary, J: PackedVector3Array) -> void:
 
 	# Torso: one continuous trunk (wide blends) rather than stacked balls.
 	var gut: float = s.gut
+	var fem: float = s.fem
 	var rib := J[CHEST].lerp(J[NECK], 0.42)
 	var lean := Basis.from_euler(Vector3(s.hunch * 0.5, 0, 0))
 	var belly := J[SPINE] + Vector3(0, 0.02, 0.01 + gut * 0.05) * u
-	var waist := (0.138 * t + gut * 0.03) * u
+	var waist := (0.138 * t + gut * 0.03) * u * (1.0 - 0.12 * fem)
 	sd.use(HIPS, skin, 0.07 * u)
-	sd.ball(J[HIPS], Vector3(0.165 * t, 0.12, 0.118 * t) * u)
+	sd.ball(J[HIPS], Vector3(0.165 * t * (1.0 + 0.07 * fem), 0.12, 0.118 * t) * u)
 	sd.cone(J[HIPS], belly, 0.15 * t * u, waist, Vector2(1, 0.74)).bone2 = SPINE
 	sd.use(SPINE)
 	sd.ball(belly, Vector3(0.138 * t + gut * 0.03, 0.12, 0.1 * t + gut * 0.08) * u)
@@ -251,7 +260,7 @@ static func _body(sd: Sdf, s: Dictionary, J: PackedVector3Array) -> void:
 		sd.use(CHEST, back, 0.04 * u)
 		sd.cone(J[NECK] + Vector3(0.03 * u * m.x, 0.02 * u, -0.02 * u), sh + Vector3(-0.03 * u * m.x, 0.03 * u, -0.02 * u), 0.06 * t * u * (0.7 + 0.5 * mu), 0.05 * t * u)
 		sd.use(CHEST, skin, 0.06 * u)
-		sd.ball(Vector3(sh.x * 0.5, sh.y - 0.1 * u * t, hz * 0.8 + 0.105 * t * u), Vector3(0.095, 0.065, 0.03) * t * u * (0.75 + 0.3 * mu), lean)
+		sd.ball(Vector3(sh.x * 0.5, sh.y - 0.1 * u * t, hz * 0.8 + 0.105 * t * u), Vector3(0.105 - 0.04 * fem, 0.052 + 0.013 * fem, 0.024 + 0.04 * fem) * t * u * (0.75 + 0.3 * mu * (1.0 - fem)), lean)
 		# Arm.
 		sd.use(UARM + o, back, 0.035 * u)
 		sd.ball(sh + Vector3(0.01 * m.x, 0.0, 0) * u, Vector3(0.07, 0.075, 0.07) * l * u * (0.9 + 0.2 * mu))
@@ -268,7 +277,7 @@ static func _body(sd: Sdf, s: Dictionary, J: PackedVector3Array) -> void:
 		sd.ball(hip + Vector3(0.01 * m.x, 0.0, -0.05 * t) * u, Vector3(0.1, 0.11, 0.1) * t * u)
 		var legc := fur if (s.digit and furry > 0.25) or furry > 0.8 else skin
 		sd.use(THIGH + o, legc, 0.04 * u)
-		sd.cone(hip + Vector3(0.012 * m.x * u, -0.01 * u, 0), kn, 0.105 * l * u, 0.066 * l * u)
+		sd.cone(hip + Vector3(0.012 * m.x * u, -0.01 * u, 0), kn, 0.115 * l * u, 0.07 * l * u)
 		sd.ball(hip.lerp(kn, 0.45) + Vector3(0.01 * m.x, 0, 0.025) * l * u, Vector3(0.085, 0.17, 0.09) * l * u)
 		sd.use(SHIN + o, legc, 0.03 * u)
 		if s.digit:
@@ -304,9 +313,9 @@ static func _hand(sd: Sdf, s: Dictionary, bone: int, wr: Vector3, tip: Vector3, 
 		var z := (f - 1.5) * 0.023 * hs
 		var flen := (0.075 - absf(f - 1.4) * 0.008) * hs
 		var a := wr + d * 0.095 * hs + fwd * z
-		var curl := 1.6 if grip else 0.25
+		var curl := 1.6 if grip else 0.9
 		var mid := a + (d - inward * curl).normalized() * flen * 0.55
-		var end := mid + (d * (-0.6 if grip else 1.0) - inward * 0.8).normalized() * flen * 0.45
+		var end := mid + (d * (-0.6 if grip else 0.25) - inward * 0.9).normalized() * flen * 0.45
 		sd.use(bone, skin, 0.006 * hs)
 		sd.cone(a, mid, 0.0115 * hs, 0.0105 * hs)
 		sd.cone(mid, end, 0.0105 * hs, 0.009 * hs)
@@ -357,9 +366,9 @@ static func _eye(m: Sdf.MeshData, c: Vector3, r: float, dir: Vector3, iris: Colo
 			var ph := TAU * j / segs
 			var n := Vector3(sin(th) * cos(ph), cos(th), sin(th) * sin(ph))
 			var f := n.dot(dir)
-			var col := Color(0.55, 0.52, 0.48, 0.0)
-			if f > 0.93: col = Color(0.005, 0.005, 0.005, 0.0)
-			elif f > 0.72: col = Color(iris, 0.0)
+			var col := Color(0.7, 0.68, 0.64, 0.12)
+			if f > 0.93: col = Color(0.005, 0.005, 0.005, 0.12)
+			elif f > 0.72: col = Color(iris, 0.12)
 			m.verts.append(c + n * r); m.norms.append(n); m.ao.append(1.0); m.cols.append(col)
 			m.bones.append_array([HEAD, 0, 0, 0]); m.weights.append_array([1.0, 0.0, 0.0, 0.0])
 	for i in rings:
@@ -407,6 +416,6 @@ static func instantiate(data: Dictionary) -> Walker:
 	sk.add_child(mi)
 	mi.skeleton = NodePath("..")
 	# Skinned bounds are unknown to the engine; pad so nothing is culled mid-stride.
-	mi.extra_cull_margin = 1.0
+	mi.custom_aabb = AABB(Vector3(-3, -1, -3), Vector3(6, 6, 6))
 	root.setup(data, sk)
 	return root

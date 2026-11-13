@@ -33,16 +33,16 @@ void fragment() {
 	float row = rest.y * 95.0;
 	float ring = sin(row * 6.2832) * sin((rest.x + rest.z * 0.9) * 95.0 * 6.2832 + floor(row) * 3.1416);
 	float weave = sin(rest.y * 900.0) * sin((rest.x + rest.z) * 900.0);
-	float hgt = cloth * (fine * 0.6 + weave * 0.08) + leather * fine * 0.3 + mail * ring * 0.6 + plate * fine * 0.25;
+	float hgt = cloth * (fine * 0.22 + weave * 0.05) + leather * fine * 0.3 + mail * ring * 0.6 + plate * fine * 0.25;
 	vec3 c = COLOR.rgb * mix(0.7, 1.15, grime);
-	c *= 1.0 + mail * ring * 0.35;
+	c *= 1.0 + mail * (ring * 0.5 + 0.6 * smoothstep(0.6, 1.0, ring));
 	// Rust in the low spots of plate.
 	c = mix(c, vec3(0.16, 0.07, 0.03), plate * smoothstep(0.55, 0.8, grime) * 0.6);
 	float ao = mix(0.4, 1.0, occ);
 	ALBEDO = c * ao;
 	AO = ao;
 	METALLIC = mail * 0.75 + plate * 0.85;
-	ROUGHNESS = cloth * 0.95 + leather * 0.6 + mail * 0.5 + plate * mix(0.35, 0.7, grime);
+	ROUGHNESS = cloth * 0.95 + leather * 0.6 + mail * 0.38 + plate * mix(0.35, 0.7, grime);
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);
 	vec3 r1 = cross(dpy, NORMAL), r2 = cross(NORMAL, dpx);
 	float det = dot(dpx, r1);

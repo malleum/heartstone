@@ -34,10 +34,12 @@ void fragment() {
 	// Fur reads as streaks running down the body; skin as fine pores.
 	float strands = fbm(rest * vec3(110.0, 22.0, 110.0));
 	float pores = fbm(rest * 70.0);
-	float hgt = mix(pores * 0.25, strands, fur) * (1.0 - hard) * detail;
+	float ridge = sin(length(rest.yz) * 260.0 + blotch * 6.0) * (1.0 - smoothstep(0.0, 0.08, kind));
+	float hgt = (mix(pores * 0.25, strands, fur) * (1.0 - hard) + ridge * 0.35 * hard) * detail;
 	vec3 c = COLOR.rgb * mix(0.8, 1.15, blotch);
 	c *= mix(1.0, mix(0.5, 1.35, strands), fur);
 	c *= mix(1.0, mix(0.9, 1.08, pores), (1.0 - fur) * (1.0 - hard));
+	c *= 1.0 - (0.25 + 0.2 * ridge) * (1.0 - smoothstep(0.0, 0.08, kind));
 	float ao = mix(0.35, 1.0, occ);
 	ALBEDO = c * ao;
 	AO = ao;

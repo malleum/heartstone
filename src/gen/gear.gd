@@ -29,7 +29,7 @@ static func _trolloc(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGene
 	var l: float = s.limb
 	var hip_y := J[C.THIGH].y; var knee_y := J[C.SHIN].y
 	var sh := J[C.UARM]
-	var iron := Color(0.03, 0.03, 0.035, MAIL)
+	var iron := Color(0.012, 0.012, 0.015, MAIL)
 	var hide := Color(0.07, 0.045, 0.03, CLOTH).lerp(Color(s.fur, CLOTH), 0.3)
 	var leather := Color(0.045, 0.028, 0.018, LEATHER)
 	var plate := Color(0.045, 0.042, 0.042, PLATE)
@@ -47,13 +47,13 @@ static func _trolloc(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGene
 		var hem := lerpf(knee_y, hip_y, rng.randf_range(0.05, 0.5))
 		kit.shells.append({mask = _band(hem, hip_y + 0.11 * u, sh.x * 0.95, 0.0), thick = 0.034 * u, col = hide, ragged = 0.06 * u})
 	var waist := J[C.HIPS].y + 0.07 * u
-	kit.shells.append({mask = _band(waist - 0.04 * u, waist + 0.04 * u, sh.x * 0.95, 0.0), thick = 0.045 * u, col = leather})
+	kit.shells.append({mask = _band(waist - 0.055 * u, waist + 0.055 * u, sh.x * 0.95, 0.0), thick = 0.03 * u, col = leather})
 	if rng.randf() < 0.6:
 		# Baldric across the chest.
 		var m := Sdf.new()
 		var dirn := 1.0 if rng.randf() < 0.5 else -1.0
-		m.box(Vector3(0, lerpf(waist, sh.y, 0.55), J[C.CHEST].z), Vector3(sh.x * 0.95, 0.035 * u, 1.0), 0.01, Basis(Vector3.BACK, 0.75 * dirn))
-		kit.shells.append({mask = m, thick = 0.04 * u, col = leather})
+		m.box(Vector3(0, lerpf(waist, sh.y, 0.55), J[C.CHEST].z), Vector3(sh.x * 0.95, 0.055 * u, 1.0), 0.01, Basis(Vector3.BACK, 0.75 * dirn))
+		kit.shells.append({mask = m, thick = 0.028 * u, col = leather})
 	for side in 2:
 		var o := C.RIGHT * side
 		var sx := 1.0 - 2.0 * side

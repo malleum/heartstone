@@ -96,7 +96,7 @@ func teleport(p: Vector3, yaw: float) -> void:
 ## A blow from world direction dir (pointing the way the force travels).
 func hit(dir: Vector3, strength := 1.0) -> void:
 	var local := Basis(Vector3.UP, -heading) * dir.normalized()
-	lean_v += Vector2(-local.x, local.z) * 7.0 * strength
+	lean_v += Vector2(-local.x, local.z) * 13.0 * strength
 	push += dir.normalized() * 2.2 * strength
 
 func die(dir: Vector3) -> void:
@@ -116,7 +116,7 @@ static func _rz(a: float) -> Basis: return Basis(Vector3.BACK, a)
 
 func compute(dt: float) -> void:
 	time += dt
-	lean_v += (-lean * 90.0 - lean_v * 7.0) * dt
+	lean_v += (-lean * 70.0 - lean_v * 6.0) * dt
 	lean += lean_v * dt
 	push *= exp(-3.5 * dt)
 	var v := vel + push if dead < 0.0 else push
@@ -129,6 +129,11 @@ func compute(dt: float) -> void:
 	root_y = lerpf(root_y, Terrain.height(pos.x, pos.z), 1.0 - exp(-5.0 * dt))
 	if dead >= 0.0:
 		dead += dt
+		# Legs give out: the feet skid away from the fall so the body can lie flat.
+		if dead < 1.3:
+			for i in 2:
+				ft_pos[i] -= Vector3(sin(heading), 0, cos(heading)) * dead_dir * 0.75 * L * dt
+				ft_pos[i].y = Terrain.height(ft_pos[i].x, ft_pos[i].z)
 
 	# Gait timing from dimensionless speed, so every leg length gets its own cadence.
 	var sp := speed_s / sqrt(9.8 * L)
@@ -216,9 +221,9 @@ func compute(dt: float) -> void:
 		fall = smoothstep(0.0, 1.0, dead / 1.1)
 		fall = fall * fall
 		var drop := smoothstep(0.0, 0.7, dead)
-		hips_pos.y = lerpf(hips_pos.y, 0.24 * L, drop)
+		hips_pos.y = lerpf(hips_pos.y, 0.17 * L, drop)
 		hips_pos.z += dead_dir * 0.35 * L * fall
-		r_hips = _rx(dead_dir * fall * 1.45) * _ry(yaw + fall * 0.4)
+		r_hips = _rx(dead_dir * fall * 1.55) * _ry(yaw + fall * 0.25)
 
 	# Feet to model space; keep the hips within reach of both ankles.
 	var ankle: Array[Vector3] = [Vector3(), Vector3()]
@@ -251,14 +256,14 @@ func compute(dt: float) -> void:
 	rot[C.CHEST] = rot[C.SPINE] * _ry(-yaw * 1.1) * _rz(-roll * 0.5 + hz * 0.5) * _rx(fwd_lean * 0.3 + hunch * 0.1 + hx * 0.5 + breath * 0.012 + limp * 0.3)
 	# The head stays level and looks where it wants; the neck splits the difference.
 	var look := look_yaw + sin(time * 0.31) * 0.35 * idle + sin(time * 0.83) * 0.1 * idle
-	var r_head := _ry(look) * _rx(0.05 + hunch * 0.1 + sin(time * 0.57) * 0.06 * idle - hx * 0.35 + bob / L * 1.0) * _rz(-hz * 0.3)
+	var r_head := _ry(look) * _rx(0.02 + hunch * 0.03 + sin(time * 0.57) * 0.06 * idle - hx * 0.35 + bob / L * 1.0) * _rz(-hz * 0.3)
 	if dead >= 0.0:
 		r_head = rot[C.CHEST] * _rx(-0.3 * fall * dead_dir)
 	rot[C.NECK] = Basis(rot[C.CHEST].get_rotation_quaternion().slerp(r_head.get_rotation_quaternion(), 0.5))
 	rot[C.HEAD] = r_head
 
 	# --- arms: hang under gravity, swing against the legs -------------------
-	var arm_amp := lerpf(0.22 + 0.08 * heavy, 0.75, runb) * walk_amt
+	var arm_amp := lerpf(0.38 - 0.1 * heavy, 0.75, runb) * walk_amt
 	var chest_yaw := -yaw * 0.7
 	for i in 2:
 		var o := C.RIGHT * i
@@ -268,15 +273,16 @@ func compute(dt: float) -> void:
 		# A weapon arm swings less and stays cocked so the blade rides clear of the legs.
 		if armed:
 			swing *= 0.45
-		var adrop := 0.7 - (0.2 + 0.12 * heavy) - breath * 0.01
+		var adrop := 0.7 - (0.08 + 0.12 * heavy) - breath * 0.01
 		var hang := 0.05 * hunch - 0.06
 		var flex := lerpf(0.18 + 0.1 * hunch, 1.3, runb) + maxf(swing, 0.0) * 0.6 + (0.45 if armed else 0.0)
 		var base := _ry(chest_yaw + sx * 0.12) * _rz(-hz * 0.5)
 		var r_u := base * _rx(-swing - hang + hx * 0.6) * _rz(-sx * adrop)
 		var r_f := base * _rx(-swing - hang - flex + hx * 0.3) * _rz(-sx * adrop)
 		if dead >= 0.0:
-			r_u = rot[C.CHEST] * _rz(sx * 0.5 * fall) * _rx(-0.6 * fall * dead_dir) * _rz(-sx * adrop * (1.0 - fall))
-			r_f = r_u * _rx(-0.5)
+			# Limp: arms settle beside the body instead of holding a pose.
+			r_u = rot[C.CHEST] * _rz(-sx * (adrop - 0.25 * fall)) * _rx(-0.25 * fall)
+			r_f = r_u * _rx(-0.3 * fall)
 		rot[C.CLAV + o] = rot[C.CHEST]
 		rot[C.UARM + o] = r_u
 		rot[C.FARM + o] = r_f

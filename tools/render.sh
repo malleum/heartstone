@@ -7,6 +7,7 @@
 # Frames land in <out-dir>/f00000000.png ... (Godot movie writer, fixed 30 fps,
 # so results are deterministic and independent of real frame rate).
 # Env: RES=1280x720  SCENE=res://path.tscn  KEEP_EVERY=n (delete other frames)
+#      LAST=1 (keep only the final frame, as <out-dir>/last.png: use for stills)
 #      NOMOVIE=1 (run realtime, no frame dump: use for fps measurements)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -61,6 +62,11 @@ if [[ -z ${NOMOVIE:-} ]]; then
   rm -f "$out/f.wav"
   if [[ -n ${KEEP_EVERY:-} ]]; then
     i=0; for f in "$out"/f*.png; do (( i++ % KEEP_EVERY == 0 )) || rm "$f"; done
+  fi
+  if [[ -n ${LAST:-} ]]; then
+    last=$(ls "$out"/f*.png | tail -n 1)
+    for f in "$out"/f*.png; do [[ $f == "$last" ]] || rm "$f"; done
+    mv "$last" "$out/last.png"; echo "$out/last.png"; exit 0
   fi
   ls "$out"/f*.png | tail -n 1
 fi

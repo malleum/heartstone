@@ -22,12 +22,12 @@ void fragment() {
 	float n = fbm(wp.xz * 0.6);
 	float fine = fbm(wp.xz * 6.0);
 	float slope = 1.0 - wn.y;
-	vec3 dirt = mix(vec3(0.115, 0.095, 0.075), vec3(0.2, 0.17, 0.13), n);
+	vec3 dirt = mix(vec3(0.13, 0.125, 0.115), vec3(0.24, 0.23, 0.21), n);
 	vec3 rock = mix(vec3(0.16, 0.155, 0.15), vec3(0.3, 0.29, 0.27), fine);
 	vec3 grass = vec3(0.13, 0.14, 0.06) * (0.6 + fine);
 	vec3 c = mix(dirt, grass, smoothstep(0.5, 0.65, fbm(wp.xz * 0.23 + 40.0)) * 0.7);
 	c = mix(c, rock, smoothstep(0.03, 0.12, slope + (fine - 0.5) * 0.08));
-	ALBEDO = c * (0.75 + 0.5 * fine) * 0.62;
+	ALBEDO = c * (0.75 + 0.5 * fine) * 0.7;
 	ROUGHNESS = 0.95;
 	float h = fine;
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);

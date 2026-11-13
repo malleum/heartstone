@@ -1,5 +1,105 @@
 class_name Wardrobe
 extends RefCounted
+## Human clothing by origin. An outfit is a row of garments; a garment is a shell
+## (see Creature._shell) described by where it starts and stops on the body.
+## Colours are sRGB here and converted on use.
 
-static func dress(_s: Dictionary, _J: PackedVector3Array, _rng: RandomNumberGenerator, _kit: Dictionary) -> void:
-	pass
+const C := preload("res://src/gen/creature.gd")
+
+# Each garment: [kind, colour, params...]. Kinds are handled in dress().
+const OUTFITS := {
+	two_rivers = [["trousers", Color(0.2, 0.17, 0.14)], ["boots", Color(0.13, 0.09, 0.06), 0.55], ["coat", Color(0.3, 0.33, 0.2), 0.25, 1.0], ["belt", Color(0.15, 0.1, 0.06)]],
+	aiel = [["trousers", Color(0.42, 0.38, 0.3)], ["boots", Color(0.3, 0.24, 0.17), 0.8], ["coat", Color(0.45, 0.41, 0.32), 0.12, 1.0], ["belt", Color(0.25, 0.2, 0.14)], ["shoufa", Color(0.4, 0.36, 0.28)]],
+	aes_sedai = [["boots", Color(0.2, 0.15, 0.1), 0.3], ["dress", Color(0.1, 0.25, 0.5), Color(0.8, 0.8, 0.85)], ["shawl", Color(0.85, 0.85, 0.82), Color(0.1, 0.25, 0.5)]],
+	cairhien = [["trousers", Color(0.08, 0.08, 0.09)], ["boots", Color(0.06, 0.05, 0.05), 0.6], ["coat", Color(0.09, 0.09, 0.11), 0.5, 1.0, [Color(0.6, 0.1, 0.1), Color(0.75, 0.6, 0.15), Color(0.15, 0.3, 0.6)]], ["belt", Color(0.05, 0.05, 0.05)]],
+	warder = [["trousers", Color(0.16, 0.19, 0.15)], ["boots", Color(0.1, 0.08, 0.06), 0.7], ["coat", Color(0.17, 0.22, 0.16), 0.3, 1.0], ["belt", Color(0.12, 0.08, 0.05)], ["sword"]],
+	domani = [["boots", Color(0.3, 0.2, 0.12), 0.3], ["dress", Color(0.55, 0.2, 0.22), Color(0.8, 0.65, 0.3)], ["belt", Color(0.7, 0.55, 0.2)]],
+}
+
+static func _c(c: Color, kind: float) -> Color:
+	return Color(c.srgb_to_linear(), kind)
+
+## Torso garments use a full-width band (no gaps under the arms) with the bind-pose
+## hands cut back out of it.
+static func _torso(y0: float, y1: float, J: PackedVector3Array, u: float) -> Sdf:
+	var m := Gear._band(y0, y1, 3.0, 0.0)
+	for side in 2:
+		var o := C.RIGHT * side
+		var c := m.cone(J[C.HAND + o].lerp(J[C.NB + side], 0.25), J[C.NB + side], 0.1 * u, 0.12 * u)
+		c.op = Sdf.CARVE; c.k = 0.01
+	return m
+
+static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenerator, kit: Dictionary) -> void:
+	var u: float = s.height / 1.8
+	var hip_y := J[C.THIGH].y; var sh := J[C.UARM]
+	var waist := J[C.HIPS].y + 0.085 * u
+	var half := sh.x * 1.02       # keeps bind-pose hands out of torso garments
+	for g in OUTFITS[s.outfit]:
+		match g[0]:
+			"trousers":
+				kit.shells.append({mask = Gear._band(J[C.FOOT].y + 0.02 * u, waist, half, 0.0), thick = 0.011 * u, col = _c(g[1], Gear.CLOTH)})
+			"boots":
+				var top := lerpf(J[C.FOOT].y, J[C.SHIN].y, g[2])
+				kit.shells.append({mask = Gear._band(-0.1, top, half, 0.0), thick = 0.017 * u, col = _c(g[1], Gear.LEATHER)})
+			"coat":
+				var hem := lerpf(hip_y, J[C.SHIN].y, g[2])
+				var m := _torso(hem, J[C.NECK].y + 0.045 * u, J, u)
+				for side in 2:
+					var o := C.RIGHT * side
+					m.cone(J[C.UARM + o], J[C.UARM + o].lerp(J[C.HAND + o], 0.93 * g[3]), 0.085 * u, 0.06 * u)
+				var sh_ := {mask = m, thick = 0.022 * u, col = _c(g[1], Gear.CLOTH)}
+				if g.size() > 4:
+					# Cairhienin slashes of House colour across the chest.
+					var p := Sdf.new()
+					var stripes: Array = g[4]
+					for i in stripes.size():
+						var y := lerpf(J[C.CHEST].y, sh.y, 0.25 + 0.3 * i)
+						p.use(0, _c(stripes[i], Gear.CLOTH), 0.004)
+						p.box(Vector3(0, y, 0.1 * u), Vector3(half * 0.8, 0.014 * u, 0.2 * u), 0.002).op = Sdf.PAINT
+					sh_.paint = p
+				kit.shells.append(sh_)
+			"belt":
+				kit.shells.append({mask = Gear._band(waist - 0.022 * u, waist + 0.022 * u, half * 0.93, 0.0), thick = 0.03 * u, col = _c(g[1], Gear.LEATHER)})
+			"shoufa":
+				var m := Sdf.new()
+				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u
+				m.ball(hc, Vector3(0.13, 0.115, 0.115) * u)
+				m.ball(J[C.NECK] + Vector3(0, 0.01, 0) * u, Vector3(0.12, 0.07, 0.1) * u)
+				kit.shells.append({mask = m, thick = 0.012 * u, col = _c(g[1], Gear.CLOTH)})
+			"shawl":
+				var m := Sdf.new()
+				m.box(Vector3(0, sh.y - 0.07 * u, J[C.CHEST].z - 0.3 * u), Vector3(1.0, 0.16 * u, 0.33 * u), 0.02, Basis(Vector3.RIGHT, 0.5))
+				m.box(Vector3(0, sh.y + 0.0 * u, 0), Vector3(1.0, 0.07 * u, 0.5 * u), 0.02)
+				for side in 2:
+					var o := C.RIGHT * side
+					m.cone(J[C.UARM + o], J[C.FARM + o], 0.09 * u, 0.09 * u)
+				var p := Sdf.new()
+				p.use(0, _c(g[2], Gear.CLOTH), 0.01)
+				p.box(Vector3(0, sh.y - 0.2 * u, 0), Vector3(1.0, 0.03 * u, 1.0), 0.002).op = Sdf.PAINT
+				kit.shells.append({mask = m, thick = 0.034 * u, col = _c(g[1], Gear.CLOTH), paint = p, coarse_only = true})
+			"dress":
+				# Bodice hugs the body; the skirt is its own bell that rides on both legs.
+				var m := _torso(J[C.SHIN].y, J[C.NECK].y + 0.03 * u, J, u)
+				for side in 2:
+					var o := C.RIGHT * side
+					m.cone(J[C.UARM + o], J[C.UARM + o].lerp(J[C.HAND + o], 0.9), 0.08 * u, 0.055 * u)
+				var skirt := Sdf.new()
+				skirt.k = 0.03 * u
+				skirt.cone(Vector3(0, waist - 0.05 * u, 0), Vector3(0, 0.27 * u, 0), 0.15 * u, 0.3 * u, Vector2(1, 0.85))
+				var p := Sdf.new()
+				p.use(0, _c(g[2], Gear.CLOTH), 0.008)
+				p.box(Vector3(0, 0.06 * u, 0), Vector3(1.0, 0.035 * u, 1.0), 0.002).op = Sdf.PAINT
+				p.box(Vector3(0, J[C.NECK].y - 0.015 * u, 0), Vector3(1.0, 0.02 * u, 1.0), 0.002).op = Sdf.PAINT
+				kit.shells.append({mask = m, thick = 0.014 * u, col = _c(g[1], Gear.CLOTH), solid = skirt, paint = p, wide = true})
+			"sword":
+				var p := Sdf.new()
+				var steel := Color(0.3, 0.3, 0.32, Gear.PLATE)
+				var a := J[C.HIPS] + Vector3(0.19, 0.06, 0.02) * u
+				var dir := Vector3(0.12, -0.9, -0.42).normalized()
+				p.use(C.HIPS, _c(Color(0.12, 0.08, 0.05), Gear.LEATHER), 0.006)
+				p.cone(a, a + dir * 0.85 * u, 0.026 * u, 0.016 * u, Vector2(0.5, 1))
+				p.use(C.HIPS, steel, 0.006)
+				p.box(a - dir * 0.01 * u, Vector3(0.012, 0.012, 0.07) * u, 0.006 * u)
+				p.cone(a - dir * 0.02 * u, a - dir * 0.2 * u, 0.014 * u, 0.014 * u)
+				p.ball(a - dir * 0.21 * u, Vector3.ONE * 0.022 * u)
+				kit.props.append(p)

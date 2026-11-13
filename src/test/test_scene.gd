@@ -16,21 +16,26 @@ func _world() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky := ProceduralSkyMaterial.new()
-	sky.sky_top_color = Color(0.22, 0.26, 0.34); sky.sky_horizon_color = Color(0.55, 0.5, 0.45)
+	sky.sky_top_color = Color(0.28, 0.33, 0.42); sky.sky_horizon_color = Color(0.62, 0.62, 0.64)
 	sky.ground_bottom_color = Color(0.08, 0.07, 0.06); sky.ground_horizon_color = Color(0.5, 0.45, 0.4)
 	env.sky = Sky.new(); env.sky.sky_material = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.9
+	env.ambient_light_energy = 0.75
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.ssao_enabled = true
-	env.fog_enabled = true; env.fog_light_color = Color(0.5, 0.46, 0.42); env.fog_density = 0.006
+	env.fog_enabled = true; env.fog_light_color = Color(0.5, 0.52, 0.56); env.fog_density = 0.006
 	var we := WorldEnvironment.new(); we.environment = env; add_child(we)
 	sun = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-42, 38, 0)
-	sun.light_color = Color(1.0, 0.9, 0.78); sun.light_energy = 1.9
+	sun.rotation_degrees = Vector3(-30, 42, 0)
+	sun.light_color = Color(1.0, 0.9, 0.78); sun.light_energy = 2.6
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 60.0
 	add_child(sun)
+	# Cool rim from behind so dark creatures separate from the ground.
+	var rim := DirectionalLight3D.new()
+	rim.rotation_degrees = Vector3(-25, -150, 0)
+	rim.light_color = Color(0.6, 0.72, 1.0); rim.light_energy = 0.55
+	add_child(rim)
 	Terrain.amp = float(args.get("amp", "1"))
 	add_child(Terrain.build_mesh(160.0, 0.5))
 	cam = Camera3D.new(); cam.fov = 50.0; add_child(cam)
@@ -68,9 +73,18 @@ func _process(dt: float) -> void:
 	frame += 1
 	if events.has(frame):
 		events[frame].call()
+	var t0 := Time.get_ticks_usec()
+	if walkers.size() > 16 and not args.has("nothreads"):
+		# Gait maths is pure per-creature state, so a horde spreads across cores.
+		var id := WorkerThreadPool.add_group_task(func(i: int) -> void: walkers[i].compute(dt), walkers.size())
+		WorkerThreadPool.wait_for_group_task_completion(id)
+	else:
+		for w in walkers:
+			w.compute(dt)
+	var t1 := Time.get_ticks_usec()
 	for w in walkers:
-		w.compute(dt)
 		w.apply()
+	_bench(t0, t1)
 	if slide_check and not walkers.is_empty():
 		_audit()
 	if follow:
@@ -91,11 +105,75 @@ func _trollocs(n: int, extra := {}) -> Array:
 		specs.append(Species.roll(Species.TROLLOC, seed0 + i, o))
 	return _generate(specs)
 
+# --- fps bench: frame times over a window, after a warm-up --------------------
+var _bt := 0; var _bn := 0; var _b_anim := 0; var _b_apply := 0; var _b_last := 0; var _b_worst := 0
+func _bench(t0: int, t1: int) -> void:
+	if not args.has("bench"):
+		return
+	var now := Time.get_ticks_usec()
+	if frame > 120:
+		var dt := now - _b_last
+		_bt += dt; _bn += 1; _b_anim += t1 - t0; _b_apply += now - t1; _b_worst = maxi(_b_worst, dt)
+	_b_last = now
+	if frame == 120:
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	if frame == 120 + int(args.bench):
+		var vp := get_viewport().get_viewport_rid()
+		print("BENCH n=%d  avg %.2f ms (%.0f fps)  worst %.1f ms | gait compute %.2f ms, pose apply %.2f ms | render cpu %.2f ms, gpu %.2f ms | tris/frame %d, draw calls %d" % [
+			walkers.size(), _bt / 1000.0 / _bn, 1e6 * _bn / _bt, _b_worst / 1000.0, _b_anim / 1000.0 / _bn, _b_apply / 1000.0 / _bn,
+			RenderingServer.viewport_get_measured_render_time_cpu(vp) + RenderingServer.get_frame_setup_time_cpu(), RenderingServer.viewport_get_measured_render_time_gpu(vp),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+		get_tree().quit()
+
+## The stress test: a horde lumbering at the camera. A few generated variants are
+## shared between many skeletons, as a real wave spawner would do.
+func _mode_horde() -> void:
+	var n := int(_f("n", 200))
+	var variants := int(_f("variants", 16))
+	var data := _trollocs(variants, {lod = _f("lod", 1.7)})
+	var rng := RandomNumberGenerator.new(); rng.seed = 5
+	var cols := int(_f("cols", 14))
+	for i in n:
+		var x := (i % cols - (cols - 1) * 0.5) * 2.3 + rng.randf_range(-0.7, 0.7)
+		var z := -8.0 - (i / cols) * 2.6 + rng.randf_range(-0.8, 0.8)
+		var w := _spawn(data[i % variants], x, z, 0.0)
+		w.vel = Vector3(rng.randf_range(-0.08, 0.08), 0, rng.randf_range(1.15, 1.75)) * _f("speed", 1.0)
+		w.phase = rng.randf()
+	var y0 := Terrain.height(0, 6)
+	_look(Vector3(_f("cx", 0.6), y0 + _f("camy", 2.6), 6), Vector3(0, y0 + 1.2, -12))
+
+func _humans(n: int) -> Array:
+	var seed0 := int(_f("seed", 1))
+	var outfits: Array = Species.HUMAN.outfit
+	var specs := []
+	for i in n:
+		var o := {outfit = outfits[(i + seed0) % outfits.size()]}
+		o.fem = 1.0 if o.outfit in ["aes_sedai", "domani"] or (i % 3 == 1) else 0.0
+		if o.fem > 0.5: o.hair = ["long", "bun", "braid", "tail"][i % 4]
+		if o.outfit == "aiel": o.hair = "short"
+		specs.append(Species.roll(Species.HUMAN, seed0 + i, o))
+	return _generate(specs)
+
+## The human test: origin outfits and rolled faces. --mode=humans --dist=1.4 for faces.
+func _mode_humans() -> void:
+	var n := int(_f("n", 6))
+	var data := _humans(n)
+	var gap := _f("gap", 1.0)
+	Terrain.amp = 0.0
+	for i in n:
+		var w := _spawn(data[i], (i - (n - 1) * 0.5) * gap, 0.0)
+		if args.has("walk"):
+			w.vel = Vector3(0, 0, _f("walk", 1.3))
+	var d := _f("dist", 4.6); var ang := deg_to_rad(_f("yaw", 0)); var cx := _f("cx", 0)
+	_look(Vector3(cx + sin(ang) * d, _f("camy", 1.3), cos(ang) * d), Vector3(cx, _f("aty", 1.0), 0))
+	if args.has("walk"):
+		follow = walkers[n / 2]; follow_off = Vector3(sin(ang) * d, 0.2, cos(ang) * d)
+
 ## Idle line-up, seen from roughly where a third-person player camera would sit.
 func _mode_lineup() -> void:
 	var n := int(_f("n", 8))
 	var data := _trollocs(n)
-	var gap := _f("gap", 1.9)
+	var gap := _f("gap", 2.2)
 	for i in n:
 		_spawn(data[i], (i - (n - 1) * 0.5) * gap, 0.0)
 	var d := _f("dist", 9); var ang := deg_to_rad(_f("yaw", 0)); var cx := _f("cx", 0)
