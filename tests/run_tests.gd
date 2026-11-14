@@ -21,6 +21,7 @@ func play(profile: Dictionary, activity: String, max_s := 600.0) -> Sim:
 func _init() -> void:
 	Rules.load_data()
 	print("== rules")
+	Profile.dir = "user://test_profiles"
 	var p := Profile.create({name = "Test Novice", power = "saidar", potential_pts = 6, affinity_pts = {fire = 4, air = 2}, talents = ["healing"]})
 	check(Rules.cast_block(p, "fireball", 2, 100.0) == "", "novice can cast fireball")
 	check(Rules.cast_block(p, "arrows_of_fire", 2, 100.0) == "not learned", "unknown weave refused")

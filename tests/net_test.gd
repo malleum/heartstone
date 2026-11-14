@@ -33,6 +33,7 @@ func _init() -> void:
 			await process_frame
 		s.set_physics_process(true)
 	else:
+		Profile.dir = "user://test_profiles"
 		var p := Profile.create({name = "Net " + a[1], potential_pts = 8})
 		var before: float = p.channelled
 		s.join("127.0.0.1", p)

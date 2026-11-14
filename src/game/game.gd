@@ -31,9 +31,7 @@ var my_hp := 100.0
 var frame := 0
 
 func _ready() -> void:
-	for a in OS.get_cmdline_user_args():
-		var kv := a.trim_prefix("--").split("=")
-		args[kv[0]] = kv[1] if kv.size() > 1 else "1"
+	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
 	Rules.load_data()
 	World.build(self)
 	Terrain.amp = 0.45
@@ -79,6 +77,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif (ev.keycode == KEY_ENTER and _done) or ev.keycode == KEY_F10:
+			_to_camp()
 		elif ev.keycode == KEY_Q:
 			selected = posmod(selected - 1, n_known)
 		elif ev.keycode == KEY_E:
@@ -163,6 +163,12 @@ func _process(dt: float) -> void:
 		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
+
+## Leaving mid-activity (F10) abandons it: nothing is awarded, nothing is lost.
+func _to_camp() -> void:
+	multiplayer.multiplayer_peer = null
+	Launch.args = {}
+	get_tree().change_scene_to_file("res://src/game/camp.tscn")
 
 ## Blasts shake the camera by size and nearness.
 func shake_at(at: Vector3, radius: float) -> void:
@@ -323,5 +329,9 @@ var _done := false
 func _on_finished(success: bool, report: Array) -> void:
 	_done = true
 	banner.text = ("The line held.\n\n" if success else "You fell. In the camp you wake, and remember.\n\n") + "\n".join(report)
+	Launch.report = report
+	Launch.last_name = profile.name
+	if not args.has("auto"):
+		banner.text += "\n\nEnter: back to camp"
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])

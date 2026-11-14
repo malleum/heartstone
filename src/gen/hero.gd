@@ -15,7 +15,7 @@ const HAIR := [Color(0.16, 0.1, 0.06), Color(0.38, 0.22, 0.1), Color(0.62, 0.3, 
 static var _libs := {}   # kind -> AnimationLibrary fitted to that body's proportions
 
 static func kind_for(profile: Dictionary) -> String:
-	if profile.has("look") and profile.look in KINDS:
+	if profile.get("look") is String and profile.look in KINDS:
 		return profile.look
 	var sex := "female" if profile.get("power", "saidar") == "saidar" else "male"
 	return sex + ("_ranger" if profile.get("origin", "") in RANGER_ORIGINS else "_peasant")

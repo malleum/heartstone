@@ -5,6 +5,8 @@ extends RefCounted
 ## unchanged. Creation choices are fixed; everything under "growth" only ever goes up.
 
 const VERSION := 1
+## Tests point this elsewhere so they never litter the player's character list.
+static var dir := "user://profiles"
 const CREATION_POINTS := 20
 const TALENTS: Array[String] = ["healing", "travelling", "skimming", "cloud_dancing", "earth_singing", "illusion", "reading_residues", "reading_weaves", "unweaving", "listening_to_the_wind", "dreaming", "foretelling"]
 
@@ -44,10 +46,10 @@ static func create(opts: Dictionary) -> Dictionary:
 	return p
 
 static func path(name: String) -> String:
-	return "user://profiles/%s.json" % name.to_lower().validate_filename()
+	return "%s/%s.json" % [dir, name.to_lower().validate_filename()]
 
 static func save(p: Dictionary) -> void:
-	DirAccess.make_dir_recursive_absolute("user://profiles")
+	DirAccess.make_dir_recursive_absolute(dir)
 	var f := FileAccess.open(path(p.name), FileAccess.WRITE)
 	f.store_string(JSON.stringify(p, "  "))
 
