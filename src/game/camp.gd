@@ -188,7 +188,7 @@ func _creation() -> void:
 		make.potential.max_value = Profile.max_potential_pts(make.power.get_selected_metadata())
 		_creation_changed())
 	_fill_looks()
-	_text(side, "Twenty points, spent once. Potential is how strong you can ever become, on the Aes Sedai scale: 72 is the weakest, 1 the strongest woman, and ++6 to ++1 the men beyond her. Affinity is how readily each Power answers you. A Talent costs four; it does not unlock a weave, it makes you far better at it.", 14, Color(0.7, 0.72, 0.78))
+	_text(side, "Twenty points, spent once. Potential is how strong you can ever become, on the Aes Sedai scale: 72 is the weakest, 1 the strongest woman, and ++6 to ++1 the men beyond her. Affinity is how readily each Power answers you. The two Powers of your half of the Source (Air and Water for saidar, Earth and Fire for saidin) cost half for their first three points. You begin with the simplest weave of your strongest Power. A Talent costs four; it does not unlock a weave, it makes you far better at it.", 14, Color(0.7, 0.72, 0.78))
 	make.potential = _spin(side, "Potential", 14, 8)
 	make.aff = {}
 	for e in Rules.ELEMENTS:
@@ -216,20 +216,20 @@ func _fill_looks() -> void:
 			make.look.add_item(all[id].label); make.look.set_item_metadata(make.look.item_count - 1, id)
 	make.look.select(0)
 
-func _points_left() -> int:
-	var spent := int(make.potential.value)
+func _points_left() -> float:
+	var spent: float = make.potential.value
 	for e in make.aff:
-		spent += int(make.aff[e].value)
+		spent += Profile.affinity_cost(make.power.get_selected_metadata(), e, int(make.aff[e].value))
 	for t in make.talents:
 		if make.talents[t].button_pressed:
-			spent += 4
+			spent += 4.0
 	return Profile.CREATION_POINTS - spent
 
 func _creation_changed() -> void:
 	if not make.has("go"):
 		return
 	var left := _points_left()
-	make.left.text = "Potential %s   ·   points left: %d" % [Rules.level_name(Profile.potential_level(make.power.get_selected_metadata(), int(make.potential.value))), left]
+	make.left.text = "Potential %s   ·   points left: %s" % [Rules.level_name(Profile.potential_level(make.power.get_selected_metadata(), int(make.potential.value))), String.num(left, 1)]
 	make.left.add_theme_color_override("font_color", Color(1, 0.4, 0.3) if left < 0 else Color(0.9, 0.9, 0.92))
 	make.go.disabled = left < 0
 	var kind: String = make.look.get_selected_metadata()

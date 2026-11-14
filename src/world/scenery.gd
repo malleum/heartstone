@@ -99,10 +99,9 @@ static func _multi(g: Node3D, mesh: Mesh, xfs: Array, shadows := false) -> void:
 	g.add_child(mi)
 
 ## A leafless tree: this close to the Blight nothing is in leaf.
-static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
+static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator, hgt := 5.0) -> void:
 	var bark := _mat(Color(0.12, 0.1, 0.085))
 	var root := Node3D.new(); g.add_child(root); root.position = at; root.rotation.y = rng.randf() * TAU
-	var hgt := rng.randf_range(3.5, 6.5)
 	var limb := func(parent: Node3D, from: Vector3, dir: Vector3, len: float, r: float) -> Node3D:
 		var mi := MeshInstance3D.new(); var c := CylinderMesh.new()
 		c.top_radius = r * 0.45; c.bottom_radius = r; c.height = len; c.radial_segments = 6; c.rings = 1
@@ -111,7 +110,7 @@ static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> voi
 		n.basis = Basis(Quaternion(Vector3.UP, dir.normalized()))
 		n.add_child(mi); mi.position.y = len * 0.5
 		return n
-	var trunk: Node3D = limb.call(root, Vector3.ZERO, Vector3(rng.randf_range(-0.15, 0.15), 1, rng.randf_range(-0.15, 0.15)), hgt, 0.22)
+	var trunk: Node3D = limb.call(root, Vector3.ZERO, Vector3(rng.randf_range(-0.15, 0.15), 1, rng.randf_range(-0.15, 0.15)), hgt, 0.3)
 	for i in rng.randi_range(4, 7):
 		var y := hgt * rng.randf_range(0.4, 0.98)
 		var a := rng.randf() * TAU
@@ -155,8 +154,6 @@ static func scatter(g: Node3D) -> void:
 		var b := Basis.from_euler(Vector3(rng.randf(), rng.randf() * TAU, rng.randf())).scaled(Vector3(s, s * rng.randf_range(0.5, 0.9), s * rng.randf_range(0.7, 1.3)))
 		stones.append(Transform3D(b, _ground(x, z) + Vector3(0, s * 0.12, 0)))
 	_multi(g, stone, stones, true)
-	for i in 22:
-		var z := rng.randf_range(-95.0, 30.0) if gap else rng.randf_range(-60.0, 30.0)
-		var side := -1.0 if rng.randf() < 0.5 else 1.0
-		var x := side * (Map.half_width(z) + rng.randf_range(-2.5, 2.0)) if gap else side * rng.randf_range(9.0, 45.0)
-		dead_tree(g, _ground(x, z) - Vector3(0, 0.2, 0), rng)
+	# Trees stand where the map says, because the sim collides with them there.
+	for t in Map.trees():
+		dead_tree(g, _ground(t.x, t.z) - Vector3(0, 0.2, 0), rng, t.h)

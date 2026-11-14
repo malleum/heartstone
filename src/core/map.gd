@@ -13,9 +13,33 @@ const MAPS := {
 static var id := "open"
 static var m := {}
 
+static var _trees: Array = []
+
 static func use(map_id: String) -> void:
 	id = map_id if MAPS.has(map_id) else "open"
 	m = MAPS[id]
+	_trees = []
+	var rng := RandomNumberGenerator.new(); rng.seed = 23
+	for i in 22:
+		var z := rng.randf_range(-95.0, 30.0) if not m.is_empty() else rng.randf_range(-60.0, 30.0)
+		var side := -1.0 if rng.randf() < 0.5 else 1.0
+		var x := side * (half_width(z) + rng.randf_range(-2.5, 2.0)) if not m.is_empty() else side * rng.randf_range(9.0, 45.0)
+		_trees.append({x = x, z = z, r = 0.38, h = rng.randf_range(3.5, 6.5)})
+
+## Solid things standing on the map, as circles: the sim blocks movement and weaves
+## on them and the view draws a tree at each, so the two cannot disagree.
+static func trees() -> Array:
+	return _trees
+
+## Slide a position out of any tree trunk it overlaps.
+static func unblock(p: Vector3, radius: float) -> Vector3:
+	for t in _trees:
+		var d := Vector2(p.x - t.x, p.z - t.z)
+		var min_d: float = t.r + radius
+		if d.length_squared() < min_d * min_d and d.length_squared() > 1e-6:
+			d = d.normalized() * min_d
+			p.x = t.x + d.x; p.z = t.z + d.y
+	return p
 
 static func half_width(z: float) -> float:
 	if m.is_empty():

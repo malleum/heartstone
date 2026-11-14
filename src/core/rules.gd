@@ -114,7 +114,8 @@ static func cast_block(p: Dictionary, weave_id: String, free_slots: int, stamina
 	var w: Dictionary = weaves[weave_id]
 	if not p.weaves.get(weave_id, {}).get("known", false):
 		return "not learned"
-	if w.book > p.book_limit:
+	# The weave you were born knowing is never hidden by the spoiler setting.
+	if w.book > p.book_limit and p.get("starter", "") != weave_id:
 		return "beyond your reading"
 	# A strength gate is written as a Companion level; the Talent for the weave
 	# waives it (Androl makes gateways his strength should not allow).
@@ -157,6 +158,10 @@ static func form_time(p: Dictionary, weave_id: String) -> float:
 ## A tired channeller draws less of the Power, so the weave costs less too.
 static func draw_of(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 	return weaves[weave_id].draw * (1.0 - TUNE.mastery_thrift * mastery_level(p, weave_id)) * vigor(stamina)
+
+## Seconds before the same weave can be woven again; practice shortens it a little.
+static func cooldown(p: Dictionary, weave_id: String) -> float:
+	return weaves[weave_id].get("cooldown", 0.0) * (1.0 - 0.03 * mastery_level(p, weave_id))
 
 static func flow_capacity(p: Dictionary) -> int:
 	var n := 2

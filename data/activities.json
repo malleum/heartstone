@@ -1,7 +1,7 @@
 {
   "_doc": "Everything a player can start from the camp. All of them pay into the same character through Progression.award: nothing resets between activities. requires gates on renown and earlier clears; teaches are weaves the character sees woven and can then learn. kind: training | holdout | mission | spar.",
   "camp_training": {"name": "Training yard", "kind": "training", "blurb": "Novice exercises at the camp: weave at the practice posts.",
-    "requires": {}, "renown": 2, "teaches": ["hammer_of_air"], "yield": {"strength": 0.5, "mastery": 1.0},
+    "requires": {}, "renown": 2, "teaches": ["fireball", "hammer_of_air"], "yield": {"strength": 0.5, "mastery": 1.0},
     "waves": [{"t": 0, "spawn": {"dummy": 6}}]},
   "tarwins_gap_watch": {"map": "tarwins_gap", "name": "Tarwin's Gap: the watch", "kind": "holdout", "blurb": "A raiding fist comes down the pass at dusk. Hold the line.",
     "requires": {"done": ["camp_training"]}, "renown": 10, "teaches": ["dome_of_air", "arrows_of_fire"], "yield": {"strength": 1.0, "mastery": 1.0},

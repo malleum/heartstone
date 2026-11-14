@@ -38,6 +38,18 @@ const LOOKS := {
 ## Ids saved by earlier builds.
 const LEGACY := {male_peasant = "two_rivers_m", female_peasant = "two_rivers_f", male_ranger = "warder", female_ranger = "aiel_f"}
 
+## Release gestures a channeller may use; each person gets one per weave.
+const CASTS: Array[String] = ["Spell_Simple_Shoot", "Punch_Jab", "Punch_Cross", "Pistol_Shoot", "Sword_Attack"]
+
+static func _is_leg(path: NodePath) -> bool:
+	var bone := String(path).get_slice(":", 1)
+	return bone == "pelvis" or bone == "root" or bone.begins_with("thigh") or bone.begins_with("calf") or bone.begins_with("foot") or bone.begins_with("ball")
+
+## The gesture this person uses for this weave: random between people, but always
+## the same for one person and one weave, so it needs no storage.
+static func cast_clip(who: String, weave: String) -> String:
+	return CASTS[hash(who + "/" + weave) % CASTS.size()]
+
 static var _libs := {}   # base -> AnimationLibrary fitted to that body's proportions
 
 ## Every look, with the seven Aes Sedai shawls generated from the Ajah table.
@@ -151,6 +163,25 @@ static func _library(kind: String, sk: Skeleton3D) -> AnimationLibrary:
 					elif bone != "root":
 						a.remove_track(t)
 		lib.add_animation(clip, a)
+	# Weaving on the move: the library has no clip for it, so graft the jog's legs
+	# under each casting clip's upper body. Without this the feet slide.
+	var jog: Animation = lib.get_animation("Jog_Fwd")
+	for clip in CASTS + ["Spell_Simple_Enter"]:
+		var a: Animation = lib.get_animation(clip).duplicate(true)
+		for t in range(a.get_track_count() - 1, -1, -1):
+			if _is_leg(a.track_get_path(t)):
+				a.remove_track(t)
+		for t in jog.get_track_count():
+			if not _is_leg(jog.track_get_path(t)):
+				continue
+			var nt := a.add_track(jog.track_get_type(t))
+			a.track_set_path(nt, jog.track_get_path(t))
+			for rep in int(ceil(a.length / jog.length)):
+				for k in jog.track_get_key_count(t):
+					var at := jog.track_get_key_time(t, k) + rep * jog.length
+					if at <= a.length:
+						a.track_insert_key(nt, at, jog.track_get_key_value(t, k))
+		lib.add_animation(clip + "_Move", a)
 	src.free()
 	_libs[kind] = lib
 	return lib

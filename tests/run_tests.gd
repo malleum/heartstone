@@ -22,7 +22,7 @@ func _init() -> void:
 	Rules.load_data()
 	print("== rules")
 	Profile.dir = "user://test_profiles"
-	var p := Profile.create({name = "Test Novice", power = "saidar", potential_pts = 6, affinity_pts = {fire = 4, air = 2}, talents = ["healing"]})
+	var p := Profile.create({name = "Test Novice", power = "saidar", potential_pts = 6, affinity_pts = {fire = 6}, talents = ["healing"]})
 	check(Rules.cast_block(p, "fireball", 2, Rules.TUNE.stamina) == "", "novice can cast fireball")
 	check(Rules.cast_block(p, "arrows_of_fire", 2, Rules.TUNE.stamina) == "not learned", "unknown weave refused")
 	p.weaves["blossoms_of_fire"] = {known = true, xp = 0.0}

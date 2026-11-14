@@ -43,6 +43,9 @@ var push := Vector3.ZERO          # knockback velocity
 var lean := Vector2.ZERO          # hit-react spring (x sideways, y forward), radians
 var lean_v := Vector2.ZERO
 var dead := -1.0                  # seconds since death, or -1
+var downed := false               # knocked flat; gets up when cleared
+var floor_t := 0.0
+var swing_t := -1.0               # seconds into a weapon swing, or -1
 var dead_dir := 1.0
 var ft_pos: Array[Vector3] = [Vector3(), Vector3()]   # current ball position, world
 var ft_from: Array[Vector3] = [Vector3(), Vector3()]
@@ -93,6 +96,10 @@ func teleport(p: Vector3, yaw: float) -> void:
 		ft_pos[i] = w; ft_tgt[i] = w; ft_from[i] = w; ft_gy[i] = w.y
 		ft_yaw[i] = yaw; ft_swing[i] = false
 
+## Start a weapon swing; the blow lands 0.4 s later.
+func attack() -> void:
+	swing_t = 0.0
+
 ## A blow from world direction dir (pointing the way the force travels).
 func hit(dir: Vector3, strength := 1.0) -> void:
 	var local := Basis(Vector3.UP, -heading) * dir.normalized()
@@ -119,6 +126,11 @@ func compute(dt: float) -> void:
 	lean_v += (-lean * 70.0 - lean_v * 6.0) * dt
 	lean += lean_v * dt
 	push *= exp(-3.5 * dt)
+	floor_t = move_toward(floor_t, 1.0 if downed else 0.0, dt * (2.2 if downed else 1.1))
+	if swing_t >= 0.0:
+		swing_t += dt
+		if swing_t > 0.9:
+			swing_t = -1.0
 	var v := vel + push if dead < 0.0 else push
 	v.y = 0.0
 	var speed := v.length()
@@ -216,11 +228,14 @@ func compute(dt: float) -> void:
 	var r_hips := _ry(yaw) * _rz(roll) * _rx(fwd_lean * 0.4)
 
 	var fall := 0.0
-	if dead >= 0.0:
+	# Knocked down is the death fall played part-way and reversed to get up again.
+	var floored := dead >= 0.0 or floor_t > 0.001
+	if floored:
 		# Procedural death: knees give way, then the body topples the way it was hit.
-		fall = smoothstep(0.0, 1.0, dead / 1.1)
+		var ft := dead / 1.1 if dead >= 0.0 else floor_t
+		fall = smoothstep(0.0, 1.0, ft)
 		fall = fall * fall
-		var drop := smoothstep(0.0, 0.7, dead)
+		var drop := smoothstep(0.0, 0.7, ft)
 		hips_pos.y = lerpf(hips_pos.y, 0.17 * L, drop)
 		hips_pos.z += dead_dir * 0.35 * L * fall
 		r_hips = _rx(dead_dir * fall * 1.55) * _ry(yaw + fall * 0.25)
@@ -237,7 +252,7 @@ func compute(dt: float) -> void:
 		var tilt := Basis(Quaternion(Vector3.UP, Vector3.UP.lerp(n, 0.0 if ft_swing[i] else 0.85).normalized()))
 		r_flat[i] = tilt * _ry(ft_yaw[i] - heading)
 		r_foot[i] = r_flat[i] * _rx(ft_pitch[i])
-		if dead >= 0.0:
+		if floored:
 			r_foot[i] = r_flat[i] * _rx(fall * 0.9)
 		ankle[i] = ball - r_foot[i] * foot_vec[i]
 		var h := hips_pos + r_hips * off[C.THIGH + o]
@@ -257,7 +272,7 @@ func compute(dt: float) -> void:
 	# The head stays level and looks where it wants; the neck splits the difference.
 	var look := look_yaw + sin(time * 0.31) * 0.35 * idle + sin(time * 0.83) * 0.1 * idle
 	var r_head := _ry(look) * _rx(0.02 + hunch * 0.03 + sin(time * 0.57) * 0.06 * idle - hx * 0.35 + bob / L * 1.0) * _rz(-hz * 0.3)
-	if dead >= 0.0:
+	if floored:
 		r_head = rot[C.CHEST] * _rx(-0.3 * fall * dead_dir)
 	rot[C.NECK] = Basis(rot[C.CHEST].get_rotation_quaternion().slerp(r_head.get_rotation_quaternion(), 0.5))
 	rot[C.HEAD] = r_head
@@ -279,7 +294,15 @@ func compute(dt: float) -> void:
 		var base := _ry(chest_yaw + sx * 0.12) * _rz(-hz * 0.5)
 		var r_u := base * _rx(-swing - hang + hx * 0.6) * _rz(-sx * adrop)
 		var r_f := base * _rx(-swing - hang - flex + hx * 0.3) * _rz(-sx * adrop)
-		if dead >= 0.0:
+		if armed and swing_t >= 0.0 and not floored:
+			# Overhead chop: the arm goes up and back, comes down hard, then recovers.
+			# The blow lands at 0.4 s, when the sim applies the damage.
+			var up := smoothstep(0.0, 0.3, swing_t) * (1.0 - smoothstep(0.34, 0.44, swing_t))
+			var thru := smoothstep(0.34, 0.44, swing_t) * (1.0 - smoothstep(0.55, 0.85, swing_t))
+			var ang := -2.9 * up - 0.95 * thru
+			r_u = base * _rx(ang) * _rz(-sx * 0.25)
+			r_f = base * _rx(ang - 0.9 * up - 0.15 * thru) * _rz(-sx * 0.25)
+		if floored:
 			# Limp: arms settle beside the body instead of holding a pose.
 			r_u = rot[C.CHEST] * _rz(-sx * (adrop - 0.25 * fall)) * _rx(-0.25 * fall)
 			r_f = r_u * _rx(-0.3 * fall)
@@ -299,14 +322,14 @@ func compute(dt: float) -> void:
 			to *= reach / dist
 		var tgt := hip + to
 		var pole := _ry((ft_yaw[i] - heading) * 0.6) * Vector3(sx * (0.1 + 0.12 * heavy), 0, 1)
-		if dead >= 0.0:
+		if floored:
 			pole = Vector3(sx * 0.8, 0, 1)
 		var knee := C.ik2(hip, tgt, l1, l2, pole)
 		var n := to.cross(pole).normalized()
 		rot[C.THIGH + o] = _leg_basis(n, knee - hip) * rest_thigh[i]
 		rot[C.SHIN + o] = _leg_basis(n, tgt - knee) * rest_shin[i]
 		rot[C.FOOT + o] = r_foot[i]
-		rot[C.TOE + o] = r_flat[i] if not ft_swing[i] and dead < 0.0 else r_foot[i]
+		rot[C.TOE + o] = r_flat[i] if not ft_swing[i] and not floored else r_foot[i]
 
 	for b in C.NB:
 		var par := C.PARENT[b]

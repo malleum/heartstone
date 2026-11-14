@@ -22,9 +22,9 @@ static func create(opts: Dictionary) -> Dictionary:
 	var talents: Array = opts.get("talents", [])
 	var pot_pts: int = opts.get("potential_pts", 6)
 	var aff_pts: Dictionary = opts.get("affinity_pts", {})
-	var spent := pot_pts + talents.size() * 4
+	var spent := pot_pts + talents.size() * 4.0
 	for e in aff_pts:
-		spent += int(aff_pts[e])
+		spent += affinity_cost(power, e, int(aff_pts[e]))
 	assert(spent <= CREATION_POINTS, "creation points overspent")
 	var affinity := {}; var aptitude := {}
 	for e in Rules.ELEMENTS:
@@ -41,9 +41,28 @@ static func create(opts: Dictionary) -> Dictionary:
 		book_limit = opts.get("book_limit", 14),
 		# Growth.
 		channelled = 0.0, renown = 0.0, seconds = 0.0,
-		weaves = {fireball = {known = true, xp = 0.0}}, seen = [], done = {},
+		weaves = {}, seen = [], done = {},
 	}
+	# You begin knowing the simplest weave of the Power that answers you best; a tie
+	# is settled by chance, fixed by the name so it is the same on every machine.
+	var best: Array = []
+	for e in Rules.ELEMENTS:
+		if best.is_empty() or affinity[e] > affinity[best[0]] + 0.001:
+			best = [e]
+		elif absf(affinity[e] - affinity[best[0]]) <= 0.001:
+			best.append(e)
+	p.starter = STARTERS[best[hash(p.name) % best.size()]]
+	p.weaves[p.starter] = {known = true, xp = 0.0}
 	return p
+
+## The simplest single-Power weave of each Power.
+const STARTERS := {fire = "fireball", air = "hammer_of_air", earth = "heave_the_ground", water = "water_lash", spirit = "blade_of_spirit"}
+
+## The Powers your half of the Source leans to (saidin Earth and Fire, saidar Air and
+## Water) come easily: their first three points cost half.
+static func affinity_cost(power: String, element: String, pts: int) -> float:
+	var own: bool = element in (["earth", "fire"] if power == "saidin" else ["air", "water"])
+	return (minf(pts, 3) * 0.5 + maxf(pts - 3, 0)) if own else float(pts)
 
 ## Potential bought with creation points, as a Companion level: 40(28) for nothing,
 ## 1(+12) for 14 points. Only saidin goes further, to ++1 at 16 points: the weakest
