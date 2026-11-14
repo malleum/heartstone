@@ -43,10 +43,10 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 				out.append("%s affinity %d -> %d" % [e.capitalize(), a0, int(p.affinity[e] * 100.0)])
 
 	# Strength grows toward potential with use; holding more flows comes with experience.
-	var s0: float = p.strength
+	var s0: float = Rules.strength(p)
 	p.strength += (p.potential - p.strength) * (1.0 - exp(-draw * yield_.get("strength", 1.0) / T.strength_k))
-	if Rules.level_of(p.strength) < Rules.level_of(s0):
-		out.append("Strength %s -> %s (potential %s)" % [Rules.level_name(Rules.level_of(s0)), Rules.level_name(Rules.level_of(p.strength)), Rules.level_name(Rules.level_of(p.potential))])
+	if Rules.level_of(Rules.strength(p)) < Rules.level_of(s0):
+		out.append("Strength %s -> %s (potential %s)" % [Rules.level_name(Rules.level_of(s0)), Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))])
 	p.channelled += draw
 	if Rules.flow_capacity(p) > flows_before:
 		out.append("You can now hold %d flows at once" % Rules.flow_capacity(p))

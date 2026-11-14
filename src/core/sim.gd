@@ -33,7 +33,7 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "player", profile = profile, pos = pos, yaw = PI, hp = 100.0, max_hp = 100.0,
 		radius = 0.45, team = id if _spar else 0, alive = true, move = Vector3.ZERO, speed = 5.2,
-		endurance = Rules.TUNE.endurance, forming = {}, held = [], barrier = 0.0, severed = 0.0, stagger = 0.0}
+		stamina = Rules.TUNE.stamina, forming = {}, held = [], barrier = 0.0, severed = 0.0, stagger = 0.0}
 	tallies[id] = {casts = {}, kills = {}, draw = 0.0, seconds = 0.0}
 	return id
 
@@ -65,7 +65,7 @@ func request_cast(id: int, weave: String, aim: Vector3) -> String:
 	if p.held.has(weave):
 		release(id, weave)
 		return ""
-	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.endurance)
+	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.stamina)
 	if why != "":
 		return why
 	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim}
@@ -119,7 +119,7 @@ func _spawn_wave(w: Dictionary) -> void:
 
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
-	p.endurance = minf(p.endurance + Rules.TUNE.endurance_regen * dt, Rules.TUNE.endurance)
+	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * dt, Rules.TUNE.stamina)
 	# Forming a weave takes concentration: you move at half speed while doing it.
 	var slow := 0.5 if not p.forming.is_empty() else 1.0
 	p.pos = Map.clamp_pos(p.pos + p.move * p.speed * slow * dt)
@@ -131,8 +131,8 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	var weave: String = p.forming.weave
 	var aim: Vector3 = p.forming.aim
 	p.forming = {}
-	var cost := Rules.draw_of(p.profile, weave)
-	p.endurance -= cost
+	var cost := Rules.draw_of(p.profile, weave, p.stamina)
+	p.stamina = maxf(p.stamina - cost, 0.0)
 	var tl: Dictionary = tallies[p.id]
 	tl.draw += cost
 	tl.casts[weave] = tl.casts.get(weave, 0) + 1
@@ -141,7 +141,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	var w: Dictionary = Rules.weaves[weave]
 	var b: Dictionary = w.base
-	var k := Rules.scale(p.profile, weave)
+	var k := Rules.scale(p.profile, weave, p.stamina)
 	var from: Vector3 = p.pos
 	var to := aim - from; to.y = 0.0
 	var dist := to.length()
@@ -231,7 +231,7 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String) -> void:
 		var soak := minf(e.barrier, dmg)
 		e.barrier -= soak; dmg -= soak
 		if e.barrier <= 0.0:
-			release(e.id, "shield_of_air")
+			release(e.id, "dome_of_air")
 	e.hp -= dmg
 	events.append({e = "hit", id = e.id, dmg = dmg, by = by})
 	if e.hp <= 0.0:
@@ -333,7 +333,7 @@ func snapshot() -> Dictionary:
 	for id in ents:
 		var e: Dictionary = ents[id]
 		if e.alive:
-			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp])
+			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0)])
 	var fx := []
 	for f in effects:
 		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("r", 0.0)])

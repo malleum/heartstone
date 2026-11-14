@@ -107,7 +107,7 @@ func _select(name_: String) -> void:
 	_clear(side); _clear(board)
 	_text(side, profile.name, 28)
 	_text(side, "%s  ·  %s  ·  %s" % [profile.power.capitalize(), ORIGINS.get(profile.origin, profile.origin), "%d h %02d m channelling" % [int(profile.seconds / 3600.0), int(profile.seconds / 60.0) % 60]], 15, Color(0.7, 0.72, 0.78))
-	_text(side, "Strength %s, potential %s\nFlows held at once: %d\nRenown %d" % [Rules.level_name(Rules.level_of(profile.strength)), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)])
+	_text(side, "Strength %s, potential %s\nFlows held at once: %d\nRenown %d" % [Rules.level_name(Rules.level_of(Rules.strength(profile))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)])
 	var aff := ""
 	for e in Rules.ELEMENTS:
 		aff += "%s %d%%   " % [e.capitalize(), int(profile.affinity[e] * 100.0)]

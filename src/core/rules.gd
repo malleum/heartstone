@@ -8,7 +8,7 @@ const ELEMENTS: Array[String] = ["fire", "earth", "water", "air", "spirit"]
 
 ## Every pacing number lives here so tuning never means hunting through code.
 const TUNE := {
-	ref_power = 10.0,          # weave base numbers are written for this power
+	ref_power = 25.0,          # weave base numbers are written for this power
 	min_affinity = 0.12,       # per-flow floor to be able to form a weave at all
 	mastery_xp = 150.0,        # level = floor(sqrt(xp / this)), capped
 	mastery_cap = 10,
@@ -26,8 +26,14 @@ const TUNE := {
 	# level 72 is about 10 and ++1 (the strongest man) about 121.
 	level_ratio = 1.033,
 	repeat_renown = 0.25,      # share of renown paid for replaying a cleared activity
-	endurance = 100.0,         # how much of the Power can be drawn before tiring
-	endurance_regen = 7.0,     # per second
+	# Stamina replaces a mana bar: a deep pool that barely refills during a fight.
+	# As it drains, weaves weaken and cost less, so a tired channeller keeps weaving
+	# small, and loses the strength for gated weaves such as gateways.
+	stamina = 1500.0,
+	stamina_regen = 1.5,       # per second
+	tired_floor = 0.25,        # share of your strength left at empty stamina
+	start_gap = 10,            # a new channeller starts this many levels below potential
+	saidin_jump = 3,           # men gain strength in jumps of this many levels
 }
 
 static var weaves: Dictionary = {}
@@ -68,8 +74,29 @@ static func has_talent(p: Dictionary, w: Dictionary) -> bool:
 static func level_of(strength: float) -> int:
 	return clampi(roundi(1.0 - log(maxf(strength, 0.01) / 100.0) / log(TUNE.level_ratio)), -5, 72)
 
-static func strength_of(level: int) -> float:
+static func strength_of(level: float) -> float:
 	return 100.0 * pow(TUNE.level_ratio, 1.0 - level)
+
+static func _level_f(s: float) -> float:
+	return 1.0 - log(maxf(s, 0.01) / 100.0) / log(TUNE.level_ratio)
+
+## The strength a character channels with. Practice accrues the same for everyone
+## (profile.strength), but women rise steadily through every level while men stay
+## put and then leap several levels at once, as in the books.
+static func strength(p: Dictionary) -> float:
+	if p.power != "saidin":
+		return p.strength
+	var pot := _level_f(p.potential)
+	var below := maxf(_level_f(p.strength) - pot, 0.0)
+	if below > TUNE.start_gap - 0.5:
+		return p.strength
+	return strength_of(pot + TUNE.saidin_jump * roundf(below / TUNE.saidin_jump))
+
+## Share of full strength available at this stamina (negative = rested).
+static func vigor(stamina: float) -> float:
+	if stamina < 0.0:
+		return 1.0
+	return lerpf(TUNE.tired_floor, 1.0, clampf(stamina / TUNE.stamina, 0.0, 1.0))
 
 ## "19(7)", "8(+5)" or "++2": the level, then its rank on the older White Tower
 ## scale, which began at what is now 13.
@@ -83,7 +110,7 @@ static func mastery_level(p: Dictionary, weave_id: String) -> int:
 	return mini(int(sqrt(xp / TUNE.mastery_xp)), TUNE.mastery_cap)
 
 ## Why a character cannot cast a weave right now, or "" if they can.
-static func cast_block(p: Dictionary, weave_id: String, free_slots: int, endurance: float) -> String:
+static func cast_block(p: Dictionary, weave_id: String, free_slots: int, stamina: float) -> String:
 	var w: Dictionary = weaves[weave_id]
 	if not p.weaves.get(weave_id, {}).get("known", false):
 		return "not learned"
@@ -91,20 +118,21 @@ static func cast_block(p: Dictionary, weave_id: String, free_slots: int, enduran
 		return "beyond your reading"
 	# A strength gate is written as a Companion level; the Talent for the weave
 	# waives it (Androl makes gateways his strength should not allow).
-	if w.has("level") and level_of(p.strength) > int(w.level) and not has_talent(p, w):
-		return "needs strength %s or the Talent" % level_name(int(w.level))
+	if w.has("level") and not has_talent(p, w):
+		if level_of(strength(p)) > int(w.level):
+			return "needs strength %s or the Talent" % level_name(int(w.level))
+		if level_of(strength(p) * vigor(stamina)) > int(w.level):
+			return "too tired: needs strength %s" % level_name(int(w.level))
 	var fl := flows_of(w, p)
 	for e in fl:
 		if p.affinity[e] < TUNE.min_affinity:
 			return "too weak in %s" % e
 	if slots_of(w, p) > free_slots:
 		return "too many flows"
-	if endurance < draw_of(p, weave_id):
-		return "exhausted"
 	return ""
 
 ## Power = strength x affinity (weighted by flow share) x mastery x Talent.
-static func power(p: Dictionary, weave_id: String) -> float:
+static func power(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 	var w: Dictionary = weaves[weave_id]
 	var fl := flows_of(w, p)
 	var total := 0.0; var aff := 0.0
@@ -117,17 +145,18 @@ static func power(p: Dictionary, weave_id: String) -> float:
 	elif fl.has("earth") and p.talents.has("earth_singing"):
 		talent = TUNE.earth_singing
 	# Affinity 0.5 is "ordinary": it neither helps nor hurts.
-	return p.strength * (0.5 + aff) * (1.0 + TUNE.mastery_power * mastery_level(p, weave_id)) * talent
+	return strength(p) * vigor(stamina) * (0.5 + aff) * (1.0 + TUNE.mastery_power * mastery_level(p, weave_id)) * talent
 
 ## Multiplier applied to a weave's base damage/heal/absorb numbers.
-static func scale(p: Dictionary, weave_id: String) -> float:
-	return power(p, weave_id) / TUNE.ref_power
+static func scale(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
+	return power(p, weave_id, stamina) / TUNE.ref_power
 
 static func form_time(p: Dictionary, weave_id: String) -> float:
 	return weaves[weave_id].form * maxf(1.0 - TUNE.mastery_speed * mastery_level(p, weave_id), 0.5)
 
-static func draw_of(p: Dictionary, weave_id: String) -> float:
-	return weaves[weave_id].draw * (1.0 - TUNE.mastery_thrift * mastery_level(p, weave_id))
+## A tired channeller draws less of the Power, so the weave costs less too.
+static func draw_of(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
+	return weaves[weave_id].draw * (1.0 - TUNE.mastery_thrift * mastery_level(p, weave_id)) * vigor(stamina)
 
 static func flow_capacity(p: Dictionary) -> int:
 	var n := 2

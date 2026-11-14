@@ -34,7 +34,13 @@ This is the firmest requirement.
   canon first: every weave says where its flows come from. Prefer 15 to 20 weaves
   that each feel distinct over 60 recolours.
 - **Strength is on Robert Jordan's scale:** 72 up to 1 for the strongest woman, and
-  ++6 to ++1 for the six levels only men reach.
+  ++6 to ++1 for the six levels only men reach. A character starts at most ten
+  levels below their potential. Women climb level by level; men gain the same
+  amount in sudden jumps.
+- **Stamina instead of mana.** A deep reserve that recovers very slowly. The more
+  tired you are, the weaker and the cheaper your weaves, until you no longer have
+  the strength for the demanding ones. A long fight is a matter of pacing yourself,
+  not of waiting for a bar to refill.
 - **Talents are innate and make you far better at something anyone can learn;** they
   never lock a weave away. Travelling needs strength 19(7) unless you have the
   Talent or link.

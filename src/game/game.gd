@@ -28,6 +28,7 @@ var known: Array = []
 var last_refusal := ""
 var refusal_t := 0.0
 var my_hp := 100.0
+var my_stamina: float = Rules.TUNE.stamina
 var frame := 0
 
 func _ready() -> void:
@@ -174,7 +175,7 @@ func _fx_demo(dt: float) -> void:
 	if _demo_t > 0.0 or me == null:
 		return
 	_demo_t = 1.0
-	var list := ["lightning", "riven_earth", "balefire", "hammer_of_air", "shield_of_air", "healing", "blossoms_of_fire"]
+	var list := ["lightning", "rolling_ring", "balefire", "hammer_of_air", "dome_of_air", "healing", "blossoms_of_fire"]
 	var id: String = list[_demo_i % list.size()]; _demo_i += 1
 	var dir := Basis(Vector3.UP, cam_yaw) * Vector3(0.25, 0, -1).normalized()
 	var at := _ground(me.position + dir * 12.0)
@@ -296,7 +297,7 @@ func _on_snapshot(s: Dictionary) -> void:
 		var a: Dictionary = actors[id]
 		a.target = Vector3(e[1], 0, e[2]); a.yaw = e[3]
 		if id == session.my_id:
-			my_hp = e[4]
+			my_hp = e[4]; my_stamina = e[5]
 	for f in s.fx:
 		if not fx.has(f[0]):
 			fx[f[0]] = Weavefx.live(self, f[1])
@@ -359,8 +360,9 @@ func _draw_hud() -> void:
 	_banner_t -= get_process_delta_time()
 	if _banner_t <= 0.0 and not _done:
 		banner.text = ""
-	var lines := ["%s   strength %s (potential %s)   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(profile.strength)), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
-		"Health %d" % int(maxf(my_hp, 0.0)), ""]
+	var lines := ["%s   strength %s of %s   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(Rules.strength(profile) * Rules.vigor(my_stamina))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
+		"Health %d" % int(maxf(my_hp, 0.0)),
+		"Stamina %s %d%%   weaves at %d%% strength" % ["|".repeat(int(ceil(20.0 * my_stamina / Rules.TUNE.stamina))).rpad(20, "."), int(100.0 * my_stamina / Rules.TUNE.stamina), int(100.0 * Rules.vigor(my_stamina))], ""]
 	for i in known.size():
 		var w: Dictionary = Rules.weaves[known[i]]
 		lines.append("%s %d  %s  (mastery %d)" % [">" if i == selected else "  ", i + 1, w.name, Rules.mastery_level(profile, known[i])])

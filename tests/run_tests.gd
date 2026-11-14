@@ -23,13 +23,13 @@ func _init() -> void:
 	print("== rules")
 	Profile.dir = "user://test_profiles"
 	var p := Profile.create({name = "Test Novice", power = "saidar", potential_pts = 6, affinity_pts = {fire = 4, air = 2}, talents = ["healing"]})
-	check(Rules.cast_block(p, "fireball", 2, 100.0) == "", "novice can cast fireball")
-	check(Rules.cast_block(p, "arrows_of_fire", 2, 100.0) == "not learned", "unknown weave refused")
+	check(Rules.cast_block(p, "fireball", 2, Rules.TUNE.stamina) == "", "novice can cast fireball")
+	check(Rules.cast_block(p, "arrows_of_fire", 2, Rules.TUNE.stamina) == "not learned", "unknown weave refused")
 	p.weaves["blossoms_of_fire"] = {known = true, xp = 0.0}
-	check(Rules.cast_block(p, "blossoms_of_fire", Rules.flow_capacity(p), 100.0) == "too many flows", "3-flow weave needs 3 flows")
+	check(Rules.cast_block(p, "blossoms_of_fire", Rules.flow_capacity(p), Rules.TUNE.stamina) == "too many flows", "3-flow weave needs 3 flows")
 	p.weaves.erase("blossoms_of_fire")
 	p.weaves["deathgate"] = {known = true, xp = 0.0}
-	check(Rules.cast_block(p, "deathgate", 9, 100.0).begins_with("needs"), "deathgate needs Travelling")
+	check(Rules.cast_block(p, "deathgate", 9, Rules.TUNE.stamina).begins_with("needs"), "deathgate needs Travelling")
 	p.weaves.erase("deathgate")
 	var strong := Profile.create({name = "S", potential_pts = 12}); var weak := Profile.create({name = "W", potential_pts = 0})
 	check(strong.potential > weak.potential and Rules.power(strong, "fireball") > Rules.power(weak, "fireball"), "potential buys power")
@@ -37,7 +37,7 @@ func _init() -> void:
 	check(Rules.flows_of(Rules.weaves.gateway, man).has("fire") and not Rules.flows_of(Rules.weaves.gateway, p).has("fire"), "gateway flows differ by saidin/saidar")
 	p.book_limit = 2
 	p.weaves["balefire"] = {known = true, xp = 0.0}
-	check(Rules.cast_block(p, "balefire", 9, 100.0) == "beyond your reading", "spoiler limit hides later weaves")
+	check(Rules.cast_block(p, "balefire", 9, Rules.TUNE.stamina) == "beyond your reading", "spoiler limit hides later weaves")
 	p.weaves.erase("balefire"); p.book_limit = 14
 
 	print("== one character through every activity")
@@ -51,7 +51,7 @@ func _init() -> void:
 		check(sim.success, act + " is winnable by the bot")
 		for line in Progression.award(p, tl, act, sim.success):
 			print("    + ", line)
-	check(p.weaves.has("hammer_of_air") and p.weaves.has("riven_earth"), "weaves learned carry between activities")
+	check(p.weaves.has("hammer_of_air") and p.weaves.has("dome_of_air"), "weaves learned carry between activities")
 	check(not Rules.available(p).has("tarwins_gap_night"), "the long night is gated on renown")
 
 	print("== save / load")

@@ -84,6 +84,21 @@ flows and the gate.
 100 and each level down divides by 1.033, so 72 is about 10 and ++1 about 121. Those
 magnitudes are the game's invention; the Companion gives ranks, not ratios.
 
+**Growth (Josh's rulings).**
+- **Strong before trained.** A channeller starts at most ten levels below their
+  potential, as Nynaeve was already strong as a wilder (9(+4) against a potential
+  of 3(+10)).
+- **Women rise steadily, men in leaps.** The same practice earns the same total
+  gain, but a woman passes through every level on the way and a man stays where he
+  is and then jumps several at once.
+
+**Stamina, not mana (Josh's design).** There is no pool that refills in seconds.
+Stamina is deep and recovers very slowly. As it falls, every weave is weaker and
+also cheaper, so a tired channeller can keep weaving small for a long time, and
+past a point no longer has the strength for gated weaves such as a gateway. This
+matches the books: channellers fight for hours, tire by degrees, and the exhausted
+cannot make the weaves they could that morning.
+
 ## Weave tables
 
 ### Combat
@@ -114,7 +129,7 @@ magnitudes are the game's invention; the Companion gives ranks, not ratios.
 | --- | --- | --- | --- | --- | --- |
 | **Shield (from the Source)** | Spirit | Cut a channeller off; can be tied. | TDR ch.54 | 3 | Canon |
 | Severing | Spirit | A shield with a knife edge severs instead. | TSR, Into the Palace | 4 | Canon |
-| Dome of Air | Air | Shelter from arrows and missiles. | LoC, Dumai's Wells | 6 | Canon |
+| **Dome of Air** | Air | Shelter from arrows and missiles. | LoC, Dumai's Wells | 6 | Canon |
 | Shield against lightning | Fire + Air | Barrier that turns lightning. | TFoH, To Caemlyn | 5 | Canon |
 | Airtight barrier | Air + Fire + Earth | Keeps out anything short of balefire. | TPoD, A Cup of Sleep | 8 | Canon |
 | Barrier against men | Spirit + Fire | Feels like a wall of flame to male channellers. | TFoH, Pale Shadows | 5 | Canon |
@@ -180,16 +195,13 @@ magnitudes are the game's invention; the Companion gives ranks, not ratios.
   names only (Riven Earth, Protective Whirlwind, Making Fog, Spinning Earthfire).
   Role-play sites invent their own flows and are ignored.
 
-## In the game but not in the tables
-Four weaves were added before this research and have no row above. Josh is deciding
-whether each stays.
-
-| Game weave | Flows | What it does | Standing |
-| --- | --- | --- | --- |
-| Hammer of Air | Air | Short cone that knocks Trollocs back; the cheap "get off me". | The name is invented. The nearest canon rows are Weapons of Air (hardened Air to hit or cut, book 13) and Bind / lift with Air (book 6). |
-| Shield of Air | Air | A held barrier that absorbs damage. | Close to Dome of Air (Air, canon, book 6, shelters from arrows and missiles). Renaming it would make it canon. |
-| Riven Earth | Earth ×2 | Splits the ground in a line; damages and staggers. | A Fandom name with no flows. The nearest canon row is Heave the ground (Earth, book 14); Rolling ring of earth already covers the Earth area weave. |
-| Making Fog | Air + Water | Fog over an area; does nothing in play yet. | A Fandom name with no flows. Covered by Wind & clouds (Air + Water, canon, book 6) and by Cloud Dancing (Air + Water + Spirit). |
+## Game choices outside the tables
+- **Hammer of Air** (Air): a short cone that knocks Trollocs back. The name is ours;
+  it stands on Weapons of Air and Bind / lift with Air. Kept as the one cheap Air
+  attack.
+- **Dome of Air** is the game's held barrier (it was "Shield of Air" before).
+- **Riven Earth and Making Fog were removed** (Josh, 2026-11-14): Fandom names with
+  no flows, already covered by Heave the ground and Wind & clouds.
 
 ## Talents
 Innate, so chosen at creation only (one or two; each costs points that could have

@@ -30,7 +30,7 @@ static func drive(sim: Sim, id: int) -> void:
 		var row: Dictionary = Rules.weaves[w]
 		if row.kind in ["barrier", "heal", "sever", "utility"] or row.base.get("range", 99.0) < best:
 			continue
-		if Rules.cast_block(me.profile, w, sim.free_slots(me), me.endurance) != "":
+		if Rules.cast_block(me.profile, w, sim.free_slots(me), me.stamina) != "":
 			continue
 		var s: float = row.base.get("damage", row.base.get("dps", 0.0)) * row.base.get("count", 1) * (1.5 if crowd > 3 and row.kind in ["ring", "burst", "cone"] else 1.0)
 		if s > score:

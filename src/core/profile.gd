@@ -35,7 +35,7 @@ static func create(opts: Dictionary) -> Dictionary:
 	var potential := Rules.strength_of(potential_level(power, pot_pts))
 	var p := {
 		version = VERSION, name = opts.get("name", "Unnamed"), cls = "channeller",
-		power = power, potential = potential, strength = potential * 0.2 + 4.0,
+		power = power, potential = potential, strength = start_strength(potential),
 		affinity = affinity, aptitude = aptitude, talents = talents,
 		origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}),
 		book_limit = opts.get("book_limit", 14),
@@ -66,4 +66,21 @@ static func load_profile(name: String) -> Dictionary:
 	if not FileAccess.file_exists(path(name)):
 		return {}
 	var p: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path(name)))
+	_migrate(p)
 	return p
+
+## Channellers are strong before they are trained (Nynaeve): everyone starts at
+## most TUNE.start_gap levels below their potential.
+static func start_strength(potential: float) -> float:
+	return Rules.strength_of(mini(Rules.level_of(potential) + int(Rules.TUNE.start_gap), 72))
+
+## Saves from before a rules change: lift strength to the new starting floor and
+## follow weaves that were renamed or removed.
+static func _migrate(p: Dictionary) -> void:
+	Rules.load_data()
+	p.strength = maxf(p.strength, start_strength(p.potential))
+	if p.weaves.has("shield_of_air"):
+		p.weaves["dome_of_air"] = p.weaves["shield_of_air"]
+	for id in p.weaves.keys():
+		if not Rules.weaves.has(id):
+			p.weaves.erase(id)

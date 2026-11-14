@@ -52,7 +52,7 @@ working on abilities; the user's rulings there are final).
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 
 ## Architecture principles
-- Data over code: creatures are parameter tables plus a seed; weaves will be data rows.
+- Data over code: creatures are parameter tables plus a seed; weaves are rows in `data/weaves.json`.
   Adding a creature or weave should mean adding data, not engine code.
 - Lean procedural: generated meshes, textures, synthesized audio where quality holds up.
 - Comments say why, not what.

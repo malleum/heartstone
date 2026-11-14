@@ -32,10 +32,22 @@ A plain Dictionary saved as JSON under `user://profiles/`.
   ceiling), mastery per weave, flows held at once, weaves known, renown.
 
 ## The formula (src/core/rules.gd)
-`power = strength x (0.5 + flow-weighted affinity) x (1 + 5% x mastery) x Talent`.
-A weave's base numbers are written for power 10 and scale linearly.
+`power = strength x vigor x (0.5 + flow-weighted affinity) x (1 + 5% x mastery) x Talent`.
+A weave's base numbers are written for power 25 (`TUNE.ref_power`) and scale linearly.
 Casting needs: the weave learned, within the spoiler limit, any strength gate met, a
-minimum affinity in every flow, enough free flow slots, and endurance.
+minimum affinity in every flow, and enough free flow slots. Nothing is ever refused
+for lack of stamina.
+- **Stamina** (`TUNE.stamina` 1500, +1.5 a second) lives on the sim's player entity
+  and starts full in each activity. `Rules.vigor(stamina)` runs from 1.0 rested to
+  `tired_floor` 0.25 at empty and multiplies both a weave's power and its cost, and
+  the strength used for `level` gates. So a tired channeller weaves weak and cheap,
+  and loses gateways. It replaced a 100-point pool that refilled in 15 seconds and
+  was never shown on screen.
+- **Starting strength** is `start_gap` (10) levels below potential.
+  `Profile._migrate` lifts older saves to that floor and follows renamed weaves.
+- **Saidin leaps:** `profile.strength` accrues identically for everyone, but
+  `Rules.strength(p)`, which every formula and screen uses, snaps a man to steps of
+  `saidin_jump` (3) levels below his potential. Women use the raw value.
 - **Strength is Robert Jordan's scale** (`WEAVES.md`): 72 up to 1, then ++6 to ++1
   for men only. It is stored as a magnitude so the formula stays a product, and
   `Rules.level_of` / `level_name` turn it into "19(7)" for every screen and gate.
@@ -173,11 +185,14 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 | `assets/quaternius/animation_library.glb` | Quaternius: Universal Animation Library, older rig, from opengameart.org | CC0 1.0 (`LICENSE.txt` beside it) | Skeleton and clips for generated humans |
 
 ## Next steps, in order
-1. Tarwin's Gap as a real map (walls, chokepoints, a line to hold).
-2. Trolloc attack animation and more kit variety.
-3. Visible flows while a weave forms; hit-stop; a second effects pass after Josh
-   has seen and heard the first.
-4. Client interpolation; send each player's look to the others.
+1. Fight feel: visible flows while a weave forms, hit-stop, a Trolloc attack
+   animation, and effects for the weaves beyond fireball.
+2. Make three flows change the game: tying off or holding a weave while weaving
+   another, so Dome of Air plus an attack is a real choice.
+3. Co-op basics: client interpolation, each player's look sent to the others,
+   Healing with a target, a lobby screen.
+4. Enemies that ask questions: Myrddraal, archers, Trollocs that path around the
+   breastwork. Then a second holdout (Dumai's Wells).
 5. One linear mission; then casting by drawing (see VISION.md).
-6. From `WEAVES.md`, not built: Delving, Illusion and the weather weave as real
-   weaves; Skimming; techniques (tie off, invert, cut); linking; angreal.
+6. From `WEAVES.md`, not built: Delving, Illusion and the weather weave; Skimming;
+   techniques (tie off, invert, cut); linking; angreal. Gateway does nothing yet.
