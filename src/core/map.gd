@@ -8,17 +8,47 @@ const MAPS := {
 	open = {},
 	# Tarwin's Gap: a pass between the Mountains of Dhoom. Wide where the Trollocs
 	# gather, pinched at a chokepoint in front of the line the defenders hold.
-	tarwins_gap = {length = 95.0, back = 22.0, wide = 30.0, narrow = 11.0, choke_z = -20.0, choke_len = 16.0, cliff = 46.0},
+	tarwins_gap = {length = 95.0, back = 22.0, wide = 30.0, narrow = 11.0, choke_z = -20.0, choke_len = 16.0, cliff = 46.0, breastwork = true},
+	# A caravan caught in open hills: wagons drawn into a ring, and the Shadow
+	# coming from every side. No pass to hold; the ring is the line.
+	wagon_ring = {length = 58.0, back = 58.0, wide = 58.0, narrow = 58.0, choke_z = 0.0, choke_len = 1.0, cliff = 16.0, ring = 9.5, around = true},
 }
 static var id := "open"
 static var m := {}
 
 static var _trees: Array = []
+static var _walls: Array = []
+static var _grid := {}
 
 static func use(map_id: String) -> void:
 	id = map_id if MAPS.has(map_id) else "open"
 	m = MAPS[id]
 	_trees = []
+	_walls = []
+	_grid = {}
+	var wr := RandomNumberGenerator.new(); wr.seed = 11
+	if m.get("breastwork", false):
+		# The defenders' line: a drystone breastwork across the pass behind the
+		# choke, with gaps a Trolloc can come through and a defender can hold.
+		var z0 := line_z()
+		var w := half_width(z0)
+		var x := -w + 1.0
+		while x < w - 1.0:
+			var seg := minf(wr.randf_range(3.0, 5.5), w - 1.0 - x)
+			if seg > 1.5:
+				_walls.append({x = x + seg * 0.5, z = z0 + wr.randf_range(-0.4, 0.4), hx = seg * 0.5, hz = 0.38, h = 0.9, yaw = 0.0, look = "stone"})
+			x += seg + wr.randf_range(3.2, 4.4)
+	if m.has("ring"):
+		# Wagons end to end in a circle, four ways in.
+		var n := 12
+		for i in n:
+			if i % 3 == 0:
+				continue
+			var a := TAU * (i + 0.5) / n
+			var c := Vector3(sin(a), 0, cos(a)) * float(m.ring)
+			# Each wagon lies along the circle; the solid is its bounding box.
+			var along := absf(cos(a)); var across := absf(sin(a))
+			_walls.append({x = c.x, z = c.z, hx = 0.9 + 1.5 * along, hz = 0.9 + 1.5 * across, h = 2.1, yaw = a, look = "wagon"})
 	var rng := RandomNumberGenerator.new(); rng.seed = 23
 	for i in 22:
 		var z := rng.randf_range(-95.0, 30.0) if not m.is_empty() else rng.randf_range(-60.0, 30.0)
@@ -31,8 +61,72 @@ static func use(map_id: String) -> void:
 static func trees() -> Array:
 	return _trees
 
-## Slide a position out of any tree trunk it overlaps.
+## Solid walls, as boxes lying along x or z: {x, z, hx, hz, h, yaw, look}. The sim
+## blocks movement, weaves and arrows on them (up to h) and the view builds each
+## one from its `look`, so what is seen is what stops you.
+static func walls() -> Array:
+	return _walls
+
+## Does the straight line from a to b cross a wall (grown by `pad`)?
+static func crosses(a: Vector3, b: Vector3, pad := 0.5) -> bool:
+	for w in _walls:
+		var t0 := 0.0; var t1 := 1.0
+		var hit := true
+		for ax in [[a.x, b.x - a.x, w.x, w.hx + pad], [a.z, b.z - a.z, w.z, w.hz + pad]]:
+			var o: float = ax[0]; var d: float = ax[1]
+			var lo: float = ax[2] - ax[3]; var hi: float = ax[2] + ax[3]
+			if absf(d) < 1e-6:
+				if o < lo or o > hi:
+					hit = false
+			else:
+				var ta := (lo - o) / d; var tb := (hi - o) / d
+				t0 = maxf(t0, minf(ta, tb)); t1 = minf(t1, maxf(ta, tb))
+				if t0 > t1:
+					hit = false
+		if hit:
+			return true
+	return false
+
+## Is this point inside a wall, below its top?
+static func in_wall(p: Vector3) -> bool:
+	for w in _walls:
+		if absf(p.x - w.x) < w.hx and absf(p.z - w.z) < w.hz and p.y < Terrain.height(w.x, w.z) + w.h:
+			return true
+	return false
+
+## The ground as a grid of cells an enemy can or cannot stand in, for finding a
+## way round walls: {x0, z0, nx, nz, cell, blocked}. Built once per map.
+static func grid() -> Dictionary:
+	if not _grid.is_empty() or _walls.is_empty():
+		return _grid
+	var cell := 1.25
+	var wx: float = float(m.wide) + 2.0 if not m.is_empty() else 50.0
+	var z0: float = -float(m.length) if not m.is_empty() else -50.0
+	var z1: float = float(m.back) if not m.is_empty() else 50.0
+	var nx := int(ceil(wx * 2.0 / cell)); var nz := int(ceil((z1 - z0) / cell))
+	var blocked := PackedByteArray(); blocked.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			var p := Vector3(-wx + (ix + 0.5) * cell, 0, z0 + (iz + 0.5) * cell)
+			var bad: bool = absf(p.x) > half_width(p.z) - 0.4
+			for w in _walls:
+				if absf(p.x - w.x) < w.hx + 0.7 and absf(p.z - w.z) < w.hz + 0.7:
+					bad = true
+			blocked[iz * nx + ix] = 1 if bad else 0
+	_grid = {x0 = -wx, z0 = z0, nx = nx, nz = nz, cell = cell, blocked = blocked}
+	return _grid
+
+## Slide a position out of any tree trunk or wall it overlaps.
 static func unblock(p: Vector3, radius: float) -> Vector3:
+	for w in _walls:
+		var dx: float = p.x - w.x; var dz: float = p.z - w.z
+		var px: float = w.hx + radius - absf(dx); var pz: float = w.hz + radius - absf(dz)
+		if px > 0.0 and pz > 0.0:
+			# Out by the shorter way.
+			if px < pz:
+				p.x = w.x + (w.hx + radius) * (1.0 if dx >= 0.0 else -1.0)
+			else:
+				p.z = w.z + (w.hz + radius) * (1.0 if dz >= 0.0 else -1.0)
 	for t in _trees:
 		var d := Vector2(p.x - t.x, p.z - t.z)
 		var min_d: float = t.r + radius
@@ -64,8 +158,12 @@ static func ridge(x: float, z: float) -> float:
 	var behind := smoothstep(m.back, m.back + 30.0, z) * 0.35
 	return (side * side * (3.0 - 2.0 * side) + behind) * m.cliff
 
-## Where a wave appears: spread across the far end of the pass.
+## Where a wave appears: spread across the far end of the pass, or, on a map
+## with no pass, anywhere around the rim.
 static func spawn(rng: RandomNumberGenerator) -> Vector3:
+	if m.get("around", false):
+		var a := rng.randf() * TAU
+		return Vector3(sin(a), 0, cos(a)) * rng.randf_range(44.0, 52.0)
 	var z: float = -m.length + rng.randf_range(2.0, 22.0)
 	var w := half_width(z) - 2.0
 	return Vector3(rng.randf_range(-w, w), 0.0, z)

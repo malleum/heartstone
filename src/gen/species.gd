@@ -71,6 +71,17 @@ const HUMAN := {
 	cell = 0.016, head_cell = 0.0037,
 }
 
+## The Eyeless: a man's shape, taller and thinner, maggot-white, with smooth skin
+## where the eyes should be. Black from neck to boot; the cloak hangs still.
+static var MYRDDRAAL: Dictionary:
+	get:
+		var t := HUMAN.duplicate()
+		t.merge({species = "myrddraal", height = Vector2(1.98, 2.06), bulk = Vector2(0.8, 0.86), limb = Vector2(0.84, 0.9), muscle = 0.3, gut = 0.0,
+			skin = Color(0.78, 0.78, 0.76), fur = Color(0.03, 0.03, 0.03), outfit = "myrddraal", fem = 0.0, hair = "bald", beard = 0, eyeless = true,
+			f_jaw = 0.92, f_chin = 1.2, f_cheek = 0.8, f_brow = 0.75, f_lip = 0.75}, true)
+		return t
+
+
 static func roll(table: Dictionary, seed_: int, overrides := {}) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(seed_)

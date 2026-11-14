@@ -317,6 +317,10 @@ func step(dt: float) -> void:
 		if e.burn > 0.0:
 			e.burn -= dt
 			_hurt(e, e.burn_dps * dt, e.burn_by, "", true)
+		if e.get("fester", 0.0) > 0.0:
+			e.fester -= dt
+			_hurt(e, e.fester_dps * dt, 0, "", true)
+	_path_field(players)
 	_step_enemies(foes, players, dt)
 	_step_effects(dt)
 	# Outcome.
@@ -334,12 +338,79 @@ func _finish(ok: bool) -> void:
 
 func _spawn_wave(w: Dictionary) -> void:
 	var training: bool = Rules.activities[activity_id].kind == "training"
+	var first := _next
 	for type in w.spawn:
 		for i in int(w.spawn[type]):
 			var ang := rng.randf_range(-0.7, 0.7)
 			var d := rng.randf_range(8.0, 13.0) if training else rng.randf_range(38.0, 52.0)
 			_add_enemy(type, Vector3(sin(ang) * d, 0, -cos(ang) * d) if Map.m.is_empty() else Map.spawn(rng))
+	# Trollocs brought by a Myrddraal are linked to it, and die when it does.
+	var lord := 0
+	for id in range(first, _next):
+		if ents[id].row.get("links", false):
+			lord = id
+	if lord != 0:
+		for id in range(first, _next):
+			if id != lord and ents[id].row.get("tier", 1) <= 2:
+				ents[id].lord = lord
 	events.append({e = "wave", left = _waves.size()})
+
+var _dist := PackedInt32Array()
+var _dist_t := -9.0
+
+## How far (in grid steps) every open cell is from the nearest player, going
+## round walls: what an enemy with no clear line follows downhill.
+func _path_field(players: Array) -> void:
+	var g := Map.grid()
+	if g.is_empty() or t - _dist_t < 0.4:
+		return
+	_dist_t = t
+	var n: int = g.nx * g.nz
+	_dist.resize(n); _dist.fill(1 << 20)
+	var queue := PackedInt32Array()
+	for p in players:
+		var c := _cell(g, p.pos)
+		if c >= 0:
+			_dist[c] = 0; queue.append(c)
+	var head := 0
+	var nx: int = g.nx
+	var blocked: PackedByteArray = g.blocked
+	while head < queue.size():
+		var c := queue[head]; head += 1
+		var d := _dist[c] + 1
+		var cx := c % nx
+		for step in [-nx, nx, -1, 1]:
+			var o: int = c + step
+			if o < 0 or o >= n or (step == -1 and cx == 0) or (step == 1 and cx == nx - 1):
+				continue
+			if blocked[o] == 0 and _dist[o] > d:
+				_dist[o] = d; queue.append(o)
+
+func _cell(g: Dictionary, p: Vector3) -> int:
+	var ix := int(floor((p.x - g.x0) / g.cell)); var iz := int(floor((p.z - g.z0) / g.cell))
+	return iz * g.nx + ix if ix >= 0 and iz >= 0 and ix < g.nx and iz < g.nz else -1
+
+## Which way an enemy should walk to reach its target: straight at it when
+## nothing is in the way, otherwise along the shortest way round.
+func _steer(e: Dictionary, target: Dictionary) -> Vector3:
+	var to: Vector3 = target.pos - e.pos
+	var g := Map.grid()
+	if g.is_empty() or _dist.is_empty() or not Map.crosses(e.pos, target.pos, e.radius):
+		return to.normalized()
+	var c := _cell(g, e.pos)
+	if c < 0:
+		return to.normalized()
+	var best := _dist[c]; var dir := Vector3.ZERO
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var ix: int = c % g.nx + dx; var iz: int = c / g.nx + dz
+			if (dx == 0 and dz == 0) or ix < 0 or iz < 0 or ix >= g.nx or iz >= g.nz:
+				continue
+			var o: int = iz * g.nx + ix
+			if g.blocked[o] == 0 and _dist[o] < best:
+				best = _dist[o]
+				dir = Vector3(g.x0 + (ix + 0.5) * g.cell, 0, g.z0 + (iz + 0.5) * g.cell) - e.pos
+	return dir.normalized() if dir != Vector3.ZERO else to.normalized()
 
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
@@ -469,7 +540,7 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 		e.stagger = maxf(e.stagger, on.stagger)
 		if e.kind == "player":
 			e.reel_until = maxf(e.reel_until, t + on.stagger * 0.5)
-	if on.has("down") and e.kind == "enemy":
+	if on.has("down") and e.kind == "enemy" and not e.row.get("steady", false):
 		e.down = maxf(e.down, on.down)
 	if on.has("push"):
 		e.vel += dir * on.push
@@ -589,6 +660,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 						best = e
 			if not best.is_empty():
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
+				best.fester = 0.0
 				events.append({e = "heal", id = best.id})
 		"sever":
 			# Held between them and the Source for as long as you hold it, or until
@@ -657,13 +729,18 @@ func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -
 func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) -> void:
 	if not e.alive:
 		return
+	# A Myrddraal is not where the blow lands, half the time, unless something
+	# has hold of it.
+	if not quiet and e.kind == "enemy" and e.row.has("evades") and e.stagger <= 0.0 and e.get("bound_by", 0) == 0 and rng.randf() < float(e.row.evades):
+		events.append({e = "slip", id = e.id})
+		return
 	if not quiet and Rules.weaves.has(weave):
 		var on: Dictionary = Rules.weaves[weave].get("on_hit", {})
 		if on.has("burn"):
 			e.burn = maxf(e.burn, on.burn); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
 		if on.has("stun"):
 			e.stagger = maxf(e.stagger, on.stun)
-		if on.has("down") and e.kind == "enemy":
+		if on.has("down") and e.kind == "enemy" and not e.row.get("steady", false):
 			e.down = maxf(e.down, on.down)
 	if e.get("barrier", 0.0) > 0.0:
 		var soak := minf(e.barrier, dmg)
@@ -680,6 +757,13 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		# The dead hold nothing.
 		for h in e.get("held", []).duplicate():
 			release(e.id, h.weave, h.target)
+		# Trollocs linked to a Myrddraal die with it.
+		if e.kind == "enemy" and e.row.get("links", false):
+			for id in ents:
+				var o: Dictionary = ents[id]
+				if o.alive and o.get("lord", 0) == e.id:
+					o.alive = false
+					events.append({e = "die", id = o.id, by = by, linked = true})
 		events.append({e = "die", id = e.id, by = by})
 		if tallies.has(by) and weave != "":
 			var tl: Dictionary = tallies[by]
@@ -698,6 +782,9 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 	for tr in Map.trees():
 		if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
 			return true
+	# A wall stops what flies below its top: cover from arrows, and from fire.
+	if Map.in_wall(fx.pos):
+		return true
 	var gy := Terrain.height(fx.pos.x, fx.pos.z)
 	if fx.pos.y <= gy:
 		fx.pos.y = gy
@@ -739,7 +826,7 @@ func _step_effects(dt: float) -> void:
 					events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = fx.get("struck", 0)})
 					# It lies where it fell, to be gathered up: thrown weapons always, an
 					# arrow if it did not break.
-					if Rules.weapons[fx.weapon].has("throw") or rng.randf() < 0.6:
+					if Rules.weapons.has(fx.weapon) and (Rules.weapons[fx.weapon].has("throw") or rng.randf() < 0.6):
 						var at: Vector3 = fx.pos
 						at.y = Terrain.height(at.x, at.z)
 						keep.append({kind = "drop", owner = fx.owner, weapon = fx.weapon, pos = at, left = 90.0, id = _fx_id()})
@@ -808,7 +895,32 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 				best = d; target = p
 		if e.get("bound_by", 0) != 0:
 			e.vel = Vector3.ZERO
-		if not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0 and e.get("bound_by", 0) == 0:
+		var free: bool = not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0 and e.get("bound_by", 0) == 0
+		var shot: Dictionary = e.row.get("ranged", {})
+		var far: float = target.pos.distance_to(e.pos) if not target.is_empty() else 0.0
+		if free and not shot.is_empty() and not e.swung and far > shot.keep * 0.45:
+			# An archer: close to bowshot, stand, draw, loose. Pressed close, it
+			# falls back on its blade like any other.
+			e.yaw = atan2(target.pos.x - e.pos.x, target.pos.z - e.pos.z)
+			e.blow = {}
+			if far > shot.range or Map.crosses(e.pos, target.pos, 0.0) and far > shot.keep:
+				want = _steer(e, target) * e.speed
+				e.atk = 0.0
+			else:
+				e.atk += dt
+				if e.atk >= shot.time:
+					e.atk = 0.0
+					var from: Vector3 = _feet(e) + Vector3(0, 1.9, 0)
+					var at: Vector3 = _feet(target) + Vector3(0, 0.65 if target.duck else 1.1, 0)
+					var secs: float = Vector2(at.x - from.x, at.z - from.z).length() / shot.speed
+					at += target.move * target.speed * secs * 0.7
+					at.y += 0.5 * shot.gravity * secs * secs
+					# Not every arrow is true.
+					at += Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.5, 0.5), rng.randf_range(-1, 1)) * far * 0.035
+					effects.append({kind = "missile", owner = e.id, weapon = "trolloc_arrow", pos = from, vel = (at - from).normalized() * shot.speed,
+						dmg = float(shot.dmg), radius = 0.5, left = shot.range * 1.5, gravity = shot.gravity, stagger = 0.0, id = _fx_id()})
+					events.append({e = "loose", id = e.id, weapon = "trolloc_arrow", left = 0})
+		elif free:
 			var to: Vector3 = target.pos - e.pos
 			var dist := to.length()
 			if e.swung:
@@ -822,7 +934,7 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			else:
 				e.yaw = atan2(to.x, to.z)
 				if dist > e.row.reach * 0.8:
-					want = to / dist * e.speed
+					want = _steer(e, target) * e.speed
 					e.atk = 0.0; e.blow = {}
 				else:
 					if e.blow.is_empty():
@@ -898,6 +1010,10 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 	events.append({e = "attack", id = e.id, target = target.id, kind = b.kind})
 	var hp0: float = target.hp
 	_wound(target, b.dmg, e.id, "", {}, dir)
+	# A Myrddraal's black blade: the wound festers until it is Healed or runs its course.
+	if target.hp < hp0 and e.row.has("fester"):
+		target.fester = float(e.row.fester.secs); target.fester_dps = float(e.row.fester.dps)
+		events.append({e = "fester", id = target.id})
 	# A burning Trolloc sets alight what it reaches.
 	if e.burn > 0.0 and target.hp < hp0:
 		target.burn = maxf(target.burn, 2.0); target.burn_dps = 3.0; target.burn_by = e.id
@@ -912,7 +1028,7 @@ func snapshot() -> Dictionary:
 			# Then for those who bear arms: 16 guarding, 32 ducking, 64 sidestepping or rolling.
 			var st := (1 if e.burn > 0.0 else 0) | (2 if e.down > 0.0 else 0) | (4 if e.stagger > 0.0 else 0) | (8 if e.vel.length() > 2.0 else 0) \
 				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0) \
-				| (128 if e.get("bound_by", 0) != 0 else 0)
+				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:

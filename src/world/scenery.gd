@@ -61,30 +61,64 @@ static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, 
 	n.add_child(t)
 	return n
 
+## Build every wall the map says is there (Map.walls), each by its look, so that
+## what is drawn is exactly what the sim blocks on.
+static func walls(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 5
+	var wood := _mat(Color(0.2, 0.14, 0.09))
+	var dark := _mat(Color(0.1, 0.08, 0.06))
+	for w in Map.walls():
+		if w.look == "stone":
+			# Courses of rough stones, each a little shorter than the one below.
+			var courses := int(round(w.h / 0.32))
+			for course in courses:
+				var sx: float = w.x - w.hx + course * 0.2
+				while sx < w.x + w.hx - course * 0.2:
+					var sw := rng.randf_range(0.45, 0.85)
+					var p := _ground(sx + sw * 0.5, w.z)
+					var shade := rng.randf_range(0.8, 1.15)
+					_box(g, Vector3(sw, 0.34, rng.randf_range(0.55, 0.76)), p + Vector3(0, 0.15 + course * 0.31, rng.randf_range(-0.05, 0.05)),
+						_mat(Color(0.2, 0.19, 0.18) * shade), Vector3(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.12, 0.12), rng.randf_range(-0.05, 0.05)))
+					sx += sw + 0.03
+		elif w.look == "wagon":
+			# A merchant's wagon, end-on to its neighbours: bed, tilt, four wheels.
+			var n := Node3D.new(); g.add_child(n)
+			n.position = _ground(w.x, w.z); n.rotation.y = w.yaw + PI * 0.5
+			_box(n, Vector3(1.5, 0.75, 4.2), Vector3(0, 1.05, 0), wood)
+			_box(n, Vector3(1.4, 0.12, 4.0), Vector3(0, 0.66, 0), dark)
+			var tilt := _mat(Color(0.62, 0.58, 0.5) * rng.randf_range(0.8, 1.05), 1.0)
+			for k in 5:
+				var a := lerpf(-1.1, 1.1, k / 4.0)
+				_box(n, Vector3(0.52, 0.05, 4.0), Vector3(sin(a) * 0.72, 1.45 + cos(a) * 0.62, 0), tilt, Vector3(0, 0, -a))
+			for wx in [-0.85, 0.85]:
+				for wz in [-1.4, 1.4]:
+					var wheel := MeshInstance3D.new(); var c := CylinderMesh.new(); c.top_radius = 0.6; c.bottom_radius = 0.6; c.height = 0.1
+					wheel.mesh = c; wheel.material_override = dark; wheel.position = Vector3(wx, 0.6, wz); wheel.rotation.z = PI * 0.5
+					n.add_child(wheel)
+			_box(n, Vector3(0.08, 0.08, 2.4), Vector3(0, 0.7, 3.2), wood, Vector3(0.18, 0, 0))
+
+## The caravan's ground: a fire in the middle of the ring and a few bales and casks.
+static func wagon_ring(g: Node3D) -> void:
+	walls(g)
+	fire(g, _ground(0.0, 0.0) + Vector3(2.5, 0, 2.0))
+	var rng := RandomNumberGenerator.new(); rng.seed = 3
+	var sack := _mat(Color(0.5, 0.42, 0.3)); var cask := _mat(Color(0.25, 0.16, 0.09))
+	for i in 10:
+		var a := rng.randf() * TAU
+		var p := _ground(sin(a) * rng.randf_range(3.5, 6.5), cos(a) * rng.randf_range(3.5, 6.5))
+		if i % 2 == 0:
+			_box(g, Vector3(0.9, 0.5, 0.6), p + Vector3(0, 0.25, 0), sack, Vector3(0, rng.randf() * TAU, 0))
+		else:
+			var b := MeshInstance3D.new(); var c := CylinderMesh.new(); c.top_radius = 0.3; c.bottom_radius = 0.3; c.height = 0.8
+			b.mesh = c; b.material_override = cask; b.position = p + Vector3(0, 0.4, 0); g.add_child(b)
+
 static func tarwins_gap(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 11
 	var stone := _mat(Color(0.2, 0.19, 0.18))
 	var wood := _mat(Color(0.16, 0.11, 0.07))
 	var z0 := Map.line_z()
 	var w := Map.half_width(z0)
-	# The defenders' line: a broken drystone breastwork with gaps wide enough that
-	# nothing needs to path around it, and sharpened stakes pointing up the pass.
-	var x := -w + 1.0
-	while x < w - 1.0:
-		var seg := rng.randf_range(2.2, 4.0)
-		if rng.randf() < 0.7:
-			# Three courses of rough stones, each a little shorter than the one below.
-			var zc := z0 + rng.randf_range(-0.4, 0.4)
-			for course in 3:
-				var sx := x + course * 0.25
-				while sx < x + seg - course * 0.25:
-					var sw := rng.randf_range(0.45, 0.85)
-					var p := _ground(sx + sw * 0.5, zc)
-					var shade := rng.randf_range(0.8, 1.15)
-					_box(g, Vector3(sw, 0.36, rng.randf_range(0.5, 0.75)), p + Vector3(0, 0.15 + course * 0.34, rng.randf_range(-0.06, 0.06)),
-						_mat(Color(0.2, 0.19, 0.18) * shade), Vector3(rng.randf_range(-0.06, 0.06), rng.randf_range(-0.15, 0.15), rng.randf_range(-0.06, 0.06)))
-					sx += sw + 0.03
-		x += seg + rng.randf_range(1.6, 2.6)
+	walls(g)
 	for i in 26:
 		var sx := rng.randf_range(-w + 1.5, w - 1.5)
 		var p := _ground(sx, z0 - rng.randf_range(3.0, 6.5))

@@ -23,6 +23,7 @@ var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
 var variants: Array = []       # generated Trolloc data, shared between enemies
+var fade := {}                 # generated Myrddraal data
 var hud: Hud
 var hurt_t := 0.0              # 1 when just struck, fading: the HUD reddens the edges
 var banner: Label
@@ -83,6 +84,8 @@ func _ready() -> void:
 	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
 	WorkerThreadPool.wait_for_group_task_completion(id)
 	variants = out
+	# The Eyeless is one shape: they are all alike.
+	fade = Creature.build(Species.roll(Species.MYRDDRAAL, 7, {lod = 1.2}))
 	# The Session lives at /root/Session on every machine (RPCs go by node path).
 	var old := get_tree().root.get_node_or_null("Session")
 	if old:
@@ -369,9 +372,20 @@ func _on_started(_my_id: int, activity: String) -> void:
 		World.build(self, 14.0, -24.0)
 		(ground.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("road", 7.0)
 		Scenery.tarwins_gap(self)
+	elif Map.id == "wagon_ring":
+		World.build(self, 60.0, -30.0)
+		Scenery.wagon_ring(self)
 	else:
 		World.build(self)
 	Scenery.scatter(self)
+	# --spawn=myrddraal:1,trolloc_archer:2 puts enemies a few paces off, to look at
+	# them in a render.
+	if args.has("spawn") and session.is_host:
+		for part in args.spawn.split(","):
+			var kv: PackedStringArray = part.split(":")
+			if Rules.enemies.has(kv[0]):
+				for i in (int(kv[1]) if kv.size() > 1 else 1):
+					session.sim._add_enemy(kv[0], Vector3(randf_range(-3, 3), 0, -7.0 - i * 2.0))
 
 # --- mirroring the sim ----------------------------------------------------------------
 
@@ -400,6 +414,9 @@ func _on_events(list: Array) -> void:
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
+					# Flames, sparks and the rest do not outlast the one they clung to.
+					a.dead = true
+					_status(a, 0)
 					if a.node is Walker:
 						(a.node as Walker).vel = Vector3.ZERO
 						(a.node as Walker).die(a.node.position - (me.position if me else Vector3.ZERO))
@@ -512,7 +529,20 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id:
 					ammo[e.weapon] = e.left
 				if actors.has(e.id):
-					Sfx.play(self, "twang" if Rules.weapons[e.weapon].has("shot") else "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -1.0, 1.0 if Rules.weapons[e.weapon].has("shot") else 2.2)
+					var bow: bool = not Rules.weapons.has(e.weapon) or Rules.weapons[e.weapon].has("shot")
+					Sfx.play(self, "twang" if bow else "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -1.0, 1.0 if bow else 2.2)
+					# A Trolloc archer: the arm comes up as it looses.
+					if actors[e.id].node is Walker:
+						(actors[e.id].node as Walker).attack("thrust")
+			"slip":
+				# A Myrddraal is not where the blow went.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Sfx.play(self, "whoosh", actors[e.id].node.position + Vector3(0, 1.2, 0), -6.0, 1.8)
+					if actors[e.id].node is Walker:
+						(actors[e.id].node as Walker).hit(Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)), 0.5)
+			"fester":
+				if e.id == session.my_id:
+					flash_t = 1.0; flash_text = "The wound festers: only Healing will end it"
 			"pickup":
 				if e.id == session.my_id:
 					ammo[e.weapon] = e.left
@@ -531,7 +561,7 @@ func _on_events(list: Array) -> void:
 				if fx.has(e.id):
 					fx[e.id].queue_free(); fx.erase(e.id)
 			"wave":
-				_banner("A wave comes down the pass" if e.left > 0 else "The last of them", 3.0)
+				_banner(("They come from every side" if Map.m.get("around", false) else "A wave comes down the pass") if e.left > 0 else "The last of them", 3.0)
 
 func _play(a: Dictionary, clip: String, once := false) -> void:
 	var ap: AnimationPlayer = a.node.get_meta("anim")
@@ -553,6 +583,12 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 		if row.tier > 1:
 			w.scale = Vector3.ONE * 1.25
 		actors[id] = {node = w, kind = "enemy", target = pos}
+	elif row.gen == "FADE":
+		var w := Creature.instantiate(fade)
+		add_child(w)
+		w.teleport(pos, 0.0)
+		actors[id] = {node = w, kind = "enemy", target = pos, fade = true}
+		_banner("An Eyeless is among them", 4.0)
 	else:
 		var post := MeshInstance3D.new()
 		var m := CylinderMesh.new(); m.top_radius = 0.22; m.bottom_radius = 0.28; m.height = 2.0
@@ -595,7 +631,7 @@ func _status(a: Dictionary, bits: int) -> void:
 	a.status = bits
 	if not is_instance_valid(a.node):
 		return
-	for pair in [["burn", 1], ["stun", 4]]:
+	for pair in [["burn", 1], ["stun", 4], ["fester", 256]]:
 		var key: String = "fx_" + pair[0]
 		var on: bool = bits & pair[1] and not a.get("dead", false)
 		if on and not a.has(key):

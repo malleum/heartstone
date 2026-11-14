@@ -234,7 +234,10 @@ static func flash(g: Node3D, who: Node3D, secs := 0.09) -> void:
 ## stunned. The caller frees it when the status ends.
 static func status(kind: String) -> Node3D:
 	var p: GPUParticles3D
-	if kind == "burn":
+	if kind == "fester":
+		# A Myrddraal's wound: dark motes that sink instead of rising.
+		p = _particles(Color(0.25, 0.05, 0.3), 18, 0.9, 0.16, 0.4, -1.2, 90.0, false)
+	elif kind == "burn":
 		p = _particles(TINT.fire, 40, 0.6, 0.3, 0.6, 2.2, 60.0)
 		p.add_child(_light(TINT.fire, 2.0, 5.0))
 	else:

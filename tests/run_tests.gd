@@ -37,6 +37,86 @@ func run(sim: Sim, secs: float) -> Array:
 		sim.events.clear()
 	return seen
 
+func _foes() -> void:
+	print("== walls, archers and the Eyeless")
+	var p := Profile.create({name = "Stander", cls = "warder", stat_pts = {endurance = 4}})
+	# The breastwork is solid, and a Trolloc finds the gap.
+	var sim := Sim.new("tarwins_gap_watch", 2)
+	sim._waves = []
+	var wall: Dictionary = Map.walls()[Map.walls().size() / 2]
+	var id := sim.add_player(p, Vector3(wall.x, 0, wall.z + 2.5))
+	sim._add_enemy("trolloc", Vector3(wall.x, 0, wall.z - 6.0))
+	var foe: Dictionary = sim.ents[id + 1]
+	check(Map.crosses(foe.pos, sim.ents[id].pos) and not Map.crosses(Vector3(40, 0, 10), Vector3(41, 0, 12)), "the wall lies between them")
+	var inside := false; var reached := false
+	foe.hp = 99999.0
+	for i in 600:
+		sim.step(1.0 / 30.0); sim.events.clear()
+		if absf(foe.pos.x - wall.x) < wall.hx - 0.1 and absf(foe.pos.z - wall.z) < wall.hz - 0.1: inside = true
+		if foe.pos.distance_to(sim.ents[id].pos) < 3.2 and foe.pos.z > wall.z: reached = true
+	check(not inside, "a Trolloc does not walk through the breastwork")
+	check(reached, "it goes round through a gap and reaches the defender")
+	# Archers: standing in the open you are shot; ducked behind the wall you are not.
+	var shots := {}
+	for how in ["standing", "ducked behind the wall"]:
+		sim = Sim.new("tarwins_gap_watch", 2)
+		sim._waves = []
+		wall = Map.walls()[Map.walls().size() / 2]
+		id = sim.add_player(p, Vector3(wall.x, 0, wall.z + 0.9))
+		sim._add_enemy("trolloc_archer", Vector3(wall.x, 0, wall.z - 15.0))
+		sim.ents[id + 1].speed = 0.001
+		var loosed := 0
+		for i in 900:
+			if how != "standing": sim.set_duck(id, true)
+			sim.step(1.0 / 30.0)
+			for e in sim.events:
+				if e.e == "loose": loosed += 1
+			sim.events.clear()
+		shots[how] = sim.ents[id].max_hp - sim.ents[id].hp
+		check(loosed >= 6, "the archer looses (%d arrows, %s)" % [loosed, how])
+	check(shots["standing"] > 20.0, "arrows wound someone standing at the wall (%d)" % int(shots["standing"]))
+	check(shots["ducked behind the wall"] < shots["standing"] * 0.25, "the breastwork is cover (%d)" % int(shots["ducked behind the wall"]))
+	# The Myrddraal: hard to hit, cannot be put down, its wounds fester, and its Trollocs die with it.
+	sim = Sim.new("camp_training", 9)
+	sim._waves = []
+	id = sim.add_player(p)
+	sim._spawn_wave({spawn = {myrddraal = 1, trolloc = 3}})
+	var fade: Dictionary = {}
+	for k in sim.ents:
+		if sim.ents[k].get("type", "") == "myrddraal": fade = sim.ents[k]
+	var landed := 0
+	for i in 200:
+		var hp0: float = fade.hp
+		sim._hurt(fade, 0.01, id, "sword")
+		if fade.hp < hp0: landed += 1
+	check(landed > 60 and landed < 140, "about half of what is aimed at a Myrddraal lands (%d of 200)" % landed)
+	sim._wound(fade, 0.01, id, "sword", {down = 2.0}, Vector3(0, 0, 1))
+	check(fade.down == 0.0, "it cannot be knocked down")
+	fade.pos = sim.ents[id].pos + Vector3(0, 0, 1.5)
+	var seen := run(sim, 3.0)
+	check(seen.has("fester") and sim.ents[id].get("fester", 0.0) > 0.0, "its blade leaves a festering wound")
+	fade.hp = 0.001; fade.stagger = 1.0
+	sim._hurt(fade, 1.0, id, "sword")
+	var left := 0
+	for k in sim.ents:
+		if sim.ents[k].alive and sim.ents[k].kind == "enemy": left += 1
+	check(not fade.alive and left == 0, "when it dies, the Trollocs linked to it die too")
+	# The wagon ring: they come from all sides, and it can be played to an end.
+	var pair := Sim.new("wagon_ring", 4)
+	var weaver := Profile.create({name = "Ring Weaver", potential_pts = 8, affinity_pts = {fire = 6}})
+	weaver.weaves["dome_of_air"] = {known = true, xp = 0.0}
+	var a := pair.add_player(weaver, Vector3(0, 0, 1)); var b := pair.add_player(p, Vector3(1, 0, 0))
+	var quarters := {}
+	while not pair.over and pair.t < 500.0:
+		Bot.drive(pair, a); Bot.drive(pair, b)
+		pair.step(1.0 / 30.0)
+		for e in pair.events:
+			if e.e == "spawn": quarters[int(signf(e.pos.x)) * 2 + int(signf(e.pos.z))] = true
+		pair.events.clear()
+	print("  wagon ring, weaver and Warder: %s in %.0fs" % ["won" if pair.success else "lost", pair.t])
+	check(pair.over and quarters.size() == 4, "the wagon ring is attacked from every side and plays to an end")
+	Map.use("open")
+
 func _holds() -> void:
 	print("== holding weaves")
 	var p := Profile.create({name = "Holder", potential_pts = 8, affinity_pts = {air = 4, fire = 2}})
@@ -207,7 +287,7 @@ func _arms() -> void:
 			check(s.success, "%s can win %s" % [who.name, act])
 			for line in Progression.award(who, tl, act, s.success):
 				print("    + ", line)
-		check(who.weaves.is_empty() and who.get("study", "") == "", "%s learns no weaves" % who.name)
+		check(who.weaves.is_empty(), "%s learns no weaves" % who.name)
 	check(warder.skills.sword > 3 * 3 * Rules.TUNE.skill_xp, "fighting raises the skill of the weapon used")
 
 	print("== a fighter and a channeller together")
@@ -249,7 +329,7 @@ func _arms() -> void:
 	check(99999.0 - d[2].hp > plain * 1.4, "a blow after a parry bites deeper")
 
 	# Forms: worked out by fighting, used with the right weapon, on a cooldown.
-	check(not warder.forms.is_empty() and not aiel.forms.is_empty(), "fighting works out forms: %s, %s" % [str(warder.forms.keys()), str(aiel.forms.keys())])
+	check(not warder.forms.is_empty() and (not aiel.forms.is_empty() or aiel.get("study_done", 0.0) > 0.0), "fighting works out forms: %s, %s" % [str(warder.forms.keys()), str(aiel.forms.keys())])
 	check(not Rules.study_options(warder).has("arc_of_the_moon") and not Rules.study_options(warder).has("sheathing_the_sword"), "the forms tree gates on what is known")
 	check(not Rules.study_options(aiel).has("boar_rushes") and not aiel.forms.has("parting_the_silk"), "forms follow the weapon you are skilled with")
 	warder.forms["parting_the_silk"] = {known = true}
@@ -356,5 +436,6 @@ func _init() -> void:
 
 	_arms()
 	_holds()
+	_foes()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

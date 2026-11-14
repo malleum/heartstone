@@ -153,6 +153,10 @@ static func missile(weapon_id: String) -> Node3D:
 	var n := Node3D.new()
 	var steel := _mat(STEEL, 0.85)
 	if not Rules.weapons.has(weapon_id):
+		# A Trolloc's arrow: black, thick, crudely fletched.
+		_rod(n, Vector3(0, 0, 0.45), Vector3(0, 0, -0.4), 0.009, 0.009, _mat(DARK))
+		_rod(n, Vector3(0, 0, -0.4), Vector3(0, 0, -0.52), 0.02, 0.001, _mat(DARK, 0.6))
+		_box(n, Vector3(0.07, 0.003, 0.12), Vector3(0, 0, 0.4), _mat(Color(0.15, 0.1, 0.08)))
 		return n
 	match Rules.weapons[weapon_id].family if not weapon_id in ["javelins", "aiel_spear", "sling", "throwing_knives", "belt_knife"] else weapon_id:
 		"bow":

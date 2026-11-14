@@ -13,6 +13,7 @@ const OUTFITS := {
 	aes_sedai = [["boots", Color(0.2, 0.15, 0.1), 0.3], ["dress", Color(0.1, 0.25, 0.5), Color(0.8, 0.8, 0.85)], ["shawl", Color(0.85, 0.85, 0.82), Color(0.1, 0.25, 0.5)]],
 	cairhien = [["trousers", Color(0.08, 0.08, 0.09)], ["boots", Color(0.06, 0.05, 0.05), 0.6], ["coat", Color(0.09, 0.09, 0.11), 0.5, 1.0, [Color(0.6, 0.1, 0.1), Color(0.75, 0.6, 0.15), Color(0.15, 0.3, 0.6)]], ["belt", Color(0.05, 0.05, 0.05)]],
 	warder = [["trousers", Color(0.16, 0.19, 0.15)], ["boots", Color(0.1, 0.08, 0.06), 0.7], ["coat", Color(0.17, 0.22, 0.16), 0.3, 1.0], ["belt", Color(0.12, 0.08, 0.05)], ["sword"]],
+	myrddraal = [["trousers", Color(0.015, 0.015, 0.018)], ["boots", Color(0.01, 0.01, 0.012), 0.8], ["coat", Color(0.012, 0.012, 0.015), 0.85, 1.0], ["belt", Color(0.02, 0.02, 0.02)], ["blade"]],
 	domani = [["boots", Color(0.3, 0.2, 0.12), 0.3], ["dress", Color(0.55, 0.2, 0.22), Color(0.8, 0.65, 0.3)], ["belt", Color(0.7, 0.55, 0.2)]],
 }
 
@@ -91,6 +92,12 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 				p.box(Vector3(0, 0.06 * u, 0), Vector3(1.0, 0.035 * u, 1.0), 0.002).op = Sdf.PAINT
 				p.box(Vector3(0, J[C.NECK].y - 0.015 * u, 0), Vector3(1.0, 0.02 * u, 1.0), 0.002).op = Sdf.PAINT
 				kit.shells.append({mask = m, thick = 0.014 * u, col = _c(g[1], Gear.CLOTH), solid = skirt, paint = p, wide = true})
+			"blade":
+				# A black blade carried bare in the hand (the Myrddraal's), built by
+				# the same code as the Trollocs' weapons so the swing arm knows it.
+				s.weapon_side = 1
+				s.weapon_kind = 0
+				kit.props.append(Gear._weapon(s, J, _rng, 1))
 			"sword":
 				var p := Sdf.new()
 				var steel := Color(0.3, 0.3, 0.32, Gear.PLATE)

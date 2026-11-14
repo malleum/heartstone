@@ -47,7 +47,8 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 	sd.ball(_v(0, 0.0185, 0.106), _v(0.022, 0.0012, 0.006)).op = Sdf.PAINT
 	var eyes := []
 	var iris: Color = [Color(0.12, 0.07, 0.03), Color(0.1, 0.2, 0.32), Color(0.16, 0.25, 0.12), Color(0.2, 0.2, 0.22)][rng.randi() % 4]
-	for sx in [-1.0, 1.0]:
+	# A Myrddraal has smooth skin where eyes would be: no sockets, no eyes, no brows.
+	for sx in ([] if s.get("eyeless", false) else [-1.0, 1.0]):
 		var ex: float = 0.031 * s.f_eye_gap * sx
 		sd.use(HEAD, skin.darkened(0.1), 0.008)
 		sd.ball(_v(ex, 0.083, 0.106), _v(0.0175 * eye, 0.0112 * eye, 0.017)).op = Sdf.CARVE

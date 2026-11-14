@@ -167,6 +167,20 @@ place can be lit on purpose. Nothing in the pass blocks
 movement yet except the cliffs: the wall has gaps and no collision on purpose,
 because Trollocs still run straight at the nearest player with no pathfinding.
 
+### Walls and finding a way (src/core/map.gd, sim.gd)
+- `Map.walls()` are boxes `{x, z, hx, hz, h, yaw, look}` made by `Map.use` for the
+  map (the breastwork, the wagon ring). `Map.unblock` keeps bodies out of them,
+  `Map.in_wall` stops anything flying below their top, and `Scenery.walls` builds
+  each from its `look`: the view cannot disagree with the sim.
+- `Map.grid()` marks which 1.25 m cells can be stood in. Every 0.4 s
+  `Sim._path_field` floods outward from the players; an enemy whose straight
+  line to its target crosses a wall (`Map.crosses`) walks downhill on that field
+  (`Sim._steer`), and otherwise goes straight. Maps with no walls skip all of it.
+- A map with `around = true` (the wagon ring) spawns waves all round its rim.
+- Enemy rows may have `ranged` (archers), `evades`, `steady`, `links`, `fester`
+  (see `data/enemies.json` `_doc`). The Myrddraal body is `Species.MYRDDRAAL`, a
+  generated human with no eyes.
+
 ## Shadowspawn: generated (src/gen, src/anim)
 Result of the first spike (seven review rounds, including a fresh-eyed reviewer).
 - **How:** a creature is a table of ranges (`Species`) plus a seed. The body is
@@ -292,8 +306,8 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
    linking. (Holding, upkeep and tying off are built.)
 3. Co-op basics: a marker for who Healing will reach, a lobby screen. (The
    server, looks sent to other players and latecomer joins are built.)
-4. Enemies that ask questions: Myrddraal, archers, Trollocs that path around the
-   breastwork. Then a second holdout (Dumai's Wells).
+4. More enemies (Draghkar, Darkhounds, Darkfriend channellers) and a third map.
+   (Archers, the Myrddraal, pathing round walls and the wagon ring are built.)
 5. One linear mission; then casting by drawing (see VISION.md).
 6. From `WEAVES.md`, not built: Delving, Illusion and the weather weave; Skimming;
    techniques (tie off, invert, cut); linking; angreal. Gateway does nothing yet.

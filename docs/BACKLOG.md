@@ -44,10 +44,18 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   who will be healed, and it has not been tried with two people.
 - [ ] Other players are smoothed but not predicted; over the internet your own
   movement will lag by the round trip. Not tried over a real connection.
-- [ ] Trollocs run straight at the nearest player; the breastwork blocks nothing.
+- [ ] Enemies still to make: Draghkar, Darkhounds, Darkfriend channellers. Trolloc
+  archers carry whatever their body was given, not a bow. The Myrddraal has no
+  cloak and no fear in its gaze. The wagon ring was lost by a two-bot party.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **enemies that ask questions, and a second map.** Walls are solid
+  (the breastwork at Tarwin's Gap, wagons) and stop arrows and low weaves;
+  Trollocs find their way round through the gaps. Trolloc archers. A Myrddraal:
+  half of what is aimed at it misses, it cannot be knocked down, its wounds
+  fester until Healed, and the Trollocs it brought die with it. A new holdout,
+  the wagon ring, attacked from every side.
 - 2026-11-14: **holding weaves, so flows matter.** Held weaves take up flows and
   cost stamina each second; Bonds of Air (new) holds a Trolloc where it stands;
   a Shield lasts while held; tying off (G) frees the flows for a while and is

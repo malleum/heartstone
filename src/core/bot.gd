@@ -134,8 +134,10 @@ static func drive(sim: Sim, id: int) -> void:
 	# Close to weaving distance, back off when they get near, otherwise hold ground.
 	var move := Vector3.ZERO
 	if best < 6.0 and near.speed > 0.0:
-		move = -to
-	elif best > reach * 0.8:
+		# Fall back toward the middle and the rear, not into the cliff beside you.
+		move = (-to + Vector3(-signf(me.pos.x) * 0.5 if absf(me.pos.x) > 4.0 else 0.0, 0, 0.6 if not Map.m.is_empty() else 0.0)).normalized()
+	elif best > reach * 0.8 and (not Map.m.get("breastwork", false) or me.pos.z > Map.line_z() + 3.0):
+		# Where there is a line to hold, hold it: do not walk out in front of it.
 		move = to
 	sim.set_input(id, move, atan2(to.x, to.z))
 	if pick != "" and me.forming.is_empty():

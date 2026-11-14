@@ -101,8 +101,8 @@ of it. Notes on what a tick does not cover:
 - [x] The sim must know which weapon each Trolloc carries (today only the view
       does): choose it in the sim and tell the view.
 - [ ] Trollocs that guard against blades and must be broken or flanked.
-- [ ] Trolloc archers and javelin throwers, so a shield and a roll matter at range.
-- [ ] Myrddraal: fast, parries, black blade that festers (damage over time);
+- [x] Trolloc archers and javelin throwers, so a shield and a roll matter at range.
+- [x] Myrddraal: fast, parries, black blade that festers (damage over time);
       linked Trollocs die with it.
 - [ ] Grabs and shoves that must be broken with a dodge.
 - [ ] Hit reactions on the player that match the blow (stagger, knocked back,
