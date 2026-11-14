@@ -38,32 +38,56 @@ channeller weaves weaker.
   ceiling (Asha'man drill the sword), and can sidestep, roll and duck at a higher
   cost.
 
+## Built so far (2026-11-14)
+Ticked below. In short: 28 weapons and 22 moves as data; Warder, Aiel and Hunter
+of the Horn can be created and played, and a channeller can carry one weapon;
+light chains, heavy and low moves, thrown weapons and bows work; guard, parry,
+guard break, sidestep, roll and duck work; Trollocs chop, sweep and thrust along a
+line they commit to; weapons show in the hand; the HUD and the camp know about all
+of it. Notes on what a tick does not cover:
+- **Tests** exist for every weapon and every defence, and fighter bots clear the
+  yard and the watch, but co-op with a channeller and a fighter together is not
+  tested (so the Tests item stays open).
+- **Trolloc attack kinds are chosen at random,** not by the weapon the Trolloc
+  carries: the sim still does not know what each one holds.
+- **Two rules were added that the plan did not have,** because without them a
+  fighter died in under a minute: at most two enemies press one person at a time
+  (`TUNE.gang`), and anyone left unhurt for six seconds slowly recovers health
+  (`TUNE.rest_after`). Both apply to channellers too.
+- **Animations are stand-ins** where the libraries have nothing: thrusts use a
+  sword dash, staves and spears use sword cuts, bows use a pistol pose, the low
+  sweep and the kick use a hook punch, the sidestep is a fast roll.
+- **Missiles** fly and wound but do not stay stuck in what they hit and cannot be
+  picked up; the weapons marked ammunition simply run out for the activity.
+- Aiel buckler: it is drawn and it gives the Aiel spear its guard; there is no
+  separate shield slot yet.
+
 ## To do
 
 ### 1. Foundations
-- [ ] `data/weapons.json`: weapons and the `_moves` table, with a `_doc`.
-- [ ] `Rules`: weapon damage, timing and cost from stats, skill, class and stamina.
-- [ ] `Profile`: `cls`, `sex`, stats (might, quickness, endurance), `skills` (xp
+- [x] `data/weapons.json`: weapons and the `_moves` table, with a `_doc`.
+- [x] `Rules`: weapon damage, timing and cost from stats, skill, class and stamina.
+- [x] `Profile`: `cls`, `sex`, stats (might, quickness, endurance), `skills` (xp
       per family), `kit` (what is carried); creation for the martial classes;
       migration for existing characters (class channeller, empty kit).
-- [ ] `Sim`: attack state machine (wind-up, strike, recovery, chain window, one
+- [x] `Sim`: attack state machine (wind-up, strike, recovery, chain window, one
       buffered input), arcs and reach, heights.
-- [ ] `Sim`: guard, parry, guard break; sidestep and roll with untouchable frames;
+- [x] `Sim`: guard, parry, guard break; sidestep and roll with untouchable frames;
       duck.
-- [ ] `Sim`: changing the weapon in hand; ammunition per activity.
-- [ ] `Session`: intents for attack, guard, duck, dodge, equip; refusals.
-- [ ] `Progression`: skill xp by family from blows and kills; non-channellers skip
+- [x] `Sim`: changing the weapon in hand; ammunition per activity.
+- [x] `Session`: intents for attack, guard, duck, dodge, equip; refusals.
+- [x] `Progression`: skill xp by family from blows and kills; non-channellers skip
       weave study; reports.
-- [ ] `Bot`: a fighter that closes, attacks, guards against a swing and steps out.
+- [x] `Bot`: a fighter that closes, attacks, guards against a swing and steps out.
 - [ ] Tests: every weapon's moves resolve; guard, parry, dodge, duck against each
       enemy attack; a martial bot clears the training yard and the watch; co-op
       with a channeller and a fighter together.
 
 ### 2. Enemies that can be read
-- [ ] Trolloc attacks by weapon: chop (axe, club), sweep (scythe-sword), thrust
+- [x] Trolloc attacks by weapon: chop (axe, club), sweep (scythe-sword), thrust
       (spear). Each with its own wind-up time, arc, reach and height.
-- [ ] The swing commits to a direction; a miss leaves the Trolloc open briefly.
-- [ ] `Walker`: a different visible motion for each attack kind.
+- [x] The swing commits to a direction; a miss leaves the Trolloc open briefly.
+- [x] `Walker`: a different visible motion for each attack kind.
 - [ ] The sim must know which weapon each Trolloc carries (today only the view
       does): choose it in the sim and tell the view.
 - [ ] Trollocs that guard against blades and must be broken or flanked.
@@ -76,71 +100,71 @@ channeller weaves weaker.
 
 ### 3. Weapons
 Swords
-- [ ] Sword (one hand, the plain soldier's blade)
-- [ ] Hand-and-a-half sword (Borderlands)
+- [x] Sword (one hand, the plain soldier's blade)
+- [x] Hand-and-a-half sword (Borderlands)
 - [ ] Heron-mark blade (two hands; a blademaster's, earned not chosen)
-- [ ] Short sword
-- [ ] Sabre (Saldaea; long sweeping cuts)
-- [ ] Practice sword of bound lathes (training yard; bruises only)
+- [x] Short sword
+- [x] Sabre (Saldaea; long sweeping cuts)
+- [x] Practice sword of bound lathes (training yard; bruises only)
 - [ ] Power-wrought blade (never dulls; a reward)
 
 Knives
-- [ ] Belt knife (everyone has one; the weapon of last resort)
-- [ ] Aiel long knife
-- [ ] Paired daggers
-- [ ] Throwing knives, a brace of eight (Mat, Thom, Faile)
+- [x] Belt knife (everyone has one; the weapon of last resort)
+- [x] Aiel long knife
+- [x] Paired daggers
+- [x] Throwing knives, a brace of eight (Mat, Thom, Faile)
 - [ ] Knives recovered from the dead and the ground after a throw
 - [ ] The ruby-hilted dagger of Shadar Logoth (a cursed reward: deadly, and it
       costs you)
 
 Spears and polearms
-- [ ] Aiel short spear with buckler; spare spears carried behind the buckler
-- [ ] Aiel javelins and thrown short spears
-- [ ] Boar spear (two hands, long, with a crossbar)
-- [ ] Pike (very long, slow; holds a line)
-- [ ] Halberd
-- [ ] Ashandarei (sword-bladed black spear: cuts and thrusts)
+- [x] Aiel short spear with buckler; spare spears carried behind the buckler
+- [x] Aiel javelins and thrown short spears
+- [x] Boar spear (two hands, long, with a crossbar)
+- [x] Pike (very long, slow; holds a line)
+- [x] Halberd
+- [x] Ashandarei (sword-bladed black spear: cuts and thrusts)
 - [ ] Lance, once there are horses
 
 Staves
-- [ ] Quarterstaff (Two Rivers; fast, sweeps, both ends)
-- [ ] Iron-shod staff
+- [x] Quarterstaff (Two Rivers; fast, sweeps, both ends)
+- [x] Iron-shod staff
 
 Axes, hammers, clubs
-- [ ] Half-moon axe with a back spike (Perrin's)
-- [ ] Woodsman's axe
+- [x] Half-moon axe with a back spike (Perrin's)
+- [x] Woodsman's axe
 - [ ] Throwing axe
-- [ ] Smith's hammer; war hammer
-- [ ] Mace or cudgel
+- [x] Smith's hammer; war hammer
+- [x] Mace or cudgel
 
 Bows and missiles
-- [ ] Two Rivers longbow (very long range, slow, needs might)
-- [ ] Aiel horn bow (short, quick)
-- [ ] Horse bow (Saldaea)
-- [ ] Crossbow with a crank (flat, hard-hitting, slow to span)
-- [ ] Sling (cheap, stuns)
+- [x] Two Rivers longbow (very long range, slow, needs might)
+- [x] Aiel horn bow (short, quick)
+- [x] Horse bow (Saldaea)
+- [x] Crossbow with a crank (flat, hard-hitting, slow to span)
+- [x] Sling (cheap, stuns)
 - [ ] Arrow kinds: broadhead, bodkin (through armour), fire arrows lit by a
       channeller's Fire
 - [ ] Quiver counts, picking arrows back up
 
 Shields and the off hand
-- [ ] Aiel buckler (hide; light; parries well)
+- [x] Aiel buckler (hide; light; parries well)
 - [ ] Round shield; Borderland kite shield
 - [ ] Shield bash; dash behind the shield
 - [ ] A second weapon in the off hand (sword and knife)
 
 Bare hands
-- [ ] Aiel hand-and-foot fighting: strikes, kick, throw
+- [x] Aiel hand-and-foot fighting: strikes, kick, throw
 - [ ] Shove and grapple break for everyone
 
 ### 4. Moves
-- [ ] Light chain per family (cut, back-cut, finishing cut; jab, jab, thrust; and
+- [x] Light chain per family (cut, back-cut, finishing cut; jab, jab, thrust; and
       so on)
-- [ ] Heavy move per family (overhead, lunge, great sweep)
-- [ ] Low move per family (leg sweep that knocks down)
+- [x] Heavy move per family (overhead, lunge, great sweep)
+- [x] Low move per family (leg sweep that knocks down)
 - [ ] Running attack; attack out of a roll
-- [ ] Thrusts that pass through one body into the next
-- [ ] Haft and pommel strikes that stagger
+- [x] Thrusts that pass through one body into the next
+- [x] Haft and pommel strikes that stagger
 - [ ] Staff spin; spear held to keep them off (set against a charge)
 - [ ] Bleeding from cuts, staggers from blunt blows, armour that turns cuts but
       not thrusts
@@ -154,19 +178,19 @@ Bare hands
 - [ ] Finishing blows on downed Trollocs
 
 ### 5. Defence
-- [ ] Guard, parry, guard break (see Foundations)
-- [ ] Sidestep, roll, duck (see Foundations)
+- [x] Guard, parry, guard break (see Foundations)
+- [x] Sidestep, roll, duck (see Foundations)
 - [ ] Jump, for low sweeps
 - [ ] Riposte after a parry
 - [ ] Deflecting arrows with a shield
 - [ ] Getting up from a knockdown: roll away or rise guarding
 
 ### 6. Seeing it
-- [ ] Add the Universal Animation Library 2 clips (CC0): three sword cuts, heavy
+- [x] Add the Universal Animation Library 2 clips (CC0): three sword cuts, heavy
       combo, dash, block, shield, overhand throw, knockback, slide.
-- [ ] Weapons in the hand: generated meshes on the hand bone for every family;
+- [x] Weapons in the hand: generated meshes on the hand bone for every family;
       bow in the off hand; buckler on the forearm; sheathed when weaving.
-- [ ] A clip (or a stand-in) for every move, timed so the blade lands when the
+- [x] A clip (or a stand-in) for every move, timed so the blade lands when the
       sim says it does.
 - [ ] Arrows, knives, javelins and stones in flight; stuck in what they hit.
 - [ ] Trails on a swinging blade; sparks on a parry; blood or ichor on a hit.
@@ -177,12 +201,12 @@ Bare hands
 - [ ] Camera: a slight pull-in when guarding; lock-on to one enemy (optional).
 
 ### 7. HUD and camp
-- [ ] Weapons on the bar beside weaves, with a drawn silhouette per family,
+- [x] Weapons on the bar beside weaves, with a drawn silhouette per family,
       ammunition count, and which is in hand.
-- [ ] Guard and stamina feedback: a flash on parry, a crack on guard break.
-- [ ] Creation: choose a class; for fighters, spend points on might, quickness,
+- [x] Guard and stamina feedback: a flash on parry, a crack on guard break.
+- [x] Creation: choose a class; for fighters, spend points on might, quickness,
       endurance and weapon families; choose a kit; looks that fit the class.
-- [ ] The sheet shows class, stats, weapon skills and kit.
+- [x] The sheet shows class, stats, weapon skills and kit.
 - [ ] An armoury in the camp (a rack you walk to) to change what you carry.
 - [ ] A forms tree beside the weave tree.
 - [ ] Controls shown in the camp and on first entering a fight.

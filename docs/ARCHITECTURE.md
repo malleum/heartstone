@@ -76,6 +76,31 @@ for lack of stamina.
   you hold a shield while attacking.
 - **Spoiler setting** is `book_limit` on the profile versus `book` on each weave.
 
+## Arms (data/weapons.json, docs/MELEE.md)
+Everything that is not channelling. The plan and to-do list are in `MELEE.md`.
+- **A weapon is a row; a move is a row** in the same file's `_moves`. A weapon
+  names the moves its light chain walks through, its heavy move and its low move,
+  and whether it can be thrown or shot. Adding one is data.
+- `Rules`: `CLASSES` (Channeller, Warder, Aiel, Hunter of the Horn: skill ceiling,
+  guard, dodge cost, speed, health, armour, starting kit), `blow`, `move_times`,
+  `move_cost`, `guard_share`, `dodge`, `skill_level`, `wield_block`.
+- `Profile`: every profile has `cls`, `stats` (might, quickness, endurance),
+  `skills` (xp per weapon family) and `kit`. A fighter's Power fields are zeros so
+  that all profiles share one shape.
+- `Sim`: `request_attack` (wind-up, strike, recovery, one buffered input, chain),
+  `_strike` (reach and arc, or a `missile` effect), `set_guard`, `set_duck`,
+  `request_dodge`, `equip`. `_wound` is the one path for steel reaching a body:
+  guard and parry, armour, stagger, push, then `_hurt`.
+- **Enemy blows are geometry.** A Trolloc picks one of its row's `attacks`, and
+  0.4 s before it lands commits to a direction (`aim_yaw`). At the end
+  `_enemy_blow` hits whoever is in the arc: not someone who stepped out, not
+  someone untouchable mid-sidestep, not someone ducking under a high one.
+- Stamina is the one resource for all of it, and `Rules.vigor` weakens blows as
+  it does weaves.
+- View: `Armoury` builds each weapon from boxes and rods; `Hero.arm` puts it in
+  the hand using the rest pose to find the grip (no per-model numbers). The
+  `blow` event plays the move's clip at the speed that makes it land on time.
+
 ## Progression (src/core/progression.gd)
 One function, `Progression.award(profile, tally, activity, success)`, called when
 any activity ends. Measured pacing with a bot (`tools/test.sh`): 3 flows at ~5 h,

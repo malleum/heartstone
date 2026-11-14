@@ -88,13 +88,20 @@ mechanically: linking, Healing that cannot target yourself, a Warder guarding a
 channeller mid-weave.
 
 ## Classes
-Channeller first. The others come later, and only once the channeller is fun by
-itself. Each has the same shape: choices at creation, then slow growth.
+The channeller came first. Warder, Aiel and Hunter of the Horn can now be made and
+fight with real melee (`MELEE.md`); what makes each of them more than a kit is
+still to build. Each has the same shape: choices at creation, then slow growth.
+Everything a fighter does costs stamina, the same pool a channeller draws on.
 - **Warder:** build, sword style and homeland; then sword forms, the bond (sense
   your channeller, shared endurance) and the colour-shifting cloak. Uniquely good at
   guarding a channeller mid-weave.
 - **Aiel:** warrior society and clan; then spear and buckler forms, the bow,
   veiling, moving unseen, endurance.
+- **Hunter of the Horn:** anyone who took the oath. Any weapon, a little less well:
+  the Two Rivers longbow and quarterstaff, a gleeman's thrown knives, the Band's
+  crossbows and pikes, the ashandarei.
+- **Channellers may carry one weapon** and train it to a low ceiling (Asha'man
+  drill the sword), and can sidestep, roll and duck at a higher cost.
 - **Dreamer:** the Dreaming Talent, with or without channelling; then control of
   Tel'aran'rhiod (shaping, travel by need, guarding dreams). Strongest in dream
   missions, support elsewhere.
@@ -114,7 +121,7 @@ Friends are at different points in the books. Each profile has a book limit and
 weaves from later books are hidden. Fleshing this out is a far-future problem.
 
 ## Deliberately out, for now
-Open world, Tel'aran'rhiod missions, the other classes, the taint, crafting Talents,
+Open world, Tel'aran'rhiod missions, the Dreamer, the taint, crafting Talents,
 and PvP beyond simple sparring. Each is a project of its own; the game has to be fun
 with one class on one map first.
 

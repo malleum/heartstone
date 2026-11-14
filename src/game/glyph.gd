@@ -59,6 +59,47 @@ static func weave(ci: CanvasItem, c: Vector2, r: float, flows: Dictionary, brigh
 			var mid := a0 + TAU / n * 0.5
 			ci.draw_arc(c + Vector2(cos(mid), sin(mid)) * r * 0.26, r * 0.36, 0, TAU, 28, Color(col, col.a * 0.9), r * 0.085, true)
 
+## A weapon on the bar: the same dark disc as a weave, ringed in steel, with the
+## outline of its family inside.
+static func weapon(ci: CanvasItem, c: Vector2, r: float, family: String, bright := 1.0) -> void:
+	var col := Color(0.8, 0.82, 0.88).lerp(Color(0.3, 0.3, 0.34), 1.0 - bright)
+	var wood := Color(0.72, 0.52, 0.3).lerp(Color(0.3, 0.3, 0.34), 1.0 - bright)
+	ci.draw_circle(c, r, Color(INK, 0.88))
+	ci.draw_arc(c, r * 0.9, 0, TAU, 40, Color(col, 0.75), r * 0.07, true)
+	# Drawn on a diagonal, hilt bottom-left, point top-right.
+	var d := Vector2(0.7, -0.7)
+	var n := Vector2(0.7, 0.7)
+	var w := r * 0.11
+	match family:
+		"sword":
+			ci.draw_line(c - d * r * 0.62, c - d * r * 0.3, wood, w, true)
+			ci.draw_line(c - d * r * 0.3 - n * r * 0.22, c - d * r * 0.3 + n * r * 0.22, col, w, true)
+			ci.draw_line(c - d * r * 0.3, c + d * r * 0.66, col, w * 1.25, true)
+		"knife":
+			ci.draw_line(c - d * r * 0.45, c - d * r * 0.1, wood, w, true)
+			ci.draw_line(c - d * r * 0.1, c + d * r * 0.45, col, w * 1.4, true)
+		"spear":
+			ci.draw_line(c - d * r * 0.7, c + d * r * 0.4, wood, w * 0.8, true)
+			ci.draw_colored_polygon(PackedVector2Array([c + d * r * 0.74, c + d * r * 0.36 + n * r * 0.13, c + d * r * 0.36 - n * r * 0.13]), col)
+		"staff":
+			ci.draw_line(c - d * r * 0.7, c + d * r * 0.7, wood, w, true)
+		"axe":
+			ci.draw_line(c - d * r * 0.66, c + d * r * 0.5, wood, w * 0.9, true)
+			ci.draw_arc(c + d * r * 0.36, r * 0.3, -PI * 0.5 - 0.3, PI * 0.25, 14, col, w * 1.5, true)
+		"bow":
+			ci.draw_arc(c + n * r * 0.5 - d * 0.0, r * 0.82, PI * 1.05, PI * 1.45, 16, wood, w, true)
+			var a := c + n * r * 0.5 + Vector2(cos(PI * 1.05), sin(PI * 1.05)) * r * 0.82
+			var b := c + n * r * 0.5 + Vector2(cos(PI * 1.45), sin(PI * 1.45)) * r * 0.82
+			ci.draw_line(a, b, Color(col, 0.8), 1.2, true)
+			ci.draw_line(c + n * r * 0.1 - d * r * 0.1, c - n * r * 0.55 + d * r * 0.1, col, w * 0.6, true)
+		"thrown":
+			for k in [-1.0, 0.0, 1.0]:
+				ci.draw_line(c + n * r * 0.26 * k - d * r * 0.35, c + n * r * 0.26 * k + d * r * 0.35, col, w, true)
+		_:
+			# Bare hands.
+			ci.draw_circle(c, r * 0.3, wood)
+			ci.draw_arc(c, r * 0.3, 0, TAU, 20, col, 1.5, true)
+
 ## A bar with slanted ends. `fill` 0..1.
 static func bar(ci: CanvasItem, at: Vector2, w: float, h: float, fill: float, col: Color, col2: Color) -> void:
 	var sk := h * 0.7

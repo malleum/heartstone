@@ -33,13 +33,27 @@ func _draw() -> void:
 	Glyph.text(self, serif, Vector2(30, 46), p.name, 30, Color(0.97, 0.94, 0.88))
 	draw_line(Vector2(30, 56), Vector2(290, 56), Color(Glyph.GOLD, 0.6), 1.5, true)
 	var cap := Rules.flow_capacity(p)
-	Glyph.text(self, sans, Vector2(30, 78), "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))], 15, Color(0.85, 0.85, 0.9))
-	for i in 5:
-		var c := Vector2(38 + i * 20, 96)
-		if i < cap:
-			draw_circle(c, 6.0, Glyph.GOLD)
-		draw_arc(c, 6.0, 0, TAU, 20, Color(Glyph.GOLD, 0.8 if i < cap else 0.25), 1.5, true)
-	Glyph.text(self, sans, Vector2(38 + 5 * 20, 101), "flows      renown %d" % int(p.renown), 13, Color(0.7, 0.72, 0.78))
+	var armed: bool = g._armed()
+	var in_hand: Dictionary = Rules.weapons[g.known[g.selected]] if armed else {}
+	if p.get("cls", "channeller") == "channeller":
+		Glyph.text(self, sans, Vector2(30, 78), "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))], 15, Color(0.85, 0.85, 0.9))
+		for i in 5:
+			var c := Vector2(38 + i * 20, 96)
+			if i < cap:
+				draw_circle(c, 6.0, Glyph.GOLD)
+			draw_arc(c, 6.0, 0, TAU, 20, Color(Glyph.GOLD, 0.8 if i < cap else 0.25), 1.5, true)
+		Glyph.text(self, sans, Vector2(38 + 5 * 20, 101), "flows      renown %d" % int(p.renown), 13, Color(0.7, 0.72, 0.78))
+	else:
+		# A fighter: their calling, and their skill with what is in hand as pips.
+		Glyph.text(self, sans, Vector2(30, 78), "%s   might %d  quickness %d  endurance %d" % [Rules.cls(p).name, Rules.stat(p, "might"), Rules.stat(p, "quickness"), Rules.stat(p, "endurance")], 15, Color(0.85, 0.85, 0.9))
+		var fam: String = in_hand.get("family", "hand")
+		var lvl := Rules.skill_level(p, fam)
+		for i in 10:
+			var c := Vector2(36 + i * 14, 96)
+			if i < lvl:
+				draw_circle(c, 4.5, Glyph.GOLD)
+			draw_arc(c, 4.5, 0, TAU, 16, Color(Glyph.GOLD, 0.8 if i < lvl else 0.25), 1.2, true)
+		Glyph.text(self, sans, Vector2(36 + 10 * 14 + 6, 101), "%s skill      renown %d" % [fam, int(p.renown)], 13, Color(0.7, 0.72, 0.78))
 
 	# Health and stamina.
 	var bx := 30.0; var by := H - 74.0
@@ -48,7 +62,8 @@ func _draw() -> void:
 	var st: float = g.my_stamina / Rules.TUNE.stamina
 	Glyph.bar(self, Vector2(bx - 6, by + 24), 330, 9, st, Color(0.85, 0.9, 1.0), Color(0.35, 0.5, 0.85))
 	var vig := Rules.vigor(g.my_stamina)
-	Glyph.text(self, sans, Vector2(bx - 6, by + 54), "weaves at %d%%  ·  as strength %s" % [int(vig * 100.0), Rules.level_name(Rules.level_of(Rules.strength(p) * vig))], 13, Color(0.75, 0.8, 0.9) if vig > 0.6 else Color(1.0, 0.7, 0.45))
+	var tired := ("weaves at %d%%  ·  as strength %s" % [int(vig * 100.0), Rules.level_name(Rules.level_of(Rules.strength(p) * vig))]) if p.get("cls", "channeller") == "channeller" else "blows at %d%% strength" % int(vig * 100.0)
+	Glyph.text(self, sans, Vector2(bx - 6, by + 54), tired, 13, Color(0.75, 0.8, 0.9) if vig > 0.6 else Color(1.0, 0.7, 0.45))
 
 	# The weaves you know.
 	var known: Array = g.known
@@ -60,15 +75,25 @@ func _draw() -> void:
 		var y := H - 62.0
 		for i in n:
 			var id: String = known[i]
-			var w: Dictionary = Rules.weaves[id]
 			var sel: bool = i == g.selected
 			var r := (30.0 if sel else 22.0) * minf(gap / 60.0, 1.0)
 			var c := Vector2(x0 + i * gap, y - (8.0 if sel else 0.0))
-			var total := Rules.cooldown(p, id)
-			var wait: float = g.ready_at.get(id, 0.0) - g.clock
 			if sel:
 				draw_circle(c, r + 7.0, Color(Glyph.GOLD, 0.16 + 0.05 * sin(t * 3.0)))
 				draw_arc(c, r + 4.0, 0, TAU, 40, Glyph.GOLD, 2.0, true)
+			if Rules.weapons.has(id):
+				# A weapon: its outline, and what is left to shoot or throw.
+				var left: int = g.ammo.get(id, 0)
+				var uses: bool = Rules.weapons[id].has("shot") or Rules.weapons[id].has("throw")
+				Glyph.weapon(self, c, r, Rules.weapons[id].family, 1.0 if not uses or left > 0 or not Rules.moves[Rules.weapons[id].light[0]].get("missile", false) else 0.35)
+				if uses:
+					Glyph.text(self, sans, c + Vector2(r * 0.75, r * 0.95), str(left), 13, Color.WHITE if left > 0 else Color(1.0, 0.5, 0.4), 0)
+				if i < 9:
+					Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+				continue
+			var w: Dictionary = Rules.weaves[id]
+			var total := Rules.cooldown(p, id)
+			var wait: float = g.ready_at.get(id, 0.0) - g.clock
 			Glyph.weave(self, c, r, Rules.flows_of(w, p), 1.0 if wait <= 0.0 else 0.45, t * 0.25 if sel else 0.0)
 			if wait > 0.0 and total > 0.0:
 				# The cooldown drains like a clock face.
@@ -82,7 +107,7 @@ func _draw() -> void:
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
 				Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
-		var sw: Dictionary = Rules.weaves[known[g.selected]]
+		var sw: Dictionary = in_hand if armed else Rules.weaves[known[g.selected]]
 		Glyph.text(self, serif, Vector2(W * 0.5, H - 132.0), sw.name, 22, Color(0.97, 0.94, 0.88), 0)
 
 	# Crosshair: a ring that fills as the chosen weave comes ready.
@@ -90,14 +115,24 @@ func _draw() -> void:
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(0, 0, 0, 0.5), 3.5, true)
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(1, 1, 1, 0.85), 1.5, true)
 	draw_circle(cc, 1.6, Color(1, 1, 1, 0.9))
-	if n > 0:
+	if n > 0 and not armed:
 		var id: String = known[g.selected]
 		var total := Rules.cooldown(p, id)
 		var wait: float = g.ready_at.get(id, 0.0) - g.clock
 		if wait > 0.0 and total > 0.0:
 			draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * (1.0 - wait / total), 32, Glyph.GOLD, 2.5, true)
+	elif armed and g.held_since >= 0.0:
+		# Holding the attack: the ring fills as a bow is drawn, or to the point a
+		# blow becomes a heavy one.
+		var need: float = Rules.draw_time(p, g.known[g.selected]) if in_hand.has("shot") else 0.35
+		var f: float = clampf((g.clock - g.held_since) / need, 0.0, 1.0)
+		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Glyph.GOLD if f >= 1.0 else Color(1, 1, 1, 0.8), 2.5, true)
 	if g.refusal_t > 0.0:
-		Glyph.text(self, sans, cc + Vector2(0, 58), "Cannot weave: " + g.last_refusal, 17, Color(1.0, 0.6, 0.5, clampf(g.refusal_t * 2.0, 0.0, 1.0)), 0)
+		Glyph.text(self, sans, cc + Vector2(0, 58), g.last_refusal, 17, Color(1.0, 0.6, 0.5, clampf(g.refusal_t * 2.0, 0.0, 1.0)), 0)
+	if g.flash_t > 0.0 and g.flash_text != "":
+		Glyph.text(self, serif, cc + Vector2(0, -46), g.flash_text, 22, Color(Glyph.GOLD, clampf(g.flash_t * 2.0, 0.0, 1.0)), 0)
+	if g.flash_t > 0.6:
+		draw_arc(cc, 20.0 + (1.0 - g.flash_t) * 40.0, 0, TAU, 40, Color(Glyph.GOLD, (g.flash_t - 0.6) * 2.0), 2.0, true)
 
 	# The others with you.
 	var row := 0

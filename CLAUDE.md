@@ -29,6 +29,8 @@ working on abilities; the user's rulings there are final).
 - `docs/ARCHITECTURE.md`: decisions and reasons, the asset/licence table, next steps.
   Keep it current when a decision changes.
 - `docs/BACKLOG.md`: everything the user has asked for that is not built. Work from it.
+- `docs/MELEE.md`: arms (melee, missiles, the fighter classes): the plan, a long
+  to-do list with ticks, and what the ticks do not cover. Work from it.
 - `docs/SERVER.md`: the dedicated server and character store, and how it is deployed.
 - `docs/PLAYTEST.md`: anything that needs the user's hands (camera, timing, hit feel)
   goes here with the assumed value. Never block on the user: assume, note, continue.
@@ -38,7 +40,7 @@ working on abilities; the user's rulings there are final).
 
 ## Code map
 - `src/core/`: rules with no nodes (Rules, Profile, Progression, Sim, Bot). `data/*.json`
-  holds weaves, enemies, activities. `src/net/session.gd`: host-authoritative co-op;
+  holds weaves, enemies, activities, weapons (and their moves). `src/net/session.gd`: host-authoritative co-op;
   `src/net/server.gd`: the dedicated server (`nix run .#server`).
 - `src/gen/sdf.gd`: signed-distance "clay" + surface nets mesher; weights, colour, AO.
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
@@ -47,7 +49,9 @@ working on abilities; the user's rulings there are final).
 - `src/game/`: `camp` (walkable hub with a doorway per activity, main scene), `game`
   (activity view), `hud`, `weavetree`, `glyph` (hand-drawn UI), `weavefx`, `sfx`,
   `launch`. Camp renders: `-- --who=Name --show=tree|menu --stroll=N`. `-- --auto` skips the camp and lets a bot play; add `--fxdemo` to review effects,
-  `--name=Bot` to keep off a real character, `--stand` to watch melee.
+  `--name=Bot` to keep off a real character, `--stand` to watch melee,
+  `--class=warder|aiel|hunter [--kit=sword,longbow]` for a throwaway fighter.
+- `src/gen/armoury.gd`: generated weapon models; `Hero.arm` puts one in the hand.
 - `src/gen/hero.gd`: player characters (sourced Quaternius models and clips), built by
   `tools/blender/build_heroes.py`. `human_rig.gd`: older generated humans, bench only.
 - `tools/bl.py`: run Python in the user's open Blender (full permission granted).

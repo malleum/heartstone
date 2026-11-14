@@ -114,6 +114,8 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			pm.emission_ring_axis = Vector3.UP; pm.emission_ring_radius = 1.0; pm.emission_ring_inner_radius = 0.97; pm.emission_ring_height = 0.05
 			f.local_coords = true
 			n.add_child(f)
+		"missile":
+			n.add_child(Armoury.missile(weave))
 		"blast":
 			var c := CylinderMesh.new(); c.top_radius = 0.9; c.bottom_radius = 0.9; c.height = 0.05
 			var mi := _mesh(c, TINT.fire, 2.0); mi.position.y = -1.1
@@ -151,6 +153,14 @@ static func forming(g: Node3D, who: Node3D, weave: String, secs: float) -> void:
 	tw.tween_callback(func() -> void:
 		if is_instance_valid(hub):
 			hub.queue_free())
+
+## Steel on steel: a spray of sparks, brighter for a clean parry.
+static func sparks(g: Node3D, at: Vector3, bright: bool) -> void:
+	_once(_particles(Color(1.0, 0.85, 0.5) if bright else Color(0.9, 0.75, 0.55), 40 if bright else 14, 0.35, 0.06, 7.0 if bright else 4.0, -9.0, 70.0), g, at)
+	if bright:
+		var l := _light(Color(1.0, 0.9, 0.7), 5.0, 6.0)
+		g.add_child(l); l.position = at
+		var tw := g.create_tween(); tw.tween_property(l, "light_energy", 0.0, 0.25); tw.tween_callback(l.queue_free)
 
 static var _white: StandardMaterial3D
 

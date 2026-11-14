@@ -34,6 +34,10 @@ var clock := 0.0
 var ready_at := {}                # weave -> clock time it can be woven again
 var my_stamina: float = Rules.TUNE.stamina
 var frame := 0
+var ammo := {}                    # weapon -> arrows, knives or spears left
+var held_since := -1.0            # clock time the attack button went down, or -1
+var flash_t := 0.0                # a parry just rang: the HUD flashes
+var flash_text := ""
 
 func _ready() -> void:
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
@@ -46,7 +50,14 @@ func _ready() -> void:
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
 		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
-	known = profile.weaves.keys()
+	# --class=warder|aiel|hunter makes a throwaway fighter, to try arms in a render.
+	if args.has("class") and profile.get("cls", "channeller") != args.class:
+		profile = Profile.create({name = name_, cls = args.class, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
+	# The bar holds what you can do with your hands: weaves, then what you carry.
+	known = profile.weaves.keys() + profile.get("kit", [])
+	for w in profile.get("kit", []):
+		var row: Dictionary = Rules.weapons[w]
+		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
 	# Generate the cast before the fight so nothing hitches mid-wave.
 	var specs := []
 	for i in 8:
@@ -65,7 +76,7 @@ func _ready() -> void:
 	session.snapshot.connect(_on_snapshot)
 	session.events.connect(_on_events)
 	session.finished.connect(_on_finished)
-	session.refused.connect(func(why: String) -> void: last_refusal = why; refusal_t = 1.5)
+	session.refused.connect(func(why: String) -> void: last_refusal = why.capitalize(); refusal_t = 1.5)
 	session.rejected.connect(func(why: String) -> void:
 		_done = true
 		banner.text = "Could not join: %s\n\nEnter: back to camp" % why
@@ -98,21 +109,74 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif (ev.keycode == KEY_ENTER and _done) or ev.keycode == KEY_F10:
 			_to_camp()
 		elif ev.keycode == KEY_Q:
-			selected = posmod(selected - 1, n_known)
+			_select(posmod(selected - 1, n_known))
 		elif ev.keycode == KEY_E:
-			selected = posmod(selected + 1, n_known)
+			_select(posmod(selected + 1, n_known))
+		elif ev.keycode == KEY_SPACE and me:
+			# Sidestep the way you are moving (back, if standing); with Shift, roll.
+			session.dodge(_move_dir(), Input.is_key_pressed(KEY_SHIFT))
+		elif ev.keycode in [KEY_CTRL, KEY_C]:
+			session.duck(true)
+		elif ev.keycode == KEY_F and _armed() and me:
+			session.attack("throw", _aim_point())
+			_face(_aim_point())
 		var n: int = ev.keycode - KEY_1
 		if n >= 0 and n < known.size():
-			selected = n
-	elif ev is InputEventMouseButton and ev.pressed:
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			_select(n)
+	elif ev is InputEventKey and not ev.pressed and ev.keycode in [KEY_CTRL, KEY_C]:
+		session.duck(false)
+	elif ev is InputEventMouseButton:
+		if not ev.pressed:
+			# Letting go of the attack: a tap is a light blow, a hold a heavy one, and
+			# with a bow the hold is the draw.
+			if ev.button_index == MOUSE_BUTTON_LEFT and held_since >= 0.0 and _armed() and me:
+				var held := clock - held_since
+				var at := _aim_point()
+				if Rules.weapons[known[selected]].has("shot"):
+					session.attack("light", at, clampf(held / Rules.draw_time(profile, known[selected]), 0.0, 1.0))
+				else:
+					session.attack("heavy" if held > 0.35 else "light", at)
+				_face(at)
+			elif ev.button_index == MOUSE_BUTTON_RIGHT:
+				session.guard(false)
+			if ev.button_index == MOUSE_BUTTON_LEFT:
+				held_since = -1.0
+		elif Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		elif ev.button_index == MOUSE_BUTTON_LEFT:
-			_cast_selected()
+			if _armed():
+				held_since = clock
+			else:
+				_cast_selected()
+		elif ev.button_index == MOUSE_BUTTON_RIGHT and _armed():
+			session.guard(true)
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			selected = posmod(selected + 1, n_known)
+			_select(posmod(selected + 1, n_known))
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
-			selected = posmod(selected - 1, n_known)
+			_select(posmod(selected - 1, n_known))
+
+## Is the chosen thing on the bar a weapon (and not a weave)?
+func _armed() -> bool:
+	return selected < known.size() and Rules.weapons.has(known[selected])
+
+## Choosing a weapon takes it in hand; choosing a weave empties the hands to weave.
+func _select(i: int) -> void:
+	if known.is_empty():
+		return
+	selected = i
+	held_since = -1.0
+	if not profile.get("kit", []).is_empty():
+		session.equip(known[i] if _armed() else "")
+
+func _move_dir() -> Vector3:
+	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+	v += Vector2(float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)), float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+	return Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
+
+## Turn to the target at once, so the blow or the weave goes the right way.
+func _face(at: Vector3) -> void:
+	face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
+	aim_t = 1.2
 
 func _cast_selected() -> void:
 	if known.is_empty() or me == null:
@@ -281,9 +345,15 @@ func _on_events(list: Array) -> void:
 					add_child(rig)
 					rig.position = _ground(e.pos)
 					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name}
+					Hero.arm(rig, e.get("weapon", ""))
+					actors[e.id].weapon = e.get("weapon", "")
 					if e.id == session.my_id:
 						me = rig
 						banner.text = ""
+						if known.has(e.get("weapon", "")):
+							selected = known.find(e.weapon)
+						if not profile.get("kit", []).is_empty():
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: guard\nSpace: sidestep   Shift+Space: roll   Ctrl: duck   F: throw   1-9: change what is in hand", 9.0)
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
@@ -324,7 +394,61 @@ func _on_events(list: Array) -> void:
 					Sfx.play(self, "thud", w.position + Vector3(0, 1.2, 0), 0.0)
 			"swing":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
-					(actors[e.id].node as Walker).attack()
+					(actors[e.id].node as Walker).attack(e.get("kind", "chop"))
+			"equip":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Hero.arm(actors[e.id].node, e.weapon)
+					actors[e.id].weapon = e.weapon
+					# The bar follows the hand (a bot, or the host, may have changed it).
+					if e.id == session.my_id and known.has(e.weapon):
+						selected = known.find(e.weapon)
+			"blow":
+				# The clip is played at whatever speed makes the blade arrive when the
+				# sim lands the blow.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					var m: Dictionary = Rules.moves[e.move]
+					var ap: AnimationPlayer = a.node.get_meta("anim")
+					var clip: String = m.clip if ap.has_animation(m.clip) else "Sword_Attack"
+					var len := ap.get_animation(clip).length
+					ap.play(clip, 0.08, clampf(len * m.get("at", 0.4) / maxf(e.wind, 0.05), 0.35, 4.0))
+					a.busy = e.wind + e.recover * 0.8
+					a.erase("gesture")
+					Sfx.play(self, "whoosh", a.node.position + Vector3(0, 1.3, 0), -5.0, 1.3)
+			"strike":
+				if e.hits > 0:
+					Sfx.play(self, "thud", e.pos, 1.0, 1.25)
+					if e.id == session.my_id:
+						punch = minf(punch + 0.25, 1.0)
+			"dodge":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					var ap: AnimationPlayer = a.node.get_meta("anim")
+					ap.play("Roll", 0.05, ap.get_animation("Roll").length / maxf(e.time * (1.0 if e.roll else 1.6), 0.1))
+					a.busy = e.time
+					a.erase("gesture")
+					a.node.rotation.y = atan2(e.dir.x, e.dir.z)
+					Sfx.play(self, "whoosh", a.node.position + Vector3(0, 0.8, 0), -8.0, 0.8)
+			"parry", "block", "guard_break":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var at: Vector3 = actors[e.id].node.position + Vector3(0, 1.3, 0) + Basis(Vector3.UP, actors[e.id].node.rotation.y) * Vector3(0, 0, 0.6)
+					Weavefx.sparks(self, at, e.e == "parry")
+					Sfx.play(self, "chime" if e.e == "parry" else "thud", at, 2.0 if e.e == "parry" else 0.0, 1.9 if e.e == "parry" else 1.5)
+					if e.id == session.my_id:
+						flash_t = 1.0
+						flash_text = {parry = "Parried", block = "", guard_break = "Your guard is broken"}[e.e]
+						if e.e != "block":
+							shake = minf(shake + 0.35, 1.0)
+			"evade":
+				if e.id == session.my_id:
+					flash_t = 0.7; flash_text = "Ducked under it" if e.duck else "Missed you"
+			"loose":
+				if e.id == session.my_id:
+					ammo[e.weapon] = e.left
+				if actors.has(e.id):
+					Sfx.play(self, "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -3.0, 2.2)
+			"stick":
+				Sfx.play(self, "thud", e.pos, -4.0, 2.0)
 			"cast":
 				if actors.has(e.id):
 					# Each channeller has their own gesture for each weave.
@@ -385,9 +509,14 @@ func _on_snapshot(s: Dictionary) -> void:
 		if not fx.has(f[0]):
 			fx[f[0]] = Weavefx.live(self, f[1], f[6])
 		var n: Node3D = fx[f[0]]
+		var was := n.position
 		n.position = _ground(Vector3(f[2], 0, f[3])) + Vector3(0, 1.2, 0)
-		if f[1] == "projectile":
+		if f[1] in ["projectile", "missile"]:
 			n.position.y = f[5]
+		if f[1] == "missile" and n.has_meta("flown") and was.distance_to(n.position) > 0.05:
+			# Point along the flight; knives and stones tumble instead.
+			n.basis = Basis.looking_at(n.position - was, Vector3.UP if absf((n.position - was).normalized().y) < 0.98 else Vector3.RIGHT)
+		n.set_meta("flown", true)
 		if f[1] == "ring":
 			n.scale = Vector3(f[4], 1.0, f[4]); n.position.y -= 0.9
 
@@ -444,7 +573,16 @@ func _draw_actors(dt: float) -> void:
 					var at := ap.current_animation_position
 					ap.play(want, 0.15); ap.seek(minf(at, ap.get_animation(want).length), true)
 			if a.busy <= 0.0:
-				_play(a, ("Sprint" if speed > 6.5 else "Jog_Fwd") if speed > 0.6 else "Idle")
+				var st: int = a.get("status", 0)
+				var fam: String = Rules.weapons[a.weapon].family if Rules.weapons.has(a.get("weapon", "")) else ""
+				if st & 32:
+					_play(a, "Crouch_Fwd" if speed > 0.4 else "Crouch_Idle")
+				elif st & 16:
+					_play(a, "Idle_Shield" if Rules.weapons[a.weapon].has("shield") else "Sword_Block")
+				elif speed > 0.6:
+					_play(a, "Sprint" if speed > 6.5 else "Jog_Fwd")
+				else:
+					_play(a, "Sword_Idle" if fam in ["sword", "axe", "knife"] else "Idle")
 	for id in actors:
 		if actors[id].get("hold", 0.0) > 0.0:
 			actors[id].hold -= dt
@@ -477,6 +615,7 @@ func _banner(text: String, secs: float) -> void:
 func _draw_hud() -> void:
 	var dt := get_process_delta_time()
 	hurt_t = maxf(hurt_t - dt * 2.5, 0.0)
+	flash_t = maxf(flash_t - dt * 1.4, 0.0)
 	_banner_t -= dt
 	if _banner_t <= 0.0 and not _done:
 		banner.text = ""

@@ -11,8 +11,8 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   Spirit with an effect of its own, and every effect made unmistakable on screen.
 - [ ] **Stun sparks and the thrown slide have not been seen in a render.** Burning
   flames, the knockdown, the weapon swing and the fireball's flight have.
-- [ ] Trolloc attacks: one overhead chop for every weapon. Wanted: thrusts for
-  spears, sweeps for axes, and a hit reaction on the player that matches.
+- [ ] Trolloc attacks: chop, sweep and thrust exist but are picked at random.
+  Wanted: by the weapon carried, and a hit reaction on the player that matches.
 
 ## Character and progression
 - [ ] Weave tree follow-ups: weaves beyond your book limit are simply absent (no
@@ -50,6 +50,10 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **arms, first pass** (`MELEE.md` has the full list with ticks).
+  Warder, Aiel and Hunter of the Horn; 28 weapons; chains, heavy and low blows,
+  throwing and shooting; guard, parry, sidestep, roll, duck; Trollocs that chop,
+  sweep and thrust along a line you can step out of; weapons in the hand.
 - 2026-11-14: **the camp is walked, not a menu.** The right-hand panel is gone:
   each activity is a stone doorway you walk through, and you come back out of
   it. Server, friends and quit are behind Esc.
