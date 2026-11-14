@@ -68,3 +68,95 @@ static func tarwins_gap(g: Node3D) -> void:
 		var bx := side * (Map.half_width(z) + rng.randf_range(-0.5, 3.0))
 		var s := rng.randf_range(0.6, 2.4)
 		_box(g, Vector3(s, s * rng.randf_range(0.6, 1.0), s * rng.randf_range(0.7, 1.3)), _ground(bx, z) + Vector3(0, s * 0.2, 0), stone, Vector3(rng.randf(), rng.randf() * TAU, rng.randf()))
+
+# --- scatter: grass, loose stone, dead trees ---------------------------------------------
+
+static func _tuft_mesh() -> ArrayMesh:
+	var v := PackedVector3Array(); var uv := PackedVector2Array(); var col := PackedColorArray()
+	var rng := RandomNumberGenerator.new(); rng.seed = 3
+	for b in 11:
+		var a := rng.randf() * TAU; var lean := rng.randf_range(0.05, 0.3); var hgt := rng.randf_range(0.16, 0.38)
+		var base := Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.14)
+		var side := Vector3(-sin(a), 0, cos(a)) * 0.022
+		var tip := base + Vector3(cos(a) * lean, hgt, sin(a) * lean)
+		var shade := Color(rng.randf(), 0, 0)
+		for p in [[base - side, 0.0], [base + side, 0.0], [tip, 1.0]]:
+			v.append(p[0]); uv.append(Vector2(0.5, p[1])); col.append(shade)
+	var arr := []; arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v; arr[Mesh.ARRAY_TEX_UV] = uv; arr[Mesh.ARRAY_COLOR] = col
+	var m := ArrayMesh.new(); m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var mat := ShaderMaterial.new(); mat.shader = load("res://shaders/grass.gdshader")
+	m.surface_set_material(0, mat)
+	return m
+
+static func _multi(g: Node3D, mesh: Mesh, xfs: Array, shadows := false) -> void:
+	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = mesh
+	mm.instance_count = xfs.size()
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(mi)
+
+## A leafless tree: this close to the Blight nothing is in leaf.
+static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
+	var bark := _mat(Color(0.12, 0.1, 0.085))
+	var root := Node3D.new(); g.add_child(root); root.position = at; root.rotation.y = rng.randf() * TAU
+	var hgt := rng.randf_range(3.5, 6.5)
+	var limb := func(parent: Node3D, from: Vector3, dir: Vector3, len: float, r: float) -> Node3D:
+		var mi := MeshInstance3D.new(); var c := CylinderMesh.new()
+		c.top_radius = r * 0.45; c.bottom_radius = r; c.height = len; c.radial_segments = 6; c.rings = 1
+		mi.mesh = c; mi.material_override = bark
+		var n := Node3D.new(); parent.add_child(n); n.position = from
+		n.basis = Basis(Quaternion(Vector3.UP, dir.normalized()))
+		n.add_child(mi); mi.position.y = len * 0.5
+		return n
+	var trunk: Node3D = limb.call(root, Vector3.ZERO, Vector3(rng.randf_range(-0.15, 0.15), 1, rng.randf_range(-0.15, 0.15)), hgt, 0.22)
+	for i in rng.randi_range(4, 7):
+		var y := hgt * rng.randf_range(0.4, 0.98)
+		var a := rng.randf() * TAU
+		var d := Vector3(cos(a), rng.randf_range(0.3, 0.9), sin(a))
+		var len := rng.randf_range(1.0, 2.4)
+		var br: Node3D = limb.call(trunk, Vector3(0, y, 0), d, len, 0.09)
+		for k in 2:
+			var a2 := rng.randf() * TAU
+			limb.call(br, Vector3(0, len * rng.randf_range(0.5, 0.95), 0), Vector3(cos(a2), 0.8, sin(a2)), len * 0.5, 0.04)
+
+## Dress whatever map is loaded: grass where the ground is flat and off the road,
+## stones everywhere, dead trees at the margins.
+static func scatter(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 23
+	var patch := FastNoiseLite.new(); patch.seed = 5; patch.frequency = 0.05
+	var gap := not Map.m.is_empty()
+	var grass: Array = []; var stones: Array = []
+	for i in 60000:
+		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0) if gap else rng.randf_range(-70.0, 40.0)
+		if gap and (absf(x) > Map.half_width(z) + 1.5 or absf(x) < 3.5):
+			continue
+		# Keep a clearing where the camp's character stands.
+		if not gap and Vector2(x, z).length() < 3.0:
+			continue
+		if patch.get_noise_2d(x, z) < -0.05 or Terrain.normal(x, z).y < 0.9:
+			continue
+		var s := rng.randf_range(0.7, 1.5)
+		grass.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.7, 1.3), s)), _ground(x, z)))
+	_multi(g, _tuft_mesh(), grass)
+	var stone := SphereMesh.new(); stone.radius = 0.5; stone.height = 0.8; stone.radial_segments = 7; stone.rings = 4
+	stone.material = _mat(Color(0.23, 0.22, 0.2))
+	for i in 900:
+		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0)
+		if gap and absf(x) > Map.half_width(z) + 4.0:
+			continue
+		# Bigger stones gather at the foot of the cliffs; the road is kept clear.
+		var edge := 0.0 if not gap else smoothstep(Map.half_width(z) - 6.0, Map.half_width(z), absf(x))
+		if absf(x) < 4.0 and gap:
+			continue
+		var s := rng.randf_range(0.12, 0.4) + edge * rng.randf_range(0.2, 1.3)
+		var b := Basis.from_euler(Vector3(rng.randf(), rng.randf() * TAU, rng.randf())).scaled(Vector3(s, s * rng.randf_range(0.5, 0.9), s * rng.randf_range(0.7, 1.3)))
+		stones.append(Transform3D(b, _ground(x, z) + Vector3(0, s * 0.12, 0)))
+	_multi(g, stone, stones, true)
+	for i in 22:
+		var z := rng.randf_range(-95.0, 30.0) if gap else rng.randf_range(-60.0, 30.0)
+		var side := -1.0 if rng.randf() < 0.5 else 1.0
+		var x := side * (Map.half_width(z) + rng.randf_range(-2.5, 2.0)) if gap else side * rng.randf_range(9.0, 45.0)
+		dead_tree(g, _ground(x, z) - Vector3(0, 0.2, 0), rng)

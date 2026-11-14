@@ -65,7 +65,11 @@ cliffs outside it, a spawn area at the far end and a defended line. The Sim clam
 everyone inside it, `Terrain.height` adds the cliffs, and feet plant on the same
 function, so rules, mesh and gait cannot disagree. An activity names its map with
 `"map"`; without one the ground is open. `Scenery` adds view-only dressing (the
-breastwork, stakes, watch-fires, banners, boulders). Nothing in the pass blocks
+breastwork, stakes, watch-fires, banners, boulders) and `Scenery.scatter` adds grass
+tufts, loose stones and dead trees to any map. The ground shader is all world-space
+noise: grass and dirt, a road (uniform `road`), bedded cliff rock projected from
+three sides, snow above about 30 m. `World.build` takes the sun direction so each
+place can be lit on purpose. Nothing in the pass blocks
 movement yet except the cliffs: the wall has gaps and no collision on purpose,
 because Trollocs still run straight at the nearest player with no pathfinding.
 
@@ -97,6 +101,14 @@ peasant/ranger) and drives it with the Universal Animation Library.
   only bone rotations plus a rescaled hip height. Every clip then works on every
   body without retargeting.
 - Hair ships as a grey map and is tinted per character.
+- **Looks are data** (`Hero.LOOKS` plus seven generated Aes Sedai Ajahs): base model,
+  pieces to hide, two cloth colours, and optional garments. `shaders/outfit.gdshader`
+  recolours the pack's cloth by finding it in the atlas by colour, leaving leather and
+  metal alone. Skirt, cloak and shawl are generated in Blender by the same script as
+  lofted sheets with hand-written skin weights (weights copied from the body make a
+  skirt behave like trousers) and drawn by `shaders/garment.gdshader`, where UV.y runs
+  from the top edge to the hem so bands, trim, fringe and fancloth are a line each.
+  Trousers are hidden under a skirt. A new culture is a new row.
 - The free packs hold two outfits and five hairstyles. More (nobles, armour, the
   full outfit set) are in the paid Source packs; Josh would buy those.
 - `src/gen/human_rig.gd` (generated bodies on the older rig) is kept only for the

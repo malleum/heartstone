@@ -1,5 +1,7 @@
 shader_type spatial;
-// Blighted, stony ground. World-space noise: no UVs or textures needed.
+// Borderland ground, entirely from world-space noise (no UVs, no textures): dry and
+// sickly grass over dirt, a trampled road, layered cliff rock, snow on the heights.
+uniform float road = 0.0;   // half-width of the worn track along z through x = 0; 0 for none
 varying vec3 wp;
 varying vec3 wn;
 
@@ -14,24 +16,58 @@ float fbm(vec2 p) {
 	for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + 11.0; a *= 0.5; }
 	return s;
 }
+// Noise projected from three sides and blended by the normal: a top-down projection
+// alone smears into vertical streaks on a cliff face.
+float tri(vec3 p, vec3 n, float s) {
+	vec3 w = pow(abs(n), vec3(4.0));
+	w /= (w.x + w.y + w.z);
+	return fbm(p.zy * s) * w.x + fbm(p.xz * s) * w.y + fbm(p.xy * s) * w.z;
+}
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wn = NORMAL;
 }
 void fragment() {
-	float n = fbm(wp.xz * 0.6);
-	float fine = fbm(wp.xz * 6.0);
-	float slope = 1.0 - wn.y;
-	vec3 dirt = mix(vec3(0.13, 0.125, 0.115), vec3(0.24, 0.23, 0.21), n);
-	vec3 rock = mix(vec3(0.16, 0.155, 0.15), vec3(0.3, 0.29, 0.27), fine);
-	vec3 grass = vec3(0.13, 0.14, 0.06) * (0.6 + fine);
-	vec3 c = mix(dirt, grass, smoothstep(0.5, 0.65, fbm(wp.xz * 0.23 + 40.0)) * 0.7);
-	c = mix(c, rock, smoothstep(0.03, 0.12, slope + (fine - 0.5) * 0.08));
-	ALBEDO = c * (0.75 + 0.5 * fine) * 0.7;
-	ROUGHNESS = 0.95;
+	vec3 n3 = normalize(wn);
+	float macro = fbm(wp.xz * 0.035 + 3.0);
+	float mid = fbm(wp.xz * 0.6);
+	float fine = tri(wp, n3, 5.0);
+	float slope = 1.0 - n3.y;
+
+	vec3 dirt = mix(vec3(0.16, 0.12, 0.085), vec3(0.3, 0.24, 0.17), mid);
+	vec3 dry = mix(vec3(0.3, 0.26, 0.11), vec3(0.2, 0.2, 0.08), fbm(wp.xz * 1.7));
+	vec3 grass = mix(dry, vec3(0.1, 0.16, 0.06), smoothstep(0.42, 0.7, macro));
+	float gmask = smoothstep(0.4, 0.58, fbm(wp.xz * 0.21 + 40.0) + (macro - 0.5) * 0.5);
+	vec3 c = mix(dirt, grass * (0.65 + 0.7 * fine), gmask);
+
+	// The road: feet, hooves and wagons have churned it to mud, with ruts along it.
+	if (road > 0.0) {
+		float rx = wp.x + (noise(vec2(wp.z * 0.045, 2.0)) - 0.5) * 9.0;
+		float rmask = 1.0 - smoothstep(road * 0.45, road, abs(rx) + (mid - 0.5) * 2.0);
+		float ruts = fbm(vec2(wp.x * 3.5, wp.z * 0.35));
+		vec3 mud = vec3(0.14, 0.105, 0.075) * (0.6 + 0.7 * ruts);
+		c = mix(c, mud, rmask * 0.9);
+	}
+
+	// Cliff rock: bedded layers that wander, rusty seams, dark crevices.
+	float bed = fract(wp.y * 0.21 + fbm(wp.xz * 0.07) * 1.8);
+	float band = smoothstep(0.3, 0.5, bed) - smoothstep(0.8, 0.95, bed);
+	vec3 rock = mix(vec3(0.19, 0.18, 0.17), vec3(0.37, 0.34, 0.3), fine);
+	rock *= mix(0.7, 1.08, band);
+	rock = mix(rock, vec3(0.3, 0.2, 0.13), smoothstep(0.55, 0.75, fbm(vec2(wp.y * 0.6, macro * 4.0))) * 0.45);
+	rock *= 0.55 + 0.7 * smoothstep(0.25, 0.6, tri(wp, n3, 1.1));
+	float rmk = smoothstep(0.1, 0.27, slope + (fine - 0.5) * 0.14);
+	c = mix(c, rock, rmk);
+
+	// Snow settles on the heights wherever it is flat enough to hold.
+	float snow = smoothstep(24.0, 34.0, wp.y + fbm(wp.xz * 0.2) * 9.0) * (1.0 - smoothstep(0.35, 0.7, slope + (fine - 0.5) * 0.2));
+	c = mix(c, vec3(0.78, 0.8, 0.84), snow);
+
+	ALBEDO = c;
+	ROUGHNESS = mix(0.96, 0.7, snow);
 	float h = fine;
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);
 	vec3 r1 = cross(dpy, NORMAL), r2 = cross(NORMAL, dpx);
 	float det = dot(dpx, r1);
-	NORMAL = normalize(abs(det) * NORMAL - 0.05 * sign(det) * (dFdx(h) * r1 + dFdy(h) * r2));
+	NORMAL = normalize(abs(det) * NORMAL - 0.06 * sign(det) * (dFdx(h) * r1 + dFdy(h) * r2));
 }

@@ -33,7 +33,6 @@ var frame := 0
 func _ready() -> void:
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
 	Rules.load_data()
-	World.build(self)
 	Terrain.amp = 0.45
 	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
 	_hud()
@@ -200,9 +199,17 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
 	Map.use(Rules.activities[activity].get("map", "open"))
-	add_child(Terrain.build_mesh(240.0, 0.75))
+	var ground := Terrain.build_mesh(240.0, 0.75)
+	add_child(ground)
 	if Map.id == "tarwins_gap":
+		# A low sun behind the defenders: it lights the floor of the pass and the
+		# faces of whatever comes down it, instead of leaving both in cliff shadow.
+		World.build(self, 14.0, -24.0)
+		(ground.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("road", 7.0)
 		Scenery.tarwins_gap(self)
+	else:
+		World.build(self)
+	Scenery.scatter(self)
 
 # --- mirroring the sim ----------------------------------------------------------------
 

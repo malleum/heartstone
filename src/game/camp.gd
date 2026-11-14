@@ -22,9 +22,12 @@ func _ready() -> void:
 		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
 		return
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	World.build(self)
-	Terrain.amp = 0.0
-	add_child(Terrain.build_mesh(80.0, 1.0))
+	Map.use("open")
+	World.build(self, -32.0, -26.0)
+	Terrain.amp = 0.25
+	add_child(Terrain.build_mesh(120.0, 1.0))
+	Scenery.scatter(self)
+	Scenery.fire(self, Vector3(-3.4, Terrain.height(-3.4, -4.5), -4.5))
 	var cam := Camera3D.new(); cam.fov = 50.0; add_child(cam)
 	cam.position = Vector3(0.0, 1.35, 3.6); cam.look_at(Vector3(0.0, 1.0, 0))
 	_ui()
@@ -92,6 +95,7 @@ func _stand(kind: String) -> void:
 	model = Hero.instantiate(kind, hash(profile.get("name", "")))
 	add_child(model)
 	model.rotation.y = 0.35
+	model.position.y = Terrain.height(0.0, 0.0)
 	(model.get_meta("anim") as AnimationPlayer).play("Idle")
 
 # --- an existing character --------------------------------------------------------------

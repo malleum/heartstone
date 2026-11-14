@@ -19,3 +19,5 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 12 | Sound: cast hum and whoosh, explosion, lightning crack, earth rumble, hits. Volume, pitch, whether any of it is harsh | Synthesized from maths; never heard by anyone | `src/game/sfx.gd` |
 | 13 | Camp: character creation choices and wording, activity board, returning with Enter, abandoning with F10 | Menu over a 3D backdrop; 20 creation points | `src/game/camp.gd` |
 | 14 | Other weave effects (lightning, Riven Earth, Hammer of Air, shield, balefire) once learned | Checked in stills only | `src/game/weavefx.gd` |
+| 15 | Wardrobe: do the looks read as their cultures (Asha'man, Aiel, Aes Sedai shawls, Accepted bands, Warder cloak)? How do skirts, cloaks and shawls move when running and casting? | Seen in stills and a few jog frames; the shawl may clip when arms rise to cast | `src/gen/hero.gd` `LOOKS`, `tools/blender/build_heroes.py` |
+| 16 | Terrain: Tarwin's Gap lighting, road, grass density, cliffs. Is anything hard to read during a fight, or slow? | 60,000 grass tufts scattered, fps not re-measured with a horde | `shaders/ground.gdshader`, `src/world/scenery.gd` |
