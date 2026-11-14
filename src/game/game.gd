@@ -53,15 +53,22 @@ func _ready() -> void:
 	# --class=warder|aiel|hunter makes a throwaway fighter, to try arms in a render.
 	if args.has("class") and profile.get("cls", "channeller") != args.class:
 		profile = Profile.create({name = name_, cls = args.class, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
+		# --forms: the throwaway fighter knows every form its weapons allow.
+		if args.has("forms"):
+			for f in Rules.forms:
+				if profile.kit.any(func(w: String) -> bool: return Rules.weapons[w].family == Rules.forms[f].family):
+					profile.forms[f] = {known = true}
 	# The bar holds what you can do with your hands: weaves, then what you carry.
-	known = profile.weaves.keys() + profile.get("kit", [])
+	known = profile.weaves.keys() + profile.get("kit", []) + profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
 	# Generate the cast before the fight so nothing hitches mid-wave.
 	var specs := []
 	for i in 8:
-		specs.append(Species.roll(Species.TROLLOC, 20 + i, {lod = 1.7, head = ["boar", "wolf", "ram", "hawk", "bear"][i % 5]}))
+		# Sim.ARMS[id % 4] says what each Trolloc carries; with eight variants picked
+		# by id % 8, variant i must carry kind i % 4 for the two to agree.
+		specs.append(Species.roll(Species.TROLLOC, 20 + i, {lod = 1.7, head = ["boar", "wolf", "ram", "hawk", "bear"][i % 5], weapon_kind = i % 4}))
 	var out := []; out.resize(specs.size())
 	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
 	WorkerThreadPool.wait_for_group_task_completion(id)
@@ -132,8 +139,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if ev.button_index == MOUSE_BUTTON_LEFT and held_since >= 0.0 and _armed() and me:
 				var held := clock - held_since
 				var at := _aim_point()
-				if Rules.weapons[known[selected]].has("shot"):
-					session.attack("light", at, clampf(held / Rules.draw_time(profile, known[selected]), 0.0, 1.0))
+				if Rules.weapons[hand()].has("shot"):
+					session.attack("light", at, clampf(held / Rules.draw_time(profile, hand()), 0.0, 1.0))
 				else:
 					session.attack("heavy" if held > 0.35 else "light", at)
 				_face(at)
@@ -144,7 +151,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		elif ev.button_index == MOUSE_BUTTON_LEFT:
-			if _armed():
+			if _form() != "" and ready_at.get(_form(), 0.0) <= clock and me:
+				# A form goes at once; while it rests, the same click is a plain blow.
+				session.attack("form:" + _form(), _aim_point())
+				_face(_aim_point())
+			elif _armed():
 				held_since = clock
 			else:
 				_cast_selected()
@@ -155,18 +166,38 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_select(posmod(selected - 1, n_known))
 
-## Is the chosen thing on the bar a weapon (and not a weave)?
-func _armed() -> bool:
-	return selected < known.size() and Rules.weapons.has(known[selected])
+## What is in my hand, as the sim last said ("" if nothing).
+func hand() -> String:
+	var w: String = actors[session.my_id].get("weapon", "") if actors.has(session.my_id) else ""
+	return w if Rules.weapons.has(w) else ""
 
-## Choosing a weapon takes it in hand; choosing a weave empties the hands to weave.
+## The form chosen on the bar, or "".
+func _form() -> String:
+	return known[selected] if selected < known.size() and Rules.forms.has(known[selected]) else ""
+
+## Is the chosen thing on the bar fought with (a weapon or a form), not woven?
+func _armed() -> bool:
+	return selected < known.size() and hand() != "" and (Rules.weapons.has(known[selected]) or _form() != "")
+
+## Choosing a weapon takes it in hand; choosing a weave empties the hands to weave;
+## choosing a form takes up a weapon it can be done with, if the hand holds another.
 func _select(i: int) -> void:
 	if known.is_empty():
 		return
 	selected = i
 	held_since = -1.0
-	if not profile.get("kit", []).is_empty():
-		session.equip(known[i] if _armed() else "")
+	if profile.get("kit", []).is_empty():
+		return
+	if Rules.weapons.has(known[i]):
+		session.equip(known[i])
+	elif _form() != "":
+		if hand() == "" or Rules.weapons[hand()].family != Rules.forms[_form()].family:
+			for w in profile.kit:
+				if Rules.weapons[w].family == Rules.forms[_form()].family:
+					session.equip(w)
+					break
+	else:
+		session.equip("")
 
 func _move_dir() -> Vector3:
 	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -399,8 +430,9 @@ func _on_events(list: Array) -> void:
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Hero.arm(actors[e.id].node, e.weapon)
 					actors[e.id].weapon = e.weapon
-					# The bar follows the hand (a bot, or the host, may have changed it).
-					if e.id == session.my_id and known.has(e.weapon):
+					# The bar follows the hand (a bot, or the host, may have changed it),
+					# unless a form is chosen: that keeps its place.
+					if e.id == session.my_id and known.has(e.weapon) and _form() == "":
 						selected = known.find(e.weapon)
 			"blow":
 				# The clip is played at whatever speed makes the blade arrive when the
@@ -414,6 +446,9 @@ func _on_events(list: Array) -> void:
 					ap.play(clip, 0.08, clampf(len * m.get("at", 0.4) / maxf(e.wind, 0.05), 0.35, 4.0))
 					a.busy = e.wind + e.recover * 0.8
 					a.erase("gesture")
+					if e.get("form", false) and e.id == session.my_id:
+						ready_at[e.move] = clock + float(Rules.forms[e.move].cooldown)
+						flash_t = 0.9; flash_text = Rules.forms[e.move].name
 					Sfx.play(self, "whoosh", a.node.position + Vector3(0, 1.3, 0), -5.0, 1.3)
 			"strike":
 				if e.hits > 0:
@@ -434,6 +469,8 @@ func _on_events(list: Array) -> void:
 					var at: Vector3 = actors[e.id].node.position + Vector3(0, 1.3, 0) + Basis(Vector3.UP, actors[e.id].node.rotation.y) * Vector3(0, 0, 0.6)
 					Weavefx.sparks(self, at, e.e == "parry")
 					Sfx.play(self, "chime" if e.e == "parry" else "thud", at, 2.0 if e.e == "parry" else 0.0, 1.9 if e.e == "parry" else 1.5)
+					if e.e == "parry":
+						Sfx.play(self, "clang", at, 3.0)
 					if e.id == session.my_id:
 						flash_t = 1.0
 						flash_text = {parry = "Parried", block = "", guard_break = "Your guard is broken"}[e.e]
@@ -446,7 +483,10 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id:
 					ammo[e.weapon] = e.left
 				if actors.has(e.id):
-					Sfx.play(self, "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -3.0, 2.2)
+					Sfx.play(self, "twang" if Rules.weapons[e.weapon].has("shot") else "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -1.0, 1.0 if Rules.weapons[e.weapon].has("shot") else 2.2)
+			"pickup":
+				if e.id == session.my_id:
+					ammo[e.weapon] = e.left
 			"stick":
 				Sfx.play(self, "thud", e.pos, -4.0, 2.0)
 			"cast":

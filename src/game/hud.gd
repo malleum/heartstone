@@ -34,7 +34,7 @@ func _draw() -> void:
 	draw_line(Vector2(30, 56), Vector2(290, 56), Color(Glyph.GOLD, 0.6), 1.5, true)
 	var cap := Rules.flow_capacity(p)
 	var armed: bool = g._armed()
-	var in_hand: Dictionary = Rules.weapons[g.known[g.selected]] if armed else {}
+	var in_hand: Dictionary = Rules.weapons[g.hand()] if g.hand() != "" else {}
 	if p.get("cls", "channeller") == "channeller":
 		Glyph.text(self, sans, Vector2(30, 78), "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))], 15, Color(0.85, 0.85, 0.9))
 		for i in 5:
@@ -91,10 +91,15 @@ func _draw() -> void:
 				if i < 9:
 					Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
 				continue
-			var w: Dictionary = Rules.weaves[id]
-			var total := Rules.cooldown(p, id)
+			var is_form: bool = Rules.forms.has(id)
+			var total: float = float(Rules.forms[id].cooldown) if is_form else Rules.cooldown(p, id)
 			var wait: float = g.ready_at.get(id, 0.0) - g.clock
-			Glyph.weave(self, c, r, Rules.flows_of(w, p), 1.0 if wait <= 0.0 else 0.45, t * 0.25 if sel else 0.0)
+			if is_form:
+				# A form: its weapon's outline inside a second, golden ring.
+				Glyph.weapon(self, c, r, Rules.forms[id].family, 1.0 if wait <= 0.0 else 0.45)
+				draw_arc(c, r * 0.72, 0, TAU, 32, Color(Glyph.GOLD, 0.9 if wait <= 0.0 else 0.3), r * 0.06, true)
+			else:
+				Glyph.weave(self, c, r, Rules.flows_of(Rules.weaves[id], p), 1.0 if wait <= 0.0 else 0.45, t * 0.25 if sel else 0.0)
 			if wait > 0.0 and total > 0.0:
 				# The cooldown drains like a clock face.
 				var f := clampf(wait / total, 0.0, 1.0)
@@ -107,7 +112,8 @@ func _draw() -> void:
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
 				Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
-		var sw: Dictionary = in_hand if armed else Rules.weaves[known[g.selected]]
+		var sel_id: String = known[g.selected]
+		var sw: Dictionary = Rules.forms[sel_id] if Rules.forms.has(sel_id) else (Rules.weapons[sel_id] if Rules.weapons.has(sel_id) else Rules.weaves[sel_id])
 		Glyph.text(self, serif, Vector2(W * 0.5, H - 132.0), sw.name, 22, Color(0.97, 0.94, 0.88), 0)
 
 	# Crosshair: a ring that fills as the chosen weave comes ready.
@@ -115,16 +121,16 @@ func _draw() -> void:
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(0, 0, 0, 0.5), 3.5, true)
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(1, 1, 1, 0.85), 1.5, true)
 	draw_circle(cc, 1.6, Color(1, 1, 1, 0.9))
-	if n > 0 and not armed:
+	if n > 0 and (not armed or Rules.forms.has(known[g.selected])) and not Rules.weapons.has(known[g.selected]) and g.held_since < 0.0:
 		var id: String = known[g.selected]
-		var total := Rules.cooldown(p, id)
+		var total: float = float(Rules.forms[id].cooldown) if Rules.forms.has(id) else Rules.cooldown(p, id)
 		var wait: float = g.ready_at.get(id, 0.0) - g.clock
 		if wait > 0.0 and total > 0.0:
 			draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * (1.0 - wait / total), 32, Glyph.GOLD, 2.5, true)
 	elif armed and g.held_since >= 0.0:
 		# Holding the attack: the ring fills as a bow is drawn, or to the point a
 		# blow becomes a heavy one.
-		var need: float = Rules.draw_time(p, g.known[g.selected]) if in_hand.has("shot") else 0.35
+		var need: float = Rules.draw_time(p, g.hand()) if in_hand.has("shot") else 0.35
 		var f: float = clampf((g.clock - g.held_since) / need, 0.0, 1.0)
 		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Glyph.GOLD if f >= 1.0 else Color(1, 1, 1, 0.8), 2.5, true)
 	if g.refusal_t > 0.0:

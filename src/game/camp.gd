@@ -106,7 +106,7 @@ func _ui() -> void:
 	hint = Label.new(); root.add_child(hint)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44; hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD walk   ·   click the world to look around   ·   walk through a doorway to begin   ·   T the weaves   ·   Esc menu"
+	hint.text = "WASD walk   ·   click the world to look around   ·   walk through a doorway to begin   ·   T weaves or forms   ·   Esc menu"
 	hint.add_theme_font_size_override("font_size", 15); hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	hint.add_theme_color_override("font_outline_color", Color.BLACK); hint.add_theme_constant_override("outline_size", 5)
 	tree = WeaveTree.new(); root.add_child(tree); tree.visible = false
@@ -180,7 +180,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if tree.visible: _show_tree(false)
 			elif captured: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else: _show_menu(not menu.visible)
-		elif ev.keycode == KEY_T and not creating and not profile.is_empty() and not menu.visible and profile.get("cls", "channeller") == "channeller":
+		elif ev.keycode == KEY_T and not creating and not profile.is_empty() and not menu.visible:
 			_show_tree(not tree.visible)
 		elif ev.keycode == KEY_TAB:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -326,6 +326,7 @@ func _select(name_: String, sync := true) -> void:
 		_creation()
 		return
 	creating = false
+	make = {}
 	profile = Profile.load_profile(name_)
 	Launch.last_name = profile.name
 	if sync:
@@ -366,12 +367,20 @@ func _sheet() -> void:
 		_button(side, "The weaves: what you know and what to study  (T)", func() -> void: _show_tree(true))
 	else:
 		_text(side, "%s\nMight %d   Quickness %d   Endurance %d\nHealth %d   Renown %d" % [Rules.cls(profile).name, Rules.stat(profile, "might"), Rules.stat(profile, "quickness"), Rules.stat(profile, "endurance"), int(Rules.max_hp(profile)), int(profile.renown)])
+		for id in profile.get("forms", {}):
+			if Rules.forms.has(id):
+				_text(side, Rules.forms[id].name, 15)
+		var learning: String = profile.get("study", "")
+		if learning != "" and Rules.forms.has(learning):
+			_text(side, "Working out %s: %d%%" % [Rules.forms[learning].name, int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, learning))], 15, Color(0.95, 0.85, 0.55))
+		_button(side, "The forms: what you know and what to study  (T)", func() -> void: _show_tree(true))
 	# What is carried, and the skill of the hand that carries it.
 	if not profile.get("kit", []).is_empty():
 		_text(side, "Arms", 22)
 		for w in profile.kit:
 			var row: Dictionary = Rules.weapons[w]
 			_text(side, "%s   %s skill %d" % [row.name, row.family, Rules.skill_level(profile, row.family)], 15)
+	_button(side, "The armoury: change what you carry", _armoury)
 	if Launch.report.size() > 0:
 		_text(side, "Last time out", 22)
 		_text(side, "\n".join(Launch.report), 15, Color(0.95, 0.85, 0.55))
@@ -518,17 +527,49 @@ func _creation(cls_ := "channeller", name_ := "") -> void:
 	_creation_changed()
 
 ## The weapons this calling may choose from; `none` adds an empty first choice.
-func _weapon_option(label: String, start: String, none: bool) -> OptionButton:
+func _weapon_option(label: String, start: String, none: bool, parent: Control = null, cls_id := "") -> OptionButton:
 	var items := {}
 	if none:
 		items[""] = "Nothing"
-	var probe := {cls = make.cls_id, stats = {might = 8}}
+	var probe := {cls = cls_id if cls_id != "" else make.cls_id, stats = {might = 8}}
 	for w in Rules.weapons:
 		if Rules.wield_block(probe, w) == "" and not Rules.weapons[w].get("earned", false) and w != "hands":
 			items[w] = "%s  (%s)" % [Rules.weapons[w].name, Rules.weapons[w].family]
-	var o := _option(side, label, items)
+	var o := _option(parent if parent else side, label, items)
 	o.select(maxi(items.keys().find(start), 0))
 	return o
+
+## The armoury: change what this character carries. Skill stays with the hand,
+## so a new weapon of a family you know is not a new start.
+func _armoury() -> void:
+	menu.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_clear(menu_box)
+	_text(menu_box, "The armoury", 24)
+	var c: String = profile.get("cls", "channeller")
+	_text(menu_box, "%s carries %d. Your skill is with a family of weapons, not one of them, so changing costs nothing but habit." % ["A " + Rules.CLASSES[c].name.to_lower(), int(Rules.CLASSES[c].carry)], 14, Color(0.7, 0.72, 0.78))
+	var picks := []
+	for i in int(Rules.CLASSES[c].carry):
+		picks.append(_weapon_option(["In hand", "Second", "Third"][i], profile.kit[i] if i < profile.kit.size() else "", true, menu_box, c))
+	var note := _text(menu_box, "", 14, Color(1.0, 0.7, 0.45))
+	_button(menu_box, "Take these", func() -> void:
+		var kit := []
+		for o in picks:
+			var w: String = o.get_selected_metadata()
+			if w != "" and not kit.has(w):
+				var why := Rules.wield_block(profile, w)
+				if why != "":
+					note.text = "%s: %s" % [Rules.weapons[w].name, why]
+					return
+				kit.append(w)
+		if kit.is_empty() and c != "channeller":
+			note.text = "You cannot go unarmed."
+			return
+		profile.kit = kit
+		Profile.save(profile)
+		menu.visible = false
+		_select(profile.name))
+	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
 
 func _fill_looks() -> void:
 	var sex := "f" if make.power.get_selected_metadata() == "saidar" else "m"

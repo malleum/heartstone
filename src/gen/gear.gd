@@ -79,7 +79,9 @@ static func _trolloc(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGene
 				var base := c + Vector3((0.02 + 0.05 * i) * sx, 0.04 - 0.02 * i, (i - 1) * 0.05) * l * u
 				p.cone(base, base + Vector3(0.07 * sx * (i + 0.5), 0.16, 0.0) * u * rng.randf_range(0.8, 1.4), 0.03 * u, 0.004 * u)
 			kit.props.append(p)
-	if rng.randf() < 0.92:
+	# weapon_kind in the spec fixes what is carried (the sim decides how a Trolloc
+	# attacks from it); without it a few go bare-handed.
+	if rng.randf() < 0.92 or s.has("weapon_kind"):
 		var side := 1 if rng.randf() < 0.75 else 0
 		s.weapon_side = side
 		kit.props.append(_weapon(s, J, rng, side))
@@ -103,6 +105,7 @@ static func _weapon(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGener
 	var p := Sdf.new()
 	var rot := Basis(lat, up, a)
 	var kind := rng.randi() % 4
+	kind = int(s.get("weapon_kind", kind))
 	p.use(C.HAND + o, wood, 0.008 * u)
 	match kind:
 		0:  # scythe-curved sword

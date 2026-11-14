@@ -45,11 +45,21 @@ light chains, heavy and low moves, thrown weapons and bows work; guard, parry,
 guard break, sidestep, roll and duck work; Trollocs chop, sweep and thrust along a
 line they commit to; weapons show in the hand; the HUD and the camp know about all
 of it. Notes on what a tick does not cover:
-- **Tests** exist for every weapon and every defence, and fighter bots clear the
-  yard and the watch, but co-op with a channeller and a fighter together is not
-  tested (so the Tests item stays open).
-- **Trolloc attack kinds are chosen at random,** not by the weapon the Trolloc
-  carries: the sim still does not know what each one holds.
+- **Trolloc attacks follow the weapon carried** (`Sim.ARMS`, by id; the view gives
+  the same Trolloc the same weapon): clubs chop, spears thrust or sweep.
+- **Forms** are rows in `_forms` in `data/weapons.json`: eight sword forms with
+  canon names, two for the spear, one each for staff, axe and knife. A fighter
+  studies one at a time by fighting (stamina spent), sees them in the same tree
+  screen as weaves (T in the camp), and uses them from the bar on a cooldown.
+  What each form does is the game's invention.
+- **After a parry** the next blow does half again as much, and so does any blow
+  on an enemy that is down.
+- **Thrown weapons and most arrows lie where they fell** and are picked up by
+  walking over them.
+- **The armoury** is a button on the sheet, not yet a rack you walk to.
+- **The Warder:** with guard raised within 3.5 m of a channeller, the Warder takes
+  blows meant for them; a Warder and a channeller within 15 m both recover
+  stamina three times as fast. The cloak and the rest are not built.
 - **Two rules were added that the plan did not have,** because without them a
   fighter died in under a minute: at most two enemies press one person at a time
   (`TUNE.gang`), and anyone left unhurt for six seconds slowly recovers health
@@ -79,7 +89,7 @@ of it. Notes on what a tick does not cover:
 - [x] `Progression`: skill xp by family from blows and kills; non-channellers skip
       weave study; reports.
 - [x] `Bot`: a fighter that closes, attacks, guards against a swing and steps out.
-- [ ] Tests: every weapon's moves resolve; guard, parry, dodge, duck against each
+- [x] Tests: every weapon's moves resolve; guard, parry, dodge, duck against each
       enemy attack; a martial bot clears the training yard and the watch; co-op
       with a channeller and a fighter together.
 
@@ -88,7 +98,7 @@ of it. Notes on what a tick does not cover:
       (spear). Each with its own wind-up time, arc, reach and height.
 - [x] The swing commits to a direction; a miss leaves the Trolloc open briefly.
 - [x] `Walker`: a different visible motion for each attack kind.
-- [ ] The sim must know which weapon each Trolloc carries (today only the view
+- [x] The sim must know which weapon each Trolloc carries (today only the view
       does): choose it in the sim and tell the view.
 - [ ] Trollocs that guard against blades and must be broken or flanked.
 - [ ] Trolloc archers and javelin throwers, so a shield and a roll matter at range.
@@ -113,7 +123,7 @@ Knives
 - [x] Aiel long knife
 - [x] Paired daggers
 - [x] Throwing knives, a brace of eight (Mat, Thom, Faile)
-- [ ] Knives recovered from the dead and the ground after a throw
+- [x] Knives recovered from the dead and the ground after a throw
 - [ ] The ruby-hilted dagger of Shadar Logoth (a cursed reward: deadly, and it
       costs you)
 
@@ -145,7 +155,7 @@ Bows and missiles
 - [x] Sling (cheap, stuns)
 - [ ] Arrow kinds: broadhead, bodkin (through armour), fire arrows lit by a
       channeller's Fire
-- [ ] Quiver counts, picking arrows back up
+- [x] Quiver counts, picking arrows back up
 
 Shields and the off hand
 - [x] Aiel buckler (hide; light; parries well)
@@ -168,20 +178,20 @@ Bare hands
 - [ ] Staff spin; spear held to keep them off (set against a charge)
 - [ ] Bleeding from cuts, staggers from blunt blows, armour that turns cuts but
       not thrusts
-- [ ] **Sword forms** as learned special moves on the bar with cooldowns, in a
+- [x] **Sword forms** as learned special moves on the bar with cooldowns, in a
       tree like the weave tree: Parting the Silk, The Boar Rushes Down the
       Mountain, Heron Wading in the Rushes, Apple Blossoms in the Wind, The
       Swallow Takes Flight, Arc of the Moon, Lightning of Three Prongs, The
       Kingfisher Takes a Silverback, The Courtier Taps His Fan, Sheathing the
       Sword (take a blow to give a killing one)
 - [ ] Aiel forms: the dance of spears; veiling before a kill
-- [ ] Finishing blows on downed Trollocs
+- [x] Finishing blows on downed Trollocs
 
 ### 5. Defence
 - [x] Guard, parry, guard break (see Foundations)
 - [x] Sidestep, roll, duck (see Foundations)
 - [ ] Jump, for low sweeps
-- [ ] Riposte after a parry
+- [x] Riposte after a parry
 - [ ] Deflecting arrows with a shield
 - [ ] Getting up from a knockdown: roll away or rise guarding
 
@@ -194,7 +204,7 @@ Bare hands
       sim says it does.
 - [ ] Arrows, knives, javelins and stones in flight; stuck in what they hit.
 - [ ] Trails on a swinging blade; sparks on a parry; blood or ichor on a hit.
-- [ ] Sounds: swing, steel on steel, steel on flesh, bowstring, arrow strike,
+- [x] Sounds: swing, steel on steel, steel on flesh, bowstring, arrow strike,
       footfall of a roll.
 - [ ] Stand-ins to replace with real animation: spear thrust, staff work, bow
       draw, low sweep, two-handed grips, Aiel hand fighting.
@@ -207,12 +217,13 @@ Bare hands
 - [x] Creation: choose a class; for fighters, spend points on might, quickness,
       endurance and weapon families; choose a kit; looks that fit the class.
 - [x] The sheet shows class, stats, weapon skills and kit.
-- [ ] An armoury in the camp (a rack you walk to) to change what you carry.
-- [ ] A forms tree beside the weave tree.
-- [ ] Controls shown in the camp and on first entering a fight.
+- [x] An armoury in the camp (a rack you walk to) to change what you carry.
+- [x] A forms tree beside the weave tree.
+- [x] Controls shown in the camp and on first entering a fight.
 
 ### 8. Classes
-- [ ] **Warder:** kit of sword, bow, knife. Best guard. Bond to a channeller in
+- [ ] **Warder:** (guarding a channeller and the bond's shared recovery are built;
+      the cloak and sensing are not.) Kit of sword, bow, knife. Best guard. Bond to a channeller in
       the party: sense where they are, share stamina, gain when near them. The
       colour-shifting cloak: hard for enemies to target when still. Guarding a
       channeller mid-weave (blows aimed at them are drawn to the Warder).

@@ -50,6 +50,9 @@ const TUNE := {
 	guard_slow = 0.5,
 	duck_slow = 0.4,
 	gang = 2,                  # how many enemies may be mid-attack on one person at once; the rest wait their turn
+	ward_reach = 3.5,          # a guarding Warder this close to a channeller takes blows meant for them
+	bond_reach = 15.0,         # a Warder and a channeller this close both recover stamina faster
+	bond_regen = 3.0,
 	rest_after = 6.0,          # s without being hurt before you catch your breath
 	rest_regen = 0.03,         # share of full health recovered each second after that
 	sidestep = {dist = 2.6, time = 0.28, safe = 0.22, cost = 14.0},
@@ -76,6 +79,7 @@ static var enemies: Dictionary = {}
 static var activities: Dictionary = {}
 static var weapons: Dictionary = {}
 static var moves: Dictionary = {}
+static var forms: Dictionary = {}
 
 static func load_data() -> void:
 	if not weaves.is_empty():
@@ -85,7 +89,13 @@ static func load_data() -> void:
 	activities = _json("res://data/activities.json")
 	weapons = _json("res://data/weapons.json")
 	moves = weapons["_moves"]
+	forms = weapons["_forms"]
+	forms.erase("_doc")
 	weapons.erase("_moves")
+	weapons.erase("_forms")
+	# A form is a move like any other once it is in the hand.
+	for f in forms:
+		moves[f] = forms[f]
 
 static func _json(path: String) -> Dictionary:
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -240,6 +250,8 @@ static func wield_block(p: Dictionary, weapon_id: String) -> String:
 ## `chain` is how many light blows have already run together.
 static func move_for(weapon_id: String, kind: String, chain := 0) -> String:
 	var w: Dictionary = weapons[weapon_id]
+	if kind.begins_with("form:"):
+		return kind.trim_prefix("form:") if forms.has(kind.trim_prefix("form:")) else ""
 	match kind:
 		"light": return w.light[chain % w.light.size()]
 		"heavy": return w.heavy
@@ -250,6 +262,23 @@ static func move_for(weapon_id: String, kind: String, chain := 0) -> String:
 static func _quick(p: Dictionary, weapon_id: String) -> float:
 	var w: Dictionary = weapons[weapon_id]
 	return float(w.speed) * (1.0 + TUNE.quick_speed * stat(p, "quickness") + TUNE.skill_speed * skill_level(p, w.family))
+
+## Why this character cannot use a form right now with this weapon, or "".
+static func form_block(p: Dictionary, form_id: String, weapon_id: String) -> String:
+	if not forms.has(form_id) or not p.get("forms", {}).get(form_id, {}).get("known", false):
+		return "not learned"
+	var f: Dictionary = forms[form_id]
+	if not weapons.has(weapon_id) or weapons[weapon_id].family != f.family:
+		return "needs a %s in hand" % f.family
+	return ""
+
+## What a study row is for this character: a weave for a channeller, a form for a
+## fighter. Both are worked out one at a time, by doing.
+static func lore(p: Dictionary) -> Dictionary:
+	return weaves if p.get("cls", "channeller") == "channeller" else forms
+
+static func knows(p: Dictionary, id: String) -> bool:
+	return p.get("weaves" if p.get("cls", "channeller") == "channeller" else "forms", {}).get(id, {}).get("known", false)
 
 ## [wind-up, recovery] in seconds for this character with this weapon.
 static func move_times(p: Dictionary, weapon_id: String, move_id: String) -> Array:
@@ -302,6 +331,11 @@ static func draw_time(p: Dictionary, weapon_id: String) -> float:
 static func study_options(p: Dictionary) -> Array:
 	var out := []
 	if p.get("cls", "channeller") != "channeller":
+		# A fighter works out forms: those whose earlier forms are known and whose
+		# weapon they are skilled enough with.
+		for id in forms:
+			if not knows(p, id) and missing_for(p, id).is_empty() and skill_level(p, forms[id].family) >= int(forms[id].get("skill", 0)):
+				out.append(id)
 		return out
 	for id in weaves:
 		if p.weaves.get(id, {}).get("known", false) or weaves[id].book > p.book_limit:
@@ -310,16 +344,17 @@ static func study_options(p: Dictionary) -> Array:
 			out.append(id)
 	return out
 
-static func missing_for(p: Dictionary, weave_id: String) -> Array:
+static func missing_for(p: Dictionary, id: String) -> Array:
 	var out := []
-	for n in weaves[weave_id].get("needs", []):
-		if not p.weaves.get(n, {}).get("known", false):
+	for n in lore(p)[id].get("needs", []):
+		if not knows(p, n):
 			out.append(n)
 	return out
 
-## Channelling needed to work a weave out; half if you have seen it woven.
-static func study_cost(p: Dictionary, weave_id: String) -> float:
-	return weaves[weave_id].get("study", 5000.0) * (0.5 if p.get("seen", []).has(weave_id) else 1.0)
+## Channelling (or, for a form, stamina spent fighting) needed to work it out;
+## half if you have seen it done.
+static func study_cost(p: Dictionary, id: String) -> float:
+	return lore(p)[id].get("study", 5000.0) * (0.5 if p.get("seen", []).has(id) else 1.0)
 
 ## Activities this character may start, in table order.
 static func available(p: Dictionary) -> Array:

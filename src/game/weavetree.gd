@@ -15,6 +15,7 @@ var t := 0.0
 var hover := ""
 var _pos := {}       # weave id -> Vector2
 var _for := Vector2.ZERO
+var _fam_ang := {}   # forms: weapon family -> angle of the middle of its share
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -36,20 +37,30 @@ func _centre() -> Vector2:
 	return Vector2(_sz().x * 0.4, _sz().y * 0.52)
 
 func _radius() -> float:
-	return minf(_sz().x * 0.33, _sz().y * 0.37)
+	return minf(_sz().x * 0.33, _sz().y * (0.33 if _forms() else 0.37))
 
 func _dir(e: String) -> Vector2:
 	var a := -PI * 0.5 + ORDER.find(e) * TAU / 5.0
 	return Vector2(cos(a), sin(a))
 
+## A fighter's tree is of forms, laid out by weapon family; a channeller's is of
+## weaves, laid out by Power. Everything else is shared.
+func _forms() -> bool:
+	return profile.get("cls", "channeller") != "channeller"
+
+func _table() -> Dictionary:
+	return Rules.lore(profile)
+
 func _tier(id: String) -> int:
 	var d := 0
-	for n in Rules.weaves[id].get("needs", []):
+	for n in _table()[id].get("needs", []):
 		d = maxi(d, _tier(n) + 1)
 	return d
 
 func _shown() -> Array:
 	var out := []
+	if _forms():
+		return Rules.forms.keys()
 	for id in Rules.weaves:
 		if not str(id).begins_with("_") and (Rules.weaves[id].book <= profile.book_limit or profile.weaves.has(id)):
 			out.append(id)
@@ -63,7 +74,26 @@ func _layout() -> void:
 		return
 	_for = size; _pos = {}
 	var c := _centre(); var R := _radius()
-	for id in _shown():
+	if _forms():
+		# Each weapon family takes a share of the wheel in proportion to its forms;
+		# within it, a form sits further in the more forms it waits on.
+		var fams := []
+		for id in Rules.forms:
+			if not fams.has(Rules.forms[id].family):
+				fams.append(Rules.forms[id].family)
+		var start := -PI * 0.5 - PI * float(Rules.forms.values().filter(func(f: Dictionary) -> bool: return f.family == fams[0]).size()) / Rules.forms.size()
+		_fam_ang = {}
+		for fam in fams:
+			var mine := Rules.forms.keys().filter(func(id: String) -> bool: return Rules.forms[id].family == fam)
+			var sector := TAU * mine.size() / Rules.forms.size()
+			_fam_ang[fam] = start + sector * 0.5
+			for tier in 4:
+				var row := mine.filter(func(id: String) -> bool: return mini(_tier(id), 3) == tier)
+				for i in row.size():
+					var ang := start + sector * (i + 0.5) / row.size()
+					_pos[row[i]] = c + Vector2(cos(ang), sin(ang)) * R * [1.0, 0.7, 0.42, 0.14][tier]
+			start += sector
+	for id in ([] if _forms() else _shown()):
 		var fl := Rules.flows_of(Rules.weaves[id], profile)
 		var v := Vector2.ZERO; var n := 0.0
 		for e in fl:
@@ -71,7 +101,7 @@ func _layout() -> void:
 		v /= maxf(n, 1.0)
 		_pos[id] = c + (v.normalized() * R * RADII[mini(_tier(id), 3)] if v.length() > 0.05 else Vector2.ZERO)
 	# Ease apart anything that landed on top of something else.
-	var min_d := _node_r() * 3.9
+	var min_d := _node_r() * (4.6 if _forms() else 3.9)
 	for it in 40:
 		for a in _pos:
 			for b in _pos:
@@ -84,11 +114,17 @@ func _layout() -> void:
 						if _tier(b) > 0: _pos[b] += push
 
 func _state(id: String) -> String:
-	if profile.weaves.get(id, {}).get("known", false):
+	if Rules.knows(profile, id):
 		return "known"
 	if profile.get("study", "") == id:
 		return "studying"
-	return "open" if Rules.missing_for(profile, id).is_empty() else "locked"
+	return "open" if Rules.study_options(profile).has(id) else "locked"
+
+func _glyph(id: String, at: Vector2, r: float, bright: float, spin := 0.0) -> void:
+	if _forms():
+		Glyph.weapon(self, at, r, Rules.forms[id].family, bright)
+	else:
+		Glyph.weave(self, at, r, Rules.flows_of(Rules.weaves[id], profile), bright, spin)
 
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion:
@@ -116,7 +152,10 @@ func _draw() -> void:
 	# The wheel: faint rings for each step inward, a spoke and a name for each Power.
 	for k in RADII.size():
 		draw_arc(c, R * RADII[k], 0, TAU, 96, Color(Glyph.GOLD, 0.13 if k == 0 else 0.07), 1.5 if k == 0 else 1.0, true)
-	for e in ORDER:
+	for fam in (_fam_ang if _forms() else {}):
+		var d := Vector2(cos(_fam_ang[fam]), sin(_fam_ang[fam]))
+		Glyph.text(self, serif, c + d * (R + nr * 2.9) + Vector2(d.x * 26.0, 8.0 + (22.0 if d.y > 0.3 else 0.0)), fam.capitalize(), 26, Color(0.85, 0.87, 0.92), 0)
+	for e in ([] if _forms() else ORDER):
 		var d := _dir(e)
 		var col: Color = Glyph.TINT[e]
 		draw_line(c + d * R * 0.08, c + d * R, Color(col, 0.16), 1.5, true)
@@ -126,7 +165,7 @@ func _draw() -> void:
 		Glyph.text(self, serif, c + d * (R + nr * 2.9) + Vector2(d.x * 26.0, 8.0 + (22.0 if d.y > 0.3 else 0.0)), e.capitalize(), 26, Color(col, 0.95), 0)
 	# What leads to what.
 	for id in _pos:
-		for need in Rules.weaves[id].get("needs", []):
+		for need in _table()[id].get("needs", []):
 			if not _pos.has(need):
 				continue
 			var a: Vector2 = _pos[need]; var b: Vector2 = _pos[id]
@@ -146,48 +185,64 @@ func _draw() -> void:
 	for id in _pos:
 		var p: Vector2 = _pos[id]
 		var st := _state(id)
-		var fl := Rules.flows_of(Rules.weaves[id], profile)
 		var r := nr * (1.15 if hover == id else 1.0)
 		match st:
 			"known":
 				draw_circle(p, r + 9.0, Color(Glyph.GOLD, 0.12))
-				Glyph.weave(self, p, r, fl, 1.0, t * 0.15)
+				_glyph(id, p, r, 1.0, t * 0.15)
 				draw_arc(p, r + 4.0, 0, TAU, 40, Color(Glyph.GOLD, 0.9), 1.6, true)
-				var m := Rules.mastery_level(profile, id)
+				var m := 0 if _forms() else Rules.mastery_level(profile, id)
 				for k in m:
 					var a := PI * 0.5 + (k - (m - 1) * 0.5) * 0.3
 					draw_circle(p + Vector2(cos(a), sin(a)) * (r + 4.0), 3.2, Glyph.GOLD)
 			"studying":
-				Glyph.weave(self, p, r, fl, 0.8, t * 0.5)
+				_glyph(id, p, r, 0.8, t * 0.5)
 				var f: float = clampf(profile.get("study_done", 0.0) / Rules.study_cost(profile, id), 0.0, 1.0)
 				draw_arc(p, r + 5.0, 0, TAU, 40, Color(1, 1, 1, 0.18), 3.0, true)
 				draw_arc(p, r + 5.0, -PI * 0.5, -PI * 0.5 + TAU * maxf(f, 0.01), 40, Color(1, 1, 1, 0.95), 3.0, true)
 			"open":
-				Glyph.weave(self, p, r, fl, 0.5)
+				_glyph(id, p, r, 0.5)
 				draw_arc(p, r + 4.0 + 2.0 * sin(t * 3.0), 0, TAU, 40, Color(1, 1, 1, 0.45 + 0.25 * sin(t * 3.0)), 1.5, true)
 			"locked":
-				Glyph.weave(self, p, r, fl, 0.3)
+				_glyph(id, p, r, 0.3)
 		var name_col := Color(0.97, 0.94, 0.88) if st == "known" else (Color(0.9, 0.9, 0.95) if st != "locked" else Color(0.5, 0.5, 0.56))
-		Glyph.text(self, sans, p + Vector2(0, r + 22.0), Rules.weaves[id].name, 13, name_col, 0)
-	Glyph.text(self, serif, Vector2(40, 60), "The Weaves", 38, Color(0.97, 0.94, 0.88))
-	Glyph.text(self, sans, Vector2(42, 86), "One weave is worked out at a time,", 14, Color(0.65, 0.67, 0.75))
-	Glyph.text(self, sans, Vector2(42, 106), "by channelling anything.", 14, Color(0.65, 0.67, 0.75))
+		# Long names (the sword forms) go on two lines.
+		var label: String = _table()[id].name
+		var cut := label.find(" ", label.length() / 2 - 1) if label.length() > 20 else -1
+		Glyph.text(self, sans, p + Vector2(0, r + 22.0), label if cut < 0 else label.substr(0, cut), 13, name_col, 0)
+		if cut >= 0:
+			Glyph.text(self, sans, p + Vector2(0, r + 38.0), label.substr(cut + 1), 13, name_col, 0)
+	Glyph.text(self, serif, Vector2(40, 60), "The Forms" if _forms() else "The Weaves", 38, Color(0.97, 0.94, 0.88))
+	Glyph.text(self, sans, Vector2(42, 86), "One form is worked out at a time," if _forms() else "One weave is worked out at a time,", 14, Color(0.65, 0.67, 0.75))
+	Glyph.text(self, sans, Vector2(42, 106), "by fighting with anything." if _forms() else "by channelling anything.", 14, Color(0.65, 0.67, 0.75))
 	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), "T or Esc: back to the camp", 14, Color(0.65, 0.67, 0.75))
 	_card(hover if hover != "" else profile.get("study", ""))
 
 ## The panel on the right: what the weave under the pointer is and what it asks.
 func _card(id: String) -> void:
-	if id == "" or not Rules.weaves.has(id):
+	if id == "" or not _table().has(id):
 		return
 	var serif := Glyph.serif(); var sans := Glyph.sans()
-	var w: Dictionary = Rules.weaves[id]
+	var w: Dictionary = _table()[id]
 	var x := _sz().x * 0.76; var y := _sz().y * 0.24
 	var wd := _sz().x * 0.22
-	draw_rect(Rect2(x - 20, y - 46, wd + 40, 330), Color(0.06, 0.06, 0.1, 0.85))
-	draw_rect(Rect2(x - 20, y - 46, wd + 40, 330), Color(Glyph.GOLD, 0.4), false, 1.2)
-	Glyph.text(self, serif, Vector2(x, y), w.name, 24, Color(0.97, 0.94, 0.88))
-	var fl := Rules.flows_of(w, profile)
+	draw_rect(Rect2(x - 20, y - 46, wd + 40, 360), Color(0.06, 0.06, 0.1, 0.85))
+	draw_rect(Rect2(x - 20, y - 46, wd + 40, 360), Color(Glyph.GOLD, 0.4), false, 1.2)
+	Glyph.text(self, serif, Vector2(x, y), w.name, 24 if w.name.length() < 22 else 17, Color(0.97, 0.94, 0.88))
+	var fl := {} if _forms() else Rules.flows_of(w, profile)
 	var yy := y + 34.0
+	if _forms():
+		Glyph.text(self, sans, Vector2(x, yy), "%s form   ·   every %d s" % [w.family.capitalize(), int(w.cooldown)], 15, Color(0.85, 0.87, 0.92))
+		yy += 26.0
+		# The note, wrapped by hand to the card's width.
+		var line := ""
+		for word in (w.get("note", "") as String).split(" "):
+			if (line + " " + word).length() > 34:
+				Glyph.text(self, sans, Vector2(x, yy), line, 13, Color(0.7, 0.72, 0.8)); yy += 18.0
+				line = word
+			else:
+				line = (line + " " + word).strip_edges()
+		Glyph.text(self, sans, Vector2(x, yy), line, 13, Color(0.7, 0.72, 0.8)); yy += 22.0
 	for e in ORDER:
 		if fl.has(e):
 			for k in int(fl[e]):
@@ -198,22 +253,25 @@ func _card(id: String) -> void:
 	var lines := []
 	match _state(id):
 		"known":
-			lines.append(["Known. Mastery %d." % Rules.mastery_level(profile, id), Glyph.GOLD])
+			lines.append(["Known." if _forms() else "Known. Mastery %d." % Rules.mastery_level(profile, id), Glyph.GOLD])
 		"studying":
 			lines.append(["Working it out: %d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, id)), Color.WHITE])
 		"open":
 			lines.append(["Click to study it.", Color.WHITE])
 			if profile.get("study", "") != "" and profile.get("study_done", 0.0) > 0.0:
 				lines.append(["What you have worked out of", Color(1.0, 0.7, 0.45)])
-				lines.append(["%s will be lost." % Rules.weaves[profile.study].name, Color(1.0, 0.7, 0.45)])
+				lines.append(["%s will be lost." % _table()[profile.study].name, Color(1.0, 0.7, 0.45)])
 		"locked":
 			lines.append(["First you must know:", Color(0.75, 0.75, 0.8)])
 			for m in Rules.missing_for(profile, id):
-				lines.append(["   " + Rules.weaves[m].name, Color(0.9, 0.9, 0.95)])
+				lines.append(["   " + _table()[m].name, Color(0.9, 0.9, 0.95)])
+			if _forms() and Rules.skill_level(profile, w.family) < int(w.get("skill", 0)):
+				lines.append(["   %s skill %d (you have %d)" % [w.family, int(w.skill), Rules.skill_level(profile, w.family)], Color(0.9, 0.9, 0.95)])
 	if _state(id) != "known":
 		# Channelling comes at roughly 200 a minute of steady weaving.
-		var mins := Rules.study_cost(profile, id) / 205.0
-		lines.append(["About %s of weaving" % ("%d minutes" % int(mins) if mins < 90.0 else "%.0f hours" % (mins / 60.0)), Color(0.7, 0.72, 0.8)])
+		# A fighter spends roughly 250 stamina a minute in a hard fight.
+		var mins := Rules.study_cost(profile, id) / (250.0 if _forms() else 205.0)
+		lines.append(["About %s of %s" % ["%d minutes" % maxi(int(mins), 1) if mins < 90.0 else "%.0f hours" % (mins / 60.0), "fighting" if _forms() else "weaving"], Color(0.7, 0.72, 0.8)])
 		if profile.get("seen", []).has(id):
 			lines.append(["You have seen it woven: half the work.", Color(0.7, 0.9, 0.75)])
 	if w.has("level"):

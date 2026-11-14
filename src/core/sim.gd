@@ -47,7 +47,7 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 	# A fighter arrives armed; a channeller's hands are free to weave.
 	if profile.get("cls", "channeller") != "channeller" and not profile.get("kit", []).is_empty():
 		p.weapon = profile.kit[0]
-	tallies[id] = {casts = {}, kills = {}, blows = {}, draw = 0.0, seconds = 0.0}
+	tallies[id] = {casts = {}, kills = {}, blows = {}, draw = 0.0, effort = 0.0, seconds = 0.0}
 	events.append(_intro(ents[id]))
 	return id
 
@@ -66,12 +66,16 @@ func roster() -> Array:
 			out.append(_intro(ents[id]))
 	return out
 
+## What a Trolloc carries, by id, so the view can show the same thing in its hand
+## (see the variants in game.gd) and its attacks can follow from it.
+const ARMS: Array[String] = ["scythe", "axe", "spear", "club"]
+
 func _add_enemy(type: String, pos: Vector3) -> void:
 	var row: Dictionary = Rules.enemies[type]
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "enemy", type = type, row = row, pos = pos, yaw = 0.0, hp = float(row.hp), max_hp = float(row.hp),
 		radius = float(row.radius), team = -1, alive = true, atk = 0.0, stagger = 0.0, vel = Vector3.ZERO,
-		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false, blow = {}, aim_yaw = 0.0,
+		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false, blow = {}, aim_yaw = 0.0, arm = ARMS[id % 4],
 		speed = row.speed * rng.randf_range(0.85, 1.15)}
 	events.append(_intro(ents[id]))
 
@@ -140,6 +144,16 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	if move_id == "":
 		return "that cannot be thrown"
 	var m: Dictionary = Rules.moves[move_id]
+	if kind.begins_with("form:"):
+		var why := Rules.form_block(p.profile, move_id, p.weapon)
+		if why != "":
+			return why
+		if p.cd.get(move_id, 0.0) > t:
+			return "not ready"
+		p.cd[move_id] = t + float(m.get("cooldown", 0.0))
+		# Some forms are paid for in blood.
+		if m.has("self"):
+			_hurt(p, float(m.self), p.id, "", true)
 	var times := Rules.move_times(p.profile, p.weapon, move_id)
 	var wind: float = times[0]
 	if m.get("missile", false):
@@ -162,7 +176,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		p.dash = {vel = dir * (m.lunge / maxf(wind, 0.05)), left = wind, lunge = true}
 	var tl: Dictionary = tallies[id]
 	tl.blows[p.weapon] = tl.blows.get(p.weapon, 0) + 1
-	events.append({e = "blow", id = id, weapon = p.weapon, move = move_id, wind = wind, recover = times[1], dir = dir})
+	tl.effort += cost
+	events.append({e = "blow", id = id, weapon = p.weapon, move = move_id, wind = wind, recover = times[1], dir = dir, form = kind.begins_with("form:")})
 	return ""
 
 func set_guard(id: int, on: bool) -> void:
@@ -244,7 +259,14 @@ func _spawn_wave(w: Dictionary) -> void:
 
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
-	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * dt, Rules.TUNE.stamina)
+	# The bond: a Warder and a channeller near each other both recover faster.
+	var bonded := 1.0
+	for id in ents:
+		var o: Dictionary = ents[id]
+		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and o.pos.distance_to(p.pos) < Rules.TUNE.bond_reach \
+				and [p.profile.get("cls", "channeller"), o.profile.get("cls", "channeller")] in [["warder", "channeller"], ["channeller", "warder"]]:
+			bonded = Rules.TUNE.bond_regen
+	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, Rules.TUNE.stamina)
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
@@ -339,8 +361,12 @@ func _strike(p: Dictionary) -> void:
 			break
 		if e.get("safe_until", 0.0) > t:
 			continue
-		_wound(e, dmg * pow(0.7, n), p.id, sw.weapon, on, dir)
+		# A blow straight after a parry, or on one who is down, goes in deeper.
+		var open := (1.5 if p.get("riposte_until", 0.0) > t else 1.0) * (1.5 if e.get("down", 0.0) > 0.0 else 1.0)
+		_wound(e, dmg * pow(0.7, n) * open, p.id, sw.weapon, on, dir)
 		n += 1
+	if n > 0:
+		p.riposte_until = 0.0
 	events.append({e = "strike", id = p.id, weapon = sw.weapon, move = sw.move, hits = n, pos = _feet(p) + dir * reach * 0.7 + Vector3(0, 1.1, 0)})
 
 ## Steel (or a fist) reaching a body: guard and parry for a player on the
@@ -373,6 +399,7 @@ func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3
 		attacker.stagger = maxf(attacker.stagger, Rules.TUNE.parry_stagger)
 		if attacker.kind == "player":
 			attacker.reel_until = t + Rules.TUNE.parry_stagger * 0.6
+		target.riposte_until = t + 1.5
 		events.append({e = "parry", id = target.id, from = attacker.id})
 		return -1.0
 	var stopped := dmg * Rules.guard_share(target.profile, target.weapon)
@@ -596,6 +623,23 @@ func _step_effects(dt: float) -> void:
 						var flat: Vector3 = fx.vel * Vector3(1, 0, 1)
 						_wound(ents[fx.struck], fx.dmg, fx.owner, fx.weapon, {stagger = fx.stagger} if fx.stagger > 0.0 else {}, flat.normalized())
 					events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = fx.get("struck", 0)})
+					# It lies where it fell, to be gathered up: thrown weapons always, an
+					# arrow if it did not break.
+					if Rules.weapons[fx.weapon].has("throw") or rng.randf() < 0.6:
+						var at: Vector3 = fx.pos
+						at.y = Terrain.height(at.x, at.z)
+						keep.append({kind = "drop", owner = fx.owner, weapon = fx.weapon, pos = at, left = 90.0, id = _fx_id()})
+			"drop":
+				fx.left -= dt
+				alive = fx.left > 0.0
+				for id in ents:
+					var e: Dictionary = ents[id]
+					if alive and e.alive and e.kind == "player" and e.ammo.has(fx.weapon) and Vector2(e.pos.x - fx.pos.x, e.pos.z - fx.pos.z).length() < 1.3:
+						var row: Dictionary = Rules.weapons[fx.weapon]
+						if e.ammo[fx.weapon] < int(row.get("shot", row.get("throw", {})).get("ammo", 0)):
+							e.ammo[fx.weapon] += 1
+							events.append({e = "pickup", id = e.id, weapon = fx.weapon, left = e.ammo[fx.weapon]})
+							alive = false
 			"blast":
 				fx.left -= dt
 				if fx.left <= 0.0:
@@ -697,7 +741,11 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 ## Which of its attacks an enemy tries next: a chop, a sweep, a thrust. Each has
 ## its own arc, reach, height and time, so each asks for a different answer.
 func _pick_blow(e: Dictionary) -> Dictionary:
-	var list: Array = e.row.get("attacks", [{kind = "chop", height = "over", arc = 30.0}])
+	var all: Array = e.row.get("attacks", [{kind = "chop", height = "over", arc = 30.0}])
+	# What it can do depends on what it holds: a spear thrusts, a club comes down.
+	var list := all.filter(func(x: Dictionary) -> bool: return not x.has("arms") or e.arm in x.arms)
+	if list.is_empty():
+		list = all
 	var a: Dictionary = list[rng.randi() % list.size()]
 	return {kind = a.kind, height = a.get("height", "mid"), arc = float(a.get("arc", 30.0)), reach = e.row.reach * a.get("reach", 1.0),
 		time = e.row.attack_time * a.get("time", 1.0), dmg = e.row.damage * a.get("dmg", 1.0)}
@@ -718,6 +766,15 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 		e.stagger = maxf(e.stagger, 0.45)
 		events.append({e = "miss", id = e.id})
 		return
+	# A Warder with guard raised beside a channeller takes the blow meant for them.
+	if target.profile.get("cls", "channeller") == "channeller":
+		for p in players:
+			if p.id != target.id and p.alive and p.team == target.team and p.guard and p.profile.get("cls", "") == "warder" and p.pos.distance_to(target.pos) < Rules.TUNE.ward_reach:
+				events.append({e = "ward", id = p.id, saved = target.id})
+				target = p
+				# However it came, the Warder's steel is in its way.
+				dir = -Vector3(sin(p.yaw), 0, cos(p.yaw))
+				break
 	if target.safe_until > t or (b.height == "high" and target.duck):
 		e.stagger = maxf(e.stagger, 0.3)
 		events.append({e = "evade", id = target.id, from = e.id, duck = target.safe_until <= t})

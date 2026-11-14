@@ -90,7 +90,7 @@ static func create_fighter(opts: Dictionary) -> Dictionary:
 		book_limit = opts.get("book_limit", 14),
 		channelled = 0.0, renown = 0.0, seconds = 0.0,
 		weaves = {}, seen = [], done = {},
-		stats = stats, skills = skills, kit = [],
+		stats = stats, skills = skills, kit = [], forms = {},
 	}
 	for e in Rules.ELEMENTS:
 		p.affinity[e] = 0.0; p.aptitude[e] = 0.0
@@ -172,7 +172,7 @@ static func start_strength(potential: float) -> float:
 static func _migrate(p: Dictionary) -> void:
 	Rules.load_data()
 	# Characters from before there were arms are channellers carrying nothing.
-	for k in [["cls", "channeller"], ["stats", {might = 0, quickness = 0, endurance = 0}], ["skills", {}], ["kit", []]]:
+	for k in [["cls", "channeller"], ["stats", {might = 0, quickness = 0, endurance = 0}], ["skills", {}], ["kit", []], ["forms", {}]]:
 		if not p.has(k[0]):
 			p[k[0]] = k[1]
 	p.kit = p.kit.filter(func(w: String) -> bool: return Rules.weapons.has(w))

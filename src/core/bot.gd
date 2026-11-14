@@ -69,6 +69,11 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 				close += 1
 		var row: Dictionary = Rules.weapons[me.weapon]
 		var kind := "light"
+		# A form, whenever one is ready and suits what is in hand.
+		for f in me.profile.get("forms", {}):
+			if me.swing.is_empty() and me.cd.get(f, 0.0) <= sim.t and Rules.form_block(me.profile, f, me.weapon) == "" and (close >= 2 or Rules.forms[f].get("hits", 1) == 1):
+				if sim.request_attack(id, "form:" + f, near.pos + Vector3(0, 1.0, 0)) == "":
+					return
 		if close >= 3 and me.swing.is_empty():
 			kind = "heavy" if Rules.moves[row.heavy].arc >= 100 else ("low" if Rules.moves[row.low].get("hits", 1) >= 3 else "light")
 		sim.request_attack(id, kind, near.pos + Vector3(0, 1.0, 0))

@@ -41,6 +41,12 @@ static func build() -> void:
 		return (sin(TAU * 196.0 * t) + 0.6 * sin(TAU * 294.0 * t) + 0.3 * sin(TAU * 588.0 * t + sin(TAU * 5.0 * t))) * e * 0.28)
 	bank.chime = _render(0.9, func(t: float) -> float:
 		return (sin(TAU * 660.0 * t) + 0.5 * sin(TAU * 990.0 * t)) * exp(-t * 4.0) * 0.4)
+	# Steel on steel: a few inharmonic partials ringing down, with a click at the front.
+	bank.clang = _render(0.8, func(t: float) -> float:
+		return (sin(TAU * 1730.0 * t) + 0.7 * sin(TAU * 2610.0 * t) + 0.5 * sin(TAU * 4120.0 * t) + 0.4 * sin(TAU * 5870.0 * t)) * exp(-t * 7.0) * 0.22 + _noise(a, 1.0) * exp(-t * 90.0) * 0.7)
+	# A bowstring: a low pluck that drops in pitch, and the slap of the string.
+	bank.twang = _render(0.35, func(t: float) -> float:
+		return sin(TAU * (210.0 * t - 160.0 * t * t)) * exp(-t * 14.0) * 0.7 + _noise(b, 0.7) * exp(-t * 70.0) * 0.5)
 	randomize()
 
 static func play(g: Node3D, name: String, at: Vector3, db := 0.0, pitch := 1.0) -> void:

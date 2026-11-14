@@ -116,6 +116,11 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.add_child(f)
 		"missile":
 			n.add_child(Armoury.missile(weave))
+		"drop":
+			# Spent and lying where it fell, point down, to be gathered up.
+			var m := Armoury.missile(weave)
+			m.rotation = Vector3(-1.2, randf() * TAU, 0); m.position.y = -1.05
+			n.add_child(m)
 		"blast":
 			var c := CylinderMesh.new(); c.top_radius = 0.9; c.bottom_radius = 0.9; c.height = 0.05
 			var mi := _mesh(c, TINT.fire, 2.0); mi.position.y = -1.1

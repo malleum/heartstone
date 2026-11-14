@@ -157,6 +157,82 @@ func _arms() -> void:
 		check(who.weaves.is_empty() and who.get("study", "") == "", "%s learns no weaves" % who.name)
 	check(warder.skills.sword > 3 * 3 * Rules.TUNE.skill_xp, "fighting raises the skill of the weapon used")
 
+	print("== a fighter and a channeller together")
+	var both := Sim.new("tarwins_gap_watch", 4)
+	var weaver := Profile.create({name = "Pair Weaver", potential_pts = 8, affinity_pts = {fire = 6}})
+	var blade := Profile.create({name = "Pair Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
+	var iw := both.add_player(weaver, Vector3(0, 0, 4)); var ib2 := both.add_player(blade, Vector3(2, 0, 0))
+	while not both.over and both.t < 400.0:
+		Bot.drive(both, iw); Bot.drive(both, ib2)
+		both.step(1.0 / 30.0)
+		both.events.clear()
+	print("  %s in %.0fs: weaver %d casts, health %d; blade %d blows, health %d" % ["won" if both.success else "LOST", both.t, both.tallies[iw].casts.values().reduce(func(x, y): return x + y, 0), int(maxf(both.ents[iw].hp, 0.0)), both.tallies[ib2].blows.values().reduce(func(x, y): return x + y, 0), int(maxf(both.ents[ib2].hp, 0.0))])
+	check(both.success and both.tallies[iw].casts.size() > 0 and both.tallies[ib2].blows.size() > 0, "a channeller and a Warder hold the watch together, each doing their part")
+
+	# The Warder's work: beside a channeller with guard raised, the blow is theirs.
+	var ward := Sim.new("camp_training", 6)
+	ward._waves = []
+	var cw := ward.add_player(weaver, Vector3.ZERO); var ww := ward.add_player(blade, Vector3(1.5, 0, 0))
+	ward._add_enemy("trolloc", Vector3(0, 0, 1.6))
+	ward.ents[ww].yaw = 0.0
+	ward.ents[cw].stamina = 100.0; ward.ents[ww].stamina = 100.0
+	var saw := []
+	for i in 120:
+		ward.set_guard(ww, true)
+		ward.step(1.0 / 30.0)
+		for e in ward.events: saw.append(e.e)
+		ward.events.clear()
+	check(saw.has("ward") and ward.ents[cw].hp == ward.ents[cw].max_hp, "a guarding Warder takes the blow meant for the channeller beside them")
+	check(ward.ents[cw].stamina > 100.0 + 4.0 * Rules.TUNE.stamina_regen * 2.0, "bonded, they recover stamina faster")
+
+	# A parry opens the way for a harder blow; so does a foe on the ground.
+	d = duel(warder, "dummy", 1.4)
+	sim = d[0]
+	d[2].hp = 99999.0
+	sim.request_attack(d[1], "light", d[2].pos); run(sim, 1.0)
+	var plain: float = 99999.0 - d[2].hp
+	d[2].hp = 99999.0; sim.ents[d[1]].riposte_until = sim.t + 5.0; sim.ents[d[1]].chain_t = 0.0
+	sim.request_attack(d[1], "light", d[2].pos); run(sim, 1.0)
+	check(99999.0 - d[2].hp > plain * 1.4, "a blow after a parry bites deeper")
+
+	# Forms: worked out by fighting, used with the right weapon, on a cooldown.
+	check(not warder.forms.is_empty() and not aiel.forms.is_empty(), "fighting works out forms: %s, %s" % [str(warder.forms.keys()), str(aiel.forms.keys())])
+	check(not Rules.study_options(warder).has("arc_of_the_moon") and not Rules.study_options(warder).has("sheathing_the_sword"), "the forms tree gates on what is known")
+	check(not Rules.study_options(aiel).has("boar_rushes") and not aiel.forms.has("parting_the_silk"), "forms follow the weapon you are skilled with")
+	warder.forms["parting_the_silk"] = {known = true}
+	d = duel(warder, "dummy", 1.4)
+	sim = d[0]
+	d[2].hp = 99999.0
+	check(sim.request_attack(d[1], "form:parting_the_silk", d[2].pos) == "", "a known form can be used")
+	run(sim, 1.5)
+	check(99999.0 - d[2].hp > plain * 1.5, "and hits harder than a plain cut")
+	check(sim.request_attack(d[1], "form:parting_the_silk", d[2].pos) == "not ready", "then it must wait")
+	check(sim.request_attack(d[1], "form:arc_of_the_moon", d[2].pos) == "not learned", "an unknown form is refused")
+	sim.equip(d[1], "belt_knife")
+	sim.ents[d[1]].cd = {}
+	check(sim.request_attack(d[1], "form:parting_the_silk", d[2].pos).begins_with("needs a sword"), "a sword form needs a sword in hand")
+
+	# A thrown knife can be gathered up again.
+	var thrower := Profile.create({name = "Thrower", cls = "hunter", kit = ["throwing_knives"]})
+	d = duel(thrower, "dummy", 6.0)
+	sim = d[0]
+	d[2].hp = 99999.0
+	sim.request_attack(d[1], "light", sim.aim_missile(sim.ents[d[1]], "throwing_knives", d[2]))
+	run(sim, 1.5)
+	check(sim.ents[d[1]].ammo.throwing_knives == 7, "a knife thrown is a knife fewer")
+	sim.set_input(d[1], Vector3(0, 0, 1), 0.0)
+	check(run(sim, 2.0).has("pickup") and sim.ents[d[1]].ammo.throwing_knives == 8, "walking over it picks it up")
+
+	# What a Trolloc swings follows from what it holds.
+	var kinds := {}
+	for i in 40:
+		var s2 := Sim.new("camp_training", i)
+		s2._add_enemy("trolloc", Vector3.ZERO)
+		var e2: Dictionary = s2.ents[1]
+		kinds[e2.arm + "/" + s2._pick_blow(e2).kind] = true
+		s2._next += i % 4
+	check(not kinds.has("club/thrust") and not kinds.has("spear/chop"), "a club never thrusts and a spear never chops: " + str(kinds.keys()))
+
 func _init() -> void:
 	Rules.load_data()
 	print("== rules")

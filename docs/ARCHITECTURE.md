@@ -95,6 +95,12 @@ Everything that is not channelling. The plan and to-do list are in `MELEE.md`.
   0.4 s before it lands commits to a direction (`aim_yaw`). At the end
   `_enemy_blow` hits whoever is in the arc: not someone who stepped out, not
   someone untouchable mid-sidestep, not someone ducking under a high one.
+- **Forms** (`_forms` in the same file) are moves a fighter learns: `Rules.lore(p)`
+  is the weave table for a channeller and the form table for a fighter, so study,
+  the tree screen and progression are shared. `tally.effort` (stamina spent on
+  blows) is to forms what `tally.draw` is to weaves.
+- `Sim.ARMS[id % 4]` is what a Trolloc carries; `attacks` rows name the `arms`
+  that can make them. `src/test/arms.tscn` shows every weapon in a hand.
 - Stamina is the one resource for all of it, and `Rules.vigor` weakens blows as
   it does weaves.
 - View: `Armoury` builds each weapon from boxes and rods; `Hero.arm` puts it in

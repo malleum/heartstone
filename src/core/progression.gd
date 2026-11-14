@@ -73,15 +73,22 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 			if p.study == "" or Rules.study_cost(p, id) < Rules.study_cost(p, p.study):
 				p.study = id
 		if p.study != "":
-			out.append("You begin working out %s" % Rules.weaves[p.study].name)
+			out.append("You begin working out %s" % Rules.lore(p)[p.study].name)
 	if p.study != "":
-		p.study_done = p.get("study_done", 0.0) + draw
+		# A channeller studies by channelling; a fighter by the breath spent fighting.
+		var lore := Rules.lore(p)
+		var fights: bool = p.get("cls", "channeller") != "channeller"
+		p.study_done = p.get("study_done", 0.0) + (tally.get("effort", 0.0) if fights else draw)
 		if p.study_done >= Rules.study_cost(p, p.study):
-			p.weaves[p.study] = {known = true, xp = 0.0}
-			out.append("Learned %s" % Rules.weaves[p.study].name)
+			if fights:
+				if not p.has("forms"): p.forms = {}
+				p.forms[p.study] = {known = true}
+			else:
+				p.weaves[p.study] = {known = true, xp = 0.0}
+			out.append("Learned %s" % lore[p.study].name)
 			p.study = ""; p.study_done = 0.0
 		else:
-			out.append("%s: %d%% worked out" % [Rules.weaves[p.study].name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
+			out.append("%s: %d%% worked out" % [lore[p.study].name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
 
 	var channels: bool = p.get("cls", "channeller") == "channeller"
 	if success:
