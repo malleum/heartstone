@@ -35,7 +35,6 @@ func _ready() -> void:
 	Rules.load_data()
 	World.build(self)
 	Terrain.amp = 0.45
-	add_child(Terrain.build_mesh(220.0, 0.75))
 	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
 	_hud()
 	var name_: String = args.get("name", "Novice")
@@ -53,6 +52,7 @@ func _ready() -> void:
 	variants = out
 	session = Session.new()
 	add_child(session)
+	session.started.connect(_on_started)
 	session.snapshot.connect(_on_snapshot)
 	session.events.connect(_on_events)
 	session.finished.connect(_on_finished)
@@ -195,6 +195,14 @@ func _to_camp() -> void:
 func shake_at(at: Vector3, radius: float) -> void:
 	if me:
 		shake = minf(1.0, shake + clampf(radius * 2.2 / maxf(at.distance_to(me.position), 3.0), 0.0, 0.8))
+
+## The ground can only be built once we know which activity (and so which map) this
+## is: a joining client learns that from the host.
+func _on_started(_my_id: int, activity: String) -> void:
+	Map.use(Rules.activities[activity].get("map", "open"))
+	add_child(Terrain.build_mesh(240.0, 0.75))
+	if Map.id == "tarwins_gap":
+		Scenery.tarwins_gap(self)
 
 # --- mirroring the sim ----------------------------------------------------------------
 

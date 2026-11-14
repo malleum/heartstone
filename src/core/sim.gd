@@ -27,6 +27,7 @@ func _init(activity: String, seed_ := 1) -> void:
 	var act: Dictionary = Rules.activities[activity]
 	_waves = act.get("waves", []).duplicate(true)
 	_spar = act.kind == "spar"
+	Map.use(act.get("map", "open"))
 
 func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 	var id := _next; _next += 1
@@ -113,7 +114,7 @@ func _spawn_wave(w: Dictionary) -> void:
 		for i in int(w.spawn[type]):
 			var ang := rng.randf_range(-0.7, 0.7)
 			var d := rng.randf_range(8.0, 13.0) if training else rng.randf_range(38.0, 52.0)
-			_add_enemy(type, Vector3(sin(ang) * d, 0, -cos(ang) * d))
+			_add_enemy(type, Vector3(sin(ang) * d, 0, -cos(ang) * d) if Map.m.is_empty() else Map.spawn(rng))
 	events.append({e = "wave", left = _waves.size()})
 
 func _step_player(p: Dictionary, dt: float) -> void:
@@ -121,7 +122,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	p.endurance = minf(p.endurance + Rules.TUNE.endurance_regen * dt, Rules.TUNE.endurance)
 	# Forming a weave takes concentration: you move at half speed while doing it.
 	var slow := 0.5 if not p.forming.is_empty() else 1.0
-	p.pos += p.move * p.speed * slow * dt
+	p.pos = Map.clamp_pos(p.pos + p.move * p.speed * slow * dt)
 	if p.forming.is_empty():
 		return
 	p.forming.left -= dt
@@ -324,7 +325,7 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 						if len < min_d and len > 0.001:
 							push += d / len * (min_d - len)
 		e.move = want
-		e.pos += (want + e.vel) * dt + push * 0.5
+		e.pos = Map.clamp_pos(e.pos + (want + e.vel) * dt + push * 0.5)
 
 ## Compact state for clients: enough to draw the fight, nothing they could cheat with.
 func snapshot() -> Dictionary:

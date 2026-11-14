@@ -59,6 +59,16 @@ Single-player is the same path with the host as sole player.
   a VPN such as Tailscale or forward 24680/udp for now). Other players' looks are
   not sent yet, so remote players get a model picked from their id.
 
+## Maps (src/core/map.gd, src/world/scenery.gd)
+A map is pure maths in `Map`: a corridor along -Z whose half-width varies with z,
+cliffs outside it, a spawn area at the far end and a defended line. The Sim clamps
+everyone inside it, `Terrain.height` adds the cliffs, and feet plant on the same
+function, so rules, mesh and gait cannot disagree. An activity names its map with
+`"map"`; without one the ground is open. `Scenery` adds view-only dressing (the
+breastwork, stakes, watch-fires, banners, boulders). Nothing in the pass blocks
+movement yet except the cliffs: the wall has gaps and no collision on purpose,
+because Trollocs still run straight at the nearest player with no pathfinding.
+
 ## Shadowspawn: generated (src/gen, src/anim)
 Result of the first spike (seven review rounds, including a fresh-eyed reviewer).
 - **How:** a creature is a table of ranges (`Species`) plus a seed. The body is

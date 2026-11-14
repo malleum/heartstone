@@ -14,7 +14,10 @@ static func height(x: float, z: float) -> float:
 		_n.frequency = 0.045
 		_n.seed = 7
 	# Broad swells plus knee-high lumps: enough to test foot planting.
-	return (_n.get_noise_2d(x, z) * 1.1 + _n.get_noise_2d(x * 5.0 + 90.0, z * 5.0) * 0.16) * amp
+	var h := (_n.get_noise_2d(x, z) * 1.1 + _n.get_noise_2d(x * 5.0 + 90.0, z * 5.0) * 0.16) * amp
+	var r := Map.ridge(x, z)
+	# Cliffs get their own craggy noise so they do not look extruded.
+	return h + r * (0.8 + 0.35 * _n.get_noise_2d(x * 2.2 + 300.0, z * 2.2))
 
 static func normal(x: float, z: float) -> Vector3:
 	var e := 0.15
