@@ -1,5 +1,5 @@
 {
-  "_doc": "One row per weave. flows = threads of each Power (their sum is the flow slots the weave occupies while forming or held). book = earliest book (0 = New Spring) and drives the spoiler setting. confidence: canon | wiki | unknown | game (see weaves.md). kind picks the sim behaviour; base holds its numbers at reference power 10.",
+  "_doc": "One row per weave. flows = threads of each Power (their sum is the flow slots the weave occupies while forming or held). book = earliest book (0 = New Spring) and drives the spoiler setting. confidence: canon | wiki | unknown | game | user (see weaves.md). kind picks the sim behaviour; base holds its numbers at reference power 10.",
   "fireball": {"name": "Fireball", "book": 1, "confidence": "canon", "flows": {"fire": 1}, "kind": "projectile",
     "base": {"damage": 30, "radius": 1.6, "speed": 30, "range": 45}, "form": 0.55, "draw": 6},
   "hammer_of_air": {"name": "Hammer of Air", "book": 2, "confidence": "game", "flows": {"air": 1}, "kind": "cone",
