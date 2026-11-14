@@ -1,10 +1,10 @@
 {
-  "_doc": "Everything a player can start from the camp. All of them pay into the same character through Progression.award: nothing resets between activities. requires gates on renown and earlier clears; teaches are weaves handed over outright (the training yard only); shows are weaves the character sees woven there, which halves the study they take and they can then learn. kind: training | holdout | mission | spar.",
+  "_doc": "Everything a player can start from the camp. All of them pay into the same character through Progression.award: nothing resets between activities. requires gates on renown and earlier clears; teaches are weaves handed over outright (the training yard only); shows are weaves the character sees woven there, which halves the study they take and they can then learn. grants are techniques (tie_off) learned the first time it is cleared. kind: training | holdout | mission | spar.",
   "camp_training": {"name": "Training yard", "kind": "training", "blurb": "Novice exercises at the camp: weave at the practice posts.",
     "requires": {}, "renown": 2, "teaches": ["fireball", "hammer_of_air"], "yield": {"strength": 0.5, "mastery": 1.0},
     "waves": [{"t": 0, "spawn": {"dummy": 6}}]},
   "tarwins_gap_watch": {"map": "tarwins_gap", "name": "Tarwin's Gap: the watch", "kind": "holdout", "blurb": "A raiding fist comes down the pass at dusk. Hold the line.",
-    "requires": {"done": ["camp_training"]}, "renown": 10, "teaches": [], "shows": ["dome_of_air", "arrows_of_fire", "lightning"], "yield": {"strength": 1.0, "mastery": 1.0},
+    "requires": {"done": ["camp_training"]}, "renown": 10, "teaches": [], "grants": ["tie_off"], "shows": ["dome_of_air", "bonds_of_air", "arrows_of_fire", "lightning"], "yield": {"strength": 1.0, "mastery": 1.0},
     "waves": [{"t": 2, "spawn": {"trolloc": 8}}, {"t": 30, "spawn": {"trolloc": 14}}, {"t": 65, "spawn": {"trolloc": 18, "trolloc_brute": 1}}]},
   "tarwins_gap_night": {"map": "tarwins_gap", "name": "Tarwin's Gap: the long night", "kind": "holdout", "blurb": "They come in hundreds now.",
     "requires": {"renown": 40, "done": ["tarwins_gap_watch"]}, "renown": 25, "teaches": [], "shows": ["blossoms_of_fire", "rolling_ring", "shielding"], "yield": {"strength": 1.0, "mastery": 1.0},

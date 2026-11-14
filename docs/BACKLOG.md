@@ -45,11 +45,14 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Other players are smoothed but not predicted; over the internet your own
   movement will lag by the round trip. Not tried over a real connection.
 - [ ] Trollocs run straight at the nearest player; the breastwork blocks nothing.
-- [ ] Flows are shown only while the weave forms; a held weave (Dome of Air) shows
-  nothing tying it to the weaver.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **holding weaves, so flows matter.** Held weaves take up flows and
+  cost stamina each second; Bonds of Air (new) holds a Trolloc where it stands;
+  a Shield lasts while held; tying off (G) frees the flows for a while and is
+  learned at the first watch. The dome, the bonds and the thread back to the
+  weaver are drawn, and the HUD shows which flows are in use.
 - 2026-11-14: **arms, first pass** (`MELEE.md` has the full list with ticks).
   Warder, Aiel and Hunter of the Horn; 28 weapons; chains, heavy and low blows,
   throwing and shooting; guard, parry, sidestep, roll, duck; Trollocs that chop,

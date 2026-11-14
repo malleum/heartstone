@@ -101,11 +101,25 @@ static func drive(sim: Sim, id: int) -> void:
 	if not me.profile.get("kit", []).is_empty() and (me.profile.get("cls", "channeller") != "channeller" or me.profile.weaves.is_empty()):
 		_fight(sim, id, me, near, best, to)
 		return
+	# Held weaves, when there are flows to spare for them: a dome when they are
+	# near, bonds on the nearest, and both tied off if that has been learned.
+	var free := sim.free_slots(me)
+	if me.forming.is_empty() and best < 14.0:
+		for h in me.held:
+			if h.tied == 0.0 and Rules.has_technique(me.profile, "tie_off"):
+				sim.tie(id, h.weave)
+		var mine: Array = me.held.map(func(h: Dictionary) -> String: return h.weave)
+		if free >= 2 and me.profile.weaves.has("dome_of_air") and not mine.has("dome_of_air") and me.cd.get("dome_of_air", 0.0) <= sim.t:
+			if sim.request_cast(id, "dome_of_air", me.pos) == "":
+				return
+		elif free >= 2 and best < 10.0 and me.profile.weaves.has("bonds_of_air") and near.get("bound_by", 0) == 0 and near.speed > 0.0 and me.cd.get("bonds_of_air", 0.0) <= sim.t and mine.count("bonds_of_air") < 2:
+			if sim.request_cast(id, "bonds_of_air", near.pos) == "":
+				return
 	var pick := ""; var score := 0.0
 	var reach := 0.0
 	for w in me.profile.weaves:
 		var row: Dictionary = Rules.weaves[w]
-		if row.kind in ["barrier", "heal", "sever", "utility"]:
+		if row.kind in ["barrier", "heal", "sever", "utility", "bind"]:
 			continue
 		var rng: float = row.base.get("range", row.base.get("radius", 99.0))
 		reach = maxf(reach, rng)

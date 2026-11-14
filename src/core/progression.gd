@@ -101,6 +101,12 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		var ren: float = act.renown * (1.0 if first else T.repeat_renown)
 		p.renown += ren
 		out.append("Renown +%.0f (%d)" % [ren, int(p.renown)])
+		# Techniques are taught by an activity the first time it is cleared.
+		for g in (act.get("grants", []) if channels else []):
+			if not p.has("techniques"): p.techniques = []
+			if not p.techniques.has(g):
+				p.techniques.append(g)
+				out.append({tie_off = "You have learned to tie off a weave (G): it holds without you for a while, and frees your flows"}.get(g, "Learned " + g))
 		# The training yard hands its weaves over outright.
 		for id in (act.get("teaches", []) if channels else []):
 			if not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:

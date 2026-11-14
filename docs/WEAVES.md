@@ -130,6 +130,7 @@ cannot make the weaves they could that morning.
 | **Shield (from the Source)** | Spirit | Cut a channeller off; can be tied. | TDR ch.54 | 3 | Canon |
 | Severing | Spirit | A shield with a knife edge severs instead. | TSR, Into the Palace | 4 | Canon |
 | **Dome of Air** | Air | Shelter from arrows and missiles. | LoC, Dumai's Wells | 6 | Canon |
+| **Bonds of Air** | Air | Wrap and hold someone where they stand. | used throughout, from TEotW on (Moiraine); not in Josh's document | 1 | Canon (added by Claude) |
 | Shield against lightning | Fire + Air | Barrier that turns lightning. | TFoH, To Caemlyn | 5 | Canon |
 | Airtight barrier | Air + Fire + Earth | Keeps out anything short of balefire. | TPoD, A Cup of Sleep | 8 | Canon |
 | Barrier against men | Spirit + Fire | Feels like a wall of flame to male channellers. | TFoH, Pale Shadows | 5 | Canon |
@@ -200,6 +201,26 @@ cannot make the weaves they could that morning.
   it stands on Weapons of Air and Bind / lift with Air. Kept as the one cheap Air
   attack.
 - **Dome of Air** is the game's held barrier (it was "Shield of Air" before).
+- **Bonds of Air** was not in the document Josh sent. Binding with flows of Air is
+  everywhere in the books, and the game needed a second weave worth holding, so
+  it was added. Remove it if it should not be there.
+
+### Holding and tying off (game choice, on canon rules)
+- **A held weave lasts while you hold it.** It takes up its flows, and costs a
+  little of its draw every second. Weaving it again lets it go. Dome of Air,
+  Bonds of Air and the Shield from the Source are held.
+- **This is what more flows are for.** With two flows you can hold a dome and
+  throw fire, or hold bonds and throw fire, but not both and attack; with three
+  you can.
+- **Bonds of Air** hold one body each. A Trolloc stays held until you let go; a
+  bandleader strains free after some seconds; another channeller can be held too.
+- **A Shield** now lasts as long as it is held (it used to last four seconds),
+  and a strong enough channeller forces it in time.
+- **Tying off** is a technique: the weave holds itself for a while (25 seconds,
+  longer with mastery of that weave) and your flows are free again. You cannot
+  adjust or release a tied weave. It is learned by clearing the first watch at
+  Tarwin's Gap. Key: G with the weave chosen.
+- Everything you hold is lost if you run out of stamina, or die.
 - **Lash of Water** (Water) and **Blade of Spirit** (Spirit) are ours. The tables
   have no single-Power attack in Water or Spirit, and every character starts with
   the simplest weave of their strongest Power, so those two Powers needed one.
@@ -218,6 +239,7 @@ woven halves the work. "Work" is in the game's draw units: a bot channels about
 | --- | --- | --- |
 | Fireball, Hammer of Air, Heave the Ground, Lash of Water, Blade of Spirit | nothing | 2,500 each |
 | Dome of Air | Hammer of Air | 6,000 |
+| Bonds of Air | Hammer of Air | 5,000 |
 | Arrows of Fire | Fireball, Heave the Ground | 6,000 |
 | Healing | Lash of Water, Blade of Spirit | 8,000 |
 | Lightning | Fireball, Hammer of Air | 10,000 |

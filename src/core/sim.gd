@@ -83,11 +83,42 @@ func set_input(id: int, move: Vector3, yaw: float) -> void:
 	var p: Dictionary = ents[id]
 	p.move = move.limit_length(1.0); p.yaw = yaw
 
+## Flows not taken up by weaves being held. A weave that has been tied off holds
+## itself, and costs none.
 func free_slots(p: Dictionary) -> int:
 	var used := 0
-	for w in p.held:
-		used += Rules.slots_of(Rules.weaves[w], p.profile)
+	for h in p.held:
+		if h.tied == 0.0:
+			used += Rules.slots_of(Rules.weaves[h.weave], p.profile)
 	return Rules.flow_capacity(p.profile) - used
+
+## Who a held weave aimed at `aim` would fasten on: the nearest body the weave can
+## take (anyone not on your side; only channellers for a shield) within a few paces.
+func _aimed(p: Dictionary, w: Dictionary, aim: Vector3) -> int:
+	var best := 0; var best_d := 3.0
+	for e in _targets(p):
+		if w.kind == "sever" and e.kind != "player":
+			continue
+		if e.get("row", {}).get("speed", 1.0) == 0.0:
+			continue
+		var d := Vector2(e.pos.x - aim.x, e.pos.z - aim.z).length()
+		if d < best_d and e.pos.distance_to(p.pos) < w.base.get("range", 30.0):
+			best_d = d; best = e.id
+	return best
+
+## Tie off what you hold of this weave: it stays without you for a while, and the
+## flows it took are yours again. A technique, learned and not born with.
+func tie(id: int, weave: String) -> String:
+	var p: Dictionary = ents[id]
+	if not Rules.has_technique(p.profile, "tie_off"):
+		return "you have not learned to tie off a weave"
+	var any := false
+	for h in p.held:
+		if h.weave == weave and h.tied == 0.0:
+			h.tied = t + Rules.tie_time(p.profile, weave)
+			any = true
+			events.append({e = "tie", id = id, weave = weave, target = h.target})
+	return "" if any else "you are not holding that"
 
 ## Start forming a weave at an aim point. Returns "" or the reason it was refused.
 func request_cast(id: int, weave: String, aim: Vector3) -> String:
@@ -96,15 +127,32 @@ func request_cast(id: int, weave: String, aim: Vector3) -> String:
 		return "busy"
 	if p.severed > t:
 		return "shielded from the Source"
-	if p.held.has(weave):
-		release(id, weave)
-		return ""
+	if p.get("bound_by", 0) != 0:
+		return "bound in Air"
+	var row: Dictionary = Rules.weaves.get(weave, {})
+	var target := 0
+	if row.get("hold", false):
+		# Weaving a held weave again lets it go. One that fastens on someone is let
+		# go by weaving it at them again, or at nobody.
+		if row.kind in ["bind", "sever"]:
+			target = _aimed(p, row, aim)
+			for h in p.held:
+				if h.weave == weave and h.tied == 0.0 and (h.target == target or target == 0):
+					release(id, weave, h.target)
+					return ""
+			if target == 0:
+				return "no one there to hold"
+		else:
+			for h in p.held:
+				if h.weave == weave and h.tied == 0.0:
+					release(id, weave)
+					return ""
 	if p.cd.get(weave, 0.0) > t:
 		return "not ready"
 	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.stamina)
 	if why != "":
 		return why
-	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim}
+	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim, target = target}
 	events.append({e = "form", id = id, weave = weave, time = p.forming.left})
 	return ""
 
@@ -131,6 +179,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		return "busy"
 	if p.weapon == "":
 		return "nothing in hand"
+	if p.get("bound_by", 0) != 0:
+		return "bound in Air"
 	if not p.swing.is_empty():
 		p.queued = {kind = kind, aim = aim, charge = charge}
 		return ""
@@ -208,12 +258,46 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	events.append({e = "dodge", id = id, roll = rolling, dir = dir, time = d.time})
 	return ""
 
-func release(id: int, weave: String) -> void:
+## Let go of a held weave (every hold of it, or only the one on `target`), and
+## undo what it was doing.
+func release(id: int, weave: String, target := -1) -> void:
 	var p: Dictionary = ents[id]
-	p.held.erase(weave)
-	if Rules.weaves[weave].kind == "barrier":
+	var kind: String = Rules.weaves[weave].kind
+	for h in p.held.duplicate():
+		if h.weave != weave or (target >= 0 and h.target != target):
+			continue
+		p.held.erase(h)
+		if ents.has(h.target):
+			var e: Dictionary = ents[h.target]
+			if kind == "bind" and e.get("bound_by", 0) == id:
+				e.bound_by = 0
+			elif kind == "sever":
+				e.severed = 0.0
+		events.append({e = "release", id = id, weave = weave, target = h.target})
+	if kind == "barrier":
 		p.barrier = 0.0
-	events.append({e = "release", id = id, weave = weave})
+
+## Held weaves cost breath for as long as they are held, come undone when their
+## knot runs out, and are lost with the one they were fastened on.
+func _step_holds(p: Dictionary, dt: float) -> void:
+	for h in p.held.duplicate():
+		var gone: bool = h.target != 0 and not (ents.has(h.target) and ents[h.target].alive)
+		if h.tied > 0.0:
+			if t >= h.tied or gone:
+				release(p.id, h.weave, h.target)
+			continue
+		if gone or (h.breaks > 0.0 and t >= h.breaks):
+			if not gone:
+				events.append({e = "broke", id = p.id, weave = h.weave, target = h.target})
+			release(p.id, h.weave, h.target)
+			continue
+		var cost: float = Rules.draw_of(p.profile, h.weave, p.stamina) * Rules.TUNE.hold_upkeep * dt
+		p.stamina -= cost
+		tallies[p.id].draw += cost
+		if p.stamina <= 0.0:
+			# Nothing left to hold it with.
+			p.stamina = 0.0
+			release(p.id, h.weave, h.target)
 
 
 func step(dt: float) -> void:
@@ -289,7 +373,10 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		p.dash.left -= dt
 		if p.dash.left <= 0.0:
 			p.dash = {}
+	if p.get("bound_by", 0) != 0:
+		step = Vector3.ZERO
 	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius))
+	_step_holds(p, dt)
 	_step_swing(p, dt)
 	if p.forming.is_empty():
 		return
@@ -298,6 +385,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		return
 	var weave: String = p.forming.weave
 	var aim: Vector3 = p.forming.aim
+	p.fasten = p.forming.get("target", 0)
 	p.forming = {}
 	var cost := Rules.draw_of(p.profile, weave, p.stamina)
 	p.stamina = maxf(p.stamina - cost, 0.0)
@@ -435,8 +523,24 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	throw = (throw + Vector3.UP * tan(deg_to_rad(b.get("loft", 0.0)))).normalized()
 	events.append({e = "cast", id = p.id, weave = weave, kind = w.kind, pos = from, at = at, dir = dir})
 	if w.get("hold", false):
-		p.held.append(weave)
+		# breaks: when the one held can throw it off (0 = never, while it is held).
+		p.held.append({weave = weave, target = p.get("fasten", 0) if w.kind in ["bind", "sever"] else 0, tied = 0.0, breaks = 0.0})
+		events.append({e = "hold", id = p.id, weave = weave, target = p.held[-1].target})
 	match w.kind:
+		"bind":
+			# Bonds of Air: wrapped and held where they stand. The strong strain
+			# against it and in time break free; lesser things stay until let go.
+			var e: Dictionary = ents.get(p.fasten, {})
+			if e.is_empty() or not e.alive:
+				release(p.id, weave, p.fasten)
+			else:
+				e.bound_by = p.id
+				e.vel = Vector3.ZERO
+				if e.kind == "player":
+					e.forming = {}; e.swing = {}; e.guard = false
+				var tier: float = e.get("row", {}).get("tier", 2.0)
+				if tier >= 2.0:
+					p.held[-1].breaks = t + b.hold * k / (tier - 1.0)
 		"projectile":
 			var n: int = b.get("count", 1)
 			for i in n:
@@ -487,10 +591,17 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
 				events.append({e = "heal", id = best.id})
 		"sever":
-			for e in _targets(p):
-				if e.kind == "player" and e.pos.distance_to(Vector3(at.x, 0, at.z)) < 3.0:
-					e.severed = t + b.duration
-					e.forming = {}
+			# Held between them and the Source for as long as you hold it, or until
+			# they force it.
+			var e: Dictionary = ents.get(p.fasten, {})
+			if e.is_empty() or not e.alive:
+				release(p.id, weave, p.fasten)
+			else:
+				e.severed = 1e9
+				e.forming = {}
+				for h in e.held.duplicate():
+					release(e.id, h.weave, h.target)
+				p.held[-1].breaks = t + b.duration * 4.0 * k
 
 var _fx := 0
 func _fx_id() -> int:
@@ -566,6 +677,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		events.append({e = "hit", id = e.id, dmg = dmg, by = by})
 	if e.hp <= 0.0:
 		e.alive = false
+		# The dead hold nothing.
+		for h in e.get("held", []).duplicate():
+			release(e.id, h.weave, h.target)
 		events.append({e = "die", id = e.id, by = by})
 		if tallies.has(by) and weave != "":
 			var tl: Dictionary = tallies[by]
@@ -692,7 +806,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			var d: float = p.pos.distance_squared_to(e.pos)
 			if d < best:
 				best = d; target = p
-		if not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0:
+		if e.get("bound_by", 0) != 0:
+			e.vel = Vector3.ZERO
+		if not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0 and e.get("bound_by", 0) == 0:
 			var to: Vector3 = target.pos - e.pos
 			var dist := to.length()
 			if e.swung:
@@ -795,7 +911,8 @@ func snapshot() -> Dictionary:
 			# Status bits: 1 burning, 2 knocked down, 4 stunned, 8 thrown.
 			# Then for those who bear arms: 16 guarding, 32 ducking, 64 sidestepping or rolling.
 			var st := (1 if e.burn > 0.0 else 0) | (2 if e.down > 0.0 else 0) | (4 if e.stagger > 0.0 else 0) | (8 if e.vel.length() > 2.0 else 0) \
-				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0)
+				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0) \
+				| (128 if e.get("bound_by", 0) != 0 else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:

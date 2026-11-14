@@ -32,6 +32,8 @@ const TUNE := {
 	stamina = 1500.0,
 	stamina_regen = 1.5,       # per second
 	tired_floor = 0.25,        # share of your strength left at empty stamina
+	hold_upkeep = 0.12,        # share of a weave's cost paid each second it is held
+	tie_secs = 25.0,           # how long a tied-off weave lasts before it unravels (longer with mastery)
 	start_gap = 10,            # a new channeller starts this many levels below potential
 	saidin_jump = 3,           # men gain strength in jumps of this many levels
 	# Arms (see docs/MELEE.md). Stats are 0..8 creation points.
@@ -118,6 +120,13 @@ static func slots_of(w: Dictionary, p: Dictionary) -> int:
 ## it much stronger and waives any strength gate.
 static func has_talent(p: Dictionary, w: Dictionary) -> bool:
 	return w.has("talent") and p.talents.has(w.talent)
+
+## Techniques are ways of handling weaves, learned once and used with any of them.
+static func has_technique(p: Dictionary, name: String) -> bool:
+	return p.get("techniques", []).has(name)
+
+static func tie_time(p: Dictionary, weave_id: String) -> float:
+	return TUNE.tie_secs * (1.0 + 0.15 * mastery_level(p, weave_id))
 
 ## The Wheel of Time Companion's scale as one number: 72 (weakest) up to 1 (the
 ## strongest woman), then 0 down to -5 for the six men's levels ++6 up to ++1.

@@ -172,7 +172,7 @@ static func start_strength(potential: float) -> float:
 static func _migrate(p: Dictionary) -> void:
 	Rules.load_data()
 	# Characters from before there were arms are channellers carrying nothing.
-	for k in [["cls", "channeller"], ["stats", {might = 0, quickness = 0, endurance = 0}], ["skills", {}], ["kit", []], ["forms", {}]]:
+	for k in [["cls", "channeller"], ["stats", {might = 0, quickness = 0, endurance = 0}], ["skills", {}], ["kit", []], ["forms", {}], ["techniques", []]]:
 		if not p.has(k[0]):
 			p[k[0]] = k[1]
 	p.kit = p.kit.filter(func(w: String) -> bool: return Rules.weapons.has(w))

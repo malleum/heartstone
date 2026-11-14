@@ -37,9 +37,13 @@ func _draw() -> void:
 	var in_hand: Dictionary = Rules.weapons[g.hand()] if g.hand() != "" else {}
 	if p.get("cls", "channeller") == "channeller":
 		Glyph.text(self, sans, Vector2(30, 78), "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))], 15, Color(0.85, 0.85, 0.9))
+		# Flows: gold is free, a Power's colour is a flow holding a weave.
+		var used: Array = g.used_flows()
 		for i in 5:
 			var c := Vector2(38 + i * 20, 96)
-			if i < cap:
+			if i < used.size():
+				draw_circle(c, 6.0, used[i])
+			elif i < cap:
 				draw_circle(c, 6.0, Glyph.GOLD)
 			draw_arc(c, 6.0, 0, TAU, 20, Color(Glyph.GOLD, 0.8 if i < cap else 0.25), 1.5, true)
 		Glyph.text(self, sans, Vector2(38 + 5 * 20, 101), "flows      renown %d" % int(p.renown), 13, Color(0.7, 0.72, 0.78))
@@ -100,6 +104,15 @@ func _draw() -> void:
 				draw_arc(c, r * 0.72, 0, TAU, 32, Color(Glyph.GOLD, 0.9 if wait <= 0.0 else 0.3), r * 0.06, true)
 			else:
 				Glyph.weave(self, c, r, Rules.flows_of(Rules.weaves[id], p), 1.0 if wait <= 0.0 else 0.45, t * 0.25 if sel else 0.0)
+				# Held: a bright ring. Tied off: the ring broken into a knot's four marks.
+				var hs: int = g.holding(id)
+				if hs == 1:
+					draw_arc(c, r + 2.0, 0, TAU, 40, Color(1, 1, 1, 0.9), 2.5, true)
+					Glyph.text(self, sans, c + Vector2(0, r + 16), "held", 11, Color.WHITE, 0)
+				elif hs == 2:
+					for q in 4:
+						draw_arc(c, r + 2.0, q * PI * 0.5 + 0.3, q * PI * 0.5 + 1.27, 10, Color(Glyph.GOLD, 0.95), 2.5, true)
+					Glyph.text(self, sans, c + Vector2(0, r + 16), "tied", 11, Glyph.GOLD, 0)
 			if wait > 0.0 and total > 0.0:
 				# The cooldown drains like a clock face.
 				var f := clampf(wait / total, 0.0, 1.0)

@@ -37,6 +37,59 @@ func run(sim: Sim, secs: float) -> Array:
 		sim.events.clear()
 	return seen
 
+func _holds() -> void:
+	print("== holding weaves")
+	var p := Profile.create({name = "Holder", potential_pts = 8, affinity_pts = {air = 4, fire = 2}})
+	for w in ["bonds_of_air", "dome_of_air", "fireball", "lightning"]:
+		p.weaves[w] = {known = true, xp = 0.0}
+	check(Rules.flow_capacity(p) == 2, "a new channeller holds two flows")
+	var d := duel(p, "trolloc", 8.0)
+	var sim: Sim = d[0]; var id: int = d[1]; var foe: Dictionary = d[2]
+	var me: Dictionary = sim.ents[id]
+	check(sim.request_cast(id, "bonds_of_air", foe.pos) == "", "Bonds of Air can be woven at a Trolloc")
+	run(sim, 1.0)
+	var where: Vector3 = foe.pos
+	var seen := run(sim, 2.0)
+	check(foe.get("bound_by", 0) == id and foe.pos.distance_to(where) < 0.05 and not seen.has("swing"), "the Trolloc is held where it stands")
+	check(sim.free_slots(me) == 1, "holding it takes one of the two flows")
+	check(sim.request_cast(id, "lightning", foe.pos) == "too many flows", "so a two-flow weave no longer fits")
+	check(sim.request_cast(id, "fireball", sim.aim_at(me, "fireball", foe)) == "", "but a one-flow weave does")
+	var st0: float = me.stamina
+	run(sim, 3.0)
+	check(me.stamina < st0 - 6.0 + 3.0 * Rules.TUNE.stamina_regen, "holding costs breath every second")
+	check(sim.tie(id, "bonds_of_air") != "", "tying off must be learned")
+	p.techniques = ["tie_off"]
+	check(sim.tie(id, "bonds_of_air") == "" and sim.free_slots(me) == 2, "tied off, the weave holds itself and the flow is free")
+	run(sim, 2.0)
+	check(foe.get("bound_by", 0) == id, "and it goes on holding")
+	run(sim, Rules.tie_time(p, "bonds_of_air") + 1.0)
+	check(foe.get("bound_by", 0) == 0 and me.held.is_empty(), "until the knot runs out")
+	# Let go by weaving it again at the same one; and the strong break free.
+	foe.hp = 9999.0; foe.max_hp = 9999.0
+	me.cd = {}
+	sim.request_cast(id, "bonds_of_air", foe.pos); run(sim, 1.0)
+	check(foe.get("bound_by", 0) == id, "held again")
+	sim.request_cast(id, "bonds_of_air", foe.pos); run(sim, 0.2)
+	check(foe.get("bound_by", 0) == 0 and me.held.is_empty(), "weaving it at them again lets go")
+	d = duel(p, "trolloc_brute", 8.0)
+	sim = d[0]
+	sim.request_cast(d[1], "bonds_of_air", d[2].pos)
+	seen = run(sim, 1.0)
+	check(d[2].get("bound_by", 0) == d[1], "a bandleader can be held")
+	check(run(sim, 30.0).has("broke") and d[2].get("bound_by", 0) == 0, "but strains free in time")
+	# The dome is held too, and what holds it dies with you.
+	d = duel(p, "trolloc", 8.0)
+	sim = d[0]; me = sim.ents[d[1]]
+	sim.request_cast(d[1], "dome_of_air", me.pos); run(sim, 1.0)
+	sim.request_cast(d[1], "bonds_of_air", d[2].pos); run(sim, 1.0)
+	check(me.held.size() == 2 and sim.free_slots(me) == 0 and me.barrier > 0.0, "dome and bonds together fill both flows")
+	check(sim.request_cast(d[1], "fireball", d[2].pos) == "too many flows", "and leave nothing to attack with: the third flow is what changes that")
+	p.channelled = Rules.TUNE.flow_steps[3]
+	check(sim.request_cast(d[1], "fireball", sim.aim_at(me, "fireball", d[2])) == "", "with three flows you hold both and still throw fire")
+	me.hp = 1.0; me.barrier = 0.0
+	sim._hurt(me, 50.0, d[2].id, "")
+	check(d[2].get("bound_by", 0) == 0, "the dead hold nothing")
+
 func _arms() -> void:
 	print("== arms")
 	var warder := Profile.create({name = "Test Warder", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
@@ -302,5 +355,6 @@ func _init() -> void:
 	check(a.channelled > 0.0, "sparring pays into the same progression")
 
 	_arms()
+	_holds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

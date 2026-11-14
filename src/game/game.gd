@@ -38,6 +38,7 @@ var ammo := {}                    # weapon -> arrows, knives or spears left
 var held_since := -1.0            # clock time the attack button went down, or -1
 var flash_t := 0.0                # a parry just rang: the HUD flashes
 var flash_text := ""
+var holds := {}                   # "caster/weave/target" -> {node, id, weave, target, tied}
 
 func _ready() -> void:
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
@@ -50,6 +51,15 @@ func _ready() -> void:
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
 		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
+	# --weaves=a,b adds weaves to a throwaway channeller and --tie teaches tying off.
+	if args.has("weaves"):
+		for w in args.weaves.split(","):
+			if Rules.weaves.has(w):
+				profile.weaves[w] = {known = true, xp = 0.0}
+	if args.has("tie"):
+		profile.techniques = ["tie_off"]
+	if args.has("flows"):
+		profile.channelled = Rules.TUNE.flow_steps[clampi(int(args.flows), 2, 10)]
 	# --class=warder|aiel|hunter makes a throwaway fighter, to try arms in a render.
 	if args.has("class") and profile.get("cls", "channeller") != args.class:
 		profile = Profile.create({name = name_, cls = args.class, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
@@ -124,6 +134,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			session.dodge(_move_dir(), Input.is_key_pressed(KEY_SHIFT))
 		elif ev.keycode in [KEY_CTRL, KEY_C]:
 			session.duck(true)
+		elif ev.keycode == KEY_G and selected < known.size() and Rules.weaves.has(known[selected]):
+			session.tie(known[selected])
 		elif ev.keycode == KEY_F and _armed() and me:
 			session.attack("throw", _aim_point())
 			_face(_aim_point())
@@ -426,6 +438,23 @@ func _on_events(list: Array) -> void:
 			"swing":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
 					(actors[e.id].node as Walker).attack(e.get("kind", "chop"))
+			"hold":
+				var key := "%d/%s/%d" % [e.id, e.weave, e.target]
+				if not holds.has(key):
+					holds[key] = {node = Weavefx.hold(self, e.weave), id = e.id, weave = e.weave, target = e.target, tied = false}
+			"release":
+				var key := "%d/%s/%d" % [e.id, e.weave, e.get("target", 0)]
+				if holds.has(key):
+					holds[key].node.queue_free(); holds.erase(key)
+			"tie":
+				var key := "%d/%s/%d" % [e.id, e.weave, e.target]
+				if holds.has(key) and not holds[key].tied:
+					holds[key].tied = true
+					Weavefx.knot(holds[key].node, e.weave)
+					Sfx.play(self, "chime", holds[key].node.get_node("Body").position + Vector3(0, 1.5, 0), -3.0, 1.4)
+			"broke":
+				if e.id == session.my_id:
+					flash_t = 1.0; flash_text = "It broke free"
 			"equip":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Hero.arm(actors[e.id].node, e.weapon)
@@ -624,13 +653,56 @@ func _draw_actors(dt: float) -> void:
 				else:
 					_play(a, "Sword_Idle" if fam in ["sword", "axe", "knife"] else "Idle")
 	for id in actors:
-		if actors[id].get("hold", 0.0) > 0.0:
-			actors[id].hold -= dt
-			if actors[id].node is Walker:
+		# Struck (for an instant) or wrapped in Air (for as long as it is held): it
+		# does not move.
+		if actors[id].get("hold", 0.0) > 0.0 or actors[id].get("status", 0) & 128:
+			actors[id].hold = actors[id].get("hold", 0.0) - dt
+			if is_instance_valid(actors[id].node) and actors[id].node is Walker:
 				walkers.erase(actors[id].node)
+	_draw_holds(dt)
 	for w in walkers:
 		w.compute(dt)
 		w.apply()
+
+## Held weaves sit on whoever they hold and trail a thread back to the weaver.
+func _draw_holds(dt: float) -> void:
+	for key in holds:
+		var h: Dictionary = holds[key]
+		var on: int = h.target if h.target != 0 else h.id
+		if not actors.has(on) or not actors.has(h.id) or not is_instance_valid(actors[on].node) or not is_instance_valid(actors[h.id].node):
+			h.node.visible = false
+			continue
+		var body: Node3D = h.node.get_node("Body")
+		body.position = actors[on].node.position
+		body.rotate_y(dt * 0.8)
+		var th: MeshInstance3D = h.node.get_node_or_null("Tether")
+		if th and th.visible:
+			var a: Vector3 = actors[h.id].node.position + Vector3(0, 1.35, 0)
+			var b: Vector3 = body.position + Vector3(0, 1.2, 0)
+			var d := b - a
+			if d.length() > 0.2:
+				var y := d.normalized()
+				var x := (Vector3.UP if absf(y.y) < 0.95 else Vector3.RIGHT).cross(y).normalized()
+				th.transform = Transform3D(Basis(x, y * d.length(), x.cross(y)), (a + b) * 0.5)
+
+## The flows I am holding weaves with, one colour per flow in use.
+func used_flows() -> Array:
+	var out := []
+	for key in holds:
+		var h: Dictionary = holds[key]
+		if h.id == session.my_id and not h.tied:
+			for e in Glyph.threads(Rules.flows_of(Rules.weaves[h.weave], profile)):
+				out.append(Glyph.TINT[e])
+	return out
+
+## 0 not held, 1 held, 2 tied off.
+func holding(weave: String) -> int:
+	var best := 0
+	for key in holds:
+		var h: Dictionary = holds[key]
+		if h.id == session.my_id and h.weave == weave:
+			best = maxi(best, 2 if h.tied else 1)
+	return best
 
 func _draw_fx(_dt: float) -> void:
 	pass

@@ -159,6 +159,52 @@ static func forming(g: Node3D, who: Node3D, weave: String, secs: float) -> void:
 		if is_instance_valid(hub):
 			hub.queue_free())
 
+## A weave being held, for as long as it is held: the dome around its weaver,
+## bands of Air on the one it binds, a mark over the one it shields; and a thread
+## from the weaver's hand to it, which is what tying off cuts. The game moves
+## "Body" to whoever it sits on and stretches "Tether" between the two.
+static func hold(g: Node3D, weave: String) -> Node3D:
+	var n := Node3D.new()
+	g.add_child(n)
+	var kind: String = Rules.weaves[weave].kind
+	var col := colour(weave)
+	var body := Node3D.new(); body.name = "Body"; n.add_child(body)
+	match kind:
+		"barrier":
+			var s := SphereMesh.new(); s.radius = 1.5; s.height = 3.0
+			var mi := _mesh(s, Color(col, 0.05), 0.4); mi.position.y = 1.0
+			body.add_child(mi)
+			var ring := TorusMesh.new(); ring.inner_radius = 1.42; ring.outer_radius = 1.5
+			var ri := _mesh(ring, Color(col, 0.5), 2.0); ri.position.y = 0.08
+			body.add_child(ri)
+		"bind":
+			for y in [0.45, 1.05, 1.65]:
+				var t := TorusMesh.new(); t.inner_radius = 0.66; t.outer_radius = 0.72
+				var ti := _mesh(t, Color(col, 0.75), 3.5); ti.position.y = y
+				ti.rotation = Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25))
+				body.add_child(ti)
+		"sever":
+			var s := SphereMesh.new(); s.radius = 0.2; s.height = 0.4
+			var mi := _mesh(s, Color(col, 0.8), 4.0); mi.position.y = 2.3
+			body.add_child(mi)
+			var t := TorusMesh.new(); t.inner_radius = 0.5; t.outer_radius = 0.54
+			var ti := _mesh(t, Color(col, 0.7), 3.0); ti.position.y = 1.3
+			body.add_child(ti)
+	if kind != "barrier":
+		var c := CylinderMesh.new(); c.top_radius = 0.018; c.bottom_radius = 0.018; c.height = 1.0; c.radial_segments = 6; c.rings = 1
+		var th := _mesh(c, Color(col, 0.8), 4.0); th.name = "Tether"
+		n.add_child(th)
+	return n
+
+## The knot of a tied-off weave: a small bright point where the thread was.
+static func knot(n: Node3D, weave: String) -> void:
+	var th := n.get_node_or_null("Tether")
+	if th:
+		th.visible = false
+	var s := SphereMesh.new(); s.radius = 0.09; s.height = 0.18
+	var mi := _mesh(s, colour(weave).lerp(Color.WHITE, 0.6), 8.0); mi.position.y = 2.05
+	n.get_node("Body").add_child(mi)
+
 ## Steel on steel: a spray of sparks, brighter for a clean parry.
 static func sparks(g: Node3D, at: Vector3, bright: bool) -> void:
 	_once(_particles(Color(1.0, 0.85, 0.5) if bright else Color(0.9, 0.75, 0.55), 40 if bright else 14, 0.35, 0.06, 7.0 if bright else 4.0, -9.0, 70.0), g, at)

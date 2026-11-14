@@ -76,6 +76,14 @@ for lack of stamina.
   you hold a shield while attacking.
 - **Spoiler setting** is `book_limit` on the profile versus `book` on each weave.
 
+## Held weaves (src/core/sim.gd)
+`p.held` is a list of `{weave, target, tied, breaks}`. `free_slots` counts the
+flows of entries that are not tied; `_step_holds` charges upkeep, expires knots
+and drops holds whose target died or broke free; `release` undoes whatever the
+weave was doing. Events `hold`, `release`, `tie` and `broke` let the view keep a
+node per hold (`Weavefx.hold`: a body on the target and a tether to the weaver).
+Techniques (`profile.techniques`, granted by an activity's `grants`) gate `tie`.
+
 ## Arms (data/weapons.json, docs/MELEE.md)
 Everything that is not channelling. The plan and to-do list are in `MELEE.md`.
 - **A weapon is a row; a move is a row** in the same file's `_moves`. A weapon
@@ -280,8 +288,8 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 1. Fight feel: clearer status effects and effects for the weaves beyond
    fireball. (Flows while forming and a view-only hit-stop are built: the struck
    body freezes, never the sim, so co-op is unaffected.)
-2. Make three flows change the game: tying off or holding a weave while weaving
-   another, so Dome of Air plus an attack is a real choice.
+2. More to hold and more techniques: inverting, cutting another's weave,
+   linking. (Holding, upkeep and tying off are built.)
 3. Co-op basics: a marker for who Healing will reach, a lobby screen. (The
    server, looks sent to other players and latecomer joins are built.)
 4. Enemies that ask questions: Myrddraal, archers, Trollocs that path around the

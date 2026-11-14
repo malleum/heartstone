@@ -18,7 +18,7 @@ signal rejected(why: String)                    # could not join at all
 signal vaulted(status: String, kept: Dictionary)  # the server's character store answered
 
 const PORT := 24680
-const PROTO := 3               # bump when an RPC or the snapshot format changes
+const PROTO := 4               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 var sim: Sim                   # host only
@@ -132,6 +132,11 @@ func dodge(dir: Vector3, rolling: bool) -> void:
 	if is_host: _do_arms(1, "dodge", [dir, rolling])
 	else: _arms.rpc_id(1, "dodge", [dir, rolling])
 
+## Tie off the held weave of this name.
+func tie(weave: String) -> void:
+	if is_host: _do_arms(1, "tie", [weave])
+	else: _arms.rpc_id(1, "tie", [weave])
+
 func equip(weapon: String) -> void:
 	if is_host: _do_arms(1, "equip", [weapon])
 	else: _arms.rpc_id(1, "equip", [weapon])
@@ -160,6 +165,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 2 and a[0] is Vector3 and a[1] is bool: why = sim.request_dodge(ent, a[0], a[1])
 		"equip":
 			if a.size() == 1 and a[0] is String: why = sim.equip(ent, a[0])
+		"tie":
+			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
 	if why != "" and why != "busy":
 		if peer == 1: refused.emit(why)
 		else: _refused.rpc_id(peer, why)
