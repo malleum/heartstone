@@ -24,10 +24,12 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   Asha'man collar pins and sword, Cairhienin slashes, nobles' silks, armour.
 - [ ] **Casting by drawing** a shape after choosing the Powers (see VISION.md).
 
-## Other classes
+## Other classes and arms
 - [ ] Warder, Aiel and others must be able to fight, with real melee: block,
   several attacks (swing, stab, low sweep), dodge, roll, duck. Channellers can
-  learn some of it, less well. All of it uses stamina.
+  learn some of it, less well. All of it uses stamina. Many weapons: knives and
+  thrown knives, bows of several kinds, staff, spear, Aiel javelins, swords.
+  **The full plan and to-do list is `MELEE.md`.**
 
 ## Online
 - [ ] **Deploy the server on minimus.** It is built and tested on localhost (see

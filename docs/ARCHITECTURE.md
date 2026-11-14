@@ -241,6 +241,7 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 |---|---|---|---|
 | `assets/quaternius/chars/*.glb` | Quaternius: Modular Character Outfits - Fantasy (Standard) and Universal Base Characters (Standard), from quaternius.itch.io | CC0 1.0 | Player characters |
 | `assets/quaternius/ual1.glb` | Quaternius: Universal Animation Library (Standard), from quaternius.itch.io | CC0 1.0 | 43 clips for player characters |
+| `assets/quaternius/ual2.glb` | Quaternius: Universal Animation Library 2 (Standard), from quaternius.itch.io | CC0 1.0 (`ual2_License.txt` beside it) | Sword cuts, block, shield, throw and knockback clips for player characters |
 | `assets/quaternius/animation_library.glb` | Quaternius: Universal Animation Library, older rig, from opengameart.org | CC0 1.0 (`LICENSE.txt` beside it) | Skeleton and clips for generated humans |
 
 ## Next steps, in order
