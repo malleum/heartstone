@@ -9,8 +9,8 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] **Each Power does something of its own:** the first pass is built (see Done).
   Still wanted: lightning that briefly charges and speeds them instead of stunning,
   Spirit with an effect of its own, and every effect made unmistakable on screen.
-- [ ] **Knockdown, burning and stun visuals have not been looked at closely.** Only
-  the weapon swing and the fireball's flight were checked in renders.
+- [ ] **Stun sparks and the thrown slide have not been seen in a render.** Burning
+  flames, the knockdown, the weapon swing and the fireball's flight have.
 - [ ] Trolloc attacks: one overhead chop for every weapon. Wanted: thrusts for
   spears, sweeps for axes, and a hit reaction on the player that matches.
 
@@ -28,23 +28,34 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   learn some of it, less well. All of it uses stamina.
 
 ## Online
-- [ ] **A server on minimus** (`joshammer.com`, configured in `malleum/nixos`):
-  - stores each player's character, so one character grows over time from any
-    machine;
-  - relays multiplayer so friends on different networks connect without a VPN.
-  - This changes Josh's server, which is a system-wide change: build the server
-    program and a NixOS module here, and let Josh deploy it.
+- [ ] **Deploy the server on minimus.** It is built and tested on localhost (see
+  Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24680 is
+  Josh's step, because it changes his server.
+- [ ] Server follow-ups: rooms for more than one fight at a time, encryption, a
+  lobby that shows who is there.
 
 ## Found by looking (Claude)
 - [ ] Gateway does nothing in play.
-- [ ] Healing has no way to choose who is healed.
-- [ ] Other players move in steps (no interpolation) and their chosen look is not
-  sent, so they appear in a look picked from their id.
+- [ ] Healing: the crosshair now picks a friend, but there is no marker showing
+  who will be healed, and it has not been tried with two people.
+- [ ] Other players are smoothed but not predicted; over the internet your own
+  movement will lag by the round trip. Not tried over a real connection.
 - [ ] Trollocs run straight at the nearest player; the breastwork blocks nothing.
-- [ ] No visible flows while a weave forms; no pause on impact.
+- [ ] Flows are shown only while the weave forms; a held weave (Dome of Air) shows
+  nothing tying it to the weaver.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **flows you can see.** While a weave forms, one bright thread per
+  flow, in its Power's colour, circles the weaver and closes on the hands. **Impact:**
+  a struck Trolloc flashes white and hangs for a few frames, and your own hits
+  push the view in slightly. Healing is aimed at a friend under the crosshair.
+- 2026-11-14: **the server** (`docs/SERVER.md`). A dedicated host friends join by
+  address with no VPN, which also keeps characters so one character follows you
+  between machines. Camp has a Server panel (address, word, passphrase, play on
+  the server, fetch a character). NixOS module `services.heartstone` in the
+  flake. Other players now appear in the look they chose, and joining part-way
+  through a fight works.
 - 2026-11-14: **weave tree.** Every weave lists the weaves you must know first and
   how much channelling it takes to work out. You study one at a time, chosen in
   the camp; any channelling advances it; having seen it woven in an activity

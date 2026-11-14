@@ -1,7 +1,8 @@
 extends SceneTree
 ## Co-op smoke test. One process hosts a holdout, others join as bot clients:
 ##   godot --headless -s tests/net_test.gd -- host <players>
-##   godot --headless -s tests/net_test.gd -- client <name>
+##   godot --headless -s tests/net_test.gd -- client <name> [address] [word]
+##   godot --headless -s tests/net_test.gd -- vault <address> <word>   (a dedicated server's store)
 ## Each prints one "NET ..." line that tools/test.sh checks.
 
 var s: Session
@@ -32,11 +33,15 @@ func _init() -> void:
 		while s._peer_ent.size() < want:
 			await process_frame
 		s.set_physics_process(true)
+	elif role == "vault":
+		_vault(a[1], a[2])
 	else:
 		Profile.dir = "user://test_profiles"
 		var p := Profile.create({name = "Net " + a[1], potential_pts = 8, affinity_pts = {fire = 6}})
 		var before: float = p.channelled
-		s.join("127.0.0.1", p)
+		s.rejected.connect(func(why: String) -> void:
+			print("NET client %s rejected: %s" % [a[1], why]); quit())
+		s.join(a[2] if a.size() > 2 else "127.0.0.1", p, "tarwins_gap_watch", a[3] if a.size() > 3 else "")
 		s.events.connect(func(list: Array) -> void:
 			for e in list:
 				if e.e == "spawn": foes[e.id] = true
@@ -73,3 +78,23 @@ func _client_bot() -> void:
 		cast_t = 0.3
 		# Aim at the chest and allow for the fireball's fall, as a player learns to.
 		s.cast("fireball", target + Vector3(0, Terrain.height(target.x, target.z) + 1.1 + 0.00446 * best * best - 0.052 * best, 0))
+
+## The character store: a copy goes up, comes back to a machine that has none, is
+## refused to the wrong passphrase, and is not replaced by an older copy.
+func _vault(address: String, word: String) -> void:
+	var p := Profile.create({name = "Vault %d" % (randi() % 100000), potential_pts = 8, affinity_pts = {fire = 6}})
+	p.seconds = 500.0
+	var ok := true
+	var steps := [[p, "pass1", "", 500.0], [{}, "pass1", "", 500.0], [{}, "wrong", "that name", -1.0], [p.merged({seconds = 100.0}, true), "pass1", "", 500.0], [p.merged({seconds = 900.0}, true), "pass1", "", 900.0]]
+	for st in steps:
+		s.vault_sync(address, p.name, st[1], st[0], word)
+		var r: Array = await s.vaulted
+		var good: bool = (r[0].begins_with(st[2]) if st[2] != "" else r[0] == "") and (st[3] < 0.0 or (not r[1].is_empty() and is_equal_approx(r[1].seconds, st[3])))
+		ok = ok and good
+		if not good:
+			print("NET vault step failed: ", r[0], " ", r[1].get("seconds", "-"))
+	s.vault_sync(address, p.name, "pass1", {}, "notit")
+	var r2: Array = await s.vaulted
+	ok = ok and r2[0] == "wrong word"
+	print("NET vault ok=%s" % ok)
+	quit()

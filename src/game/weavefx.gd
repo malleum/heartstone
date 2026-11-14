@@ -120,6 +120,55 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.add_child(mi)
 	return n
 
+## The flows themselves, seen while a weave forms: one bright thread for each flow,
+## in its Power's colour, circling in front of the weaver and drawing together as
+## the weave completes. Bigger weaves show more threads and take longer to close.
+static func forming(g: Node3D, who: Node3D, weave: String, secs: float) -> void:
+	var hub := Node3D.new()
+	who.add_child(hub); hub.position = Vector3(0, 1.25, 0.1)
+	var threads: Array[Node3D] = []
+	var fl: Dictionary = Rules.weaves[weave].flows
+	for e in fl:
+		for i in int(fl[e]):
+			var n := Node3D.new(); hub.add_child(n)
+			var sp := SphereMesh.new(); sp.radius = 0.06; sp.height = 0.12
+			n.add_child(_mesh(sp, TINT[e].lerp(Color.WHITE, 0.3), 7.0))
+			# World-space particles, so each thread leaves a streak of its colour.
+			n.add_child(_particles(TINT[e], 60, 0.45, 0.15, 0.05, 0.0))
+			threads.append(n)
+	hub.add_child(_light(colour(weave), 1.2, 4.0))
+	var count := threads.size()
+	var tw := g.create_tween()
+	tw.tween_method(func(f: float) -> void:
+		if not is_instance_valid(hub):
+			return
+		for i in count:
+			var ang := f * TAU * 2.0 + i * TAU / count
+			# They circle the weaver wide enough to be seen from behind, then close
+			# on the hands, where the weave leaves.
+			var r := 0.8 * (1.0 - f * f) + 0.04
+			threads[i].position = Vector3(cos(ang) * r, sin(ang * 1.5 + i) * r * 0.45 + 0.15 * f, sin(ang) * r + 0.4 * f), 0.0, 1.0, maxf(secs, 0.15))
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(hub):
+			hub.queue_free())
+
+static var _white: StandardMaterial3D
+
+## The instant of impact: the struck body flashes white for a few frames.
+static func flash(g: Node3D, who: Node3D, secs := 0.09) -> void:
+	if _white == null:
+		_white = StandardMaterial3D.new()
+		_white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_white.albedo_color = Color(1.0, 0.95, 0.85, 0.75)
+		_white.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var meshes := who.find_children("*", "MeshInstance3D", true, false)
+	for m in meshes:
+		(m as MeshInstance3D).material_overlay = _white
+	g.get_tree().create_timer(secs).timeout.connect(func() -> void:
+		for m in meshes:
+			if is_instance_valid(m):
+				(m as MeshInstance3D).material_overlay = null)
+
 ## What clings to someone a weave has marked: flames on the burning, sparks on the
 ## stunned. The caller frees it when the status ends.
 static func status(kind: String) -> Node3D:

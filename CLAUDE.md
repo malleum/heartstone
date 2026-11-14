@@ -29,6 +29,7 @@ working on abilities; the user's rulings there are final).
 - `docs/ARCHITECTURE.md`: decisions and reasons, the asset/licence table, next steps.
   Keep it current when a decision changes.
 - `docs/BACKLOG.md`: everything the user has asked for that is not built. Work from it.
+- `docs/SERVER.md`: the dedicated server and character store, and how it is deployed.
 - `docs/PLAYTEST.md`: anything that needs the user's hands (camera, timing, hit feel)
   goes here with the assumed value. Never block on the user: assume, note, continue.
 - Third-party assets must be CC0/permissive and listed in ARCHITECTURE.md.
@@ -37,7 +38,8 @@ working on abilities; the user's rulings there are final).
 
 ## Code map
 - `src/core/`: rules with no nodes (Rules, Profile, Progression, Sim, Bot). `data/*.json`
-  holds weaves, enemies, activities. `src/net/session.gd`: host-authoritative co-op.
+  holds weaves, enemies, activities. `src/net/session.gd`: host-authoritative co-op;
+  `src/net/server.gd`: the dedicated server (`nix run .#server`).
 - `src/gen/sdf.gd`: signed-distance "clay" + surface nets mesher; weights, colour, AO.
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.

@@ -18,6 +18,7 @@ var face_yaw := 0.0            # my character faces its travel direction, or the
 var aim_t := 0.0               # seconds left facing the aim after a cast
 var selected := 0
 var shake := 0.0               # camera trauma, 0..1, decays every frame
+var punch := 0.0               # a landed blow pushes the view in for an instant
 var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
@@ -53,19 +54,32 @@ func _ready() -> void:
 	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
 	WorkerThreadPool.wait_for_group_task_completion(id)
 	variants = out
+	# The Session lives at /root/Session on every machine (RPCs go by node path).
+	var old := get_tree().root.get_node_or_null("Session")
+	if old:
+		old.free()
 	session = Session.new()
-	add_child(session)
+	get_tree().root.add_child(session)
 	session.started.connect(_on_started)
 	session.snapshot.connect(_on_snapshot)
 	session.events.connect(_on_events)
 	session.finished.connect(_on_finished)
 	session.refused.connect(func(why: String) -> void: last_refusal = why; refusal_t = 1.5)
+	session.rejected.connect(func(why: String) -> void:
+		_done = true
+		banner.text = "Could not join: %s\n\nEnter: back to camp" % why
+		print("GAME rejected: ", why))
 	if args.has("join"):
-		session.join(args.join, profile)
+		banner.text = "Reaching %s…" % args.join
+		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""))
 	else:
 		session.host(args.get("activity", "tarwins_gap_watch"), profile)
 	if not args.has("auto") and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _exit_tree() -> void:
+	if is_instance_valid(session):
+		session.queue_free()
 
 func _ground(p: Vector3) -> Vector3:
 	return Vector3(p.x, Terrain.height(p.x, p.z), p.z)
@@ -115,9 +129,11 @@ func _aim_point() -> Vector3:
 	var dir := -cam.global_transform.basis.z
 	var best := Vector3.ZERO
 	var best_miss := 1.4
+	# Healing is aimed at a friend; everything else at the Shadow.
+	var friendly: bool = not known.is_empty() and Rules.weaves[known[selected]].kind == "heal"
 	for id in actors:
 		var a: Dictionary = actors[id]
-		if a.kind == "player" or a.get("dead", false) or not is_instance_valid(a.node):
+		if (a.kind == "player") != friendly or id == session.my_id or a.get("dead", false) or not is_instance_valid(a.node):
 			continue
 		var c: Vector3 = a.node.position + Vector3(0, 1.2, 0)
 		var along := (c - from).dot(dir)
@@ -141,7 +157,9 @@ func _process(dt: float) -> void:
 	refusal_t -= dt
 	if session.my_id == 0:
 		return
-	if args.has("auto") and session.is_host:
+	if args.has("auto") and not session.is_host:
+		_client_bot()
+	elif args.has("auto"):
 		# --stand: the bot holds its ground and weaves only now and then, so melee,
 		# burning and knockdowns can be watched up close in a render.
 		if not args.has("stand") or frame % 150 < 45:
@@ -172,9 +190,34 @@ func _process(dt: float) -> void:
 		# Trauma-squared shake: small hits barely register, big ones kick.
 		shake = maxf(shake - dt * 1.8, 0.0)
 		var k := shake * shake
+		punch = maxf(punch - dt * 5.0, 0.0)
+		cam.fov = 70.0 - 5.0 * punch
 		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
+
+## `--auto --join=...`: a bot that knows only what a client is told, for trying a
+## server without hands.
+var _bot_t := 0.0
+func _client_bot() -> void:
+	if me == null or known.is_empty():
+		return
+	var best := 1e9; var target := Vector3.ZERO
+	for id in actors:
+		var a: Dictionary = actors[id]
+		if a.kind == "enemy" and not a.get("dead", false) and me.position.distance_to(a.target) < best:
+			best = me.position.distance_to(a.target); target = a.target
+	if best > 1e8:
+		return
+	var to := (target - me.position) * Vector3(1, 0, 1)
+	face_yaw = atan2(to.x, to.z)
+	cam_yaw = lerp_angle(cam_yaw, face_yaw + PI, 0.05)
+	var reach: float = Rules.weaves[known[0]].base.get("range", 10.0)
+	session.send_input(-to.normalized() if best < 5.0 else (to.normalized() if best > reach * 0.7 else Vector3.ZERO), face_yaw)
+	_bot_t -= get_process_delta_time()
+	if _bot_t <= 0.0:
+		_bot_t = 0.4
+		session.cast(known[0], _ground(target) + Vector3(0, 1.1 + 0.00446 * best * best - 0.052 * best if known[0] == "fireball" else 1.1, 0))
 
 ## `-- --auto --fxdemo`: fire every instant weave effect in turn in front of the
 ## camera, so effects can be reviewed in a render without waiting for a real cast.
@@ -228,7 +271,18 @@ func _on_events(list: Array) -> void:
 	for e in list:
 		match e.e:
 			"spawn":
-				_spawn_enemy(e.id, e.type, e.pos)
+				if not actors.has(e.id):
+					_spawn_enemy(e.id, e.type, e.pos)
+			"player":
+				if not actors.has(e.id):
+					# Everyone appears as they chose to look, on every machine.
+					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name))
+					add_child(rig)
+					rig.position = _ground(e.pos)
+					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name}
+					if e.id == session.my_id:
+						me = rig
+						banner.text = ""
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
@@ -246,11 +300,20 @@ func _on_events(list: Array) -> void:
 					var a: Dictionary = actors[e.id]
 					if a.node is Walker and not a.get("dead", false):
 						(a.node as Walker).hit(a.node.position - (me.position if me else Vector3.ZERO), 0.9)
+						# Hit-stop, for the one struck only: it flashes and hangs for a few
+						# frames, heavier blows longer. The world keeps moving (co-op).
+						if e.dmg >= 4.0:
+							Weavefx.flash(self, a.node)
+							a.hold = clampf(e.dmg * 0.004, 0.05, 0.14)
+							if e.by == session.my_id:
+								punch = minf(punch + e.dmg * 0.01, 1.0)
 					elif a.kind == "player" and not a.get("dead", false):
 						_play(a, "Hit_Chest", true)
 			"form":
 				if actors.has(e.id):
 					_play(actors[e.id], "Spell_Simple_Enter", true)
+					if is_instance_valid(actors[e.id].node):
+						Weavefx.forming(self, actors[e.id].node, e.weave, e.time)
 					Sfx.play(self, "hum", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -8.0)
 			"attack":
 				# A lunge at the victim: the gait has no attack clip, so borrow the hit spring.
@@ -264,7 +327,7 @@ func _on_events(list: Array) -> void:
 			"cast":
 				if actors.has(e.id):
 					# Each channeller has their own gesture for each weave.
-					_play(actors[e.id], Hero.cast_clip(profile.name if e.id == session.my_id else str(e.id), e.weave), true)
+					_play(actors[e.id], Hero.cast_clip(actors[e.id].get("name", ""), e.weave), true)
 				if e.id == session.my_id:
 					ready_at[e.weave] = clock + Rules.cooldown(profile, e.weave)
 				Weavefx.cast(self, e)
@@ -307,13 +370,8 @@ func _on_snapshot(s: Dictionary) -> void:
 	for e in s.ents:
 		var id: int = e[0]
 		if not actors.has(id):
-			# Anything we were not told about by a spawn event is a player.
-			var rig := Hero.instantiate(Hero.kind_for(profile) if id == session.my_id else Hero.LOOKS.keys()[id % Hero.LOOKS.size()], id)
-			add_child(rig)
-			rig.position = _ground(Vector3(e[1], 0, e[2]))
-			actors[id] = {node = rig, kind = "player", target = rig.position, busy = 0.0}
-			if id == session.my_id:
-				me = rig
+			# Snapshots can outrun the event that introduces someone; wait for it.
+			continue
 		var a: Dictionary = actors[id]
 		a.target = Vector3(e[1], 0, e[2]); a.yaw = e[3]
 		_status(a, e[6])
@@ -383,6 +441,11 @@ func _draw_actors(dt: float) -> void:
 					ap.play(want, 0.15); ap.seek(minf(at, ap.get_animation(want).length), true)
 			if a.busy <= 0.0:
 				_play(a, ("Sprint" if speed > 6.5 else "Jog_Fwd") if speed > 0.6 else "Idle")
+	for id in actors:
+		if actors[id].get("hold", 0.0) > 0.0:
+			actors[id].hold -= dt
+			if actors[id].node is Walker:
+				walkers.erase(actors[id].node)
 	for w in walkers:
 		w.compute(dt)
 		w.apply()

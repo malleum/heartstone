@@ -90,9 +90,25 @@ Single-player is the same path with the host as sole player.
 - Profiles live on their owner's machine. The host borrows them to run the rules and
   returns each player's tally; each client awards and saves locally.
 - No anti-cheat by design: friends only.
-- Not done: client interpolation/prediction, lobby UI, reconnect, NAT traversal (use
-  a VPN such as Tailscale or forward 24680/udp for now). Other players' looks are
-  not sent yet, so remote players get a model picked from their id.
+- **A dedicated server** (`src/net/server.gd`, `docs/SERVER.md`) is the same Session
+  with no player of its own. Friends on different networks all connect out to it,
+  which is why no relay or NAT traversal was built: the server is the host. It
+  starts a fight when the first player asks for one and resets when it ends or
+  empties. One fight at a time.
+- **The character store** is on the same server and the same port: the camp sends
+  its copy, the server keeps whichever has channelled longer and answers with it.
+  A name is guarded by a passphrase (stored hashed); the server as a whole by an
+  optional word.
+- Every machine keeps its Session at `/root/Session`, because RPCs go by node path.
+- Players are introduced by a `player` event carrying name and look, enemies by
+  `spawn`; a latecomer is sent `Sim.roster()`. A view never guesses from a snapshot.
+- Snapshot entities cross the wire as one flat `PackedFloat32Array` (7 per entity),
+  a fifth of the size of nested Variants.
+- A host checks `Profile.valid` before running the rules on someone else's profile.
+- `Session.version()` (a protocol number plus a hash of the data tables) is sent
+  on joining; a host turns away a player whose game differs. Bump `PROTO` when
+  an RPC or the snapshot format changes.
+- Not done: prediction, a lobby, reconnect, rooms, encryption.
 
 ## Maps (src/core/map.gd, src/world/scenery.gd)
 A map is pure maths in `Map`: a corridor along -Z whose half-width varies with z,
@@ -209,12 +225,13 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 
 ## Next steps, in order
 0. `BACKLOG.md` is the full list of what Josh has asked for; this is only an order.
-1. Fight feel: visible flows while a weave forms, hit-stop, clearer status
-   effects, and effects for the weaves beyond fireball.
+1. Fight feel: clearer status effects and effects for the weaves beyond
+   fireball. (Flows while forming and a view-only hit-stop are built: the struck
+   body freezes, never the sim, so co-op is unaffected.)
 2. Make three flows change the game: tying off or holding a weave while weaving
    another, so Dome of Air plus an attack is a real choice.
-3. Co-op basics: client interpolation, each player's look sent to the others,
-   Healing with a target, a lobby screen.
+3. Co-op basics: a marker for who Healing will reach, a lobby screen. (The
+   server, looks sent to other players and latecomer joins are built.)
 4. Enemies that ask questions: Myrddraal, archers, Trollocs that path around the
    breastwork. Then a second holdout (Dumai's Wells).
 5. One linear mission; then casting by drawing (see VISION.md).

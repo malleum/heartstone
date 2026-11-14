@@ -36,7 +36,23 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 		stamina = Rules.TUNE.stamina, forming = {}, held = [], barrier = 0.0, severed = 0.0, stagger = 0.0,
 		cd = {}, burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, vel = Vector3.ZERO}
 	tallies[id] = {casts = {}, kills = {}, draw = 0.0, seconds = 0.0}
+	events.append(_intro(ents[id]))
 	return id
+
+## What a view needs to draw someone: who they are and how they chose to look.
+func _intro(e: Dictionary) -> Dictionary:
+	if e.kind == "enemy":
+		return {e = "spawn", id = e.id, type = e.type, pos = e.pos}
+	var pr: Dictionary = e.profile
+	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), pos = e.pos}
+
+## Introductions for everyone alive, for a player who joins part-way through.
+func roster() -> Array:
+	var out := []
+	for id in ents:
+		if ents[id].alive:
+			out.append(_intro(ents[id]))
+	return out
 
 func _add_enemy(type: String, pos: Vector3) -> void:
 	var row: Dictionary = Rules.enemies[type]
@@ -45,7 +61,7 @@ func _add_enemy(type: String, pos: Vector3) -> void:
 		radius = float(row.radius), team = -1, alive = true, atk = 0.0, stagger = 0.0, vel = Vector3.ZERO,
 		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false,
 		speed = row.speed * rng.randf_range(0.85, 1.15)}
-	events.append({e = "spawn", id = id, type = type, pos = pos})
+	events.append(_intro(ents[id]))
 
 func set_input(id: int, move: Vector3, yaw: float) -> void:
 	var p: Dictionary = ents[id]

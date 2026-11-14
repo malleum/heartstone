@@ -12,6 +12,9 @@ var model: Node3D
 var side: VBoxContainer       # left column: who you are
 var board: VBoxContainer      # right column: what you can do
 var make := {}                # creation form widgets
+var online := {}              # the server this machine uses, if any (user://online.json)
+var online_note := ""         # what the last exchange with the server said
+const ONLINE := "user://online.json"
 
 func _ready() -> void:
 	Rules.load_data()
@@ -31,6 +34,10 @@ func _ready() -> void:
 	var cam := Camera3D.new(); cam.fov = 50.0; add_child(cam)
 	cam.position = Vector3(0.0, 1.35, 3.6); cam.look_at(Vector3(0.0, 1.0, 0))
 	_ui()
+	if FileAccess.file_exists(ONLINE):
+		var o = JSON.parse_string(FileAccess.get_file_as_string(ONLINE))
+		if o is Dictionary:
+			online = o
 	var names := _saved()
 	if cl.has("new"):
 		_creation()
@@ -100,9 +107,41 @@ func _stand(kind: String) -> void:
 
 # --- an existing character --------------------------------------------------------------
 
-func _select(name_: String) -> void:
+## Exchange a character with the server's store: it keeps whichever copy has
+## channelled longer and sends that back, so one character follows you between
+## machines. Needs a server address and a passphrase; silent when neither is set.
+func _sync(name_: String, local: Dictionary) -> void:
+	if online.get("server", "") == "" or online.get("key", "") == "":
+		return
+	var old := get_tree().root.get_node_or_null("Session")
+	if old:
+		old.free()
+	var s := Session.new()
+	get_tree().root.add_child(s)
+	var finish := func(status: String, kept: Dictionary) -> void:
+		if not is_instance_valid(s):
+			return
+		multiplayer.multiplayer_peer = null
+		s.queue_free()
+		online_note = status if status != "" else "%s is kept on %s" % [kept.name, online.server]
+		var newer: bool = not kept.is_empty() and (local.is_empty() or float(kept.seconds) > float(local.seconds))
+		if newer:
+			Profile.save(kept)
+			online_note = "%s came from %s" % [kept.name, online.server]
+		if newer or name_.to_lower() == profile.get("name", "").to_lower() or profile.is_empty():
+			_select(kept.name if newer else profile.get("name", ""), false)
+	s.vaulted.connect(finish)
+	get_tree().create_timer(6.0).timeout.connect(func() -> void: finish.call("no answer from " + online.server, {}))
+	s.vault_sync(online.server, name_, online.key, local, online.get("word", ""))
+
+func _select(name_: String, sync := true) -> void:
+	if name_ == "" or Profile.load_profile(name_).is_empty():
+		_creation()
+		return
 	profile = Profile.load_profile(name_)
 	Launch.last_name = profile.name
+	if sync:
+		_sync(profile.name, profile)
 	_stand(Hero.kind_for(profile))
 	_clear(side); _clear(board)
 	_text(side, profile.name, 28)
@@ -162,15 +201,50 @@ func _select(name_: String) -> void:
 			for d in a.requires.get("done", []):
 				if not profile.done.has(d): need.append("clear " + Rules.activities[d].name)
 			_text(board, "%s\n   needs %s" % [a.name, ", ".join(need)], 15, Color(0.5, 0.5, 0.55))
-	_text(board, "Friends", 24)
-	_text(board, "Starting anything above hosts it: friends join you by address (UDP port 24680, or a VPN such as Tailscale).", 14, Color(0.7, 0.72, 0.78))
+	_online_panel()
+	_text(board, "Friends, without a server", 24)
+	_text(board, "Starting anything above with the server box unticked hosts it on this machine: friends join you by address (UDP port 24680, or a VPN such as Tailscale).", 14, Color(0.7, 0.72, 0.78))
 	var addr := LineEdit.new(); addr.placeholder_text = "friend's address"; board.add_child(addr)
 	_button(board, "Join a friend", func() -> void:
 		if addr.text.strip_edges() != "":
 			_go({join = addr.text.strip_edges()}))
 	_button(board, "Quit", get_tree().quit)
 
+## The server: where friends on different networks meet, and where characters are
+## kept so one character follows you between machines.
+func _online_panel() -> void:
+	_text(board, "Server", 24)
+	_text(board, "A server lets friends on different networks play together with no VPN, and keeps your character so it follows you to any machine. The passphrase is yours alone and guards your character; the word is the one the server's owner gave everyone.", 14, Color(0.7, 0.72, 0.78))
+	var fields := {}
+	for f in [["server", "server address, e.g. joshammer.com"], ["word", "the server's word (if it has one)"], ["key", "your passphrase (four letters or more)"]]:
+		var e := LineEdit.new(); e.placeholder_text = f[1]; e.text = online.get(f[0], ""); board.add_child(e)
+		e.secret = f[0] != "server"
+		fields[f[0]] = e
+	var play := CheckBox.new(); play.text = "Play on the server (friends join the same fight)"; board.add_child(play)
+	play.button_pressed = online.get("play", false)
+	var keep := func() -> void:
+		for f in fields:
+			online[f] = fields[f].text.strip_edges()
+		online.play = play.button_pressed
+		FileAccess.open(ONLINE, FileAccess.WRITE).store_string(JSON.stringify(online))
+	play.toggled.connect(func(_on: bool) -> void: keep.call(); _select(profile.get("name", ""), false))
+	_button(board, "Save, and send this character to the server", func() -> void:
+		keep.call(); online_note = "asking %s…" % online.server
+		_select(profile.get("name", "")))
+	var want := LineEdit.new(); want.placeholder_text = "name of a character kept on the server"; board.add_child(want)
+	_button(board, "Fetch that character", func() -> void:
+		keep.call()
+		if want.text.strip_edges() != "":
+			online_note = "asking %s…" % online.server
+			_sync(want.text.strip_edges(), Profile.load_profile(want.text.strip_edges())))
+	if online_note != "":
+		_text(board, online_note, 14, Color(0.95, 0.85, 0.55))
+
 func _go(extra: Dictionary) -> void:
+	var s := get_tree().root.get_node_or_null("Session")
+	if s:
+		multiplayer.multiplayer_peer = null
+		s.free()
 	Launch.args = extra.merged({name = profile.name})
 	Launch.report = []
 	get_tree().change_scene_to_file("res://src/game/game.tscn")
@@ -224,6 +298,8 @@ func _creation() -> void:
 		_button(side, "Back", func() -> void: _select(_saved()[0]))
 	_text(board, "How a channeller grows", 24)
 	_text(board, "Nothing here resets. Every watch, every mission and every spar pays into the same character.\n\nWeaving a weave masters it. Weaving a Power strengthens your hold on it. Strength creeps toward your potential.\n\nThe number of flows you can hold at once grows slowly, over many hours. Few Aes Sedai ever hold more than three.\n\nNew weaves are learned by seeing them woven.", 15)
+	# A character kept on the server can be fetched instead of making a new one.
+	_online_panel()
 	_creation_changed()
 
 func _fill_looks() -> void:

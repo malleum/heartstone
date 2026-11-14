@@ -22,7 +22,70 @@
           exec godot --path "$dir" ${args} "$@"
         '';
       };
+      # The dedicated server: no window, no GPU. Godot needs its import cache beside
+      # the project, so the store snapshot is copied into the state directory first.
+      mkServer = pkgs: pkgs.writeShellApplication {
+        name = "heartstone-server";
+        runtimeInputs = [ pkgs.godot pkgs.rsync ];
+        text = ''
+          state="''${STATE_DIRECTORY:-''${XDG_STATE_HOME:-$HOME/.local/state}/heartstone}"
+          mkdir -p "$state/project" "$state/data"
+          rsync -a --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$state/project/"
+          # Characters are kept under $state/data and survive updates of the game.
+          export XDG_DATA_HOME="$state/data" XDG_CONFIG_HOME="$state/data" XDG_CACHE_HOME="$state/data"
+          godot --headless --path "$state/project" --import >/dev/null 2>&1 || true
+          exec godot --headless --path "$state/project" -s src/net/server.gd -- "$@"
+        '';
+      };
     in {
+      # services.heartstone: see docs/SERVER.md.
+      nixosModules.default = { config, lib, pkgs, ... }:
+        let cfg = config.services.heartstone; in {
+          options.services.heartstone = {
+            enable = lib.mkEnableOption "the Heartstone dedicated server (co-op meeting point and character store)";
+            port = lib.mkOption { type = lib.types.port; default = 24680; description = "UDP port players connect to."; };
+            openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the UDP port in the firewall."; };
+            environmentFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path; default = null;
+              description = "File containing HEARTSTONE_WORD=..., the word players must give to join. Without it anyone who finds the port can play and store characters.";
+            };
+          };
+          config = lib.mkIf cfg.enable {
+            networking.firewall.allowedUDPPorts = lib.mkIf cfg.openFirewall [ cfg.port ];
+            systemd.services.heartstone = {
+              description = "Heartstone dedicated server";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" ];
+              environment.HEARTSTONE_PORT = toString cfg.port;
+              serviceConfig = {
+                ExecStart = "${mkServer pkgs}/bin/heartstone-server";
+                EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
+                DynamicUser = true;
+                StateDirectory = "heartstone";
+                Environment = [ "HOME=/var/lib/heartstone" ];
+                Restart = "on-failure";
+                RestartSec = 5;
+                # It is a game server reachable from the internet: give it nothing it does not need.
+                NoNewPrivileges = true; ProtectSystem = "strict"; ProtectHome = true; PrivateTmp = true; PrivateDevices = true;
+                ProtectKernelTunables = true; ProtectKernelModules = true; ProtectControlGroups = true;
+                RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+                MemoryMax = "1G";
+              };
+            };
+          };
+        };
+
+      # `nix flake check` evaluates the module in a minimal NixOS system.
+      checks = forAll (pkgs: {
+        module = (nixpkgs.lib.nixosSystem {
+          system = pkgs.system;
+          modules = [ self.nixosModules.default {
+            services.heartstone.enable = true;
+            boot.isContainer = true; system.stateVersion = "25.05";
+          } ];
+        }).config.systemd.units."heartstone.service".unit;
+      });
+
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
@@ -39,6 +102,7 @@
       packages = forAll (pkgs: rec {
         default = launcher pkgs "heartstone" "";
         horde = launcher pkgs "heartstone-horde" "res://src/test/test_scene.tscn -- --mode=horde";
+        server = mkServer pkgs;
         # A conventional library layout for the exported binary in dist/ (see
         # dist/heartstone). `env` simply runs whatever command follows.
         fhs = pkgs.buildFHSEnv {
@@ -54,6 +118,7 @@
       apps = forAll (pkgs: {
         default = { type = "app"; program = "${self.packages.${pkgs.system}.default}/bin/heartstone"; };
         horde = { type = "app"; program = "${self.packages.${pkgs.system}.horde}/bin/heartstone-horde"; };
+        server = { type = "app"; program = "${self.packages.${pkgs.system}.server}/bin/heartstone-server"; };
         fhs = { type = "app"; program = "${self.packages.${pkgs.system}.fhs}/bin/heartstone-fhs"; };
       });
     };

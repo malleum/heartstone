@@ -88,6 +88,27 @@ static func load_profile(name: String) -> Dictionary:
 	_migrate(p)
 	return p
 
+## Whether a Dictionary that arrived over the network is shaped like a character.
+## A host runs the rules on other people's profiles, so it checks before trusting.
+static func valid(p: Dictionary) -> bool:
+	for k in ["name", "power", "potential", "strength", "channelled", "renown", "seconds", "book_limit"]:
+		if not p.has(k) or (k in ["name", "power"]) != (p[k] is String):
+			return false
+		if not (p[k] is String or p[k] is float or p[k] is int):
+			return false
+	for k in ["affinity", "aptitude", "weaves", "done"]:
+		if not (p.get(k) is Dictionary):
+			return false
+	if not (p.get("talents") is Array and p.get("seen") is Array):
+		return false
+	for e in Rules.ELEMENTS:
+		if not (p.affinity.get(e) is float and p.aptitude.get(e) is float):
+			return false
+	for id in p.weaves:
+		if not (p.weaves[id] is Dictionary):
+			return false
+	return p.name.length() > 0 and p.name.length() <= 40 and p.power in ["saidin", "saidar"]
+
 ## Channellers are strong before they are trained (Nynaeve): everyone starts at
 ## most TUNE.start_gap levels below their potential.
 static func start_strength(potential: float) -> float:
