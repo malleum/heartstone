@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Play Heartstone:  ./dist/heartstone
+# On NixOS the game binary needs a conventional Linux library layout, which the
+# repo's flake provides (first run downloads it). Elsewhere it runs directly.
+here=$(dirname "$(readlink -f "$0")")
+if [[ -e /etc/NIXOS && -z ${NIX_LD:-} ]]; then
+  exec nix run "$(cd "$here/.." && pwd)#fhs" -- "$here/heartstone.x86_64" "$@"
+fi
+exec "$here/heartstone.x86_64" "$@"

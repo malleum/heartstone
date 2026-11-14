@@ -31,17 +31,30 @@
             ffmpeg imagemagick   # frame sequences -> video / contact sheets
             vulkan-tools tmux
           ];
+          # tools/export.sh builds dist/ with these (official, generic-Linux templates).
+          GODOT_EXPORT_TEMPLATES = "${pkgs.godot.export-templates-bin}/share/godot/export_templates";
         };
       });
 
       packages = forAll (pkgs: rec {
         default = launcher pkgs "heartstone" "";
         horde = launcher pkgs "heartstone-horde" "res://src/test/test_scene.tscn -- --mode=horde";
+        # A conventional library layout for the exported binary in dist/ (see
+        # dist/heartstone). `env` simply runs whatever command follows.
+        fhs = pkgs.buildFHSEnv {
+          name = "heartstone-fhs";
+          targetPkgs = p: with p; [
+            vulkan-loader libGL libxkbcommon wayland libdecor alsa-lib libpulseaudio pipewire udev fontconfig dbus
+            libx11 libxcursor libxinerama libxext libxrandr libxrender libxi libxfixes
+          ];
+          runScript = "env";
+        };
       });
 
       apps = forAll (pkgs: {
         default = { type = "app"; program = "${self.packages.${pkgs.system}.default}/bin/heartstone"; };
         horde = { type = "app"; program = "${self.packages.${pkgs.system}.horde}/bin/heartstone-horde"; };
+        fhs = { type = "app"; program = "${self.packages.${pkgs.system}.fhs}/bin/heartstone-fhs"; };
       });
     };
 }
