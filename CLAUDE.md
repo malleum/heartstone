@@ -44,8 +44,9 @@ working on abilities; the user's rulings there are final).
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
 - `src/anim/walker.gd`: procedural gait (planted feet, IK legs, hit-react, death).
-- `src/game/`: `camp` (hub, main scene), `game` (activity view), `weavefx`, `sfx`,
-  `launch`. `-- --auto` skips the camp and lets a bot play; add `--fxdemo` to review effects,
+- `src/game/`: `camp` (walkable hub with a doorway per activity, main scene), `game`
+  (activity view), `hud`, `weavetree`, `glyph` (hand-drawn UI), `weavefx`, `sfx`,
+  `launch`. Camp renders: `-- --who=Name --show=tree|menu --stroll=N`. `-- --auto` skips the camp and lets a bot play; add `--fxdemo` to review effects,
   `--name=Bot` to keep off a real character, `--stand` to watch melee.
 - `src/gen/hero.gd`: player characters (sourced Quaternius models and clips), built by
   `tools/blender/build_heroes.py`. `human_rig.gd`: older generated humans, bench only.

@@ -5,6 +5,8 @@ static var args := {}
 ## The last activity's outcome, shown when the player is back in camp.
 static var report: Array = []
 static var last_name := ""
+## The doorway last walked through, so you come back out of it.
+static var last_activity := ""
 
 static func cmdline() -> Dictionary:
 	var out := {}

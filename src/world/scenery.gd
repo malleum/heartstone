@@ -25,6 +25,42 @@ static func fire(g: Node3D, at: Vector3) -> void:
 	l.shadow_enabled = false
 	g.add_child(l); l.position = at + Vector3(0, 1.4, 0)
 
+## A standing stone doorway for the camp: two posts, a lintel, and a surface of
+## folding light in the colour of where it leads (dark when it may not be passed).
+## The node faces +z; the caller turns it toward the camp.
+static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, title: String, sub: String) -> Node3D:
+	var n := Node3D.new(); g.add_child(n)
+	n.position = at; n.rotation.y = yaw
+	var stone := _mat(Color(0.2, 0.2, 0.21))
+	for sx in [-1.0, 1.0]:
+		_box(n, Vector3(0.55, 3.5, 0.6), Vector3(sx * 1.2, 1.6, 0), stone, Vector3(0, 0, sx * -0.03))
+		_box(n, Vector3(0.75, 0.3, 0.8), Vector3(sx * 1.2, 0.05, 0), stone)
+	_box(n, Vector3(3.5, 0.5, 0.75), Vector3(0, 3.5, 0), stone, Vector3(0, 0, 0.02))
+	_box(n, Vector3(1.0, 0.3, 0.8), Vector3(0, 3.85, 0), stone)
+	var q := QuadMesh.new(); q.size = Vector2(1.9, 3.3)
+	var mi := MeshInstance3D.new(); mi.mesh = q; mi.position = Vector3(0, 1.65, 0)
+	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
+	sm.set_shader_parameter("tint", tint); sm.set_shader_parameter("lit", 1.0 if lit else 0.0)
+	mi.material_override = sm; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	n.add_child(mi)
+	if lit:
+		var l := OmniLight3D.new(); l.light_color = tint; l.light_energy = 2.5; l.omni_range = 9.0
+		n.add_child(l); l.position = Vector3(0, 1.8, 1.2)
+		var motes := Weavefx._particles(tint, 26, 1.6, 0.1, 0.5, 0.5, 180.0)
+		n.add_child(motes); motes.position = Vector3(0, 1.6, 0.2)
+		(motes.process_material as ParticleProcessMaterial).emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		(motes.process_material as ParticleProcessMaterial).emission_box_extents = Vector3(0.9, 1.5, 0.1)
+	# The name is cut on two lines above the lintel so neighbouring doorways do
+	# not run into each other; `sub` (why it is closed) sits small beneath it.
+	var t := Label3D.new(); t.text = title.replace(": ", "\n") + ("\n" + sub if sub != "" else ""); t.font = Glyph.serif()
+	t.font_size = 72; t.pixel_size = 0.0075; t.outline_size = 14; t.line_spacing = -8.0
+	t.modulate = Color(0.97, 0.94, 0.88) if lit else Color(0.6, 0.6, 0.66)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	t.position = Vector3(0, 4.15, 0.1)
+	t.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	n.add_child(t)
+	return n
+
 static func tarwins_gap(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 11
 	var stone := _mat(Color(0.2, 0.19, 0.18))

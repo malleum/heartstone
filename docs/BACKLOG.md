@@ -15,8 +15,10 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   spears, sweeps for axes, and a hit reaction on the player that matches.
 
 ## Character and progression
-- [ ] **The weave tree as a drawn tree.** The rules and a list in the camp exist (see
-  Done); it is not yet a picture you can read at a glance.
+- [ ] Weave tree follow-ups: weaves beyond your book limit are simply absent (no
+  hint that more exist); long names can touch a neighbour.
+- [ ] Camp follow-ups: doorways are not solid; the sheet cannot be hidden; other
+  players are not seen in the camp; the doorways show light, not the place.
 - [ ] **More character customisation:** face, body and so on.
 - [ ] **More clothing options.** The long coat exists (see Done). Still wanted:
   Asha'man collar pins and sword, Cairhienin slashes, nobles' silks, armour.
@@ -46,6 +48,12 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **the camp is walked, not a menu.** The right-hand panel is gone:
+  each activity is a stone doorway you walk through, and you come back out of
+  it. Server, friends and quit are behind Esc.
+- 2026-11-14: **the weave tree is drawn** as a wheel of the Five Powers (T in the
+  camp), and **the HUD is drawn** (weave glyphs with cooldown clocks, bars,
+  crosshair ring, party list, red edges when hurt) instead of lines of text.
 - 2026-11-14: **flows you can see.** While a weave forms, one bright thread per
   flow, in its Power's colour, circles the weaver and closes on the hands. **Impact:**
   a struck Trolloc flashes white and hangs for a few frames, and your own hits

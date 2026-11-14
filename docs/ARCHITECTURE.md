@@ -170,12 +170,32 @@ peasant/ranger) and drives it with the Universal Animation Library.
   test bench and crowds of background people. Do not use it for players.
 
 ## View (src/game)
-`camp.tscn` is the main scene: the hub. It lists saved characters, runs character
-creation, shows the activity board from `Rules.available`, and hands the choice to
-`game.tscn` through the static `Launch.args`; the game returns to it with a report.
-Command-line flags (`--auto`, `--activity=`, `--join=`) skip the camp, which is what
-bots and renders use. The camp is a menu over a 3D backdrop for now; a walkable camp
-can replace the backdrop without changing that flow.
+`camp.tscn` is the main scene: the hub, and you walk it (same controls as a fight:
+WASD, click to look around, Esc frees the mouse).
+- **Activities are doorways.** `camp.gd` `_doors` stands one stone doorway per row
+  of `data/activities.json` in an arc (`Scenery.doorway`, `shaders/portal.gdshader`);
+  an open one glows in the colour of its kind, a closed one is dark and says what
+  it needs. Stepping into an open one calls `_go`, which hands the choice to
+  `game.tscn` through the static `Launch.args`. You come back out of the doorway you
+  left by (`Launch.last_activity`). A new activity is a new row, nothing else.
+- The character sheet stays on the left. There is no right-hand panel: the server,
+  joining a friend and quitting are behind Esc (`_menu_fill`).
+- **The weave tree** (`weavetree.gd`, T) is a wheel of the Five Powers: each Power
+  has a point on the rim where its simplest weave sits, weaves that join Powers sit
+  between them and further in by how many weaves they wait on, and Balefire is the
+  hub. Positions are computed from `flows` and `needs`, so a new weave places
+  itself. Click an open weave to study it.
+- `glyph.gd` draws a weave the same way everywhere (tree and HUD): a disc ringed by
+  one arc per flow in its Power's colour, the flows crossing inside.
+- `hud.gd` draws the fight's HUD by hand from the game view's state: name, strength
+  and flow pips; health and stamina bars; the known weaves as glyphs with a
+  clock-face cooldown; a crosshair ring that fills as the chosen weave comes
+  ready; other players' names and health; red edges when hurt.
+- UI is laid out for 1280x720 and scaled to the window (`project.godot` stretch
+  mode `canvas_items`, aspect `expand`).
+- Command-line flags (`--auto`, `--activity=`, `--join=`) skip the camp, which is
+  what bots and renders use. To render the camp itself: `--who=Name`,
+  `--show=tree|menu`, `--stroll=N` (walk to doorway N), `--new` (creation).
 
 `game.gd` is the activity view. It owns a `Session`, sends intent, and mirrors
 snapshots and events: players are `Hero`es driven by clips, enemies are `Walker`s

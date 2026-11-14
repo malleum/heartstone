@@ -23,7 +23,8 @@ var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
 var variants: Array = []       # generated Trolloc data, shared between enemies
-var hud: Label
+var hud: Hud
+var hurt_t := 0.0              # 1 when just struck, fading: the HUD reddens the edges
 var banner: Label
 var known: Array = []
 var last_refusal := ""
@@ -375,7 +376,10 @@ func _on_snapshot(s: Dictionary) -> void:
 		var a: Dictionary = actors[id]
 		a.target = Vector3(e[1], 0, e[2]); a.yaw = e[3]
 		_status(a, e[6])
+		a.hp = e[4]
 		if id == session.my_id:
+			if e[4] < my_hp - 0.5:
+				hurt_t = 1.0
 			my_hp = e[4]; my_stamina = e[5]
 	for f in s.fx:
 		if not fx.has(f[0]):
@@ -457,37 +461,25 @@ func _draw_fx(_dt: float) -> void:
 
 func _hud() -> void:
 	var layer := CanvasLayer.new(); add_child(layer)
-	hud = Label.new(); hud.position = Vector2(18, 14); layer.add_child(hud)
-	hud.add_theme_font_size_override("font_size", 17)
-	hud.add_theme_color_override("font_outline_color", Color.BLACK); hud.add_theme_constant_override("outline_size", 5)
+	hud = Hud.new(); hud.g = self; layer.add_child(hud)
 	banner = Label.new(); layer.add_child(banner)
 	banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	banner.offset_top = 90; banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner.add_theme_font_size_override("font_size", 28)
-	banner.add_theme_color_override("font_outline_color", Color.BLACK); banner.add_theme_constant_override("outline_size", 6)
-	var cross := Label.new(); cross.text = "+"; layer.add_child(cross)
-	cross.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	cross.add_theme_font_size_override("font_size", 22)
-	cross.add_theme_color_override("font_outline_color", Color.BLACK); cross.add_theme_constant_override("outline_size", 4)
+	banner.offset_top = 110; banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_theme_font_override("font", Glyph.serif())
+	banner.add_theme_font_size_override("font_size", 32)
+	banner.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
+	banner.add_theme_color_override("font_outline_color", Color.BLACK); banner.add_theme_constant_override("outline_size", 8)
 
 var _banner_t := 0.0
 func _banner(text: String, secs: float) -> void:
 	banner.text = text; _banner_t = secs
 
 func _draw_hud() -> void:
-	_banner_t -= get_process_delta_time()
+	var dt := get_process_delta_time()
+	hurt_t = maxf(hurt_t - dt * 2.5, 0.0)
+	_banner_t -= dt
 	if _banner_t <= 0.0 and not _done:
 		banner.text = ""
-	var lines := ["%s   strength %s of %s   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(Rules.strength(profile))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
-		"Health %d" % int(maxf(my_hp, 0.0)),
-		"Stamina %s %d%%   weaves at %d%% strength: %s" % ["|".repeat(int(ceil(20.0 * my_stamina / Rules.TUNE.stamina))).rpad(20, "."), int(100.0 * my_stamina / Rules.TUNE.stamina), int(100.0 * Rules.vigor(my_stamina)), Rules.level_name(Rules.level_of(Rules.strength(profile) * Rules.vigor(my_stamina)))], ""]
-	for i in known.size():
-		var w: Dictionary = Rules.weaves[known[i]]
-		var wait: float = ready_at.get(known[i], 0.0) - clock
-		lines.append("%s %d  %s  %s" % [">" if i == selected else "  ", i + 1, w.name, "%.1f s" % wait if wait > 0.0 else "ready"])
-	if refusal_t > 0.0:
-		lines.append(""); lines.append("Cannot weave: " + last_refusal)
-	hud.text = "\n".join(lines)
 
 var _done := false
 func _on_finished(success: bool, report: Array) -> void:
