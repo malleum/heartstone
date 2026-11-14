@@ -51,7 +51,9 @@ func _init() -> void:
 		check(sim.success, act + " is winnable by the bot")
 		for line in Progression.award(p, tl, act, sim.success):
 			print("    + ", line)
-	check(p.weaves.has("hammer_of_air") and p.weaves.has("dome_of_air"), "weaves learned carry between activities")
+	check(p.weaves.has("hammer_of_air") and p.seen.has("dome_of_air"), "weaves taught and seen carry between activities")
+	check(p.get("study", "") != "" and p.study_done > 0.0, "channelling works out the weave being studied")
+	check(Rules.study_options(p).has("dome_of_air") and not Rules.study_options(p).has("blossoms_of_fire"), "the weave tree gates on what you know")
 	check(not Rules.available(p).has("tarwins_gap_night"), "the long night is gated on renown")
 
 	print("== save / load")

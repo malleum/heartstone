@@ -171,6 +171,28 @@ static func flow_capacity(p: Dictionary) -> int:
 			n = i
 	return n
 
+## The weave tree: what this character could study now, and what is still out of
+## reach with the weaves it is waiting on. One weave is studied at a time.
+static func study_options(p: Dictionary) -> Array:
+	var out := []
+	for id in weaves:
+		if p.weaves.get(id, {}).get("known", false) or weaves[id].book > p.book_limit:
+			continue
+		if missing_for(p, id).is_empty():
+			out.append(id)
+	return out
+
+static func missing_for(p: Dictionary, weave_id: String) -> Array:
+	var out := []
+	for n in weaves[weave_id].get("needs", []):
+		if not p.weaves.get(n, {}).get("known", false):
+			out.append(n)
+	return out
+
+## Channelling needed to work a weave out; half if you have seen it woven.
+static func study_cost(p: Dictionary, weave_id: String) -> float:
+	return weaves[weave_id].get("study", 5000.0) * (0.5 if p.get("seen", []).has(weave_id) else 1.0)
+
 ## Activities this character may start, in table order.
 static func available(p: Dictionary) -> Array:
 	var out := []

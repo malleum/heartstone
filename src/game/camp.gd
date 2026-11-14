@@ -118,6 +118,25 @@ func _select(name_: String) -> void:
 	for id in profile.weaves:
 		if Rules.weaves.has(id):
 			_text(side, "%s   mastery %d" % [Rules.weaves[id].name, Rules.mastery_level(profile, id)], 15)
+	# The weave tree: one weave is worked out at a time, by channelling anything.
+	_text(side, "Study", 20)
+	var studying: String = profile.get("study", "")
+	if studying != "" and Rules.weaves.has(studying):
+		_text(side, "Working out %s: %d%%" % [Rules.weaves[studying].name, int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, studying))], 15, Color(0.95, 0.85, 0.55))
+	for id in Rules.study_options(profile):
+		if id != studying:
+			var wv: Dictionary = Rules.weaves[id]
+			_button(side, "Study %s  (%s%s)" % [wv.name, " + ".join(wv.flows.keys().map(func(e: String) -> String: return e.capitalize())), ", seen woven" if profile.seen.has(id) else ""], func() -> void:
+				# Changing your mind loses what was worked out so far.
+				profile.study = id; profile.study_done = 0.0
+				Profile.save(profile); _select(profile.name))
+	var locked := []
+	for id in Rules.weaves:
+		var miss := Rules.missing_for(profile, id)
+		if not profile.weaves.has(id) and not miss.is_empty() and Rules.weaves[id].book <= profile.book_limit:
+			locked.append("%s needs %s" % [Rules.weaves[id].name, ", ".join(miss.map(func(m: String) -> String: return Rules.weaves[m].name))])
+	if not locked.is_empty():
+		_text(side, "\n".join(locked), 13, Color(0.6, 0.62, 0.68))
 	if Launch.report.size() > 0:
 		_text(side, "Last time out", 20)
 		_text(side, "\n".join(Launch.report), 15, Color(0.95, 0.85, 0.55))

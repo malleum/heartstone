@@ -209,6 +209,25 @@ cannot make the weaves they could that morning.
   Water Lash of Water, Spirit Blade of Spirit. The one you start with ignores the
   spoiler setting (Heave the Ground is cited to book 14).
 
+### The weave tree (game choice)
+Study one weave at a time; channelling anything works it out, and having seen it
+woven halves the work. "Work" is in the game's draw units: a bot channels about
+12,000 an hour.
+
+| Weave | Needs first | Work |
+| --- | --- | --- |
+| Fireball, Hammer of Air, Heave the Ground, Lash of Water, Blade of Spirit | nothing | 2,500 each |
+| Dome of Air | Hammer of Air | 6,000 |
+| Arrows of Fire | Fireball, Heave the Ground | 6,000 |
+| Healing | Lash of Water, Blade of Spirit | 8,000 |
+| Lightning | Fireball, Hammer of Air | 10,000 |
+| Shield from the Source | Blade of Spirit | 10,000 |
+| Rolling Ring | Heave the Ground, Fireball | 20,000 |
+| Blossoms of Fire | Arrows of Fire, Hammer of Air | 30,000 |
+| Gateway | Shield from the Source | 40,000 |
+| Deathgate | Gateway, Arrows of Fire | 80,000 |
+| Balefire | Lightning, Blossoms of Fire, Healing | 250,000 |
+
 ### What each Power does to those it strikes (game choice)
 | Power | Effect | Weaves |
 | --- | --- | --- |

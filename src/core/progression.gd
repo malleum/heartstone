@@ -51,13 +51,35 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 	if Rules.flow_capacity(p) > flows_before:
 		out.append("You can now hold %d flows at once" % Rules.flow_capacity(p))
 
+	# The weave being studied is worked out by channelling, whatever you channel. If
+	# none was chosen, the nearest one is, so no practice is wasted.
+	if p.get("study", "") == "" or not Rules.study_options(p).has(p.study):
+		p.study = ""; p.study_done = 0.0
+		for id in Rules.study_options(p):
+			if p.study == "" or Rules.study_cost(p, id) < Rules.study_cost(p, p.study):
+				p.study = id
+		if p.study != "":
+			out.append("You begin working out %s" % Rules.weaves[p.study].name)
+	if p.study != "":
+		p.study_done = p.get("study_done", 0.0) + draw
+		if p.study_done >= Rules.study_cost(p, p.study):
+			p.weaves[p.study] = {known = true, xp = 0.0}
+			out.append("Learned %s" % Rules.weaves[p.study].name)
+			p.study = ""; p.study_done = 0.0
+		else:
+			out.append("%s: %d%% worked out" % [Rules.weaves[p.study].name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
+
 	if success:
+		for id in act.get("shows", []):
+			if not p.seen.has(id) and not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
+				p.seen.append(id)
+				out.append("You saw %s woven" % Rules.weaves[id].name)
 		var first: bool = not p.done.has(activity_id)
 		p.done[activity_id] = p.done.get(activity_id, 0) + 1
 		var ren: float = act.renown * (1.0 if first else T.repeat_renown)
 		p.renown += ren
 		out.append("Renown +%.0f (%d)" % [ren, int(p.renown)])
-		# Weaves are learned by seeing them woven.
+		# The training yard hands its weaves over outright.
 		for id in act.get("teaches", []):
 			if not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
 				p.weaves[id] = {known = true, xp = 0.0}

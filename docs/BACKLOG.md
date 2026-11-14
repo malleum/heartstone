@@ -15,9 +15,11 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   spears, sweeps for axes, and a hit reaction on the player that matches.
 
 ## Character and progression
-- [ ] **A skill tree for weaves,** researched one at a time.
+- [ ] **The weave tree as a drawn tree.** The rules and a list in the camp exist (see
+  Done); it is not yet a picture you can read at a glance.
 - [ ] **More character customisation:** face, body and so on.
-- [ ] **More clothing options.** Asha'man need a black coat.
+- [ ] **More clothing options.** The long coat exists (see Done). Still wanted:
+  Asha'man collar pins and sword, Cairhienin slashes, nobles' silks, armour.
 - [ ] **Casting by drawing** a shape after choosing the Powers (see VISION.md).
 
 ## Other classes
@@ -43,6 +45,14 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **weave tree.** Every weave lists the weaves you must know first and
+  how much channelling it takes to work out. You study one at a time, chosen in
+  the camp; any channelling advances it; having seen it woven in an activity
+  halves the work; changing your mind loses the progress. The training yard still
+  hands over Fireball and Hammer of Air outright.
+- 2026-11-14: **long coat** for men, generated like the skirts: the Asha'man black
+  coat and a red Andoran coat. Knockdown checked in a render; the water weave now
+  sprays blue.
 - 2026-11-14, combat pass (assumed numbers are in PLAYTEST.md items 19-22):
   - **Cooldowns** on every weave, shown beside each weave on the HUD.
   - **Fire burns** (and a burning Trolloc sets you alight when it hits you); **Air

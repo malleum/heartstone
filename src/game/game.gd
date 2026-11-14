@@ -42,7 +42,8 @@ func _ready() -> void:
 	var name_: String = args.get("name", "Novice")
 	profile = Profile.load_profile(name_)
 	if profile.is_empty():
-		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {fire = 4, earth = 2}})
+		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
+		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
 	known = profile.weaves.keys()
 	# Generate the cast before the fight so nothing hitches mid-wave.
 	var specs := []
@@ -143,7 +144,7 @@ func _process(dt: float) -> void:
 	if args.has("auto") and session.is_host:
 		# --stand: the bot holds its ground and weaves only now and then, so melee,
 		# burning and knockdowns can be watched up close in a render.
-		if not args.has("stand") or frame % 300 < 45:
+		if not args.has("stand") or frame % 150 < 45:
 			Bot.drive(session.sim, session.my_id)
 		if args.has("stand"):
 			session.sim.set_input(session.my_id, Vector3.ZERO, session.sim.ents[session.my_id].yaw)

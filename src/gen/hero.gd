@@ -28,7 +28,10 @@ const LOOKS := {
 	two_rivers_m = {label = "Two Rivers wool", sex = "m", base = "male_peasant", p = Color(0.76, 0.72, 0.6), s = Color(0.09, 0.07, 0.05)},
 	farmer_cloak = {label = "Two Rivers, cloaked", sex = "m", base = "male_peasant", p = Color(0.5, 0.52, 0.42), s = Color(0.1, 0.09, 0.07),
 		cloak = [Color(0.2, 0.14, 0.09), 0, Color.WHITE]},
-	ashaman = {label = "Asha'man black", sex = "m", base = "male_ranger", hide = ["Hood", "Pauldron"], p = Color(0.035, 0.035, 0.04), s = Color(0.02, 0.02, 0.025)},
+	ashaman = {label = "Asha'man black coat", sex = "m", base = "male_ranger", hide = ["Hood", "Pauldron"], p = Color(0.035, 0.035, 0.04), s = Color(0.02, 0.02, 0.025),
+		coat = [Color(0.03, 0.03, 0.035), 4, Color(0.09, 0.09, 0.1)]},
+	merchant = {label = "Long coat (Andor)", sex = "m", base = "male_peasant", p = Color(0.36, 0.08, 0.08), s = Color(0.12, 0.1, 0.09),
+		coat = [Color(0.33, 0.07, 0.07), 4, Color(0.7, 0.58, 0.25)]},
 	aiel_m = {label = "Aiel cadin'sor", sex = "m", base = "male_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
 	warder = {label = "Warder (fancloth cloak)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.17, 0.2, 0.15), s = Color(0.07, 0.07, 0.06),
 		cloak = [Color(0.2, 0.2, 0.18), 3, Color.WHITE]},
@@ -99,7 +102,7 @@ static func instantiate(look_id: String, seed := 0) -> Node3D:
 		# Trousers under a skirt only ever show as a knee poking through the cloth.
 		if look.has("skirt") and n.ends_with("_Legs"):
 			m.visible = false
-		if n in ["Skirt", "Cloak", "Shawl"]:
+		if n in ["Skirt", "Cloak", "Shawl", "Coat"]:
 			var spec: Array = look.get(n.to_lower(), [])
 			m.visible = not spec.is_empty()
 			if m.visible:

@@ -126,6 +126,23 @@ def garments(arm, female):
             rows.append(ring)
         sheet("Skirt", arm, rows, True)
 
+    # Coat: the skirts of a long coat, belted at the waist, open down the front and
+    # falling to the knee. With the tunic above recoloured it reads as one garment;
+    # the Asha'man black coat is this.
+    if not female:
+        rows = []; top = hip.z + 0.11; hem = 0.50; N = 29
+        for j in range(9):
+            t = j / 8.0; z = top + (hem - top) * t; ring = []
+            for i in range(N):
+                u = i / (N - 1) * 2.0 - 1.0; a = u * math.radians(168)     # 0 = back, +-168 = front edges
+                fold = 1.0 + 0.03 * math.sin(u * 9.0) * smooth(0.2, 1.0, t)
+                rx = ((tw + 0.035) + 0.07 * t) * fold
+                ry = ((td + 0.04) + 0.08 * t) * fold
+                x = math.sin(a) * rx
+                ring.append((Vector((x, cy + math.cos(a) * ry, z)), legs(x, t * 0.5)))
+            rows.append(ring)
+        sheet("Coat", arm, rows, False)
+
     # Cloak: clasped at the throat, thrown back behind the arms, down to the calves.
     rows = []; top = neck.z + 0.01; hem = 0.24; N = 21
     for j in range(13):

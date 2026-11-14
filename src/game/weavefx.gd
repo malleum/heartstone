@@ -232,7 +232,7 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 		"cone":
 			# Hammer of Air: a pressure ring thrown forward, widening as it goes.
 			var ring := TorusMesh.new(); ring.inner_radius = 0.85; ring.outer_radius = 1.0
-			var mi := _mesh(ring, Color(0.8, 0.9, 1.0, 0.5), 2.5)
+			var mi := _mesh(ring, Color(col.lerp(Color.WHITE, 0.35), 0.5), 2.5)
 			g.add_child(mi)
 			mi.position = from + e.dir * 0.8
 			mi.basis = Basis.looking_at(e.dir, Vector3.UP) * Basis(Vector3.RIGHT, PI * 0.5)
@@ -242,7 +242,9 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			tw.tween_property(mi, "scale", Vector3.ONE * b.range * 0.45, 0.28)
 			tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.3)
 			tw.chain().tween_callback(mi.queue_free)
-			_once(_particles(Color(0.6, 0.56, 0.5), 24, 0.7, 0.9, 6.0, 0.5, 30.0, false), g, feet + e.dir * 2.0 + Vector3(0, 0.3, 0))
+			# Water goes out as spray; Air only lifts the dust.
+			var wet: bool = Rules.weaves[e.weave].flows.has("water")
+			_once(_particles(TINT.water.lerp(Color.WHITE, 0.3) if wet else Color(0.6, 0.56, 0.5), 70 if wet else 24, 0.7, 0.35 if wet else 0.9, 9.0 if wet else 6.0, -6.0 if wet else 0.5, 30.0, wet), g, feet + e.dir * 2.0 + Vector3(0, 0.6, 0))
 			Sfx.play(g, "thud", from, 4.0, 0.7)
 		"barrier":
 			var s := SphereMesh.new(); s.radius = 1.0; s.height = 2.0

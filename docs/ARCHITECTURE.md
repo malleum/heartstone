@@ -43,6 +43,11 @@ for lack of stamina.
   the strength used for `level` gates. So a tired channeller weaves weak and cheap,
   and loses gateways. It replaced a 100-point pool that refilled in 15 seconds and
   was never shown on screen.
+- **The weave tree** is two fields on a row: `needs` (weaves known first) and
+  `study` (channelling to work it out, halved if the weave is in `profile.seen`).
+  `profile.study` is the one weave being studied; `Progression.award` pays every
+  activity's draw into it and picks the cheapest open weave if none is chosen.
+  Activities `show` weaves (seen) and only the training yard `teaches` outright.
 - **Cooldowns** (`cooldown` on a row) are kept per player in the sim; the view
   mirrors its own from the cast event for the HUD.
 - **What a weave leaves behind** is data: `on_hit` (burn, stun, down), `self` (share
@@ -138,7 +143,7 @@ peasant/ranger) and drives it with the Universal Animation Library.
 - **Looks are data** (`Hero.LOOKS` plus seven generated Aes Sedai Ajahs): base model,
   pieces to hide, two cloth colours, and optional garments. `shaders/outfit.gdshader`
   recolours the pack's cloth by finding it in the atlas by colour, leaving leather and
-  metal alone. Skirt, cloak and shawl are generated in Blender by the same script as
+  metal alone. Skirt, cloak, shawl and the men's long coat are generated in Blender by the same script as
   lofted sheets with hand-written skin weights (weights copied from the body make a
   skirt behave like trousers) and drawn by `shaders/garment.gdshader`, where UV.y runs
   from the top edge to the hem so bands, trim, fringe and fancloth are a line each.
