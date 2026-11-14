@@ -16,3 +16,6 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 11 | Player model in motion: jog, cast, hit and death clips on the sourced heroes; turning to face the target on a cast | Looks right in stills; feet are not IK-planted on slopes; no strafe clips exist | `src/gen/hero.gd`, `game.gd` `_draw_actors` |
 | 6 | Trolloc walk and run: weight, lumber, arm swing | Looks right in stills and frame sheets only | `src/anim/walker.gd` |
 | 7 | Hit-react strength and death fall | Readable in frame sheets; death is a stiff topple | `Walker.hit`, `Walker.compute` |
+| 12 | Sound: cast hum and whoosh, explosion, lightning crack, earth rumble, hits. Volume, pitch, whether any of it is harsh | Synthesized from maths; never heard by anyone | `src/game/sfx.gd` |
+| 13 | Camp: character creation choices and wording, activity board, returning with Enter, abandoning with F10 | Menu over a 3D backdrop; 20 creation points | `src/game/camp.gd` |
+| 14 | Other weave effects (lightning, Riven Earth, Hammer of Air, shield, balefire) once learned | Checked in stills only | `src/game/weavefx.gd` |

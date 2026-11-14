@@ -47,6 +47,17 @@ of systems. You pick what to do from the camp, for fun or for progress.
 **Not open world.** Small and dense beats big and hollow. A camp, a handful of
 maps, and missions that give a sense of going somewhere.
 
+## Casting by drawing (wanted, not built)
+Josh's idea: instead of picking a finished weave from a list, you choose the Powers
+you are going to weave (say Fire and Air) and then draw a shape on the screen; the
+flows plus the shape decide the weave. It fits the fiction, since a weave is flows
+laid in a pattern, and it would make knowing a weave a skill of the hands as well as
+a row on a sheet. Open questions for when it is built: whether drawing happens in
+real time under pressure or slows the world, how forgiving recognition is, and
+whether number keys stay as a fallback. The current select-and-click casting is the
+stand-in until then; the rules layer only needs a weave id, so either input can
+drive it.
+
 ## Co-op
 Online co-op for 1 to 6 players; PvE is the focus. Friends should matter
 mechanically: linking, Healing that cannot target yourself, a Warder guarding a

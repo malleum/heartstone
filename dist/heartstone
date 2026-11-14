@@ -3,7 +3,8 @@
 # On NixOS the game binary needs a conventional Linux library layout, which the
 # repo's flake provides (first run downloads it). Elsewhere it runs directly.
 here=$(dirname "$(readlink -f "$0")")
-if [[ -e /etc/NIXOS && -z ${NIX_LD:-} ]]; then
+# nix-ld is not enough: it supplies a loader but not the display and audio libraries.
+if [[ -e /etc/NIXOS ]]; then
   exec nix run "$(cd "$here/.." && pwd)#fhs" -- "$here/heartstone.x86_64" "$@"
 fi
 exec "$here/heartstone.x86_64" "$@"

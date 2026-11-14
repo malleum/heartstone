@@ -93,10 +93,21 @@ peasant/ranger) and drives it with the Universal Animation Library.
   test bench and crowds of background people. Do not use it for players.
 
 ## View (src/game)
-`game.gd` is the main scene. It owns a `Session`, sends intent, and mirrors
+`camp.tscn` is the main scene: the hub. It lists saved characters, runs character
+creation, shows the activity board from `Rules.available`, and hands the choice to
+`game.tscn` through the static `Launch.args`; the game returns to it with a report.
+Command-line flags (`--auto`, `--activity=`, `--join=`) skip the camp, which is what
+bots and renders use. The camp is a menu over a 3D backdrop for now; a walkable camp
+can replace the backdrop without changing that flow.
+
+`game.gd` is the activity view. It owns a `Session`, sends intent, and mirrors
 snapshots and events: players are `Hero`es driven by clips, enemies are `Walker`s
-that chase their sim position with their own gait, weaves are `Weavefx`
-placeholders.
+that chase their sim position with their own gait.
+- `Weavefx` draws every weave kind from primitives, particles and lights; `Sfx`
+  synthesizes every sound from maths at startup (no audio files). `-- --auto
+  --fxdemo` fires each effect in turn for review in a render.
+- Trolloc attacks are a lunge borrowed from the hit spring; a real attack animation
+  is still owed.
 - Camera: an orbit camera over the right shoulder; pitch tilts the view itself.
 - The character faces where it runs and turns to the target when it weaves, because
   the library has a forward jog but no strafes.
@@ -110,6 +121,11 @@ placeholders.
   the horde bench. Godot 4.7, Forward+.
 - `tools/render.sh` renders on the real GPU through a headless sway compositor and
   writes PNG frames. `godot --headless` disables rendering and is for scripts only.
+- **Standalone build:** `tools/export.sh` exports to `dist/` (committed). Josh tests on
+  another NixOS machine, so run it and commit `dist/` before asking for a hands-on
+  test, not on every commit. `dist/heartstone` is the launcher: the official export
+  template is a generic Linux binary, so on NixOS it runs inside the flake's `fhs`
+  environment (nix-ld alone lacks the display libraries).
 - Blender is available. `blender -b --python script.py` for batch work;
   `tools/bl.py '<python>'` runs code in Josh's open Blender when the Blender Lab MCP
   add-on is enabled (port 9876).
@@ -124,9 +140,9 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 | `assets/quaternius/animation_library.glb` | Quaternius: Universal Animation Library, older rig, from opengameart.org | CC0 1.0 (`LICENSE.txt` beside it) | Skeleton and clips for generated humans |
 
 ## Next steps, in order
-1. Weave effects and game feel (flows, fire, lightning, hit-stop, shake, sound).
-2. Camp hub: activity board from `Rules.available`, character creation, join a
-   friend. Until then, pick with `--activity=` and `--name=`.
-3. Trolloc attack animation and more kit variety.
+1. Tarwin's Gap as a real map (walls, chokepoints, a line to hold).
+2. Trolloc attack animation and more kit variety.
+3. Visible flows while a weave forms; hit-stop; a second effects pass after Josh
+   has seen and heard the first.
 4. Client interpolation; send each player's look to the others.
-5. Tarwin's Gap as a real map, then one linear mission.
+5. One linear mission; then casting by drawing (see VISION.md).

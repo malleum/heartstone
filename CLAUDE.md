@@ -41,7 +41,8 @@ when working on abilities).
 - `src/gen/species.gd`: creature tables (data). `creature.gd`: skeleton, body, build.
 - `src/gen/heads.gd`, `faces.gd`: head recipes. `gear.gd`, `wardrobe.gd`: armour, clothes.
 - `src/anim/walker.gd`: procedural gait (planted feet, IK legs, hit-react, death).
-- `src/game/`: the playable view (main scene). `-- --auto` lets a bot play it.
+- `src/game/`: `camp` (hub, main scene), `game` (activity view), `weavefx`, `sfx`,
+  `launch`. `-- --auto` skips the camp and lets a bot play; add `--fxdemo` to review effects.
 - `src/gen/hero.gd`: player characters (sourced Quaternius models and clips), built by
   `tools/blender/build_heroes.py`. `human_rig.gd`: older generated humans, bench only.
 - `tools/bl.py`: run Python in the user's open Blender (full permission granted).
@@ -61,6 +62,8 @@ when working on abilities).
   No pull requests unless asked. Don't commit large render outputs.
 
 ## Working with the user
+- They test on another NixOS machine. Before asking for a hands-on test, run
+  `tools/export.sh` and commit `dist/`. Batch a lot of work between test requests.
 - They are not watching live. Say what you are about to do, then do it.
 - Ask before anything destructive, any system-wide change, or anything expensive to
   reverse.
