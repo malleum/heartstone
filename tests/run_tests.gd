@@ -37,6 +37,82 @@ func run(sim: Sim, secs: float) -> Array:
 		sim.events.clear()
 	return seen
 
+func _powers() -> void:
+	print("== what each Power does, gateways, Healing")
+	Map.use("open")
+	var p := Profile.create({name = "Powers", potential_pts = 14, affinity_pts = {spirit = 2, air = 2}})
+	for w in ["lightning", "blade_of_spirit", "gateway", "healing", "fireball"]:
+		p.weaves[w] = {known = true, xp = 0.0}
+	p.channelled = Rules.TUNE.flow_steps[4]
+	# Lightning: survivors run wild, and the next blow sends the charge on.
+	var sim := Sim.new("camp_training", 3)
+	sim._waves = []
+	var id := sim.add_player(p)
+	for i in 3:
+		sim._add_enemy("trolloc", Vector3(i * 1.5 - 1.5, 0, 14.0))
+		sim.ents[id + 1 + i].hp = 5000.0
+	var a: Dictionary = sim.ents[id + 1]; var b: Dictionary = sim.ents[id + 2]
+	sim._hurt(a, 10.0, id, "lightning")
+	check(a.get("charge", 0.0) > 0.0, "lightning leaves a survivor charged")
+	a.stagger = 0.0; a.speed = 3.0; b.speed = 3.0
+	var z0: float = a.pos.z; var z1: float = b.pos.z
+	run(sim, 1.5)
+	check((z0 - a.pos.z) > (z1 - b.pos.z) * 1.25, "a charged Trolloc runs faster than the others")
+	var hp_b: float = b.hp
+	var seen := []
+	sim._hurt(a, 5.0, id, "fireball")
+	for e in sim.events: seen.append(e.e)
+	check(seen.has("arc") and b.hp < hp_b and a.charge == 0.0, "the next blow sends the charge to its neighbours")
+	# Spirit: dazed, it does not attack; and a Myrddraal cannot slip it.
+	sim = Sim.new("camp_training", 3)
+	sim._waves = []
+	id = sim.add_player(p)
+	sim._add_enemy("trolloc", Vector3(0, 0, 1.6))
+	sim._hurt(sim.ents[id + 1], 1.0, id, "blade_of_spirit")
+	seen = run(sim, 2.5)
+	check(not seen.has("swing") and sim.ents[id].hp == sim.ents[id].max_hp, "a Trolloc dazed by Spirit does not attack")
+	check(run(sim, 3.0).has("swing"), "and comes back to itself")
+	sim._add_enemy("myrddraal", Vector3(0, 0, 30.0))
+	var fade: Dictionary = sim.ents[id + 2]
+	var landed := 0
+	for i in 40:
+		var h0: float = fade.hp
+		fade.daze = 0.0
+		sim._hurt(fade, 0.01, id, "blade_of_spirit")
+		if fade.hp < h0: landed += 1
+	check(landed == 40, "a Myrddraal cannot step aside from Spirit")
+	# A gateway: step in here, step out there; closed when it is let go.
+	sim = Sim.new("camp_training", 3)
+	sim._waves = []
+	id = sim.add_player(p)
+	sim._add_enemy("dummy", Vector3(60, 0, -60))
+	var me: Dictionary = sim.ents[id]
+	me.yaw = 0.0
+	check(sim.request_cast(id, "gateway", Vector3(0, 0, 40)) == "", "someone strong enough can open a gateway")
+	run(sim, 3.0)
+	check(me.held.size() == 1 and sim.effects.size() == 1, "it stays open while held")
+	sim.set_input(id, Vector3(0, 0, 1), 0.0)
+	seen = run(sim, 1.5)
+	check(seen.has("gate_pass") and me.pos.z > 35.0, "walking into it comes out forty paces away (z=%.0f)" % me.pos.z)
+	sim.set_input(id, Vector3.ZERO, 0.0)
+	sim.request_cast(id, "gateway", me.pos)
+	run(sim, 0.3)
+	check(sim.effects.is_empty() and me.held.is_empty(), "weaving it again closes it")
+	var weak := Profile.create({name = "Weak", potential_pts = 2})
+	weak.weaves["gateway"] = {known = true, xp = 0.0}
+	check(Rules.cast_block(weak, "gateway", 9, 1500.0).begins_with("needs strength"), "the weak cannot make a gateway at all")
+	# Healing: someone else, in reach; and it ends a festering wound.
+	sim = Sim.new("camp_training", 3)
+	sim._waves = []
+	id = sim.add_player(p)
+	check(sim.request_cast(id, "healing", sim.ents[id].pos).begins_with("no one there"), "Healing alone is refused: you cannot Heal yourself")
+	var friend := sim.add_player(Profile.create({name = "Friend"}), Vector3(3, 0, 0))
+	sim._add_enemy("dummy", Vector3(60, 0, -60))
+	sim.ents[friend].hp = 20.0; sim.ents[friend].fester = 9.0; sim.ents[friend].fester_dps = 0.0
+	check(sim.request_cast(id, "healing", sim.ents[friend].pos) == "", "Healing a friend is allowed")
+	run(sim, 2.5)
+	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].fester == 0.0, "it mends them and ends the festering")
+
 func _foes() -> void:
 	print("== walls, archers and the Eyeless")
 	var p := Profile.create({name = "Stander", cls = "warder", stat_pts = {endurance = 4}})
@@ -437,5 +513,6 @@ func _init() -> void:
 	_arms()
 	_holds()
 	_foes()
+	_powers()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

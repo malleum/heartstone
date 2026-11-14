@@ -6,11 +6,8 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 ## Combat feel and rules
-- [ ] **Each Power does something of its own:** the first pass is built (see Done).
-  Still wanted: lightning that briefly charges and speeds them instead of stunning,
-  Spirit with an effect of its own, and every effect made unmistakable on screen.
-- [ ] **Stun sparks and the thrown slide have not been seen in a render.** Burning
-  flames, the knockdown, the weapon swing and the fireball's flight have.
+- [ ] Effects per Power are all built (see Done). Not seen in a render: the
+  charge arc between Trollocs, the daze motes, stun sparks, the thrown slide.
 - [ ] Trolloc attacks: chop, sweep and thrust exist but are picked at random.
   Wanted: by the weapon carried, and a hit reaction on the player that matches.
 
@@ -39,9 +36,9 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   lobby that shows who is there.
 
 ## Found by looking (Claude)
-- [ ] Gateway does nothing in play.
-- [ ] Healing: the crosshair now picks a friend, but there is no marker showing
-  who will be healed, and it has not been tried with two people.
+- [ ] Gateway: the edges do not cut, and nothing uses one yet (a mission could).
+- [ ] Healing has a marker and a refusal when nobody is in reach; it has not been
+  tried with two people.
 - [ ] Other players are smoothed but not predicted; over the internet your own
   movement will lag by the round trip. Not tried over a real connection.
 - [ ] Enemies still to make: Draghkar, Darkhounds, Darkfriend channellers. Trolloc
@@ -50,6 +47,10 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **the rest of the Powers.** Lightning charges what survives it
+  (faster, and the next blow arcs to two neighbours); Spirit dazes, and a
+  Myrddraal cannot dodge it; a Gateway is two held doorways anyone can walk
+  through; Healing needs someone else in reach, shows who, and ends festering.
 - 2026-11-14: **enemies that ask questions, and a second map.** Walls are solid
   (the breastwork at Tarwin's Gap, wagons) and stop arrows and low weaves;
   Trollocs find their way round through the gaps. Trolloc archers. A Myrddraal:

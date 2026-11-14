@@ -205,6 +205,38 @@ static func knot(n: Node3D, weave: String) -> void:
 	var mi := _mesh(s, colour(weave).lerp(Color.WHITE, 0.6), 8.0); mi.position.y = 2.05
 	n.get_node("Body").add_child(mi)
 
+## A charge leaping from one body to the next.
+static func arc(g: Node3D, a: Vector3, b: Vector3) -> void:
+	var prev := a
+	for i in range(1, 7):
+		var f := i / 6.0
+		var p := a.lerp(b, f) + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.35 * sin(f * PI)
+		_fade(g, _bar(g, prev, p, 0.07, Color(0.9, 0.95, 1.0), 14.0), 0.28)
+		prev = p
+	_once(_particles(Color(0.8, 0.88, 1.0), 20, 0.3, 0.08, 5.0, -4.0, 90.0), g, b)
+	Sfx.play(g, "crack", b, -6.0, 1.8)
+
+## Both sides of a gateway: a slash of light that turns open into a doorway. The
+## returned node holds the two, and is freed when the weave is let go.
+static func gate(g: Node3D, a: Vector3, b: Vector3) -> Node3D:
+	var n := Node3D.new(); g.add_child(n)
+	for side in [[a, b], [b, a]]:
+		var q := QuadMesh.new(); q.size = Vector2(1.9, 2.9)
+		var mi := MeshInstance3D.new(); mi.mesh = q
+		var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
+		sm.set_shader_parameter("tint", Color(0.75, 0.85, 1.0)); sm.set_shader_parameter("lit", 1.0)
+		mi.material_override = sm; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		n.add_child(mi)
+		mi.position = g._ground(side[0]) + Vector3(0, 1.5, 0)
+		var away: Vector3 = (side[1] - side[0]) * Vector3(1, 0, 1)
+		mi.rotation.y = atan2(away.x, away.z)
+		# It opens from a line: narrow, then wide.
+		mi.scale = Vector3(0.02, 1.0, 1.0)
+		g.create_tween().tween_property(mi, "scale", Vector3.ONE, 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		var l := _light(Color(0.75, 0.85, 1.0), 3.0, 8.0); l.position = mi.position; n.add_child(l)
+		Sfx.play(g, "chime", mi.position, 0.0, 0.55)
+	return n
+
 ## Steel on steel: a spray of sparks, brighter for a clean parry.
 static func sparks(g: Node3D, at: Vector3, bright: bool) -> void:
 	_once(_particles(Color(1.0, 0.85, 0.5) if bright else Color(0.9, 0.75, 0.55), 40 if bright else 14, 0.35, 0.06, 7.0 if bright else 4.0, -9.0, 70.0), g, at)
@@ -234,7 +266,16 @@ static func flash(g: Node3D, who: Node3D, secs := 0.09) -> void:
 ## stunned. The caller frees it when the status ends.
 static func status(kind: String) -> Node3D:
 	var p: GPUParticles3D
-	if kind == "fester":
+	if kind == "charge":
+		# Charged by lightning: bright, quick sparks crawling over it.
+		p = _particles(Color(0.85, 0.9, 1.0), 34, 0.22, 0.1, 4.5, 0.0)
+		p.add_child(_light(Color(0.7, 0.8, 1.0), 1.6, 4.0))
+	elif kind == "daze":
+		# Dazed by Spirit: slow pale motes drifting round the head.
+		p = _particles(Color(0.9, 0.88, 1.0), 16, 1.4, 0.09, 0.35, 0.25, 180.0)
+		p.position.y = 2.1
+		return p
+	elif kind == "fester":
 		# A Myrddraal's wound: dark motes that sink instead of rising.
 		p = _particles(Color(0.25, 0.05, 0.3), 18, 0.9, 0.16, 0.4, -1.2, 90.0, false)
 	elif kind == "burn":

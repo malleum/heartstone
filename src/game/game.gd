@@ -288,6 +288,11 @@ func _process(dt: float) -> void:
 		session.send_input(move, face_yaw)
 	if args.has("fxdemo"):
 		_fx_demo(dt)
+	# --gate: open a gateway ahead early on, whatever the character's strength, so
+	# it can be looked at in a render.
+	if args.has("gate") and frame == 150 and session.is_host and me:
+		var p: Dictionary = session.sim.ents[session.my_id]
+		session.sim._cast(p, "gateway", p.pos + Vector3(sin(p.yaw), 0, cos(p.yaw)) * 14.0 + Vector3(6, 0, 0))
 	_draw_actors(dt)
 	_draw_fx(dt)
 	if me:
@@ -534,6 +539,20 @@ func _on_events(list: Array) -> void:
 					# A Trolloc archer: the arm comes up as it looses.
 					if actors[e.id].node is Walker:
 						(actors[e.id].node as Walker).attack("thrust")
+			"arc":
+				Weavefx.arc(self, e.from, e.to)
+			"gate_open":
+				fx[e.id] = Weavefx.gate(self, e.a, e.b)
+			"gate_pass":
+				# Through the gateway: there, not walked there.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					a.target = e.pos
+					if a.node is Walker:
+						(a.node as Walker).teleport(e.pos, (a.node as Walker).heading)
+					else:
+						a.node.position = _ground(e.pos)
+					Sfx.play(self, "whoosh", _ground(e.pos) + Vector3(0, 1.2, 0), -2.0, 0.7)
 			"slip":
 				# A Myrddraal is not where the blow went.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -611,6 +630,9 @@ func _on_snapshot(s: Dictionary) -> void:
 				hurt_t = 1.0
 			my_hp = e[4]; my_stamina = e[5]
 	for f in s.fx:
+		# A gateway is drawn from its own event, which carries both its ends.
+		if f[1] == "gate":
+			continue
 		if not fx.has(f[0]):
 			fx[f[0]] = Weavefx.live(self, f[1], f[6])
 		var n: Node3D = fx[f[0]]
@@ -631,7 +653,7 @@ func _status(a: Dictionary, bits: int) -> void:
 	a.status = bits
 	if not is_instance_valid(a.node):
 		return
-	for pair in [["burn", 1], ["stun", 4], ["fester", 256]]:
+	for pair in [["burn", 1], ["stun", 4], ["fester", 256], ["charge", 512], ["daze", 1024]]:
 		var key: String = "fx_" + pair[0]
 		var on: bool = bits & pair[1] and not a.get("dead", false)
 		if on and not a.has(key):
@@ -696,9 +718,35 @@ func _draw_actors(dt: float) -> void:
 			if is_instance_valid(actors[id].node) and actors[id].node is Walker:
 				walkers.erase(actors[id].node)
 	_draw_holds(dt)
+	_draw_heal_mark()
 	for w in walkers:
 		w.compute(dt)
 		w.apply()
+
+## Who a Healing thrown now would reach: a ring at their feet, so it is never a guess.
+var _heal_ring: MeshInstance3D
+func _draw_heal_mark() -> void:
+	var healing: bool = selected < known.size() and Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind == "heal" and me != null
+	var who := 0
+	if healing:
+		var at := _aim_point()
+		var reach: float = Rules.weaves[known[selected]].base.range
+		var worst := 2.0
+		for id in actors:
+			var a: Dictionary = actors[id]
+			if a.kind == "player" and id != session.my_id and not a.get("dead", false) and is_instance_valid(a.node) and Vector2(a.node.position.x - at.x, a.node.position.z - at.z).length() < reach:
+				var share: float = a.get("hp", 100.0) / 100.0
+				if share < worst:
+					worst = share; who = id
+	if who == 0:
+		if _heal_ring: _heal_ring.visible = false
+		return
+	if _heal_ring == null:
+		var t := TorusMesh.new(); t.inner_radius = 0.7; t.outer_radius = 0.82
+		_heal_ring = Weavefx._mesh(t, Color(0.5, 1.0, 0.7, 0.9), 4.0)
+		add_child(_heal_ring)
+	_heal_ring.visible = true
+	_heal_ring.position = actors[who].node.position + Vector3(0, 0.12 + 0.05 * sin(clock * 4.0), 0)
 
 ## Held weaves sit on whoever they hold and trail a thread back to the weaver.
 func _draw_holds(dt: float) -> void:

@@ -257,8 +257,17 @@ woven halves the work. "Work" is in the game's draw units: a bot channels about
 | Air | Little damage, a long throw backwards | Hammer of Air |
 | Water | Knocks them off their feet for over two seconds | Lash of Water |
 | Earth | Knocks them down briefly | Heave the Ground, Rolling Ring |
-| Lightning (Fire + Air) | Stuns | Lightning |
-| Spirit | None yet: a fast, precise bolt | Blade of Spirit |
+| Lightning (Fire + Air) | A short stun, then what survives is charged: it runs half again as fast for five seconds, and the next blow on it sends the charge leaping to its two nearest neighbours | Lightning |
+| Spirit | Dazes: no attack and no pursuit for three seconds. A Myrddraal cannot step aside from it | Blade of Spirit |
+
+### Gateway and Healing in play (game choice, on canon rules)
+- **A gateway** is held like a dome: two doorways, one a step in front of you and
+  one where you aimed (up to 70 paces). Whoever walks into either comes out of
+  the other, friend or Shadowspawn. Weaving it again closes it; it can be tied
+  off. It still needs strength 19(7) or the Talent.
+- **Healing** must reach someone else: with nobody in reach of where you aim it
+  is refused before it costs anything. A ring marks who it will reach. It ends a
+  Myrddraal's festering wound.
 - **Riven Earth and Making Fog were removed** (Josh, 2026-11-14): Fandom names with
   no flows, already covered by Heave the ground and Wind & clouds.
 

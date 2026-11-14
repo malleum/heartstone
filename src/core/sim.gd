@@ -149,6 +149,8 @@ func request_cast(id: int, weave: String, aim: Vector3) -> String:
 					return ""
 	if p.cd.get(weave, 0.0) > t:
 		return "not ready"
+	if row.get("kind", "") == "heal" and _heal_target(p, aim, row.base.range).is_empty():
+		return "no one there to Heal (you cannot Heal yourself)"
 	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.stamina)
 	if why != "":
 		return why
@@ -258,6 +260,17 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	events.append({e = "dodge", id = id, roll = rolling, dir = dir, time = d.time})
 	return ""
 
+## The friend a Healing aimed here would reach: the most hurt within reach of the
+## aim point, never the Healer.
+func _heal_target(p: Dictionary, aim: Vector3, reach: float) -> Dictionary:
+	var best: Dictionary = {}
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.kind == "player" and e.alive and e.id != p.id and e.team == p.team and Vector2(e.pos.x - aim.x, e.pos.z - aim.z).length() < reach:
+			if best.is_empty() or e.hp / e.max_hp < best.hp / best.max_hp:
+				best = e
+	return best
+
 ## Let go of a held weave (every hold of it, or only the one on `target`), and
 ## undo what it was doing.
 func release(id: int, weave: String, target := -1) -> void:
@@ -276,6 +289,10 @@ func release(id: int, weave: String, target := -1) -> void:
 		events.append({e = "release", id = id, weave = weave, target = h.target})
 	if kind == "barrier":
 		p.barrier = 0.0
+	if kind == "gate":
+		for fx in effects:
+			if fx.kind == "gate" and fx.owner == id:
+				fx.gone = true
 
 ## Held weaves cost breath for as long as they are held, come undone when their
 ## knot runs out, and are lost with the one they were fastened on.
@@ -314,6 +331,8 @@ func step(dt: float) -> void:
 	for p in players:
 		_step_player(p, dt)
 	for e in players + foes:
+		e.charge = maxf(e.get("charge", 0.0) - dt, 0.0)
+		e.daze = maxf(e.get("daze", 0.0) - dt, 0.0)
 		if e.burn > 0.0:
 			e.burn -= dt
 			_hurt(e, e.burn_dps * dt, e.burn_by, "", true)
@@ -650,14 +669,17 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					dps = b.dps * k, radius = b.radius, left = b.duration, id = _fx_id()})
 		"barrier":
 			p.barrier = b.absorb * k
+		"gate":
+			# A gateway: a hole from here to there, open while it is held (or tied).
+			# Anyone who steps into one side steps out of the other: friend or not.
+			var near_side: Vector3 = Map.clamp_pos(Map.unblock(p.pos + dir * 1.6, 0.6))
+			var far_side: Vector3 = Map.clamp_pos(Map.unblock(Vector3(at.x, 0, at.z), 0.6))
+			var gid := _fx_id()
+			effects.append({kind = "gate", owner = p.id, weave = weave, pos = near_side, to = far_side, id = gid})
+			events.append({e = "gate_open", id = gid, a = near_side, b = far_side, by = p.id})
 		"heal":
 			# Canon: you cannot Heal yourself.
-			var best: Dictionary = {}
-			for id in ents:
-				var e: Dictionary = ents[id]
-				if e.kind == "player" and e.alive and e.id != p.id and e.team == p.team and e.pos.distance_to(Vector3(at.x, 0, at.z)) < b.range:
-					if best.is_empty() or e.hp < best.hp:
-						best = e
+			var best := _heal_target(p, at, b.range)
 			if not best.is_empty():
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
 				best.fester = 0.0
@@ -731,7 +753,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		return
 	# A Myrddraal is not where the blow lands, half the time, unless something
 	# has hold of it.
-	if not quiet and e.kind == "enemy" and e.row.has("evades") and e.stagger <= 0.0 and e.get("bound_by", 0) == 0 and rng.randf() < float(e.row.evades):
+	# Spirit is not a thing to step aside from: it is woven at what the creature is.
+	var of_spirit: bool = Rules.weaves.has(weave) and Rules.weaves[weave].flows.keys() == ["spirit"]
+	if not quiet and not of_spirit and e.kind == "enemy" and e.row.has("evades") and e.stagger <= 0.0 and e.get("bound_by", 0) == 0 and rng.randf() < float(e.row.evades):
 		events.append({e = "slip", id = e.id})
 		return
 	if not quiet and Rules.weaves.has(weave):
@@ -740,6 +764,17 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			e.burn = maxf(e.burn, on.burn); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
 		if on.has("stun"):
 			e.stagger = maxf(e.stagger, on.stun)
+		# Lightning leaves what survives it charged: it runs wild and faster, and the
+		# next thing to strike it sends the charge leaping to those nearby.
+		if on.has("charge"):
+			e.charge = maxf(e.get("charge", 0.0), on.charge); e.charge_dmg = dmg * 0.4; e.charge_new = true
+		# Spirit leaves them with no purpose for a moment: no attack, no pursuit.
+		if on.has("daze"):
+			e.daze = maxf(e.get("daze", 0.0), on.daze)
+			if e.kind == "enemy":
+				e.atk = 0.0; e.swung = false; e.blow = {}
+			else:
+				e.forming = {}
 		if on.has("down") and e.kind == "enemy" and not e.row.get("steady", false):
 			e.down = maxf(e.down, on.down)
 	if e.get("barrier", 0.0) > 0.0:
@@ -750,6 +785,20 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 	e.hp -= dmg
 	if dmg > 0.0:
 		e.hurt_t = t
+	if not quiet and dmg > 0.0 and e.get("charge", 0.0) > 0.0 and not e.get("charge_new", false):
+		# The charge leaves it for the two nearest of its own kind.
+		e.charge = 0.0
+		var near := []
+		for id in ents:
+			var o: Dictionary = ents[id]
+			if o.alive and o.id != e.id and o.team == e.team and o.pos.distance_to(e.pos) < 5.0:
+				near.append(o)
+		near.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.distance_squared_to(e.pos) < b.pos.distance_squared_to(e.pos))
+		for o in near.slice(0, 2):
+			events.append({e = "arc", from = _feet(e) + Vector3(0, 1.2, 0), to = _feet(o) + Vector3(0, 1.2, 0)})
+			o.stagger = maxf(o.stagger, 0.5)
+			_hurt(o, e.get("charge_dmg", 10.0), by, weave, true)
+	e.charge_new = false
 	if not quiet:
 		events.append({e = "hit", id = e.id, dmg = dmg, by = by})
 	if e.hp <= 0.0:
@@ -830,6 +879,20 @@ func _step_effects(dt: float) -> void:
 						var at: Vector3 = fx.pos
 						at.y = Terrain.height(at.x, at.z)
 						keep.append({kind = "drop", owner = fx.owner, weapon = fx.weapon, pos = at, left = 90.0, id = _fx_id()})
+			"gate":
+				alive = not fx.get("gone", false) and owner.alive
+				for id in ents:
+					var e: Dictionary = ents[id]
+					if not alive or not e.alive or e.get("gated", 0.0) > t or e.get("row", {}).get("speed", 1.0) == 0.0:
+						continue
+					for side in [[fx.pos, fx.to], [fx.to, fx.pos]]:
+						if e.pos.distance_to(side[0]) < 1.1:
+							# Out the far side, a step clear of it, the way you were going.
+							var onward := Vector3(sin(e.yaw), 0, cos(e.yaw)) * 1.3
+							e.pos = Map.clamp_pos(Map.unblock(side[1] + onward, e.radius))
+							e.gated = t + 2.0
+							events.append({e = "gate_pass", id = e.id, pos = e.pos})
+							break
 			"drop":
 				fx.left -= dt
 				alive = fx.left > 0.0
@@ -896,6 +959,11 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		if e.get("bound_by", 0) != 0:
 			e.vel = Vector3.ZERO
 		var free: bool = not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0 and e.get("bound_by", 0) == 0
+		if free and e.get("daze", 0.0) > 0.0:
+			# Dazed by Spirit: it drifts, and does nothing it meant to.
+			free = false
+			want = Vector3(sin(e.id * 2.4 + t * 0.7), 0, cos(e.id * 2.4 + t * 0.7)) * e.speed * 0.25
+			e.yaw = atan2(want.x, want.z)
 		var shot: Dictionary = e.row.get("ranged", {})
 		var far: float = target.pos.distance_to(e.pos) if not target.is_empty() else 0.0
 		if free and not shot.is_empty() and not e.swung and far > shot.keep * 0.45:
@@ -963,6 +1031,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 						var min_d: float = e.radius + o.radius
 						if len < min_d and len > 0.001:
 							push += d / len * (min_d - len)
+		# Charged by lightning, it runs half again as fast.
+		if e.get("charge", 0.0) > 0.0:
+			want *= 1.5
 		e.move = want
 		e.pos = Map.clamp_pos(Map.unblock(e.pos + (want + e.vel) * dt + push * 0.5, e.radius))
 
@@ -1028,7 +1099,8 @@ func snapshot() -> Dictionary:
 			# Then for those who bear arms: 16 guarding, 32 ducking, 64 sidestepping or rolling.
 			var st := (1 if e.burn > 0.0 else 0) | (2 if e.down > 0.0 else 0) | (4 if e.stagger > 0.0 else 0) | (8 if e.vel.length() > 2.0 else 0) \
 				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0) \
-				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0)
+				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0) \
+				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:
