@@ -46,6 +46,7 @@ var dead := -1.0                  # seconds since death, or -1
 var downed := false               # knocked flat; gets up when cleared
 var floor_t := 0.0
 var swing_t := -1.0               # seconds into a weapon swing, or -1
+var swing_kind := "chop"          # chop | sweep | thrust: each reads differently, each is answered differently
 var dead_dir := 1.0
 var ft_pos: Array[Vector3] = [Vector3(), Vector3()]   # current ball position, world
 var ft_from: Array[Vector3] = [Vector3(), Vector3()]
@@ -97,8 +98,9 @@ func teleport(p: Vector3, yaw: float) -> void:
 		ft_yaw[i] = yaw; ft_swing[i] = false
 
 ## Start a weapon swing; the blow lands 0.4 s later.
-func attack() -> void:
+func attack(kind := "chop") -> void:
 	swing_t = 0.0
+	swing_kind = kind
 
 ## A blow from world direction dir (pointing the way the force travels).
 func hit(dir: Vector3, strength := 1.0) -> void:
@@ -299,9 +301,22 @@ func compute(dt: float) -> void:
 			# The blow lands at 0.4 s, when the sim applies the damage.
 			var up := smoothstep(0.0, 0.3, swing_t) * (1.0 - smoothstep(0.34, 0.44, swing_t))
 			var thru := smoothstep(0.34, 0.44, swing_t) * (1.0 - smoothstep(0.55, 0.85, swing_t))
-			var ang := -2.9 * up - 0.95 * thru
-			r_u = base * _rx(ang) * _rz(-sx * 0.25)
-			r_f = base * _rx(ang - 0.9 * up - 0.15 * thru) * _rz(-sx * 0.25)
+			match swing_kind:
+				"sweep":
+					# The arm goes out wide and level, then scythes across the body:
+					# a blow at head height, to be ducked.
+					var raised := maxf(up, thru)
+					var across := sx * (1.5 * up - 1.2 * thru)
+					r_u = _ry(chest_yaw + across) * _rx(-1.5 * raised) * _rz(-sx * 0.15)
+					r_f = r_u * _rx(-0.35 * up)
+				"thrust":
+					# Elbow drawn back beside the ribs, then driven straight out.
+					r_u = base * _rx(0.75 * up - 1.45 * thru) * _rz(-sx * 0.2)
+					r_f = r_u * _rx(-1.7 * up - 0.05 * thru)
+				_:
+					var ang := -2.9 * up - 0.95 * thru
+					r_u = base * _rx(ang) * _rz(-sx * 0.25)
+					r_f = base * _rx(ang - 0.9 * up - 0.15 * thru) * _rz(-sx * 0.25)
 		if floored:
 			# Limp: arms settle beside the body instead of holding a pose.
 			r_u = rot[C.CHEST] * _rz(-sx * (adrop - 0.25 * fall)) * _rx(-0.25 * fall)

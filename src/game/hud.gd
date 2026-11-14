@@ -23,7 +23,7 @@ func _draw() -> void:
 	var W := size.x / sc; var H := 720.0
 	var p: Dictionary = g.profile
 	var serif := Glyph.serif(); var sans := Glyph.sans()
-	var hp := clampf(g.my_hp / 100.0, 0.0, 1.0)
+	var hp := clampf(g.my_hp / Rules.max_hp(g.profile), 0.0, 1.0)
 	# Blood at the edges: a throb when badly hurt, a flash when struck.
 	var danger: float = clampf((0.4 - hp) / 0.4, 0.0, 1.0) * (0.5 + 0.2 * sin(t * 5.0)) + g.hurt_t * 0.5
 	if danger > 0.01:

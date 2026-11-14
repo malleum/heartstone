@@ -18,7 +18,7 @@ signal rejected(why: String)                    # could not join at all
 signal vaulted(status: String, kept: Dictionary)  # the server's character store answered
 
 const PORT := 24680
-const PROTO := 2               # bump when an RPC or the snapshot format changes
+const PROTO := 3               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 var sim: Sim                   # host only
@@ -39,7 +39,7 @@ func _init() -> void:
 ## the same tables of weaves, enemies and activities.
 static func version() -> String:
 	var data := ""
-	for f in ["weaves", "enemies", "activities"]:
+	for f in ["weaves", "enemies", "activities", "weapons"]:
 		data += FileAccess.get_file_as_string("res://data/%s.json" % f)
 	return "%d-%s" % [PROTO, data.md5_text().left(8)]
 
@@ -115,7 +115,54 @@ func cast(weave: String, aim: Vector3) -> void:
 	else:
 		_cast_req.rpc_id(1, weave, aim)
 
+## Arms. kind: light | heavy | low | throw; charge is how far a bow was drawn.
+func attack(kind: String, aim: Vector3, charge := 1.0) -> void:
+	if is_host: _do_arms(1, "attack", [kind, aim, charge])
+	else: _arms.rpc_id(1, "attack", [kind, aim, charge])
+
+func guard(on: bool) -> void:
+	if is_host: _do_arms(1, "guard", [on])
+	else: _arms.rpc_id(1, "guard", [on])
+
+func duck(on: bool) -> void:
+	if is_host: _do_arms(1, "duck", [on])
+	else: _arms.rpc_id(1, "duck", [on])
+
+func dodge(dir: Vector3, rolling: bool) -> void:
+	if is_host: _do_arms(1, "dodge", [dir, rolling])
+	else: _arms.rpc_id(1, "dodge", [dir, rolling])
+
+func equip(weapon: String) -> void:
+	if is_host: _do_arms(1, "equip", [weapon])
+	else: _arms.rpc_id(1, "equip", [weapon])
+
 # --- host side ------------------------------------------------------------------
+
+@rpc("any_peer", "reliable")
+func _arms(what: String, a: Array) -> void:
+	_do_arms(multiplayer.get_remote_sender_id(), what, a)
+
+func _do_arms(peer: int, what: String, a: Array) -> void:
+	var ent: int = _peer_ent.get(peer, 0)
+	if ent == 0 or sim == null:
+		return
+	var why := ""
+	# Arguments come from another machine: check their shapes before the sim sees them.
+	match what:
+		"attack":
+			if a.size() == 3 and a[0] is String and a[1] is Vector3 and (a[2] is float or a[2] is int):
+				why = sim.request_attack(ent, a[0], a[1], float(a[2]))
+		"guard":
+			if a.size() == 1 and a[0] is bool: sim.set_guard(ent, a[0])
+		"duck":
+			if a.size() == 1 and a[0] is bool: sim.set_duck(ent, a[0])
+		"dodge":
+			if a.size() == 2 and a[0] is Vector3 and a[1] is bool: why = sim.request_dodge(ent, a[0], a[1])
+		"equip":
+			if a.size() == 1 and a[0] is String: why = sim.equip(ent, a[0])
+	if why != "" and why != "busy":
+		if peer == 1: refused.emit(why)
+		else: _refused.rpc_id(peer, why)
 
 @rpc("any_peer", "reliable")
 func _hello(their_profile: Dictionary, want: String, their_word: String, their_version: String) -> void:

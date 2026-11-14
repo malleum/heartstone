@@ -34,11 +34,48 @@ const TUNE := {
 	tired_floor = 0.25,        # share of your strength left at empty stamina
 	start_gap = 10,            # a new channeller starts this many levels below potential
 	saidin_jump = 3,           # men gain strength in jumps of this many levels
+	# Arms (see docs/MELEE.md). Stats are 0..8 creation points.
+	might_dmg = 0.05,          # +5% damage per point of might
+	quick_speed = 0.03,        # -3% wind-up and recovery per point of quickness
+	endur_thrift = 0.04,       # -4% stamina cost per point of endurance
+	skill_xp = 60.0,           # weapon skill level = floor(sqrt(xp / this)), capped by class
+	skill_dmg = 0.05,
+	skill_speed = 0.02,
+	skill_thrift = 0.02,
+	guard_cost = 0.7,          # stamina per point of damage a guard stops
+	parry_window = 0.25,       # a guard raised this soon before the blow is a parry
+	parry_stagger = 1.1,
+	chain_window = 0.5,        # s after a blow in which the next tap continues the chain
+	swing_slow = 0.45,         # share of running speed kept while winding up a blow
+	guard_slow = 0.5,
+	duck_slow = 0.4,
+	gang = 2,                  # how many enemies may be mid-attack on one person at once; the rest wait their turn
+	rest_after = 6.0,          # s without being hurt before you catch your breath
+	rest_regen = 0.03,         # share of full health recovered each second after that
+	sidestep = {dist = 2.6, time = 0.28, safe = 0.22, cost = 14.0},
+	roll = {dist = 4.8, time = 0.6, safe = 0.42, cost = 28.0},
 }
+
+## What each class is good at. skill_cap: ceiling on any weapon skill. guard,
+## dodge_cost, safe (untouchable time) and speed are multipliers. kit: what a new
+## character of the class carries unless they choose otherwise.
+const CLASSES := {
+	channeller = {name = "Channeller", skill_cap = 4, guard = 0.8, dodge_cost = 1.6, safe = 0.75, speed = 1.0, carry = 1, kit = [], hp = 100.0, armour = 0.0},
+	warder = {name = "Warder", skill_cap = 10, guard = 1.15, dodge_cost = 1.0, safe = 1.0, speed = 1.0, carry = 3, kit = ["sword", "horse_bow", "belt_knife"], hp = 180.0, armour = 0.3},
+	aiel = {name = "Aiel", skill_cap = 10, guard = 1.0, dodge_cost = 0.75, safe = 1.2, speed = 1.12, carry = 3, kit = ["aiel_spear", "aiel_knife", "horn_bow"], hp = 150.0, armour = 0.1},
+	hunter = {name = "Hunter of the Horn", skill_cap = 9, guard = 0.95, dodge_cost = 0.9, safe = 1.0, speed = 1.04, carry = 3, kit = ["quarterstaff", "longbow", "throwing_knives"], hp = 160.0, armour = 0.2},
+}
+## hp: how much a body of that calling can take. armour: share of every blow
+## turned by what they wear (a Warder's mail, a Hunter's leather, cadin'sor).
+static func max_hp(p: Dictionary) -> float:
+	return cls(p).hp + 6.0 * stat(p, "endurance")
+const FAMILIES: Array[String] = ["sword", "knife", "spear", "staff", "axe", "bow", "thrown", "hand"]
 
 static var weaves: Dictionary = {}
 static var enemies: Dictionary = {}
 static var activities: Dictionary = {}
+static var weapons: Dictionary = {}
+static var moves: Dictionary = {}
 
 static func load_data() -> void:
 	if not weaves.is_empty():
@@ -46,6 +83,9 @@ static func load_data() -> void:
 	weaves = _json("res://data/weaves.json")
 	enemies = _json("res://data/enemies.json")
 	activities = _json("res://data/activities.json")
+	weapons = _json("res://data/weapons.json")
+	moves = weapons["_moves"]
+	weapons.erase("_moves")
 
 static func _json(path: String) -> Dictionary:
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -171,10 +211,98 @@ static func flow_capacity(p: Dictionary) -> int:
 			n = i
 	return n
 
+# --- arms -----------------------------------------------------------------------------
+
+static func cls(p: Dictionary) -> Dictionary:
+	return CLASSES.get(p.get("cls", "channeller"), CLASSES.channeller)
+
+static func stat(p: Dictionary, name: String) -> float:
+	return float(p.get("stats", {}).get(name, 0))
+
+static func skill_level(p: Dictionary, family: String) -> int:
+	return mini(int(sqrt(float(p.get("skills", {}).get(family, 0.0)) / TUNE.skill_xp)), int(cls(p).skill_cap))
+
+## Why this character may not carry a weapon, or "".
+static func wield_block(p: Dictionary, weapon_id: String) -> String:
+	if not weapons.has(weapon_id):
+		return "no such weapon"
+	var w: Dictionary = weapons[weapon_id]
+	var c: String = p.get("cls", "channeller")
+	if c in w.get("never", []):
+		return "an Aiel does not touch a sword" if c == "aiel" else "not a weapon for a %s" % cls(p).name
+	if w.has("only") and not c in w.only:
+		return "not a weapon for a %s" % cls(p).name
+	if stat(p, "might") < w.get("might", 0):
+		return "needs might %d" % w.might
+	return ""
+
+## The move a weapon answers an input with. kind: light | heavy | low | throw.
+## `chain` is how many light blows have already run together.
+static func move_for(weapon_id: String, kind: String, chain := 0) -> String:
+	var w: Dictionary = weapons[weapon_id]
+	match kind:
+		"light": return w.light[chain % w.light.size()]
+		"heavy": return w.heavy
+		"low": return w.low
+		"throw": return "throw" if w.has("throw") else ""
+	return ""
+
+static func _quick(p: Dictionary, weapon_id: String) -> float:
+	var w: Dictionary = weapons[weapon_id]
+	return float(w.speed) * (1.0 + TUNE.quick_speed * stat(p, "quickness") + TUNE.skill_speed * skill_level(p, w.family))
+
+## [wind-up, recovery] in seconds for this character with this weapon.
+static func move_times(p: Dictionary, weapon_id: String, move_id: String) -> Array:
+	var m: Dictionary = moves[move_id]
+	var q := _quick(p, weapon_id)
+	return [m.wind / q, m.recover / q]
+
+## Damage of one blow (or of the missile a missile move launches).
+static func blow(p: Dictionary, weapon_id: String, move_id: String, stamina := -1.0) -> float:
+	var w: Dictionary = weapons[weapon_id]
+	var m: Dictionary = moves[move_id]
+	var base: float = w.dmg * m.get("dmg", 1.0)
+	var might := 1.0 + TUNE.might_dmg * stat(p, "might")
+	if m.get("missile", false):
+		var shot: Dictionary = w.get("shot", w.get("throw", {}))
+		base = shot.get("dmg", 0.0)
+		if shot.get("crank", false):
+			might = 1.0
+	return base * might * (1.0 + TUNE.skill_dmg * skill_level(p, w.family)) * vigor(stamina)
+
+## A tired fighter swings with less behind it, and so spends less, like a channeller.
+static func move_cost(p: Dictionary, weapon_id: String, move_id: String, stamina := -1.0) -> float:
+	var w: Dictionary = weapons[weapon_id]
+	return moves[move_id].cost * w.weight * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance") - TUNE.skill_thrift * skill_level(p, w.family), 0.3) * vigor(stamina)
+
+## Share of a frontal blow this character's guard stops with this weapon.
+static func guard_share(p: Dictionary, weapon_id: String) -> float:
+	if not weapons.has(weapon_id):
+		return 0.0
+	var w: Dictionary = weapons[weapon_id]
+	return minf(w.guard * cls(p).guard * (1.0 + 0.02 * skill_level(p, w.family)), 0.97) if w.guard > 0.0 else 0.0
+
+## {dist, time, safe, cost} of a sidestep or a roll for this character.
+static func dodge(p: Dictionary, rolling: bool) -> Dictionary:
+	var d: Dictionary = TUNE.roll if rolling else TUNE.sidestep
+	var c := cls(p)
+	return {dist = d.dist * (1.0 + 0.02 * stat(p, "quickness")), time = d.time, safe = d.safe * c.safe,
+		cost = d.cost * c.dodge_cost * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance"), 0.4)}
+
+static func run_speed(p: Dictionary) -> float:
+	return 5.2 * cls(p).speed * (1.0 + 0.01 * stat(p, "quickness"))
+
+## Seconds to draw (or span) and loose, at this character's skill.
+static func draw_time(p: Dictionary, weapon_id: String) -> float:
+	var w: Dictionary = weapons[weapon_id]
+	return w.shot.draw / (1.0 + TUNE.skill_speed * 2.0 * skill_level(p, w.family))
+
 ## The weave tree: what this character could study now, and what is still out of
 ## reach with the weaves it is waiting on. One weave is studied at a time.
 static func study_options(p: Dictionary) -> Array:
 	var out := []
+	if p.get("cls", "channeller") != "channeller":
+		return out
 	for id in weaves:
 		if p.weaves.get(id, {}).get("known", false) or weaves[id].book > p.book_limit:
 			continue

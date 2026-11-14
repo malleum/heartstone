@@ -34,8 +34,20 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 	ents[id] = {id = id, kind = "player", profile = profile, pos = pos, yaw = PI, hp = 100.0, max_hp = 100.0,
 		radius = 0.45, team = id if _spar else 0, alive = true, move = Vector3.ZERO, speed = 5.2,
 		stamina = Rules.TUNE.stamina, forming = {}, held = [], barrier = 0.0, severed = 0.0, stagger = 0.0,
-		cd = {}, burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, vel = Vector3.ZERO}
-	tallies[id] = {casts = {}, kills = {}, draw = 0.0, seconds = 0.0}
+		cd = {}, burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, vel = Vector3.ZERO,
+		# Arms: what is in hand, the blow in progress, and how it is being defended.
+		weapon = "", ammo = {}, swing = {}, queued = {}, chain = 0, chain_t = 0.0, shot_free = 0.0,
+		guard = false, guard_since = 0.0, duck = false, safe_until = 0.0, dash = {}, reel_until = 0.0}
+	var p: Dictionary = ents[id]
+	p.speed = Rules.run_speed(profile)
+	p.max_hp = Rules.max_hp(profile); p.hp = p.max_hp
+	for w in profile.get("kit", []):
+		var row: Dictionary = Rules.weapons[w]
+		p.ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
+	# A fighter arrives armed; a channeller's hands are free to weave.
+	if profile.get("cls", "channeller") != "channeller" and not profile.get("kit", []).is_empty():
+		p.weapon = profile.kit[0]
+	tallies[id] = {casts = {}, kills = {}, blows = {}, draw = 0.0, seconds = 0.0}
 	events.append(_intro(ents[id]))
 	return id
 
@@ -44,7 +56,7 @@ func _intro(e: Dictionary) -> Dictionary:
 	if e.kind == "enemy":
 		return {e = "spawn", id = e.id, type = e.type, pos = e.pos}
 	var pr: Dictionary = e.profile
-	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), pos = e.pos}
+	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, pos = e.pos}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:
@@ -59,7 +71,7 @@ func _add_enemy(type: String, pos: Vector3) -> void:
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "enemy", type = type, row = row, pos = pos, yaw = 0.0, hp = float(row.hp), max_hp = float(row.hp),
 		radius = float(row.radius), team = -1, alive = true, atk = 0.0, stagger = 0.0, vel = Vector3.ZERO,
-		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false,
+		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false, blow = {}, aim_yaw = 0.0,
 		speed = row.speed * rng.randf_range(0.85, 1.15)}
 	events.append(_intro(ents[id]))
 
@@ -76,7 +88,7 @@ func free_slots(p: Dictionary) -> int:
 ## Start forming a weave at an aim point. Returns "" or the reason it was refused.
 func request_cast(id: int, weave: String, aim: Vector3) -> String:
 	var p: Dictionary = ents[id]
-	if not p.alive or not p.forming.is_empty():
+	if not p.alive or not p.forming.is_empty() or not p.swing.is_empty() or not p.dash.is_empty() or p.reel_until > t:
 		return "busy"
 	if p.severed > t:
 		return "shielded from the Source"
@@ -90,6 +102,95 @@ func request_cast(id: int, weave: String, aim: Vector3) -> String:
 		return why
 	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim}
 	events.append({e = "form", id = id, weave = weave, time = p.forming.left})
+	return ""
+
+# --- arms: intent ---------------------------------------------------------------------
+
+## Take a weapon from the kit into the hand ("" empties the hands, to weave).
+func equip(id: int, weapon: String) -> String:
+	var p: Dictionary = ents[id]
+	if not p.alive or not p.swing.is_empty():
+		return "busy"
+	if weapon != "" and not p.profile.get("kit", []).has(weapon):
+		return "not carried"
+	if p.weapon != weapon:
+		p.weapon = weapon; p.guard = false; p.chain = 0
+		events.append({e = "equip", id = id, weapon = weapon})
+	return ""
+
+## Begin a blow. kind: light | heavy | low | throw. `charge` (0..1) is how far a bow
+## was drawn. Returns "" or why not. A blow asked for mid-swing is kept and thrown
+## as soon as the hands are free, which is what makes a chain.
+func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> String:
+	var p: Dictionary = ents[id]
+	if not p.alive:
+		return "busy"
+	if p.weapon == "":
+		return "nothing in hand"
+	if not p.swing.is_empty():
+		p.queued = {kind = kind, aim = aim, charge = charge}
+		return ""
+	if p.reel_until > t or not p.forming.is_empty() or not p.dash.is_empty():
+		return "busy"
+	var w: Dictionary = Rules.weapons[p.weapon]
+	if kind == "light" and p.duck:
+		kind = "low"
+	var chain: int = p.chain if t < p.chain_t else 0
+	var move_id := Rules.move_for(p.weapon, kind, chain)
+	if move_id == "":
+		return "that cannot be thrown"
+	var m: Dictionary = Rules.moves[move_id]
+	var times := Rules.move_times(p.profile, p.weapon, move_id)
+	var wind: float = times[0]
+	if m.get("missile", false):
+		if p.ammo.get(p.weapon, 0) <= 0:
+			return "none left"
+		if w.has("shot"):
+			# The draw happens in the hand before the click is released; the sim only
+			# makes sure nobody looses faster than the bow can be drawn.
+			charge = clampf(charge, 0.35, 1.0)
+			wind = maxf(wind, p.shot_free + Rules.draw_time(p.profile, p.weapon) * charge - t)
+	var cost := Rules.move_cost(p.profile, p.weapon, move_id, p.stamina)
+	p.stamina = maxf(p.stamina - cost, 0.0)
+	var to := aim - _feet(p); to.y = 0.0
+	var dir := to.normalized() if to.length() > 0.05 else Vector3(sin(p.yaw), 0, cos(p.yaw))
+	p.yaw = atan2(dir.x, dir.z)
+	p.guard = false
+	p.chain = chain + 1 if kind == "light" else 0
+	p.swing = {move = move_id, weapon = p.weapon, left = wind, struck = false, recover = times[1], dir = dir, aim = aim, charge = charge}
+	if m.has("lunge"):
+		p.dash = {vel = dir * (m.lunge / maxf(wind, 0.05)), left = wind, lunge = true}
+	var tl: Dictionary = tallies[id]
+	tl.blows[p.weapon] = tl.blows.get(p.weapon, 0) + 1
+	events.append({e = "blow", id = id, weapon = p.weapon, move = move_id, wind = wind, recover = times[1], dir = dir})
+	return ""
+
+func set_guard(id: int, on: bool) -> void:
+	var p: Dictionary = ents[id]
+	on = on and p.alive and p.swing.is_empty() and Rules.guard_share(p.profile, p.weapon) > 0.0
+	if on and not p.guard:
+		p.guard_since = t
+	p.guard = on
+
+func set_duck(id: int, on: bool) -> void:
+	ents[id].duck = on and ents[id].alive
+
+## Sidestep (or roll) along dir: for a moment nothing can touch you.
+func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
+	var p: Dictionary = ents[id]
+	if not p.alive or (not p.dash.is_empty() and not p.dash.has("lunge")) or p.reel_until > t:
+		return "busy"
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.1 else -Vector3(sin(p.yaw), 0, cos(p.yaw))
+	var d := Rules.dodge(p.profile, rolling)
+	if p.stamina < d.cost * 0.5:
+		return "too tired"
+	p.stamina = maxf(p.stamina - d.cost, 0.0)
+	# Leaving is always possible: it abandons a blow or a weave half made.
+	p.swing = {}; p.queued = {}; p.forming = {}; p.guard = false
+	p.dash = {vel = dir * (d.dist / d.time), left = d.time}
+	p.safe_until = t + d.safe
+	events.append({e = "dodge", id = id, roll = rolling, dir = dir, time = d.time})
 	return ""
 
 func release(id: int, weave: String) -> void:
@@ -144,9 +245,30 @@ func _spawn_wave(w: Dictionary) -> void:
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
 	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * dt, Rules.TUNE.stamina)
+	p.stagger = maxf(p.stagger - dt, 0.0)
+	# Left alone for a while, anyone catches their breath: bruises, not wounds.
+	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
+		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, p.max_hp)
 	# Forming a weave takes concentration: you move at half speed while doing it.
 	var slow := 0.5 if not p.forming.is_empty() else 1.0
-	p.pos = Map.clamp_pos(Map.unblock(p.pos + p.move * p.speed * slow * dt, p.radius))
+	if not p.swing.is_empty() and not p.swing.struck: slow = minf(slow, Rules.TUNE.swing_slow)
+	if p.guard: slow = minf(slow, Rules.TUNE.guard_slow)
+	if p.duck: slow = minf(slow, Rules.TUNE.duck_slow)
+	if p.reel_until > t: slow = 0.0
+	var step: Vector3 = p.move * p.speed * slow * dt
+	if not p.dash.is_empty():
+		# A sidestep, a roll or a lunge carries you; your feet are not your own.
+		step = p.dash.vel * dt
+		if p.dash.has("lunge"):
+			# A lunge stops at the body it is aimed at; it does not run through it.
+			for e in _targets(p):
+				if (p.pos + step).distance_to(e.pos) < p.radius + e.radius + 0.5:
+					step = Vector3.ZERO
+		p.dash.left -= dt
+		if p.dash.left <= 0.0:
+			p.dash = {}
+	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius))
+	_step_swing(p, dt)
 	if p.forming.is_empty():
 		return
 	p.forming.left -= dt
@@ -162,6 +284,110 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	tl.casts[weave] = tl.casts.get(weave, 0) + 1
 	p.cd[weave] = t + Rules.cooldown(p.profile, weave)
 	_cast(p, weave, aim)
+
+## A blow in progress: wind-up, the instant it lands, recovery, then whatever was
+## asked for meanwhile.
+func _step_swing(p: Dictionary, dt: float) -> void:
+	if p.swing.is_empty():
+		return
+	p.swing.left -= dt
+	if p.swing.left > 0.0:
+		return
+	if not p.swing.struck:
+		p.swing.struck = true
+		p.swing.left += p.swing.recover
+		_strike(p)
+		p.chain_t = t + p.swing.recover + Rules.TUNE.chain_window
+		if p.swing.left > 0.0:
+			return
+	p.swing = {}
+	if not p.queued.is_empty():
+		var q: Dictionary = p.queued
+		p.queued = {}
+		request_attack(p.id, q.kind, q.aim, q.charge)
+
+func _strike(p: Dictionary) -> void:
+	var sw: Dictionary = p.swing
+	var w: Dictionary = Rules.weapons[sw.weapon]
+	var m: Dictionary = Rules.moves[sw.move]
+	var dmg := Rules.blow(p.profile, sw.weapon, sw.move, p.stamina)
+	var dir: Vector3 = sw.dir
+	if m.get("missile", false):
+		var shot: Dictionary = w.get("shot", w.get("throw", {}))
+		p.ammo[sw.weapon] = p.ammo.get(sw.weapon, 0) - 1
+		p.shot_free = t
+		var hand := _feet(p) + Vector3(0, 1.45, 0)
+		var throw: Vector3 = sw.aim - hand
+		throw = throw.normalized() if throw.length() > 0.5 else dir
+		var pull: float = sw.charge if w.has("shot") else 1.0
+		effects.append({kind = "missile", owner = p.id, weapon = sw.weapon, pos = hand + throw * 0.5, vel = throw * shot.speed * lerpf(0.55, 1.0, pull),
+			dmg = dmg * lerpf(0.4, 1.0, pull), radius = 0.5, left = shot.range, gravity = shot.gravity, stagger = shot.get("stagger", 0.0), id = _fx_id()})
+		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon]})
+		return
+	var reach: float = w.reach * m.get("reach", 1.0)
+	var found := []
+	for e in _targets(p):
+		var d: Vector3 = e.pos - p.pos
+		var dist := d.length()
+		if dist < reach + e.radius and (dist < 0.6 or absf(rad_to_deg(dir.signed_angle_to(d / dist, Vector3.UP))) < m.arc):
+			found.append(e)
+	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.distance_squared_to(p.pos) < b.pos.distance_squared_to(p.pos))
+	var on: Dictionary = m.get("on_hit", {})
+	var n := 0
+	for e in found:
+		if n >= int(m.get("hits", 1)):
+			break
+		if e.get("safe_until", 0.0) > t:
+			continue
+		_wound(e, dmg * pow(0.7, n), p.id, sw.weapon, on, dir)
+		n += 1
+	events.append({e = "strike", id = p.id, weapon = sw.weapon, move = sw.move, hits = n, pos = _feet(p) + dir * reach * 0.7 + Vector3(0, 1.1, 0)})
+
+## Steel (or a fist) reaching a body: guard and parry for a player on the
+## receiving end, then the hurt and whatever the blow does besides.
+func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, dir: Vector3) -> void:
+	if e.kind == "player":
+		dmg = _guarded(e, dmg, ents[by], dir)
+		if dmg < 0.0:
+			return
+		dmg *= 1.0 - Rules.cls(e.profile).armour
+	if on.has("stagger"):
+		e.stagger = maxf(e.stagger, on.stagger)
+		if e.kind == "player":
+			e.reel_until = maxf(e.reel_until, t + on.stagger * 0.5)
+	if on.has("down") and e.kind == "enemy":
+		e.down = maxf(e.down, on.down)
+	if on.has("push"):
+		e.vel += dir * on.push
+	_hurt(e, dmg, by, weapon)
+
+## What is left of a blow after the target's guard. -1: it never landed (parried).
+func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3) -> float:
+	if not target.guard:
+		return dmg
+	# A guard only covers the front.
+	var facing := Vector3(sin(target.yaw), 0, cos(target.yaw))
+	if facing.dot(-dir) < 0.35:
+		return dmg
+	if t - target.guard_since <= Rules.TUNE.parry_window:
+		attacker.stagger = maxf(attacker.stagger, Rules.TUNE.parry_stagger)
+		if attacker.kind == "player":
+			attacker.reel_until = t + Rules.TUNE.parry_stagger * 0.6
+		events.append({e = "parry", id = target.id, from = attacker.id})
+		return -1.0
+	var stopped := dmg * Rules.guard_share(target.profile, target.weapon)
+	var cost: float = stopped * Rules.TUNE.guard_cost
+	if cost > target.stamina:
+		# The guard gives way: only what the breath paid for is stopped.
+		stopped *= target.stamina / maxf(cost, 0.01)
+		target.stamina = 0.0
+		target.guard = false
+		target.reel_until = t + 0.8
+		events.append({e = "guard_break", id = target.id})
+	else:
+		target.stamina -= cost
+		events.append({e = "block", id = target.id, from = attacker.id})
+	return dmg - stopped
 
 func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	var w: Dictionary = Rules.weaves[weave]
@@ -266,10 +492,21 @@ func aim_at(from: Dictionary, weave: String, target: Dictionary) -> Vector3:
 	c.y += 0.5 * b.get("gravity", 0.0) * secs * secs - d * tan(deg_to_rad(b.get("loft", 0.0)))
 	return c
 
+## Where to aim an arrow or a thrown weapon to hit a moving body: ahead of it, and
+## above it by the drop over the flight.
+func aim_missile(from: Dictionary, weapon: String, target: Dictionary) -> Vector3:
+	var w: Dictionary = Rules.weapons[weapon]
+	var s: Dictionary = w.get("shot", w.get("throw", {}))
+	var c := _feet(target) + Vector3(0, 1.1, 0)
+	var secs: float = Vector2(c.x - from.pos.x, c.z - from.pos.z).length() / maxf(s.get("speed", 30.0), 1.0)
+	c += target.get("move", Vector3.ZERO) * secs * 0.8
+	c.y += 0.5 * s.get("gravity", 0.0) * secs * secs
+	return c
+
 func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -> void:
 	events.append({e = "blast", weave = weave, pos = at, radius = radius})
 	for e in _targets(ents[owner]):
-		if (_feet(e) + Vector3(0, 1.0, 0)).distance_to(at) < radius + e.radius + 0.5:
+		if (_feet(e) + Vector3(0, 1.0, 0)).distance_to(at) < radius + e.radius + 0.5 and e.get("safe_until", 0.0) <= t:
 			_hurt(e, dmg, owner, weave)
 	# Fire does not know who wove it: stand too close to your own and you burn.
 	var me: Dictionary = ents[owner]
@@ -282,7 +519,7 @@ func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -
 func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) -> void:
 	if not e.alive:
 		return
-	if not quiet and weave != "":
+	if not quiet and Rules.weaves.has(weave):
 		var on: Dictionary = Rules.weaves[weave].get("on_hit", {})
 		if on.has("burn"):
 			e.burn = maxf(e.burn, on.burn); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
@@ -296,6 +533,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		if e.barrier <= 0.0:
 			release(e.id, "dome_of_air")
 	e.hp -= dmg
+	if dmg > 0.0:
+		e.hurt_t = t
 	if not quiet:
 		events.append({e = "hit", id = e.id, dmg = dmg, by = by})
 	if e.hp <= 0.0:
@@ -312,7 +551,8 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 	fx.pos += stepv; fx.left -= stepv.length()
 	for e in _targets(owner):
 		var f := _feet(e)
-		if Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + 2.4:
+		if Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + (1.3 if e.get("duck", false) else 2.4) and e.get("safe_until", 0.0) <= t:
+			fx.struck = e.id
 			return true
 	for tr in Map.trees():
 		if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
@@ -341,6 +581,21 @@ func _step_effects(dt: float) -> void:
 				if hit or not alive:
 					_blast(fx.owner, fx.weave, fx.pos, fx.radius, fx.dmg)
 					alive = false
+			"missile":
+				# An arrow, a knife, a javelin: it wounds the one body it meets.
+				var hops := maxi(int(ceil(fx.vel.length() * dt / 0.6)), 1)
+				var hit := false
+				for hop in hops:
+					if hit or not alive:
+						break
+					hit = _fly(fx, owner, dt / hops)
+					alive = fx.left > 0.0
+				if hit:
+					alive = false
+					if fx.has("struck"):
+						var flat: Vector3 = fx.vel * Vector3(1, 0, 1)
+						_wound(ents[fx.struck], fx.dmg, fx.owner, fx.weapon, {stagger = fx.stagger} if fx.stagger > 0.0 else {}, flat.normalized())
+					events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = fx.get("struck", 0)})
 			"blast":
 				fx.left -= dt
 				if fx.left <= 0.0:
@@ -376,6 +631,12 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		if not grid.has(key):
 			grid[key] = []
 		grid[key].append(e)
+	# A crowd cannot all swing at once without hitting each other: only a few
+	# press an attack on one person at a time, and the rest hang at arm's length.
+	var pressing := {}
+	for e in foes:
+		if not e.blow.is_empty() and e.get("victim", 0) != 0:
+			pressing[e.victim] = pressing.get(e.victim, 0) + 1
 	for e in foes:
 		e.stagger = maxf(e.stagger - dt, 0.0)
 		e.down = maxf(e.down - dt, 0.0)
@@ -390,25 +651,35 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		if not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0:
 			var to: Vector3 = target.pos - e.pos
 			var dist := to.length()
-			e.yaw = atan2(to.x, to.z)
-			if dist > e.row.reach * 0.8:
-				want = to / dist * e.speed
-				e.atk = 0.0; e.swung = false
-			else:
+			if e.swung:
+				# Committed: it no longer turns, and it carries forward into the blow.
+				# Step out of its line and it misses.
 				e.atk += dt
-				# The swing starts before the blow lands, so it can be seen coming.
-				if not e.swung and e.atk >= e.row.attack_time - 0.4:
-					e.swung = true
-					events.append({e = "swing", id = e.id, target = target.id})
-				if e.atk >= e.row.attack_time:
-					e.atk = 0.0; e.swung = false
-					events.append({e = "attack", id = e.id, target = target.id})
-					_hurt(target, e.row.damage, e.id, "")
-					# A burning Trolloc sets alight what it grapples.
-					if e.burn > 0.0:
-						target.burn = maxf(target.burn, 2.0); target.burn_dps = 3.0; target.burn_by = e.id
+				want = Vector3(sin(e.aim_yaw), 0, cos(e.aim_yaw)) * e.speed * 0.6
+				if e.atk >= e.blow.time:
+					_enemy_blow(e, players)
+					e.atk = 0.0; e.swung = false; e.blow = {}
+			else:
+				e.yaw = atan2(to.x, to.z)
+				if dist > e.row.reach * 0.8:
+					want = to / dist * e.speed
+					e.atk = 0.0; e.blow = {}
+				else:
+					if e.blow.is_empty():
+						if pressing.get(target.id, 0) >= int(Rules.TUNE.gang):
+							e.move = want
+							e.pos = Map.clamp_pos(Map.unblock(e.pos + e.vel * dt, e.radius))
+							continue
+						e.blow = _pick_blow(e)
+						e.victim = target.id
+						pressing[target.id] = pressing.get(target.id, 0) + 1
+					e.atk += dt
+					# The swing starts before the blow lands, so it can be seen coming.
+					if e.atk >= e.blow.time - 0.4:
+						e.swung = true; e.aim_yaw = e.yaw
+						events.append({e = "swing", id = e.id, target = target.id, kind = e.blow.kind})
 		else:
-			e.atk = 0.0; e.swung = false
+			e.atk = 0.0; e.swung = false; e.blow = {}
 		var key := Vector2i(floori(e.pos.x / 2.0), floori(e.pos.z / 2.0))
 		var push := Vector3.ZERO
 		for dx in range(-1, 2):
@@ -423,6 +694,41 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		e.move = want
 		e.pos = Map.clamp_pos(Map.unblock(e.pos + (want + e.vel) * dt + push * 0.5, e.radius))
 
+## Which of its attacks an enemy tries next: a chop, a sweep, a thrust. Each has
+## its own arc, reach, height and time, so each asks for a different answer.
+func _pick_blow(e: Dictionary) -> Dictionary:
+	var list: Array = e.row.get("attacks", [{kind = "chop", height = "over", arc = 30.0}])
+	var a: Dictionary = list[rng.randi() % list.size()]
+	return {kind = a.kind, height = a.get("height", "mid"), arc = float(a.get("arc", 30.0)), reach = e.row.reach * a.get("reach", 1.0),
+		time = e.row.attack_time * a.get("time", 1.0), dmg = e.row.damage * a.get("dmg", 1.0)}
+
+## The blow lands along the line it was committed to, on whoever is still there.
+func _enemy_blow(e: Dictionary, players: Array) -> void:
+	var dir := Vector3(sin(e.aim_yaw), 0, cos(e.aim_yaw))
+	var b: Dictionary = e.blow
+	var target: Dictionary = {}
+	for p in players:
+		var d: Vector3 = p.pos - e.pos
+		var dist := d.length()
+		if p.alive and dist < b.reach * 1.1 + p.radius and (dist < 0.8 or absf(rad_to_deg(dir.signed_angle_to(d / dist, Vector3.UP))) < b.arc):
+			if target.is_empty() or dist < target.pos.distance_to(e.pos):
+				target = p
+	if target.is_empty():
+		# It cut air, and is open for a moment.
+		e.stagger = maxf(e.stagger, 0.45)
+		events.append({e = "miss", id = e.id})
+		return
+	if target.safe_until > t or (b.height == "high" and target.duck):
+		e.stagger = maxf(e.stagger, 0.3)
+		events.append({e = "evade", id = target.id, from = e.id, duck = target.safe_until <= t})
+		return
+	events.append({e = "attack", id = e.id, target = target.id, kind = b.kind})
+	var hp0: float = target.hp
+	_wound(target, b.dmg, e.id, "", {}, dir)
+	# A burning Trolloc sets alight what it reaches.
+	if e.burn > 0.0 and target.hp < hp0:
+		target.burn = maxf(target.burn, 2.0); target.burn_dps = 3.0; target.burn_by = e.id
+
 ## Compact state for clients: enough to draw the fight, nothing they could cheat with.
 func snapshot() -> Dictionary:
 	var es := []
@@ -430,9 +736,11 @@ func snapshot() -> Dictionary:
 		var e: Dictionary = ents[id]
 		if e.alive:
 			# Status bits: 1 burning, 2 knocked down, 4 stunned, 8 thrown.
-			var st := (1 if e.burn > 0.0 else 0) | (2 if e.down > 0.0 else 0) | (4 if e.stagger > 0.0 else 0) | (8 if e.vel.length() > 2.0 else 0)
+			# Then for those who bear arms: 16 guarding, 32 ducking, 64 sidestepping or rolling.
+			var st := (1 if e.burn > 0.0 else 0) | (2 if e.down > 0.0 else 0) | (4 if e.stagger > 0.0 else 0) | (8 if e.vel.length() > 2.0 else 0) \
+				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:
-		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("r", 0.0), f.pos.y, f.get("weave", "")])
+		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("r", 0.0), f.pos.y, f.get("weave", f.get("weapon", ""))])
 	return {t = t, ents = es, fx = fx}

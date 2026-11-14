@@ -1,5 +1,77 @@
 class_name Bot
 extends RefCounted
+
+## Someone who bears arms: shoot or throw while they are far, then close, cut,
+## and raise a guard (or step back, with a weapon that cannot guard) when a blow
+## is about to land.
+static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: float, to: Vector3) -> void:
+	var ranged := ""; var melee := ""
+	for w in me.profile.kit:
+		var missile: bool = Rules.moves[Rules.weapons[w].light[0]].get("missile", false)
+		if missile and me.ammo.get(w, 0) > 0 and ranged == "": ranged = w
+		if not missile and melee == "": melee = w
+	var want: String = ranged if ranged != "" and (best > 7.0 or melee == "") else melee
+	if want == "":
+		want = me.profile.kit[0]
+	if me.weapon != want and me.swing.is_empty():
+		sim.equip(id, want)
+	if me.weapon == "":
+		return
+	var yaw := atan2(to.x, to.z)
+	# Badly hurt, break off and outrun them until breath comes back, as a person would.
+	if me.hp < me.max_hp * 0.35:
+		me.bot_flee = true
+	elif me.hp > me.max_hp * 0.8:
+		me.bot_flee = false
+	if me.get("bot_flee", false) and near.speed > 0.0:
+		sim.set_guard(id, false)
+		# One roll to get clear; after that, legs.
+		if best < 2.5 and me.stamina > 200.0:
+			sim.request_dodge(id, -to, true)
+		# Run from them, but round the field's edge and not into a corner.
+		var away := -to
+		if me.pos.length() > 30.0:
+			away = (away - me.pos.normalized() * 1.5).normalized()
+		sim.set_input(id, away if best < 14.0 else Vector3.ZERO, yaw)
+		return
+	if me.weapon == ranged:
+		sim.set_guard(id, false)
+		sim.set_input(id, -to if best < 6.0 and near.speed > 0.0 else Vector3.ZERO, yaw)
+		sim.request_attack(id, "light", sim.aim_missile(me, me.weapon, near))
+		return
+	var threats := 0
+	var danger := to
+	for eid in sim.ents:
+		var e: Dictionary = sim.ents[eid]
+		if e.alive and e.kind == "enemy" and e.swung and e.atk >= e.blow.time - 0.3 and e.pos.distance_to(me.pos) < e.blow.reach * 1.2 + 1.0:
+			threats += 1
+			danger = e.pos - me.pos
+	var reach: float = Rules.weapons[me.weapon].reach + near.radius
+	# One blow coming can be met on the steel. Several at once cannot: when hurt,
+	# roll out from among them; otherwise keep cutting, which is the best defence.
+	if threats > 0 and me.swing.is_empty():
+		if Rules.guard_share(me.profile, me.weapon) > 0.3 and (threats == 1 or me.hp > me.max_hp * 0.5):
+			# Turn the guard to the blow that is coming.
+			sim.set_input(id, Vector3.ZERO, atan2(danger.x, danger.z))
+			sim.set_guard(id, true)
+			return
+		if me.hp < me.max_hp * 0.5 and sim.request_dodge(id, -to, true) == "":
+			return
+	sim.set_guard(id, false)
+	# Hold your ground and let them come; only close the last stretch.
+	sim.set_input(id, to if best > reach * 0.75 and best < 16.0 else Vector3.ZERO, yaw)
+	if best < reach * 0.95:
+		# Pressed by several, clear room: a wide heavy blow, or take their legs.
+		var close := 0
+		for eid in sim.ents:
+			var e: Dictionary = sim.ents[eid]
+			if e.alive and e.team != me.team and e.pos.distance_to(me.pos) < reach + 0.8:
+				close += 1
+		var row: Dictionary = Rules.weapons[me.weapon]
+		var kind := "light"
+		if close >= 3 and me.swing.is_empty():
+			kind = "heavy" if Rules.moves[row.heavy].arc >= 100 else ("low" if Rules.moves[row.low].get("hits", 1) >= 3 else "light")
+		sim.request_attack(id, kind, near.pos + Vector3(0, 1.0, 0))
 ## A stand-in player for tests and soak runs: kites and casts the hardest-hitting
 ## weave it can. Not an AI opponent, just enough to exercise the rules.
 
@@ -21,6 +93,9 @@ static func drive(sim: Sim, id: int) -> void:
 		sim.set_input(id, Vector3.ZERO, me.yaw)
 		return
 	var to: Vector3 = (near.pos - me.pos).normalized()
+	if not me.profile.get("kit", []).is_empty() and (me.profile.get("cls", "channeller") != "channeller" or me.profile.weaves.is_empty()):
+		_fight(sim, id, me, near, best, to)
+		return
 	var pick := ""; var score := 0.0
 	var reach := 0.0
 	for w in me.profile.weaves:

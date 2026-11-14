@@ -5,6 +5,8 @@ class_name Hero
 ## Shadowspawn stay generated; the player stares at this model all game.
 
 const ANIMS := "res://assets/quaternius/ual1.glb"
+## The second library: sword cuts, block, shield, throw, knockback.
+const ANIMS2 := "res://assets/quaternius/ual2.glb"
 const MODEL := "res://assets/quaternius/chars/%s.glb"
 const OUTFIT := preload("res://shaders/outfit.gdshader")
 const GARMENT := preload("res://shaders/garment.gdshader")
@@ -141,31 +143,82 @@ static func instantiate(look_id: String, seed := 0) -> Node3D:
 		h.visible = not look.get("hood", false) and (String(h.name).begins_with(look.hair) if look.has("hair") else i == keep)
 	return root
 
+## Put a weapon in the character's hands (or take it away with ""). The grip is
+## worked out from the rest pose, where the arms are out to the sides and the
+## palms down: a fist then holds a handle that points forward, flat edge-on to
+## the arm, so no per-model numbers are needed.
+static func arm(root: Node3D, weapon_id: String) -> void:
+	var sk: Skeleton3D = root.get_meta("skeleton")
+	for old in sk.find_children("Held*", "BoneAttachment3D", false, false):
+		old.free()
+	var kit := Armoury.build(weapon_id)
+	# Skeleton space may be turned against the model's: find model forward and up in it.
+	var to_model := Basis.IDENTITY
+	var n: Node = sk
+	while n != root and n is Node3D:
+		to_model = (n as Node3D).transform.basis * to_model
+		n = n.get_parent()
+	var fwd := to_model.inverse() * Vector3(0, 0, 1)
+	var up := to_model.inverse() * Vector3(0, 1, 0)
+	for part in [[kit.main, "hand_r"], [kit.off, kit.off_bone]]:
+		if part[0] == null:
+			continue
+		var bone := sk.find_bone(part[1])
+		if bone < 0:
+			part[0].free()
+			continue
+		var rest := sk.get_bone_global_rest(bone)
+		var along := (rest.origin - sk.get_bone_global_rest(sk.get_bone_parent(bone)).origin).normalized()
+		var at := BoneAttachment3D.new()
+		at.name = "Held_" + part[1]
+		at.bone_name = part[1]
+		sk.add_child(at)
+		var inv := rest.basis.inverse()
+		var holder: Node3D = part[0]
+		if part[1].begins_with("lowerarm"):
+			# A buckler: flat against the back of the forearm.
+			var out := inv * up
+			var x := (inv * along).normalized()
+			holder.basis = Basis(x, out, x.cross(out)).orthonormalized()
+			holder.position = inv * (along * 0.14 + up * 0.07)
+		else:
+			# Long axis forward out of the fist, flat facing along the arm.
+			var y := (inv * fwd).normalized()
+			var x := (inv * along).normalized()
+			x = (x - y * x.dot(y)).normalized()
+			holder.basis = Basis(x, y, x.cross(y))
+			holder.position = inv * (along * 0.085 - up * 0.03)
+		at.add_child(holder)
+
 ## The clips were authored on a mannequin with other limb lengths. Keeping only the
 ## rotations (plus a rescaled hip height) lets every body keep its own proportions.
 static func _library(kind: String, sk: Skeleton3D) -> AnimationLibrary:
 	if _libs.has(kind):
 		return _libs[kind]
-	var src: Node = (load(ANIMS) as PackedScene).instantiate()
-	var sap: AnimationPlayer = src.find_children("*", "AnimationPlayer", true, false)[0]
-	var ssk: Skeleton3D = src.find_children("*", "Skeleton3D", true, false)[0]
-	var hip := sk.find_bone("pelvis")
-	var ratio := sk.get_bone_rest(hip).origin.length() / maxf(ssk.get_bone_rest(ssk.find_bone("pelvis")).origin.length(), 0.001)
 	var lib := AnimationLibrary.new()
-	for clip in sap.get_animation_list():
-		var a: Animation = sap.get_animation(clip).duplicate(true)
-		for t in range(a.get_track_count() - 1, -1, -1):
-			var bone := String(a.track_get_path(t)).get_slice(":", 1)
-			match a.track_get_type(t):
-				Animation.TYPE_SCALE_3D:
-					a.remove_track(t)
-				Animation.TYPE_POSITION_3D:
-					if bone == "pelvis":
-						for k in a.track_get_key_count(t):
-							a.track_set_key_value(t, k, a.track_get_key_value(t, k) * ratio)
-					elif bone != "root":
+	var hip := sk.find_bone("pelvis")
+	for file in [ANIMS, ANIMS2]:
+		var src: Node = (load(file) as PackedScene).instantiate()
+		var sap: AnimationPlayer = src.find_children("*", "AnimationPlayer", true, false)[0]
+		var ssk: Skeleton3D = src.find_children("*", "Skeleton3D", true, false)[0]
+		var ratio := sk.get_bone_rest(hip).origin.length() / maxf(ssk.get_bone_rest(ssk.find_bone("pelvis")).origin.length(), 0.001)
+		for clip in sap.get_animation_list():
+			if lib.has_animation(clip):
+				continue
+			var a: Animation = sap.get_animation(clip).duplicate(true)
+			for t in range(a.get_track_count() - 1, -1, -1):
+				var bone := String(a.track_get_path(t)).get_slice(":", 1)
+				match a.track_get_type(t):
+					Animation.TYPE_SCALE_3D:
 						a.remove_track(t)
-		lib.add_animation(clip, a)
+					Animation.TYPE_POSITION_3D:
+						if bone == "pelvis":
+							for k in a.track_get_key_count(t):
+								a.track_set_key_value(t, k, a.track_get_key_value(t, k) * ratio)
+						elif bone != "root":
+							a.remove_track(t)
+			lib.add_animation(clip, a)
+		src.free()
 	# Weaving on the move: the library has no clip for it, so graft the jog's legs
 	# under each casting clip's upper body. Without this the feet slide.
 	var jog: Animation = lib.get_animation("Jog_Fwd")
@@ -185,6 +238,5 @@ static func _library(kind: String, sk: Skeleton3D) -> AnimationLibrary:
 					if at <= a.length:
 						a.track_insert_key(nt, at, jog.track_get_key_value(t, k))
 		lib.add_animation(clip + "_Move", a)
-	src.free()
 	_libs[kind] = lib
 	return lib

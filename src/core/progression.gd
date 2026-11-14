@@ -33,6 +33,20 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		for e in fl:
 			per_el[e] = per_el.get(e, 0.0) + Rules.draw_of(p, id) * tally.casts[id] * fl[e] / slots
 
+	# Weapon skill, by family: every blow teaches a little, every kill more.
+	var fam := {}
+	for w in tally.get("blows", {}):
+		if Rules.weapons.has(w):
+			var f: String = Rules.weapons[w].family
+			fam[f] = fam.get(f, 0.0) + tally.blows[w] + 2.0 * tally.get("kills", {}).get(w, 0)
+	if not p.has("skills"):
+		p.skills = {}
+	for f in fam:
+		var before := Rules.skill_level(p, f)
+		p.skills[f] = p.skills.get(f, 0.0) + fam[f] * yield_.get("mastery", 1.0)
+		if Rules.skill_level(p, f) > before:
+			out.append("%s skill %d -> %d" % [f.capitalize(), before, Rules.skill_level(p, f)])
+
 	# Each Power improves toward its aptitude by being woven.
 	for e in per_el:
 		var gain: float = (p.aptitude[e] - p.affinity[e]) * (1.0 - exp(-per_el[e] / T.affinity_k))
@@ -69,8 +83,9 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		else:
 			out.append("%s: %d%% worked out" % [Rules.weaves[p.study].name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
 
+	var channels: bool = p.get("cls", "channeller") == "channeller"
 	if success:
-		for id in act.get("shows", []):
+		for id in (act.get("shows", []) if channels else []):
 			if not p.seen.has(id) and not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
 				p.seen.append(id)
 				out.append("You saw %s woven" % Rules.weaves[id].name)
@@ -80,7 +95,7 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		p.renown += ren
 		out.append("Renown +%.0f (%d)" % [ren, int(p.renown)])
 		# The training yard hands its weaves over outright.
-		for id in act.get("teaches", []):
+		for id in (act.get("teaches", []) if channels else []):
 			if not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
 				p.weaves[id] = {known = true, xp = 0.0}
 				out.append("Learned %s" % Rules.weaves[id].name)
