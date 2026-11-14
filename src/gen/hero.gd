@@ -11,6 +11,14 @@ const MODEL := "res://assets/quaternius/chars/%s.glb"
 const OUTFIT := preload("res://shaders/outfit.gdshader")
 const GARMENT := preload("res://shaders/garment.gdshader")
 const HAIR := [Color(0.16, 0.1, 0.06), Color(0.38, 0.22, 0.1), Color(0.62, 0.3, 0.12), Color(0.75, 0.6, 0.33), Color(0.07, 0.06, 0.06)]
+## What a player may choose about their body (profile.style). Each list is
+## [label, value]; anything not chosen is rolled from the character's name.
+const HAIR_COLOURS := [["Dark brown", Color(0.16, 0.1, 0.06)], ["Brown", Color(0.38, 0.22, 0.1)], ["Auburn", Color(0.62, 0.3, 0.12)], ["Fair", Color(0.75, 0.6, 0.33)], ["Black", Color(0.07, 0.06, 0.06)],
+	["Aiel red", Color(0.7, 0.24, 0.08)], ["Pale gold", Color(0.9, 0.78, 0.5)], ["Grey", Color(0.5, 0.5, 0.5)], ["White", Color(0.9, 0.9, 0.88)]]
+const SKINS := [["Fair", Color(1.0, 1.0, 1.0)], ["Pale", Color(1.2, 1.17, 1.15)], ["Sun-browned", Color(0.86, 0.76, 0.68)], ["Copper", Color(0.9, 0.66, 0.52)], ["Brown", Color(0.62, 0.48, 0.4)], ["Dark", Color(0.42, 0.32, 0.27)]]
+const EYES := [["Brown", Color(1, 1, 1)], ["Blue", Color(0.55, 0.8, 1.6)], ["Grey", Color(0.8, 0.9, 1.05)], ["Green", Color(0.6, 1.25, 0.7)], ["Dark", Color(0.45, 0.4, 0.4)], ["Hazel", Color(1.1, 1.0, 0.6)]]
+const HEIGHTS := [["Short", 0.93], ["Below middling", 0.965], ["Middling", 1.0], ["Tall", 1.035], ["Very tall", 1.07]]
+const BUILDS := [["Slight", 0.92], ["Lean", 0.96], ["Middling", 1.0], ["Sturdy", 1.05], ["Broad", 1.1]]
 const AJAHS := {blue = Color(0.08, 0.16, 0.55), green = Color(0.07, 0.33, 0.12), yellow = Color(0.6, 0.47, 0.1), red = Color(0.5, 0.04, 0.04),
 	white = Color(0.85, 0.85, 0.82), grey = Color(0.34, 0.34, 0.36), brown = Color(0.26, 0.15, 0.07)}
 
@@ -31,10 +39,41 @@ const LOOKS := {
 	farmer_cloak = {label = "Two Rivers, cloaked", sex = "m", base = "male_peasant", p = Color(0.5, 0.52, 0.42), s = Color(0.1, 0.09, 0.07),
 		cloak = [Color(0.2, 0.14, 0.09), 0, Color.WHITE]},
 	ashaman = {label = "Asha'man black coat", sex = "m", base = "male_ranger", hide = ["Hood", "Pauldron"], p = Color(0.035, 0.035, 0.04), s = Color(0.02, 0.02, 0.025),
-		coat = [Color(0.03, 0.03, 0.035), 4, Color(0.09, 0.09, 0.1)]},
+		coat = [Color(0.03, 0.03, 0.035), 4, Color(0.09, 0.09, 0.1)], pins = 2},
 	merchant = {label = "Long coat (Andor)", sex = "m", base = "male_peasant", p = Color(0.36, 0.08, 0.08), s = Color(0.12, 0.1, 0.09),
 		coat = [Color(0.33, 0.07, 0.07), 4, Color(0.7, 0.58, 0.25)]},
 	aiel_m = {label = "Aiel cadin'sor", sex = "m", base = "male_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
+	cairhien_m = {label = "Cairhienin coat (slashed)", sex = "m", base = "male_peasant", p = Color(0.05, 0.05, 0.07), s = Color(0.03, 0.03, 0.04), slashes = 5,
+		coat = [Color(0.045, 0.045, 0.06), 0, Color.WHITE]},
+	tairen_m = {label = "Tairen coat (striped sleeves)", sex = "m", base = "male_peasant", p = Color(0.5, 0.36, 0.08), s = Color(0.05, 0.04, 0.04), sleeve = Color(0.05, 0.04, 0.05, 1.0),
+		coat = [Color(0.46, 0.33, 0.07), 6, Color(0.05, 0.04, 0.05)], sheen = 0.5},
+	noble_m = {label = "Lord's silk coat", sex = "m", base = "male_peasant", p = Color(0.08, 0.14, 0.42), s = Color(0.04, 0.04, 0.06), sheen = 1.0,
+		coat = [Color(0.07, 0.12, 0.38), 6, Color(0.8, 0.65, 0.25)]},
+	queens_guard = {label = "Queen's Guard (Andor)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.55, 0.06, 0.05), s = Color(0.7, 0.7, 0.68), mail = false,
+		cloak = [Color(0.6, 0.07, 0.06), 4, Color(0.85, 0.85, 0.82)]},
+	shienaran = {label = "Shienaran mail", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.08, 0.07, 0.06), mail = true, hair = "Hair_Buzzed"},
+	armsman_m = {label = "Armsman's mail and cloak", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.12, 0.1, 0.08), mail = true,
+		cloak = [Color(0.16, 0.2, 0.3), 0, Color.WHITE]},
+	gleeman = {label = "Gleeman's cloak", sex = "m", base = "male_peasant", p = Color(0.7, 0.66, 0.55), s = Color(0.2, 0.14, 0.1),
+		cloak = [Color(0.3, 0.25, 0.2), 5, Color.WHITE]},
+	tinker_m = {label = "Tinker's colours", sex = "m", base = "male_peasant", p = Color(0.85, 0.7, 0.1), s = Color(0.1, 0.45, 0.2),
+		coat = [Color(0.7, 0.12, 0.3), 4, Color(0.15, 0.5, 0.8)]},
+	dedicated = {label = "Dedicated (sword pin)", sex = "m", base = "male_ranger", hide = ["Hood", "Pauldron"], p = Color(0.035, 0.035, 0.04), s = Color(0.02, 0.02, 0.025),
+		coat = [Color(0.03, 0.03, 0.035), 4, Color(0.09, 0.09, 0.1)], pins = 1},
+	wise_one = {label = "Wise One (algode and shawl)", sex = "f", base = "female_peasant", p = Color(0.9, 0.88, 0.82), s = Color(0.3, 0.22, 0.15),
+		skirt = [Color(0.3, 0.23, 0.16), 0, Color.WHITE], shawl = [Color(0.36, 0.28, 0.2), 2, Color(0.5, 0.42, 0.32)], hair = "Hair_Long"},
+	cairhien_f = {label = "Cairhienin gown (slashed)", sex = "f", base = "female_peasant", p = Color(0.06, 0.06, 0.09), s = Color(0.04, 0.04, 0.05), slashes = 4,
+		skirt = [Color(0.055, 0.055, 0.08), 6, Color(0.6, 0.1, 0.1)], hair = "Hair_Buns"},
+	noble_f = {label = "Lady's silk gown", sex = "f", base = "female_peasant", p = Color(0.12, 0.38, 0.3), s = Color(0.06, 0.2, 0.16), sheen = 1.0,
+		skirt = [Color(0.1, 0.34, 0.27), 6, Color(0.85, 0.75, 0.4)]},
+	domani_f = {label = "Domani gown", sex = "f", base = "female_peasant", p = Color(0.6, 0.2, 0.22), s = Color(0.45, 0.14, 0.16), sheen = 0.7,
+		skirt = [Color(0.58, 0.19, 0.21), 6, Color(0.85, 0.65, 0.3)], hair = "Hair_Long"},
+	tairen_f = {label = "Tairen gown (striped sleeves)", sex = "f", base = "female_peasant", p = Color(0.75, 0.62, 0.3), s = Color(0.3, 0.1, 0.1), sleeve = Color(0.3, 0.08, 0.1, 1.0), sheen = 0.4,
+		skirt = [Color(0.6, 0.14, 0.14), 4, Color(0.8, 0.68, 0.3)]},
+	tinker_f = {label = "Tinker's colours", sex = "f", base = "female_peasant", p = Color(0.2, 0.55, 0.85), s = Color(0.85, 0.3, 0.1),
+		skirt = [Color(0.85, 0.7, 0.1), 4, Color(0.7, 0.12, 0.3)], shawl = [Color(0.1, 0.5, 0.25), 2, Color(0.9, 0.8, 0.2)]},
+	armswoman = {label = "Armswoman's mail and cloak", sex = "f", base = "female_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.12, 0.1, 0.08), mail = true,
+		cloak = [Color(0.16, 0.2, 0.3), 0, Color.WHITE]},
 	warder = {label = "Warder (fancloth cloak)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.17, 0.2, 0.15), s = Color(0.07, 0.07, 0.06),
 		cloak = [Color(0.2, 0.2, 0.18), 3, Color.WHITE]},
 	borderlander = {label = "Borderlander", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.42, 0.3, 0.1), s = Color(0.1, 0.07, 0.05),
@@ -81,7 +120,9 @@ static func kind_for(profile: Dictionary) -> String:
 		"borderlands": return "hunter_f" if f else "borderlander"
 	return "two_rivers_f" if f else "two_rivers_m"
 
-static func instantiate(look_id: String, seed := 0) -> Node3D:
+## style: what the player chose about the body (see HAIR_COLOURS and the rest):
+## {hair: mesh name or "none", hair_col, skin, eyes, height, build: indexes, beard: bool}.
+static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 	var all := looks()
 	var look: Dictionary = all.get(LEGACY.get(look_id, look_id), all.two_rivers_f)
 	var root: Node3D = (load(MODEL % look.base) as PackedScene).instantiate()
@@ -94,6 +135,10 @@ static func instantiate(look_id: String, seed := 0) -> Node3D:
 	root.set_meta("skeleton", sk)
 	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(seed) + look_id)
 	var tint: Color = HAIR[rng.randi() % HAIR.size()]
+	if style.has("hair_col"):
+		tint = HAIR_COLOURS[clampi(int(style.hair_col), 0, HAIR_COLOURS.size() - 1)][1]
+	var skin: Color = SKINS[clampi(int(style.get("skin", 0)), 0, SKINS.size() - 1)][1]
+	var eye: Color = EYES[clampi(int(style.get("eyes", 0)), 0, EYES.size() - 1)][1]
 	var hairs: Array = []
 	for m: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		m.extra_cull_margin = 1.0   # skinned bounds lag the pose
@@ -118,7 +163,8 @@ static func instantiate(look_id: String, seed := 0) -> Node3D:
 				mat.albedo_color = tint
 				m.set_surface_override_material(i, mat)
 			if n.begins_with("Hair_Beard"):
-				m.visible = rng.randf() < 0.4 and look_id != "ashaman"
+				var rolled: bool = rng.randf() < 0.4 and look_id != "ashaman"
+				m.visible = bool(style.beard) if style.has("beard") else rolled
 			elif n.begins_with("Hair"):
 				hairs.append(m)
 		elif look.has("p"):
@@ -135,13 +181,67 @@ static func instantiate(look_id: String, seed := 0) -> Node3D:
 					om.set_shader_parameter("has_normal", src.normal_texture != null)
 					om.set_shader_parameter("mode", atlas)
 					om.set_shader_parameter("primary", look.p); om.set_shader_parameter("secondary", look.s)
+					om.set_shader_parameter("slashes", int(look.get("slashes", 0)))
+					om.set_shader_parameter("sleeve", look.get("sleeve", Color(0, 0, 0, 0)))
+					om.set_shader_parameter("sheen", float(look.get("sheen", 0.0)))
+					om.set_shader_parameter("mail", bool(look.get("mail", false)))
 					m.set_surface_override_material(i, om)
-	# One hairstyle shows: the look's own, or one picked by the seed. None under a hood.
+	# One hairstyle shows: the player's choice, else the look's own, else one picked
+	# by the seed. None under a hood, or for a shaved head.
 	var keep := rng.randi() % maxi(hairs.size(), 1)
+	var want: String = style.get("hair", look.get("hair", ""))
 	for i in hairs.size():
 		var h: MeshInstance3D = hairs[i]
-		h.visible = not look.get("hood", false) and (String(h.name).begins_with(look.hair) if look.has("hair") else i == keep)
+		h.visible = not look.get("hood", false) and want != "none" and (String(h.name).begins_with(want) if want != "" else i == keep)
+	# Skin and eyes: tint the sourced maps (found by texture name, like the outfits).
+	if style.has("skin") or style.has("eyes"):
+		for m: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+			for i in m.mesh.get_surface_count():
+				var src := m.get_active_material(i) as BaseMaterial3D
+				if src == null or src.albedo_texture == null:
+					continue
+				var tex := src.albedo_texture.resource_path + src.albedo_texture.resource_name
+				var col := skin if (tex.contains("Superhero") or tex.contains("Regular_")) else (eye if tex.contains("T_Eye") else Color(0, 0, 0, 0))
+				if col.a > 0.0:
+					var mat: BaseMaterial3D = src.duplicate()
+					mat.albedo_color = col
+					m.set_surface_override_material(i, mat)
+	# Height and build: the whole figure, so clothes and weapons keep their fit.
+	var tall: float = HEIGHTS[clampi(int(style.get("height", 2)), 0, HEIGHTS.size() - 1)][1]
+	var wide: float = BUILDS[clampi(int(style.get("build", 2)), 0, BUILDS.size() - 1)][1]
+	root.scale = Vector3(wide, tall, wide)
+	if int(look.get("pins", 0)) > 0:
+		_pins(root, int(look.pins))
 	return root
+
+## The Asha'man's collar pins: a silver sword for a Dedicated, and with it a
+## red-and-gold dragon for a full Asha'man. Placed from the rest pose like weapons.
+static func _pins(root: Node3D, n: int) -> void:
+	var sk: Skeleton3D = root.find_children("*", "Skeleton3D", true, false)[0]
+	var bone := sk.find_bone("neck_01")
+	if bone < 0:
+		return
+	var to_model := Basis.IDENTITY
+	var node: Node = sk
+	while node != root and node is Node3D:
+		to_model = (node as Node3D).transform.basis * to_model
+		node = node.get_parent()
+	var inv := sk.get_bone_global_rest(bone).basis.inverse() * to_model.inverse()
+	var at := BoneAttachment3D.new(); at.name = "Pins"; at.bone_name = "neck_01"
+	sk.add_child(at)
+	for k in n:
+		var side := -1.0 if k == 0 else 1.0
+		var mi := MeshInstance3D.new(); var b := BoxMesh.new()
+		b.size = Vector3(0.012, 0.045, 0.006) if k == 0 else Vector3(0.04, 0.016, 0.006)
+		mi.mesh = b
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.85, 0.87, 0.9) if k == 0 else Color(0.85, 0.3, 0.1)
+		mat.metallic = 0.9; mat.roughness = 0.25
+		mat.emission_enabled = true; mat.emission = mat.albedo_color; mat.emission_energy_multiplier = 0.35
+		mi.material_override = mat
+		mi.position = inv * Vector3(side * 0.05, -0.015, 0.085)
+		mi.basis = inv * Basis(Vector3.UP, side * -0.5)
+		at.add_child(mi)
 
 ## Put a weapon in the character's hands (or take it away with ""). The grip is
 ## worked out from the rest pose, where the arms are out to the sides and the

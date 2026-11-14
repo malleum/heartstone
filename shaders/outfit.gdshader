@@ -9,6 +9,19 @@ uniform int mode = 0;               // 0: ranger atlas (green cloth). 1: peasant
 uniform vec3 primary : source_color = vec3(0.3, 0.5, 0.2);     // tunic / shirt
 uniform vec3 secondary : source_color = vec3(0.05, 0.12, 0.06); // trousers, hood / vest
 uniform bool has_normal = true;
+// Cairhienin slashes: `slashes` horizontal bars of House colour across the chest.
+uniform int slashes = 0;
+uniform vec3 slash_a : source_color = vec3(0.6, 0.1, 0.1);
+uniform vec3 slash_b : source_color = vec3(0.75, 0.6, 0.15);
+uniform vec3 slash_c : source_color = vec3(0.15, 0.3, 0.6);
+// Tairen sleeves: stripes of this colour down the arms (alpha 0 = none).
+uniform vec4 sleeve : source_color = vec4(0.0);
+// Silk catches the light; mail is rings of steel where the cloth would be.
+uniform float sheen = 0.0;
+uniform bool mail = false;
+varying vec3 rest;
+
+void vertex() { rest = VERTEX; }
 
 void fragment() {
 	vec3 c = texture(albedo_tex, UV).rgb;
@@ -23,12 +36,45 @@ void fragment() {
 		vec3 t = mix(secondary * min(lum / 0.016, 2.4), primary * min(lum / 0.19, 1.8), light);
 		o = mix(c, t, cloth);
 	} else {
-		float shirt = smoothstep(0.26, 0.4, lum) * (1.0 - smoothstep(0.5, 0.75, sat));
-		float wool = 1.0 - smoothstep(0.035, 0.085, lum);
-		o = mix(o, primary * min(lum / 0.5, 1.5), shirt);
-		o = mix(o, secondary * min(lum / 0.025, 2.4), wool);
+		// Measured from the atlas (linear light): the shirt is a tan of luminance
+		// 0.13 to 0.26 and middling saturation; leather is darker and far more
+		// saturated; buckles are brighter and grey; the wool is nearly black.
+		float shirt = smoothstep(0.09, 0.14, lum) * (1.0 - smoothstep(0.7, 0.85, sat)) * smoothstep(0.12, 0.25, sat);
+		float wool = 1.0 - smoothstep(0.02, 0.04, lum);
+		o = mix(o, primary * min(lum / 0.25, 1.5), shirt);
+		o = mix(o, secondary * min(lum / 0.012, 2.4), wool);
+	}
+	// How much of this texel is cloth of the main colour (shirt, tunic, coat).
+	float body = 0.0;
+	if (mode == 0) {
+		body = smoothstep(0.15, 0.35, (c.g - max(c.r, c.b)) / max(c.g, 0.001)) * smoothstep(0.04, 0.1, lum);
+	} else {
+		body = smoothstep(0.09, 0.14, lum) * (1.0 - smoothstep(0.7, 0.85, sat)) * smoothstep(0.12, 0.25, sat);
+	}
+	// Worked on the body at rest (arms out), so the marks ride the cloth.
+	if (slashes > 0 && abs(rest.x) < 0.2 && rest.z > 0.0) {
+		float band = (1.46 - rest.y) / 0.062;
+		if (band >= 0.0 && band < float(slashes) && fract(band) < 0.62) {
+			int k = int(band) % 3;
+			o = mix(o, (k == 0 ? slash_a : (k == 1 ? slash_b : slash_c)) * min(lum / 0.3, 1.3), body);
+		}
+	}
+	if (sleeve.a > 0.0 && abs(rest.x) > 0.24 && fract(abs(rest.x) * 9.0) < 0.45) {
+		o = mix(o, sleeve.rgb * min(lum / 0.3, 1.3), body * sleeve.a);
+	}
+	float rough = 0.86;
+	if (mail) {
+		// Rows of small rings: bright where a ring catches light, dark between.
+		vec2 g = UV * vec2(210.0, 300.0);
+		g.x += 0.5 * floor(g.y);
+		float ring = abs(length(fract(g) - 0.5) - 0.3);
+		float steel = 0.16 + 0.5 * (1.0 - smoothstep(0.03, 0.14, ring));
+		o = mix(o, vec3(steel) * min(lum / 0.2, 1.4), body);
+		METALLIC = body * 0.85;
+		rough = mix(rough, 0.42, body);
 	}
 	ALBEDO = o;
-	ROUGHNESS = 0.86;
+	ROUGHNESS = mix(rough, 0.34, sheen * body);
+	SPECULAR = 0.5 + 0.4 * sheen * body;
 	if (has_normal) { NORMAL_MAP = texture(normal_tex, UV).rgb; }
 }

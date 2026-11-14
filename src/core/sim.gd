@@ -56,7 +56,7 @@ func _intro(e: Dictionary) -> Dictionary:
 	if e.kind == "enemy":
 		return {e = "spawn", id = e.id, type = e.type, pos = e.pos}
 	var pr: Dictionary = e.profile
-	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, pos = e.pos}
+	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:

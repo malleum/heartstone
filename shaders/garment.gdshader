@@ -4,7 +4,7 @@ render_mode cull_disabled;
 // edge and 1 at the hem, so hems, bands and fringes are one line each.
 uniform vec3 base : source_color = vec3(0.2, 0.25, 0.18);
 uniform vec3 trim : source_color = vec3(0.9, 0.9, 0.85);
-uniform int style = 0;   // 0 plain wool, 1 seven-banded hem (Accepted), 2 fringed shawl with vines, 3 fancloth, 4 trimmed hem
+uniform int style = 0;   // 0 plain wool, 1 seven-banded hem (Accepted), 2 fringed shawl with vines, 3 fancloth, 4 trimmed hem, 5 gleeman's patches, 6 silk with a worked border
 varying vec3 wp;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -40,6 +40,18 @@ void fragment() {
 		c *= 0.85 + 0.25 * noise(UV * vec2(200.0, 260.0));
 	} else if (style == 4 && v > 0.93) {
 		c = trim;
+	} else if (style == 5) {
+		// A gleeman's cloak: covered in patches of every colour, that flutter.
+		vec2 cell = floor(vec2(u * 26.0, v * 13.0) + vec2(0.5 * floor(v * 13.0), 0.0));
+		float h1 = hash(cell), h2 = hash(cell + 17.0);
+		vec3 patch = 0.5 + 0.5 * cos(6.2831 * (h1 + vec3(0.0, 0.33, 0.67)));
+		vec2 f = fract(vec2(u * 26.0, v * 13.0) + vec2(0.5 * floor(v * 13.0), 0.0));
+		float edge = step(0.08, f.x) * step(0.08, f.y);
+		c = mix(c, mix(base, patch * 0.75, 0.35 + 0.65 * step(0.25, h2)), edge);
+		c *= 0.86 + 0.14 * noise(UV * vec2(300.0, 380.0));
+	} else if (style == 6) {
+		// Silk with a worked border: smooth, and trimmed at hem and edge.
+		if (v > 0.9 || (v > 0.84 && v < 0.865)) { c = trim; }
 	}
 	if (!FRONT_FACING) { c *= 0.55; }
 	ALBEDO = c;

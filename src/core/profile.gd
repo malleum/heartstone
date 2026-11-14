@@ -45,6 +45,7 @@ static func create(opts: Dictionary) -> Dictionary:
 		channelled = 0.0, renown = 0.0, seconds = 0.0,
 		weaves = {}, seen = [], done = {},
 		stats = {might = 0, quickness = 0, endurance = 0}, skills = {}, kit = [],
+		style = opts.get("style", {}),
 	}
 	# A channeller may carry one weapon and train it a little (Asha'man drill the sword).
 	for w in opts.get("kit", []):
@@ -90,7 +91,7 @@ static func create_fighter(opts: Dictionary) -> Dictionary:
 		book_limit = opts.get("book_limit", 14),
 		channelled = 0.0, renown = 0.0, seconds = 0.0,
 		weaves = {}, seen = [], done = {},
-		stats = stats, skills = skills, kit = [], forms = {},
+		stats = stats, skills = skills, kit = [], forms = {}, style = opts.get("style", {}),
 	}
 	for e in Rules.ELEMENTS:
 		p.affinity[e] = 0.0; p.aptitude[e] = 0.0
@@ -160,6 +161,8 @@ static func valid(p: Dictionary) -> bool:
 	for w in p.get("kit", []):
 		if not (w is String and Rules.weapons.has(w)):
 			return false
+	if p.has("style") and not (p.style is Dictionary and p.style.size() < 12):
+		return false
 	return p.name.length() > 0 and p.name.length() <= 40 and p.power in ["saidin", "saidar"] and Rules.CLASSES.has(p.get("cls", "channeller"))
 
 ## Channellers are strong before they are trained (Nynaeve): everyone starts at

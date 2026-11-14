@@ -403,7 +403,7 @@ func _on_events(list: Array) -> void:
 			"player":
 				if not actors.has(e.id):
 					# Everyone appears as they chose to look, on every machine.
-					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name))
+					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name), e.get("style", {}))
 					add_child(rig)
 					rig.position = _ground(e.pos)
 					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name}

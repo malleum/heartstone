@@ -217,6 +217,14 @@ peasant/ranger) and drives it with the Universal Animation Library.
   skirt behave like trousers) and drawn by `shaders/garment.gdshader`, where UV.y runs
   from the top edge to the hem so bands, trim, fringe and fancloth are a line each.
   Trousers are hidden under a skirt. A new culture is a new row.
+- `shaders/outfit.gdshader` also draws Cairhienin `slashes`, Tairen `sleeve`
+  stripes, silk `sheen` and `mail` (rings of steel where the cloth is) from one
+  row each; its cloth masks are set from colours measured in the atlas.
+  `garment.gdshader` has a gleeman's patches (5) and a silk border (6).
+- **The body is the player's** (`profile.style`): hair mesh and colour, skin and
+  eye tints on the sourced maps, height and build as a scale of the whole
+  figure, beard. `Hero.instantiate(look, seed, style)`; the `player` event
+  carries it, so everyone sees it. `src/test/looks.tscn` shows every outfit.
 - The free packs hold two outfits and five hairstyles. More (nobles, armour, the
   full outfit set) are in the paid Source packs; Josh would buy those.
 - `src/gen/human_rig.gd` (generated bodies on the older rig) is kept only for the

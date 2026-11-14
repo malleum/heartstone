@@ -6,7 +6,7 @@ extends Node3D
 func _ready() -> void:
 	Rules.load_data()
 	var args := Launch.cmdline()
-	World.build(self, 150.0, -35.0)
+	World.build(self, 20.0, -32.0)
 	Terrain.amp = 0.0
 	add_child(Terrain.build_mesh(60.0, 2.0))
 	var ids := Rules.weapons.keys()

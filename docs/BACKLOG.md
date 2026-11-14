@@ -16,9 +16,9 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   hint that more exist); long names can touch a neighbour.
 - [ ] Camp follow-ups: doorways are not solid; the sheet cannot be hidden; other
   players are not seen in the camp; the doorways show light, not the place.
-- [ ] **More character customisation:** face, body and so on.
-- [ ] **More clothing options.** The long coat exists (see Done). Still wanted:
-  Asha'man collar pins and sword, Cairhienin slashes, nobles' silks, armour.
+- [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
+  have no shape keys; only skin, eyes, hair and beard change). Armour is mail
+  drawn on cloth, not plate. The women's bodice stays the pack's leather.
 - [ ] **Casting by drawing** a shape after choosing the Powers (see VISION.md).
 
 ## Other classes and arms
@@ -47,6 +47,12 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **looks.** Hair style and colour, skin, eyes, height, build and a
+  beard are chosen at creation and can be changed later (Appearance on the
+  sheet), and other players see them. Sixteen more outfits: Cairhienin slashes,
+  Tairen striped sleeves, lords' and ladies' silks, Domani, Tinkers, a gleeman's
+  patched cloak, mail for armsmen and Shienarans, the Queen's Guard, a Wise One,
+  and the Dedicated's sword pin and Asha'man's dragon.
 - 2026-11-14: **the rest of the Powers.** Lightning charges what survives it
   (faster, and the next blow arcs to two neighbours); Spirit dazes, and a
   Myrddraal cannot dodge it; a Gateway is two held doorways anyone can walk

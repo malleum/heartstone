@@ -153,10 +153,10 @@ func _button(v: Control, text: String, on: Callable) -> Button:
 	b.pressed.connect(on)
 	return b
 
-func _stand(kind: String) -> void:
+func _stand(kind: String, style := {}) -> void:
 	if model:
 		model.queue_free()
-	model = Hero.instantiate(kind, hash(profile.get("name", "")))
+	model = Hero.instantiate(kind, hash(profile.get("name", "")), style if not style.is_empty() else profile.get("style", {}))
 	add_child(model)
 	model.set_meta("kind", kind)
 	(model.get_meta("anim") as AnimationPlayer).play("Idle")
@@ -331,8 +331,9 @@ func _select(name_: String, sync := true) -> void:
 	Launch.last_name = profile.name
 	if sync:
 		_sync(profile.name, profile)
-	if model == null or model.get_meta("kind", "") != Hero.kind_for(profile):
+	if model == null or model.get_meta("kind", "") != Hero.kind_for(profile) or model.get_meta("style", "") != str(profile.get("style", {})):
 		_stand(Hero.kind_for(profile))
+		model.set_meta("style", str(profile.get("style", {})))
 	# A fighter stands in the camp with their weapon in hand.
 	var held: String = profile.kit[0] if profile.get("cls", "channeller") != "channeller" and not profile.get("kit", []).is_empty() else ""
 	Hero.arm(model, held)
@@ -381,6 +382,7 @@ func _sheet() -> void:
 			var row: Dictionary = Rules.weapons[w]
 			_text(side, "%s   %s skill %d" % [row.name, row.family, Rules.skill_level(profile, row.family)], 15)
 	_button(side, "The armoury: change what you carry", _armoury)
+	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
 		_text(side, "Last time out", 22)
 		_text(side, "\n".join(Launch.report), 15, Color(0.95, 0.85, 0.55))
@@ -462,7 +464,7 @@ func _spin(v: Control, label: String, maxv: int, start: int) -> SpinBox:
 	s.value_changed.connect(func(_x: float) -> void: _creation_changed())
 	return s
 
-func _creation(cls_ := "channeller", name_ := "") -> void:
+func _creation(cls_ := "channeller", name_ := "", power_ := "") -> void:
 	creating = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	profile = {}
@@ -482,21 +484,20 @@ func _creation(cls_ := "channeller", name_ := "") -> void:
 	# A different calling is a different form: build it again, keeping the name.
 	make.cls.item_selected.connect(func(_i: int) -> void: _creation.call_deferred(make.cls.get_selected_metadata(), make.name.text))
 	make.power = _option(side, "The One Power" if not fighter else "Born", {saidar = "Saidar (women)", saidin = "Saidin (men)"} if not fighter else {saidar = "A woman", saidin = "A man"})
-	if cls_ == "warder":
+	if (cls_ == "warder" and power_ == "") or power_ == "saidin":
 		make.power.select(1)
 	make.origin = _option(side, "Origin", ORIGINS)
 	make.look = _option(side, "Dress", {})
 	# Saidar is women's and saidin men's, so the wardrobe follows the choice.
-	make.power.item_selected.connect(func(_i: int) -> void:
-		_fill_looks()
-		if make.has("potential"):
-			make.potential.max_value = Profile.max_potential_pts(make.power.get_selected_metadata())
-		_creation_changed())
+	# The hair, the beard and how much potential can be bought all follow it too,
+	# so the form is built again.
+	make.power.item_selected.connect(func(_i: int) -> void: _creation.call_deferred(make.cls_id, make.name.text, make.power.get_selected_metadata()))
 	_fill_looks()
+	make.style = _style_options(side, {}, make.power.get_selected_metadata() == "saidin")
 	make.aff = {}; make.talents = {}; make.stats = {}; make.skills = {}; make.kit = []
 	if not fighter:
 		_text(side, "Twenty points, spent once. Potential is how strong you can ever become, on the Aes Sedai scale: 72 is the weakest, 1 the strongest woman, and ++6 to ++1 the men beyond her. Affinity is how readily each Power answers you. The two Powers of your half of the Source (Air and Water for saidar, Earth and Fire for saidin) cost half for their first three points. You begin with the simplest weave of your strongest Power. A Talent costs four; it does not unlock a weave, it makes you far better at it.", 14, Color(0.7, 0.72, 0.78))
-		make.potential = _spin(side, "Potential", 14, 8)
+		make.potential = _spin(side, "Potential", Profile.max_potential_pts(make.power.get_selected_metadata()), 8)
 		for e in Rules.ELEMENTS:
 			make.aff[e] = _spin(side, e.capitalize(), 6, 2 if e in ["air", "water"] else 0)
 		_text(side, "Talents", 20)
@@ -525,6 +526,73 @@ func _creation(cls_ := "channeller", name_ := "") -> void:
 		_button(side, "Back", func() -> void: _select(_saved()[0]))
 	_text(side, "Nothing resets: every watch, mission and spar pays into this one character. A character kept on a server can be fetched instead (Esc).", 14, Color(0.7, 0.72, 0.78))
 	_creation_changed()
+
+## The body's choices, as option rows: hair, its colour, skin, eyes, height, build,
+## and a beard for men. Returns the widgets by name; _style_of reads them back.
+func _style_options(parent: Control, style: Dictionary, man: bool) -> Dictionary:
+	var out := {}
+	var hairs := {"": "As the dress wears it"}
+	for h in (["Hair_SimpleParted", "Hair_Buzzed"] if man else ["Hair_Long", "Hair_Buns"]):
+		hairs[h] = {Hair_SimpleParted = "Parted", Hair_Buzzed = "Cropped", Hair_Long = "Long", Hair_Buns = "Bound up"}[h]
+	hairs["none"] = "Shaved"
+	out.hair = _option(parent, "Hair", hairs)
+	out.hair.select(maxi(hairs.keys().find(style.get("hair", "")), 0))
+	for row in [["hair_col", "Hair colour", Hero.HAIR_COLOURS, -1], ["skin", "Skin", Hero.SKINS, 0], ["eyes", "Eyes", Hero.EYES, 0], ["height", "Height", Hero.HEIGHTS, 2], ["build", "Build", Hero.BUILDS, 2]]:
+		var items := {}
+		if row[3] < 0:
+			items[-1] = "By chance"
+		for i in row[2].size():
+			items[i] = row[2][i][0]
+		out[row[0]] = _option(parent, row[1], items)
+		out[row[0]].select(maxi(items.keys().find(int(style.get(row[0], row[3]))), 0))
+	if man:
+		out.beard = _option(parent, "Beard", {0: "Clean-shaven", 1: "Bearded"})
+		out.beard.select(1 if style.get("beard", false) else 0)
+	return out
+
+func _style_of(w: Dictionary) -> Dictionary:
+	var st := {}
+	if w.hair.get_selected_metadata() != "":
+		st.hair = w.hair.get_selected_metadata()
+	if int(w.hair_col.get_selected_metadata()) >= 0:
+		st.hair_col = int(w.hair_col.get_selected_metadata())
+	for k in ["skin", "eyes", "height", "build"]:
+		st[k] = int(w[k].get_selected_metadata())
+	if w.has("beard"):
+		st.beard = int(w.beard.get_selected_metadata()) == 1
+	return st
+
+## Change how an existing character looks. It is only looks: nothing is lost.
+func _appearance() -> void:
+	menu.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_clear(menu_box)
+	_text(menu_box, "Appearance", 24)
+	var man: bool = profile.power == "saidin"
+	var all := Hero.looks()
+	var dresses := {}
+	for id in all:
+		if all[id].sex == ("m" if man else "f"):
+			dresses[id] = all[id].label
+	var dress := _option(menu_box, "Dress", dresses)
+	dress.select(maxi(dresses.keys().find(Hero.kind_for(profile)), 0))
+	var w := _style_options(menu_box, profile.get("style", {}), man)
+	var show := func(_i := 0) -> void:
+		_stand(dress.get_selected_metadata(), _style_of(w))
+		var held: String = profile.kit[0] if profile.get("cls", "channeller") != "channeller" and not profile.get("kit", []).is_empty() else ""
+		Hero.arm(model, held)
+	dress.item_selected.connect(show)
+	for k in w:
+		w[k].item_selected.connect(show)
+	_button(menu_box, "Keep this", func() -> void:
+		profile.look = dress.get_selected_metadata()
+		profile.style = _style_of(w)
+		Profile.save(profile)
+		menu.visible = false
+		_select(profile.name))
+	_button(menu_box, "Back to the camp  (Esc)", func() -> void:
+		menu.visible = false
+		_select(profile.name, false))
 
 ## The weapons this calling may choose from; `none` adds an empty first choice.
 func _weapon_option(label: String, start: String, none: bool, parent: Control = null, cls_id := "") -> OptionButton:
@@ -615,8 +683,11 @@ func _creation_changed() -> void:
 	make.go.disabled = left < 0
 	var kind: String = make.look.get_selected_metadata()
 	var held: String = make.kit[0].get_selected_metadata() if not make.kit.is_empty() else ""
-	if model == null or model.get_meta("kind", "") != kind:
-		_stand(kind)
+	var st := _style_of(make.style) if make.has("style") else {}
+	if model == null or model.get_meta("kind", "") != kind or model.get_meta("style", "") != str(st):
+		_stand(kind, st)
+		model.set_meta("style", str(st))
+		model.set_meta("held", "-")
 	if model.get_meta("held", "-") != held:
 		Hero.arm(model, held)
 		model.set_meta("held", held)
@@ -645,7 +716,7 @@ func _create() -> void:
 			kit.append(o.get_selected_metadata())
 	var power: String = make.power.get_selected_metadata()
 	var opts := {name = name_, cls = make.cls_id, power = power, sex = "f" if power == "saidar" else "m", origin = make.origin.get_selected_metadata(),
-		look = make.look.get_selected_metadata(), affinity_pts = aff, talents = talents, stat_pts = stats, skill_pts = skills, kit = kit}
+		look = make.look.get_selected_metadata(), affinity_pts = aff, talents = talents, stat_pts = stats, skill_pts = skills, kit = kit, style = _style_of(make.style)}
 	if make.has("potential"):
 		opts.potential_pts = int(make.potential.value)
 	var p := Profile.create(opts)
