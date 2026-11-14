@@ -5,7 +5,6 @@ extends Node3D
 ## the backdrop later without touching the flow (profile -> activity -> game -> back).
 
 const ORIGINS := {two_rivers = "Two Rivers", aiel = "Aiel", cairhien = "Cairhien", domani = "Arad Doman", borderlands = "Borderlands", tar_valon = "Tar Valon"}
-const LOOKS := {male_peasant = "Villager (man)", female_peasant = "Villager (woman)", male_ranger = "Hooded ranger (man)", female_ranger = "Hooded ranger (woman)"}
 const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing", "illusion", "dreaming"]
 
 var profile := {}
@@ -178,10 +177,10 @@ func _creation() -> void:
 	make.name = LineEdit.new(); make.name.placeholder_text = "Name"; side.add_child(make.name)
 	make.power = _option(side, "The One Power", {saidar = "Saidar (women)", saidin = "Saidin (men)"})
 	make.origin = _option(side, "Origin", ORIGINS)
-	make.look = _option(side, "Look", LOOKS)
-	make.look.select(1)
-	# Saidin is men's and saidar women's, so follow the choice with a matching look.
-	make.power.item_selected.connect(func(i: int) -> void: make.look.select(1 - i); _creation_changed())
+	make.look = _option(side, "Dress", {})
+	# Saidar is women's and saidin men's, so the wardrobe follows the choice.
+	make.power.item_selected.connect(func(_i: int) -> void: _fill_looks(); _creation_changed())
+	_fill_looks()
 	_text(side, "Twenty points, spent once. Potential is how strong you can ever become. Affinity is how readily each Power answers you. A Talent costs four.", 14, Color(0.7, 0.72, 0.78))
 	make.potential = _spin(side, "Potential", 14, 8)
 	make.aff = {}
@@ -200,6 +199,15 @@ func _creation() -> void:
 	_text(board, "How a channeller grows", 24)
 	_text(board, "Nothing here resets. Every watch, every mission and every spar pays into the same character.\n\nWeaving a weave masters it. Weaving a Power strengthens your hold on it. Strength creeps toward your potential.\n\nThe number of flows you can hold at once grows slowly, over many hours. Few Aes Sedai ever hold more than three.\n\nNew weaves are learned by seeing them woven.", 15)
 	_creation_changed()
+
+func _fill_looks() -> void:
+	var sex := "f" if make.power.get_selected_metadata() == "saidar" else "m"
+	make.look.clear()
+	var all := Hero.looks()
+	for id in all:
+		if all[id].sex == sex:
+			make.look.add_item(all[id].label); make.look.set_item_metadata(make.look.item_count - 1, id)
+	make.look.select(0)
 
 func _points_left() -> int:
 	var spent := int(make.potential.value)

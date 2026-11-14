@@ -280,7 +280,7 @@ func _on_snapshot(s: Dictionary) -> void:
 		var id: int = e[0]
 		if not actors.has(id):
 			# Anything we were not told about by a spawn event is a player.
-			var rig := Hero.instantiate(Hero.kind_for(profile) if id == session.my_id else Hero.KINDS[id % Hero.KINDS.size()], id)
+			var rig := Hero.instantiate(Hero.kind_for(profile) if id == session.my_id else Hero.LOOKS.keys()[id % Hero.LOOKS.size()], id)
 			add_child(rig)
 			rig.position = _ground(Vector3(e[1], 0, e[2]))
 			actors[id] = {node = rig, kind = "player", target = rig.position, busy = 0.0}

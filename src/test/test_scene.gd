@@ -201,9 +201,12 @@ func _mode_rig() -> void:
 func _mode_heroes() -> void:
 	Terrain.amp = 0.0
 	var rigs := []
-	for i in Hero.KINDS.size():
-		var r := Hero.instantiate(Hero.KINDS[i])
-		r.position = Vector3((i - 1.5) * 1.1, 0, 0)
+	var ids: Array = Hero.looks().keys()
+	if args.has("looks"):
+		ids = Array(args.looks.split(","))
+	for i in ids.size():
+		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i)
+		r.position = Vector3((i - (ids.size() - 1) * 0.5) * 1.0, 0, 0)
 		add_child(r); rigs.append(r)
 		var ap: AnimationPlayer = r.get_meta("anim")
 		if i == 0 and not args.has("quiet"): print("HERO clips ", ap.get_animation_list())

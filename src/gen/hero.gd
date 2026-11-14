@@ -1,43 +1,129 @@
 class_name Hero
-## Player characters: sourced Quaternius outfits (assembled by tools/blender/build_heroes.py)
-## animated by the Universal Animation Library. Generated humans looked wrong up close,
-## and the player stares at this model for the whole game, so it is the one place we
-## spend sourced art. Shadowspawn stay generated.
+## Player characters: sourced Quaternius bodies and outfits (assembled, with generated
+## garments, by tools/blender/build_heroes.py), dressed here as Wheel of Time
+## cultures. A look is data: which base model, which pieces show, and the colours.
+## Shadowspawn stay generated; the player stares at this model all game.
 
 const ANIMS := "res://assets/quaternius/ual1.glb"
 const MODEL := "res://assets/quaternius/chars/%s.glb"
-const KINDS := ["male_peasant", "female_peasant", "male_ranger", "female_ranger"]
-## Origins that dress as travellers and fighters; everyone else wears village clothes.
-const RANGER_ORIGINS := ["aiel", "warder", "borderlands", "domani"]
-
+const OUTFIT := preload("res://shaders/outfit.gdshader")
+const GARMENT := preload("res://shaders/garment.gdshader")
 const HAIR := [Color(0.16, 0.1, 0.06), Color(0.38, 0.22, 0.1), Color(0.62, 0.3, 0.12), Color(0.75, 0.6, 0.33), Color(0.07, 0.06, 0.06)]
+const AJAHS := {blue = Color(0.08, 0.16, 0.55), green = Color(0.07, 0.33, 0.12), yellow = Color(0.6, 0.47, 0.1), red = Color(0.5, 0.04, 0.04),
+	white = Color(0.85, 0.85, 0.82), grey = Color(0.34, 0.34, 0.36), brown = Color(0.26, 0.15, 0.07)}
 
-static var _libs := {}   # kind -> AnimationLibrary fitted to that body's proportions
+## base: model file. hide: mesh-name fragments to hide. p/s: cloth colours for the
+## outfit shader (omit to keep the pack's own). Garments: [colour, style, trim].
+## hair: mesh name to force; hood: true keeps hair hidden beneath it.
+const LOOKS := {
+	two_rivers_f = {label = "Two Rivers wool", sex = "f", base = "female_peasant", p = Color(0.78, 0.74, 0.62), s = Color(0.1, 0.16, 0.1),
+		skirt = [Color(0.1, 0.17, 0.11), 4, Color(0.55, 0.5, 0.36)], hair = "Hair_Long"},
+	novice = {label = "Novice white", sex = "f", base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
+		skirt = [Color(0.86, 0.86, 0.84), 0, Color.WHITE]},
+	accepted = {label = "Accepted (banded hem)", sex = "f", base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
+		skirt = [Color(0.86, 0.86, 0.84), 1, Color.WHITE]},
+	aiel_f = {label = "Aiel cadin'sor", sex = "f", base = "female_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
+	hunter_f = {label = "Traveller's cloak", sex = "f", base = "female_ranger", hide = ["Hood", "Pauldron"], p = Color(0.2, 0.24, 0.38), s = Color(0.08, 0.08, 0.1),
+		cloak = [Color(0.12, 0.1, 0.09), 0, Color.WHITE]},
+	two_rivers_m = {label = "Two Rivers wool", sex = "m", base = "male_peasant", p = Color(0.76, 0.72, 0.6), s = Color(0.09, 0.07, 0.05)},
+	farmer_cloak = {label = "Two Rivers, cloaked", sex = "m", base = "male_peasant", p = Color(0.5, 0.52, 0.42), s = Color(0.1, 0.09, 0.07),
+		cloak = [Color(0.2, 0.14, 0.09), 0, Color.WHITE]},
+	ashaman = {label = "Asha'man black", sex = "m", base = "male_ranger", hide = ["Hood", "Pauldron"], p = Color(0.035, 0.035, 0.04), s = Color(0.02, 0.02, 0.025)},
+	aiel_m = {label = "Aiel cadin'sor", sex = "m", base = "male_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
+	warder = {label = "Warder (fancloth cloak)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.17, 0.2, 0.15), s = Color(0.07, 0.07, 0.06),
+		cloak = [Color(0.2, 0.2, 0.18), 3, Color.WHITE]},
+	borderlander = {label = "Borderlander", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.42, 0.3, 0.1), s = Color(0.1, 0.07, 0.05),
+		cloak = [Color(0.3, 0.05, 0.04), 4, Color(0.6, 0.5, 0.2)]},
+}
+## Ids saved by earlier builds.
+const LEGACY := {male_peasant = "two_rivers_m", female_peasant = "two_rivers_f", male_ranger = "warder", female_ranger = "aiel_f"}
+
+static var _libs := {}   # base -> AnimationLibrary fitted to that body's proportions
+
+## Every look, with the seven Aes Sedai shawls generated from the Ajah table.
+static func looks() -> Dictionary:
+	var out := LOOKS.duplicate()
+	for a in AJAHS:
+		var col: Color = AJAHS[a]
+		out["aes_sedai_" + a] = {label = "Aes Sedai, %s Ajah" % a.capitalize(), sex = "f", base = "female_peasant",
+			p = col.lerp(Color(0.85, 0.85, 0.82), 0.55), s = col.darkened(0.45), hair = "Hair_Buns",
+			skirt = [col.darkened(0.15), 4, col.lerp(Color.WHITE, 0.5)], shawl = [col, 2, Color(0.92, 0.9, 0.82)]}
+	return out
 
 static func kind_for(profile: Dictionary) -> String:
-	if profile.get("look") is String and profile.look in KINDS:
-		return profile.look
-	var sex := "female" if profile.get("power", "saidar") == "saidar" else "male"
-	return sex + ("_ranger" if profile.get("origin", "") in RANGER_ORIGINS else "_peasant")
+	var all := looks()
+	var want = profile.get("look")
+	if want is String:
+		want = LEGACY.get(want, want)
+		if all.has(want):
+			return want
+	var f: bool = profile.get("power", "saidar") == "saidar"
+	match profile.get("origin", ""):
+		"aiel": return "aiel_f" if f else "aiel_m"
+		"tar_valon": return "accepted" if f else "ashaman"
+		"borderlands": return "hunter_f" if f else "borderlander"
+	return "two_rivers_f" if f else "two_rivers_m"
 
-static func instantiate(kind: String, seed := 0) -> Node3D:
-	var root: Node3D = (load(MODEL % kind) as PackedScene).instantiate()
+static func instantiate(look_id: String, seed := 0) -> Node3D:
+	var all := looks()
+	var look: Dictionary = all.get(LEGACY.get(look_id, look_id), all.two_rivers_f)
+	var root: Node3D = (load(MODEL % look.base) as PackedScene).instantiate()
 	var sk: Skeleton3D = root.find_children("*", "Skeleton3D", true, false)[0]
 	var ap := AnimationPlayer.new()
 	root.add_child(ap)
-	ap.add_animation_library("", _library(kind, sk))
+	ap.add_animation_library("", _library(look.base, sk))
 	ap.playback_default_blend_time = 0.15
 	root.set_meta("anim", ap)
 	root.set_meta("skeleton", sk)
-	var tint: Color = HAIR[absi(hash(str(seed) + kind)) % HAIR.size()]
+	var rng := RandomNumberGenerator.new(); rng.seed = hash(str(seed) + look_id)
+	var tint: Color = HAIR[rng.randi() % HAIR.size()]
+	var hairs: Array = []
 	for m: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		m.extra_cull_margin = 1.0   # skinned bounds lag the pose
-		if m.name.begins_with("Hair") or m.name.begins_with("Eyebrows"):
+		var n := String(m.name)
+		for h in look.get("hide", []):
+			if n.contains(h):
+				m.visible = false
+		# Trousers under a skirt only ever show as a knee poking through the cloth.
+		if look.has("skirt") and n.ends_with("_Legs"):
+			m.visible = false
+		if n in ["Skirt", "Cloak", "Shawl"]:
+			var spec: Array = look.get(n.to_lower(), [])
+			m.visible = not spec.is_empty()
+			if m.visible:
+				var gm := ShaderMaterial.new(); gm.shader = GARMENT
+				gm.set_shader_parameter("base", spec[0]); gm.set_shader_parameter("style", spec[1]); gm.set_shader_parameter("trim", spec[2])
+				m.material_override = gm
+		elif n.begins_with("Hair") or n.begins_with("Eyebrows"):
 			# The pack ships hair as a grey map meant to be tinted.
 			for i in m.mesh.get_surface_count():
 				var mat: BaseMaterial3D = m.get_active_material(i).duplicate()
 				mat.albedo_color = tint
 				m.set_surface_override_material(i, mat)
+			if n.begins_with("Hair_Beard"):
+				m.visible = rng.randf() < 0.4 and look_id != "ashaman"
+			elif n.begins_with("Hair"):
+				hairs.append(m)
+		elif look.has("p"):
+			for i in m.mesh.get_surface_count():
+				var src := m.get_active_material(i) as BaseMaterial3D
+				# Identify the atlas by its texture: material names do not survive import.
+				var tex := "" if src == null or src.albedo_texture == null else src.albedo_texture.resource_path + src.albedo_texture.resource_name
+				var atlas := 0 if tex.contains("T_Ranger") else (1 if tex.contains("T_Peasant") else -1)
+				if OS.has_environment("HERO_DEBUG"): print("HEROMAT ", n, " ", i, " ", tex, " ", atlas, " ", src)
+				if atlas >= 0:
+					var om := ShaderMaterial.new(); om.shader = OUTFIT
+					om.set_shader_parameter("albedo_tex", src.albedo_texture)
+					om.set_shader_parameter("normal_tex", src.normal_texture)
+					om.set_shader_parameter("has_normal", src.normal_texture != null)
+					om.set_shader_parameter("mode", atlas)
+					om.set_shader_parameter("primary", look.p); om.set_shader_parameter("secondary", look.s)
+					m.set_surface_override_material(i, om)
+	# One hairstyle shows: the look's own, or one picked by the seed. None under a hood.
+	var keep := rng.randi() % maxi(hairs.size(), 1)
+	for i in hairs.size():
+		var h: MeshInstance3D = hairs[i]
+		h.visible = not look.get("hood", false) and (String(h.name).begins_with(look.hair) if look.has("hair") else i == keep)
 	return root
 
 ## The clips were authored on a mannequin with other limb lengths. Keeping only the
