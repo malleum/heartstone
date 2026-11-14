@@ -289,6 +289,24 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			var tl: Dictionary = tallies[by]
 			tl.kills[weave] = tl.kills.get(weave, 0) + 1
 
+## Advance a projectile one hop; true if it struck an enemy, a tree or the ground.
+func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
+	fx.vel.y -= fx.gravity * dt
+	var stepv: Vector3 = fx.vel * dt
+	fx.pos += stepv; fx.left -= stepv.length()
+	for e in _targets(owner):
+		var f := _feet(e)
+		if Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + 2.4:
+			return true
+	for tr in Map.trees():
+		if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
+			return true
+	var gy := Terrain.height(fx.pos.x, fx.pos.z)
+	if fx.pos.y <= gy:
+		fx.pos.y = gy
+		return true
+	return false
+
 func _step_effects(dt: float) -> void:
 	var keep: Array = []
 	for fx in effects:
@@ -296,23 +314,14 @@ func _step_effects(dt: float) -> void:
 		var owner: Dictionary = ents[fx.owner]
 		match fx.kind:
 			"projectile":
-				fx.vel.y -= fx.gravity * dt
-				var stepv: Vector3 = fx.vel * dt
-				fx.pos += stepv; fx.left -= stepv.length()
-				alive = fx.left > 0.0
+				# Fast weaves are stepped in short hops so they cannot pass through a target.
+				var hops := maxi(int(ceil(fx.vel.length() * dt / 0.6)), 1)
 				var hit := false
-				for e in _targets(owner):
-					var f := _feet(e)
-					if Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + 2.4:
-						hit = true
+				for hop in hops:
+					if hit or not alive:
 						break
-				for tr in Map.trees():
-					if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
-						hit = true
-				var gy := Terrain.height(fx.pos.x, fx.pos.z)
-				if fx.pos.y <= gy:
-					fx.pos.y = gy; hit = true
-				# A weave that runs out of reach or strikes anything bursts where it is.
+					hit = _fly(fx, owner, dt / hops)
+					alive = fx.left > 0.0
 				if hit or not alive:
 					_blast(fx.owner, fx.weave, fx.pos, fx.radius, fx.dmg)
 					alive = false
@@ -409,5 +418,5 @@ func snapshot() -> Dictionary:
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:
-		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("r", 0.0), f.pos.y])
+		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("r", 0.0), f.pos.y, f.get("weave", "")])
 	return {t = t, ents = es, fx = fx}

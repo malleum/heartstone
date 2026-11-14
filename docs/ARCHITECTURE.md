@@ -43,6 +43,13 @@ for lack of stamina.
   the strength used for `level` gates. So a tired channeller weaves weak and cheap,
   and loses gateways. It replaced a 100-point pool that refilled in 15 seconds and
   was never shown on screen.
+- **Cooldowns** (`cooldown` on a row) are kept per player in the sim; the view
+  mirrors its own from the cast event for the HUD.
+- **What a weave leaves behind** is data: `on_hit` (burn, stun, down), `self` (share
+  of a blast its weaver takes), and `gravity`/`loft` for an arcing projectile.
+- **Creation:** the first three points in the two Powers of your half of the Source
+  cost half (`Profile.affinity_cost`); the starting weave is the simplest of your
+  strongest Power (`Profile.STARTERS`, ties settled by a hash of the name).
 - **Starting strength** is `start_gap` (10) levels below potential.
   `Profile._migrate` lifts older saves to that floor and follows renamed weaves.
 - **Saidin leaps:** `profile.strength` accrues identically for everyone, but
@@ -86,7 +93,11 @@ Single-player is the same path with the host as sole player.
 A map is pure maths in `Map`: a corridor along -Z whose half-width varies with z,
 cliffs outside it, a spawn area at the far end and a defended line. The Sim clamps
 everyone inside it, `Terrain.height` adds the cliffs, and feet plant on the same
-function, so rules, mesh and gait cannot disagree. An activity names its map with
+function, so rules, mesh and gait cannot disagree. The sim stays on the ground plane for movement and crowding, but weaves fly in 3D:
+they leave the hand toward the aim point, fall if they have `gravity`, and burst on
+enemies, trees or the ground, which the sim reads from `Terrain.height` (pure
+maths, no nodes). `Map.trees()` is the one list of trunks: the sim collides with
+it and `Scenery` draws a tree at each. An activity names its map with
 `"map"`; without one the ground is open. `Scenery` adds view-only dressing (the
 breastwork, stakes, watch-fires, banners, boulders) and `Scenery.scatter` adds grass
 tufts, loose stones and dead trees to any map. The ground shader is all world-space
@@ -151,8 +162,15 @@ that chase their sim position with their own gait.
 - `Weavefx` draws every weave kind from primitives, particles and lights; `Sfx`
   synthesizes every sound from maths at startup (no audio files). `-- --auto
   --fxdemo` fires each effect in turn for review in a render.
-- Trolloc attacks are a lunge borrowed from the hit spring; a real attack animation
-  is still owed.
+- Trolloc attacks: the sim sends "swing" 0.4 s before the blow and `Walker.attack`
+  plays an overhead chop on the weapon arm. Snapshots carry status bits (burning,
+  down, stunned, thrown); the view adds flames or sparks, lays a Trolloc flat with
+  the death fall played part-way (`Walker.downed`), and slides a thrown one
+  without turning it.
+- Casting clips: `Hero.cast_clip(name, weave)` picks one of five gestures; each has
+  a `_Move` twin with the jog's legs grafted on, used while moving.
+- Render flags: `--name=Bot` keeps renders off a real character; `--stand` makes
+  the bot hold still and weave rarely so melee can be watched.
 - Camera: an orbit camera over the right shoulder; pitch tilts the view itself.
 - The character faces where it runs and turns to the target when it weaves, because
   the library has a forward jog but no strafes.
@@ -185,8 +203,9 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 | `assets/quaternius/animation_library.glb` | Quaternius: Universal Animation Library, older rig, from opengameart.org | CC0 1.0 (`LICENSE.txt` beside it) | Skeleton and clips for generated humans |
 
 ## Next steps, in order
-1. Fight feel: visible flows while a weave forms, hit-stop, a Trolloc attack
-   animation, and effects for the weaves beyond fireball.
+0. `BACKLOG.md` is the full list of what Josh has asked for; this is only an order.
+1. Fight feel: visible flows while a weave forms, hit-stop, clearer status
+   effects, and effects for the weaves beyond fireball.
 2. Make three flows change the game: tying off or holding a weave while weaving
    another, so Dome of Air plus an attack is a real choice.
 3. Co-op basics: client interpolation, each player's look sent to the others,

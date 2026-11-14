@@ -6,25 +6,13 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 ## Combat feel and rules
-- [ ] **Cooldowns on weaves** so a fight is not one button spammed. This also lets
-  drawing a weave be faster than waiting, which rewards the drawing skill later.
-- [ ] **Each Power does something of its own** so switching weaves is worth it, and
-  the effect must be clear and visible:
-  - Fire sets things on fire, and can set you on fire if you are too close.
-  - Air does less damage but its knockback is good.
-  - Water makes them slip and fall.
-  - Lightning stuns, or charges them for a second or two.
-  - Earth and Spirit: Claude's choice.
-- [ ] **Your own fireball should hurt you** if it bursts beside you.
-- [ ] **Aim up and down.** Weaves always fly parallel to the ground at present.
-- [ ] **Fireball arcs,** so aiming it is a skill.
-- [ ] **Knockback must look like being thrown.** Trollocs hit by Air turn round and
-  walk a few steps as if they chose to.
-- [ ] **Trees need hitboxes** (and anything else solid that has none).
-- [ ] **Trollocs swing their weapons** when they attack.
-- [ ] **Feet move when you walk while weaving.** They stand still at present.
-- [ ] **Varied casting animations:** random per person, but the same every time for
-  that person and that weave. Derive it from a seed so nothing extra is stored.
+- [ ] **Each Power does something of its own:** the first pass is built (see Done).
+  Still wanted: lightning that briefly charges and speeds them instead of stunning,
+  Spirit with an effect of its own, and every effect made unmistakable on screen.
+- [ ] **Knockdown, burning and stun visuals have not been looked at closely.** Only
+  the weapon swing and the fireball's flight were checked in renders.
+- [ ] Trolloc attacks: one overhead chop for every weapon. Wanted: thrusts for
+  spears, sweeps for axes, and a hit reaction on the player that matches.
 
 ## Character and progression
 - [ ] **A skill tree for weaves,** researched one at a time.
@@ -54,19 +42,18 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] No visible flows while a weave forms; no pause on impact.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
-## In progress on branch `wip-combat` (not on master: the bot loses with it)
-Written 2026-11-14, tests failing, view not wired. Finish or rework before merging.
-- Sim: cooldowns; burn, stun and knockdown from `on_hit`; fireball arc and 3D
-  flight; self-damage; tree collisions (`Map.trees`); Trolloc "swing" event.
-- Data: cooldowns and effects on every weave; starter weaves Heave the Ground,
-  Lash of Water (game choice), Blade of Spirit (game choice).
-- Creation: starter weave from strongest Power; half-price first three points in
-  the two Powers of your half of the Source.
-- Walker: knockdown pose and weapon swing (never rendered or looked at).
-- Hero: moving-cast clips and per-person cast gestures (not used by the view yet).
-- Still to do there: rebalance so the bot wins the watch and the spar ends; wire
-  `game.gd` (aim at chest, projectile height from the snapshot, status visuals,
-  cooldowns and strength level on the HUD, swing and knockdown on Trollocs,
-  thrown slide, moving-cast clips); render and look; update WEAVES.md.
-
 ## Done
+- 2026-11-14, combat pass (assumed numbers are in PLAYTEST.md items 19-22):
+  - **Cooldowns** on every weave, shown beside each weave on the HUD.
+  - **Fire burns** (and a burning Trolloc sets you alight when it hits you); **Air
+    throws them back** hard for little damage; **Water and Earth knock them down**;
+    **Lightning stuns.**
+  - **Your own fire hurts you** if it bursts beside you, and sets you burning.
+  - **Aim up and down:** weaves leave the hand toward the crosshair in 3D and land
+    on real ground. **Fireball arcs**, so long throws need aiming high.
+  - **Knockback is a throw:** a hit Trolloc slides back facing the way it was.
+  - **Trees are solid** for you, for Trollocs and for weaves.
+  - **Trollocs raise and bring down their weapon**, starting 0.4 s before the blow.
+  - **Feet jog while you weave on the move.**
+  - **Casting gestures vary** by person and weave (five gestures, chosen by a hash
+    of the name and the weave).

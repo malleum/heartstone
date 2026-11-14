@@ -28,6 +28,8 @@ var known: Array = []
 var last_refusal := ""
 var refusal_t := 0.0
 var my_hp := 100.0
+var clock := 0.0
+var ready_at := {}                # weave -> clock time it can be woven again
 var my_stamina: float = Rules.TUNE.stamina
 var frame := 0
 
@@ -122,22 +124,29 @@ func _aim_point() -> Vector3:
 			continue
 		var miss := (c - (from + dir * along)).length() - along * 0.012
 		if miss < best_miss:
-			best_miss = miss; best = a.node.position
+			best_miss = miss; best = c
 	if best != Vector3.ZERO:
 		return best
 	for i in 240:
 		var p := from + dir * (i * 0.4)
 		if p.y <= Terrain.height(p.x, p.z):
 			return p
-	return _ground(from + dir * 45.0)
+	# Aiming at the sky is allowed: that is how a lofted weave is thrown far.
+	return from + dir * 60.0
 
 func _process(dt: float) -> void:
 	frame += 1
+	clock += dt
 	refusal_t -= dt
 	if session.my_id == 0:
 		return
 	if args.has("auto") and session.is_host:
-		Bot.drive(session.sim, session.my_id)
+		# --stand: the bot holds its ground and weaves only now and then, so melee,
+		# burning and knockdowns can be watched up close in a render.
+		if not args.has("stand") or frame % 300 < 45:
+			Bot.drive(session.sim, session.my_id)
+		if args.has("stand"):
+			session.sim.set_input(session.my_id, Vector3.ZERO, session.sim.ents[session.my_id].yaw)
 		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI, 2.0 * dt)
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -246,14 +255,20 @@ func _on_events(list: Array) -> void:
 				# A lunge at the victim: the gait has no attack clip, so borrow the hit spring.
 				if actors.has(e.id) and actors.has(e.target) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
 					var w: Walker = actors[e.id].node
-					w.hit((_ground(actors[e.target].target) - w.position).normalized(), 0.75)
+					w.hit((_ground(actors[e.target].target) - w.position).normalized(), 0.35)
 					Sfx.play(self, "thud", w.position + Vector3(0, 1.2, 0), 0.0)
+			"swing":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
+					(actors[e.id].node as Walker).attack()
 			"cast":
 				if actors.has(e.id):
-					_play(actors[e.id], "Spell_Simple_Shoot", true)
+					# Each channeller has their own gesture for each weave.
+					_play(actors[e.id], Hero.cast_clip(profile.name if e.id == session.my_id else str(e.id), e.weave), true)
+				if e.id == session.my_id:
+					ready_at[e.weave] = clock + Rules.cooldown(profile, e.weave)
 				Weavefx.cast(self, e)
 			"blast":
-				Weavefx.blast(self, _ground(e.pos), e.radius, e.weave)
+				Weavefx.blast(self, e.pos, e.radius, e.weave)
 			"fx_end":
 				if fx.has(e.id):
 					fx[e.id].queue_free(); fx.erase(e.id)
@@ -264,6 +279,10 @@ func _play(a: Dictionary, clip: String, once := false) -> void:
 	var ap: AnimationPlayer = a.node.get_meta("anim")
 	if once:
 		a.busy = ap.get_animation(clip).length * 0.9
+		a.gesture = clip
+		# Weaving on the move uses the same gesture over jogging legs.
+		if a.get("speed", 0.0) > 0.6 and ap.has_animation(clip + "_Move"):
+			clip += "_Move"
 	if ap.current_animation != clip:
 		ap.play(clip, 0.12)
 
@@ -296,15 +315,34 @@ func _on_snapshot(s: Dictionary) -> void:
 				me = rig
 		var a: Dictionary = actors[id]
 		a.target = Vector3(e[1], 0, e[2]); a.yaw = e[3]
+		_status(a, e[6])
 		if id == session.my_id:
 			my_hp = e[4]; my_stamina = e[5]
 	for f in s.fx:
 		if not fx.has(f[0]):
-			fx[f[0]] = Weavefx.live(self, f[1])
+			fx[f[0]] = Weavefx.live(self, f[1], f[6])
 		var n: Node3D = fx[f[0]]
 		n.position = _ground(Vector3(f[2], 0, f[3])) + Vector3(0, 1.2, 0)
+		if f[1] == "projectile":
+			n.position.y = f[5]
 		if f[1] == "ring":
 			n.scale = Vector3(f[4], 1.0, f[4]); n.position.y -= 0.9
+
+## Show what the sim says has happened to someone: 1 burning, 2 down, 4 stunned,
+## 8 thrown.
+func _status(a: Dictionary, bits: int) -> void:
+	a.status = bits
+	if not is_instance_valid(a.node):
+		return
+	for pair in [["burn", 1], ["stun", 4]]:
+		var key: String = "fx_" + pair[0]
+		var on: bool = bits & pair[1] and not a.get("dead", false)
+		if on and not a.has(key):
+			a[key] = Weavefx.status(pair[0]); a.node.add_child(a[key])
+		elif not on and a.has(key):
+			if is_instance_valid(a[key]):
+				a[key].queue_free()
+			a.erase(key)
 
 func _draw_actors(dt: float) -> void:
 	var walkers: Array[Walker] = []
@@ -317,7 +355,15 @@ func _draw_actors(dt: float) -> void:
 			if not a.get("dead", false):
 				# The Walker keeps its own planted-foot gait and simply chases the sim position.
 				var to: Vector3 = a.target - w.pos; to.y = 0.0
-				w.vel = (to * 3.0).limit_length(5.5) if to.length() > 0.25 else Vector3.ZERO
+				var st: int = a.get("status", 0)
+				w.downed = st & 2
+				if st & 10:
+					# Thrown or flat on the ground: it is carried, it does not walk there,
+					# so it keeps facing the way it was and slides.
+					w.vel = Vector3.ZERO
+					w.pos += to * minf(10.0 * dt, 1.0)
+				else:
+					w.vel = (to * 3.0).limit_length(5.5) if to.length() > 0.25 else Vector3.ZERO
 			walkers.append(w)
 		elif a.kind == "player":
 			var n: Node3D = a.node
@@ -326,6 +372,14 @@ func _draw_actors(dt: float) -> void:
 			n.position = n.position.lerp(tgt, minf(12.0 * dt, 1.0))
 			n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
+			a.speed = speed
+			if a.busy > 0.0 and a.has("gesture"):
+				# Starting or stopping mid-weave swaps the legs without restarting the arms.
+				var ap: AnimationPlayer = n.get_meta("anim")
+				var want: String = a.gesture + ("_Move" if speed > 0.6 and ap.has_animation(a.gesture + "_Move") else "")
+				if ap.current_animation != want and ap.current_animation.begins_with(a.gesture):
+					var at := ap.current_animation_position
+					ap.play(want, 0.15); ap.seek(minf(at, ap.get_animation(want).length), true)
 			if a.busy <= 0.0:
 				_play(a, ("Sprint" if speed > 6.5 else "Jog_Fwd") if speed > 0.6 else "Idle")
 	for w in walkers:
@@ -360,12 +414,13 @@ func _draw_hud() -> void:
 	_banner_t -= get_process_delta_time()
 	if _banner_t <= 0.0 and not _done:
 		banner.text = ""
-	var lines := ["%s   strength %s of %s   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(Rules.strength(profile) * Rules.vigor(my_stamina))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
+	var lines := ["%s   strength %s of %s   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(Rules.strength(profile))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
 		"Health %d" % int(maxf(my_hp, 0.0)),
-		"Stamina %s %d%%   weaves at %d%% strength" % ["|".repeat(int(ceil(20.0 * my_stamina / Rules.TUNE.stamina))).rpad(20, "."), int(100.0 * my_stamina / Rules.TUNE.stamina), int(100.0 * Rules.vigor(my_stamina))], ""]
+		"Stamina %s %d%%   weaves at %d%% strength: %s" % ["|".repeat(int(ceil(20.0 * my_stamina / Rules.TUNE.stamina))).rpad(20, "."), int(100.0 * my_stamina / Rules.TUNE.stamina), int(100.0 * Rules.vigor(my_stamina)), Rules.level_name(Rules.level_of(Rules.strength(profile) * Rules.vigor(my_stamina)))], ""]
 	for i in known.size():
 		var w: Dictionary = Rules.weaves[known[i]]
-		lines.append("%s %d  %s  (mastery %d)" % [">" if i == selected else "  ", i + 1, w.name, Rules.mastery_level(profile, known[i])])
+		var wait: float = ready_at.get(known[i], 0.0) - clock
+		lines.append("%s %d  %s  %s" % [">" if i == selected else "  ", i + 1, w.name, "%.1f s" % wait if wait > 0.0 else "ready"])
 	if refusal_t > 0.0:
 		lines.append(""); lines.append("Cannot weave: " + last_refusal)
 	hud.text = "\n".join(lines)

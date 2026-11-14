@@ -8,7 +8,7 @@ const ELEMENTS: Array[String] = ["fire", "earth", "water", "air", "spirit"]
 
 ## Every pacing number lives here so tuning never means hunting through code.
 const TUNE := {
-	ref_power = 25.0,          # weave base numbers are written for this power
+	ref_power = 16.0,          # weave base numbers are written for this power
 	min_affinity = 0.12,       # per-flow floor to be able to form a weave at all
 	mastery_xp = 150.0,        # level = floor(sqrt(xp / this)), capped
 	mastery_cap = 10,

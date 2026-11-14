@@ -113,7 +113,7 @@ cannot make the weaves they could that morning.
 | **Deathgates** | Spirit + Fire + Earth | Rolling gateways that kill whatever they pass through. | KoD ch.19 / Vows | 11 | Canon |
 | Exploding / pulverising | Fire + Earth | Blow objects apart or grind them to dust. | LoC, Lessons and Teachers | 6 | Canon |
 | **Rolling ring of earth** | Earth + Fire | The earth wave that broke the Shaido at Dumai's Wells. | Depository (no chapter) | 6 | Wiki |
-| Heave the ground | Earth | Earth threads driven down to throw the ground up. | AMoL, What Must Be Done | 14 | Canon |
+| **Heave the ground** | Earth | Earth threads driven down to throw the ground up. | AMoL, What Must Be Done | 14 | Canon |
 | Red filaments & balls of fire | Fire + Air | Burning threads and fireballs. | TPoD, A Cup of Sleep | 8 | Canon |
 | Weapons of Air | Air | Hardened Air to hit, cut, stab or slice. | ToM, Gateways | 13 | Canon |
 | Bind / lift with Air | Air | Restrain, lift, carry; strength-limited. | LoC, Summoned in Haste | 6 | Canon |
@@ -200,6 +200,24 @@ cannot make the weaves they could that morning.
   it stands on Weapons of Air and Bind / lift with Air. Kept as the one cheap Air
   attack.
 - **Dome of Air** is the game's held barrier (it was "Shield of Air" before).
+- **Lash of Water** (Water) and **Blade of Spirit** (Spirit) are ours. The tables
+  have no single-Power attack in Water or Spirit, and every character starts with
+  the simplest weave of their strongest Power, so those two Powers needed one.
+  Blade of Spirit borrows from Severing's "knife edge". Replace them if a canon
+  weave turns up.
+- **Starting weaves:** Fire Fireball, Air Hammer of Air, Earth Heave the Ground,
+  Water Lash of Water, Spirit Blade of Spirit. The one you start with ignores the
+  spoiler setting (Heave the Ground is cited to book 14).
+
+### What each Power does to those it strikes (game choice)
+| Power | Effect | Weaves |
+| --- | --- | --- |
+| Fire | Burns for a few seconds; a blast beside you burns you too | Fireball, Arrows of Fire, Blossoms of Fire |
+| Air | Little damage, a long throw backwards | Hammer of Air |
+| Water | Knocks them off their feet for over two seconds | Lash of Water |
+| Earth | Knocks them down briefly | Heave the Ground, Rolling Ring |
+| Lightning (Fire + Air) | Stuns | Lightning |
+| Spirit | None yet: a fast, precise bolt | Blade of Spirit |
 - **Riven Earth and Making Fog were removed** (Josh, 2026-11-14): Fandom names with
   no flows, already covered by Heave the ground and Wind & clouds.
 

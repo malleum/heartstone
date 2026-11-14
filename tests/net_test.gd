@@ -34,7 +34,7 @@ func _init() -> void:
 		s.set_physics_process(true)
 	else:
 		Profile.dir = "user://test_profiles"
-		var p := Profile.create({name = "Net " + a[1], potential_pts = 8})
+		var p := Profile.create({name = "Net " + a[1], potential_pts = 8, affinity_pts = {fire = 6}})
 		var before: float = p.channelled
 		s.join("127.0.0.1", p)
 		s.events.connect(func(list: Array) -> void:
@@ -71,4 +71,5 @@ func _client_bot() -> void:
 	cast_t -= 1.0 / 60.0
 	if cast_t <= 0.0:
 		cast_t = 0.3
-		s.cast("fireball", target)
+		# Aim at the chest and allow for the fireball's fall, as a player learns to.
+		s.cast("fireball", target + Vector3(0, Terrain.height(target.x, target.z) + 1.1 + 0.00446 * best * best - 0.052 * best, 0))

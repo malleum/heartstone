@@ -88,15 +88,16 @@ static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
 	g.get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
 
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
-static func live(g: Node3D, kind: String) -> Node3D:
+static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 	var n := Node3D.new()
 	g.add_child(n)
 	match kind:
 		"projectile":
 			var s := SphereMesh.new(); s.radius = 0.28; s.height = 0.56
-			n.add_child(_mesh(s, Color(1.0, 0.72, 0.35), 5.0)); n.add_child(_light(TINT.fire, 4.0, 9.0))
+			var col: Color = colour(weave) if weave != "" else TINT.fire
+			n.add_child(_mesh(s, col.lerp(Color.WHITE, 0.35), 5.0)); n.add_child(_light(col, 4.0, 9.0))
 			# Flames stay in world space, so a moving ball drags a tail behind it.
-			var trail := _particles(TINT.fire, 70, 0.4, 0.34, 0.9, 1.2)
+			var trail := _particles(col, 70, 0.4, 0.34, 0.9, 1.2)
 			n.add_child(trail)
 		"mover":
 			var b := BoxMesh.new(); b.size = Vector3(2.4, 3.2, 0.08)
@@ -118,6 +119,18 @@ static func live(g: Node3D, kind: String) -> Node3D:
 			var mi := _mesh(c, TINT.fire, 2.0); mi.position.y = -1.1
 			n.add_child(mi)
 	return n
+
+## What clings to someone a weave has marked: flames on the burning, sparks on the
+## stunned. The caller frees it when the status ends.
+static func status(kind: String) -> Node3D:
+	var p: GPUParticles3D
+	if kind == "burn":
+		p = _particles(TINT.fire, 40, 0.6, 0.3, 0.6, 2.2, 60.0)
+		p.add_child(_light(TINT.fire, 2.0, 5.0))
+	else:
+		p = _particles(Color(0.75, 0.85, 1.0), 14, 0.35, 0.12, 2.5, 0.0)
+	p.position.y = 1.2
+	return p
 
 static func blast(g: Node3D, at: Vector3, radius: float, weave: String) -> void:
 	var col := colour(weave)
