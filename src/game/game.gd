@@ -147,6 +147,8 @@ func _process(dt: float) -> void:
 		if aim_t <= 0.0 and move.length() > 0.1:
 			face_yaw = atan2(move.x, move.z)
 		session.send_input(move, face_yaw)
+	if args.has("fxdemo"):
+		_fx_demo(dt)
 	_draw_actors(dt)
 	_draw_fx(dt)
 	if me:
@@ -163,6 +165,25 @@ func _process(dt: float) -> void:
 		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
+
+## `-- --auto --fxdemo`: fire every instant weave effect in turn in front of the
+## camera, so effects can be reviewed in a render without waiting for a real cast.
+var _demo_t := 1.0
+var _demo_i := 0
+func _fx_demo(dt: float) -> void:
+	_demo_t -= dt
+	if _demo_t > 0.0 or me == null:
+		return
+	_demo_t = 1.0
+	var list := ["lightning", "riven_earth", "balefire", "hammer_of_air", "shield_of_air", "healing", "blossoms_of_fire"]
+	var id: String = list[_demo_i % list.size()]; _demo_i += 1
+	var dir := Basis(Vector3.UP, cam_yaw) * Vector3(0.25, 0, -1).normalized()
+	var at := _ground(me.position + dir * 12.0)
+	if id == "blossoms_of_fire":
+		Weavefx.blast(self, at, 3.2, id)
+	else:
+		Weavefx.cast(self, {weave = id, kind = Rules.weaves[id].kind, pos = me.position, at = at, dir = dir})
+	print("FXDEMO ", frame, " ", id)
 
 ## Leaving mid-activity (F10) abandons it: nothing is awarded, nothing is lost.
 func _to_camp() -> void:
@@ -204,6 +225,13 @@ func _on_events(list: Array) -> void:
 			"form":
 				if actors.has(e.id):
 					_play(actors[e.id], "Spell_Simple_Enter", true)
+					Sfx.play(self, "hum", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -8.0)
+			"attack":
+				# A lunge at the victim: the gait has no attack clip, so borrow the hit spring.
+				if actors.has(e.id) and actors.has(e.target) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
+					var w: Walker = actors[e.id].node
+					w.hit((_ground(actors[e.target].target) - w.position).normalized(), 0.75)
+					Sfx.play(self, "thud", w.position + Vector3(0, 1.2, 0), 0.0)
 			"cast":
 				if actors.has(e.id):
 					_play(actors[e.id], "Spell_Simple_Shoot", true)
