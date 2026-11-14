@@ -359,7 +359,7 @@ func _draw_hud() -> void:
 	_banner_t -= get_process_delta_time()
 	if _banner_t <= 0.0 and not _done:
 		banner.text = ""
-	var lines := ["%s   strength %d/%d   flows %d   renown %d" % [profile.name, int(profile.strength), int(profile.potential), Rules.flow_capacity(profile), int(profile.renown)],
+	var lines := ["%s   strength %s (potential %s)   flows %d   renown %d" % [profile.name, Rules.level_name(Rules.level_of(profile.strength)), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)],
 		"Health %d" % int(maxf(my_hp, 0.0)), ""]
 	for i in known.size():
 		var w: Dictionary = Rules.weaves[known[i]]

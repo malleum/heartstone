@@ -8,7 +8,7 @@ const VERSION := 1
 ## Tests point this elsewhere so they never litter the player's character list.
 static var dir := "user://profiles"
 const CREATION_POINTS := 20
-const TALENTS: Array[String] = ["healing", "travelling", "skimming", "cloud_dancing", "earth_singing", "illusion", "reading_residues", "reading_weaves", "unweaving", "listening_to_the_wind", "dreaming", "foretelling"]
+const TALENTS: Array[String] = ["healing", "travelling", "cloud_dancing", "delving", "earth_singing", "illusion", "reading_residues", "reading_weaves", "unweaving", "listening_to_the_wind", "dreaming", "foretelling"]
 
 ## opts: name, power (saidin|saidar), potential_pts, affinity_pts {element: pts},
 ## talents [], origin, look {}, book_limit. Points: 20 shared between potential,
@@ -32,7 +32,7 @@ static func create(opts: Dictionary) -> Dictionary:
 		affinity[e] = minf(a, 0.9)
 		# Aptitude is the ceiling practice can reach in that Power.
 		aptitude[e] = minf(a + 0.35, 1.0)
-	var potential := 30.0 + 5.0 * pot_pts
+	var potential := Rules.strength_of(potential_level(power, pot_pts))
 	var p := {
 		version = VERSION, name = opts.get("name", "Unnamed"), cls = "channeller",
 		power = power, potential = potential, strength = potential * 0.2 + 4.0,
@@ -44,6 +44,15 @@ static func create(opts: Dictionary) -> Dictionary:
 		weaves = {fireball = {known = true, xp = 0.0}}, seen = [], done = {},
 	}
 	return p
+
+## Potential bought with creation points, as a Companion level: 40(28) for nothing,
+## 1(+12) for 14 points. Only saidin goes further, to ++1 at 16 points: the weakest
+## man and woman are equals, but men have six levels above the strongest woman.
+static func potential_level(power: String, pts: int) -> int:
+	return maxi(40 - roundi(2.8 * pts), -5 if power == "saidin" else 1)
+
+static func max_potential_pts(power: String) -> int:
+	return 16 if power == "saidin" else 14
 
 static func path(name: String) -> String:
 	return "%s/%s.json" % [dir, name.to_lower().validate_filename()]

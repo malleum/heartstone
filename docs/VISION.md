@@ -30,8 +30,26 @@ This is the firmest requirement.
   hours ("few Aes Sedai hold more than three"). Going from two flows to three should
   change how you play: holding a shield while attacking, then weaving the big
   multi-flow weaves.
-- The weave list and its canon research live in `weaves.md`, which Josh maintains.
-  Prefer 15 to 20 weaves that each feel distinct over 60 recolours.
+- The weave list, the strength scale and the Talents live in `WEAVES.md`. It is
+  canon first: every weave says where its flows come from. Prefer 15 to 20 weaves
+  that each feel distinct over 60 recolours.
+- **Strength is on Robert Jordan's scale:** 72 up to 1 for the strongest woman, and
+  ++6 to ++1 for the six levels only men reach.
+- **Talents are innate and make you far better at something anyone can learn;** they
+  never lock a weave away. Travelling needs strength 19(7) unless you have the
+  Talent or link.
+- **Saidin and saidar differ:** gateways and Healing use different flows.
+- **Four- and five-Power weaves wait for four or five flows.** Balefire is all five.
+  That wait is intended.
+
+### What grows, beyond the numbers
+- **Weave mastery:** faster to form, cheaper to hold, truer aim.
+- **Techniques,** learned through missions: tie off, invert, cut another's weave,
+  and at the very end reverse (Rand learned inverting from Asmodean).
+- **Linking** in co-op: the leader directs the circle's combined strength, and a
+  circle beats the strength limits on cutting and on Travelling.
+- **Angreal and sa'angreal** as loot: a large temporary boost with overdraw and
+  burnout as the risk.
 
 ## One connected game
 A hub (the camp) and several kinds of activity that share one character and one set
@@ -64,8 +82,16 @@ mechanically: linking, Healing that cannot target yourself, a Warder guarding a
 channeller mid-weave.
 
 ## Classes
-Channeller first. Warder, Aiel warrior and Dreamer come later, and only once the
-channeller is fun by itself.
+Channeller first. The others come later, and only once the channeller is fun by
+itself. Each has the same shape: choices at creation, then slow growth.
+- **Warder:** build, sword style and homeland; then sword forms, the bond (sense
+  your channeller, shared endurance) and the colour-shifting cloak. Uniquely good at
+  guarding a channeller mid-weave.
+- **Aiel:** warrior society and clan; then spear and buckler forms, the bow,
+  veiling, moving unseen, endurance.
+- **Dreamer:** the Dreaming Talent, with or without channelling; then control of
+  Tel'aran'rhiod (shaping, travel by need, guarding dreams). Strongest in dream
+  missions, support elsewhere.
 
 ## Enemies
 Trollocs in hordes (mismatched beast-human hybrids: boar, wolf, ram, hawk, bear),

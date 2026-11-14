@@ -5,7 +5,7 @@ extends Node3D
 ## the backdrop later without touching the flow (profile -> activity -> game -> back).
 
 const ORIGINS := {two_rivers = "Two Rivers", aiel = "Aiel", cairhien = "Cairhien", domani = "Arad Doman", borderlands = "Borderlands", tar_valon = "Tar Valon"}
-const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing", "illusion", "dreaming"]
+const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing", "delving", "illusion", "dreaming"]
 
 var profile := {}
 var model: Node3D
@@ -107,7 +107,7 @@ func _select(name_: String) -> void:
 	_clear(side); _clear(board)
 	_text(side, profile.name, 28)
 	_text(side, "%s  ·  %s  ·  %s" % [profile.power.capitalize(), ORIGINS.get(profile.origin, profile.origin), "%d h %02d m channelling" % [int(profile.seconds / 3600.0), int(profile.seconds / 60.0) % 60]], 15, Color(0.7, 0.72, 0.78))
-	_text(side, "Strength %d of %d\nFlows held at once: %d\nRenown %d" % [int(profile.strength), int(profile.potential), Rules.flow_capacity(profile), int(profile.renown)])
+	_text(side, "Strength %s, potential %s\nFlows held at once: %d\nRenown %d" % [Rules.level_name(Rules.level_of(profile.strength)), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)])
 	var aff := ""
 	for e in Rules.ELEMENTS:
 		aff += "%s %d%%   " % [e.capitalize(), int(profile.affinity[e] * 100.0)]
@@ -183,9 +183,12 @@ func _creation() -> void:
 	make.origin = _option(side, "Origin", ORIGINS)
 	make.look = _option(side, "Dress", {})
 	# Saidar is women's and saidin men's, so the wardrobe follows the choice.
-	make.power.item_selected.connect(func(_i: int) -> void: _fill_looks(); _creation_changed())
+	make.power.item_selected.connect(func(_i: int) -> void:
+		_fill_looks()
+		make.potential.max_value = Profile.max_potential_pts(make.power.get_selected_metadata())
+		_creation_changed())
 	_fill_looks()
-	_text(side, "Twenty points, spent once. Potential is how strong you can ever become. Affinity is how readily each Power answers you. A Talent costs four.", 14, Color(0.7, 0.72, 0.78))
+	_text(side, "Twenty points, spent once. Potential is how strong you can ever become, on the Aes Sedai scale: 72 is the weakest, 1 the strongest woman, and ++6 to ++1 the men beyond her. Affinity is how readily each Power answers you. A Talent costs four; it does not unlock a weave, it makes you far better at it.", 14, Color(0.7, 0.72, 0.78))
 	make.potential = _spin(side, "Potential", 14, 8)
 	make.aff = {}
 	for e in Rules.ELEMENTS:
@@ -226,7 +229,7 @@ func _creation_changed() -> void:
 	if not make.has("go"):
 		return
 	var left := _points_left()
-	make.left.text = "Points left: %d" % left
+	make.left.text = "Potential %s   ·   points left: %d" % [Rules.level_name(Profile.potential_level(make.power.get_selected_metadata(), int(make.potential.value))), left]
 	make.left.add_theme_color_override("font_color", Color(1, 0.4, 0.3) if left < 0 else Color(0.9, 0.9, 0.92))
 	make.go.disabled = left < 0
 	var kind: String = make.look.get_selected_metadata()

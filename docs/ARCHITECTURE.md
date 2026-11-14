@@ -27,39 +27,30 @@ gen     src/gen/, src/anim/   generated creatures, sourced heroes, locomotion
 A plain Dictionary saved as JSON under `user://profiles/`.
 - Fixed at creation (20 points shared): saidin/saidar, potential (strength ceiling),
   affinities in the five Powers, 0-2 Talents, origin and look. More potential means
-  fewer Talents, as in `weaves.md`.
+  fewer Talents, as in `WEAVES.md`.
 - Grows forever: strength (toward potential), affinity per Power (toward an aptitude
   ceiling), mastery per weave, flows held at once, weaves known, renown.
 
 ## The formula (src/core/rules.gd)
 `power = strength x (0.5 + flow-weighted affinity) x (1 + 5% x mastery) x Talent`.
 A weave's base numbers are written for power 10 and scale linearly.
-Casting needs: the weave learned, within the spoiler limit, any required Talent, a
+Casting needs: the weave learned, within the spoiler limit, any strength gate met, a
 minimum affinity in every flow, enough free flow slots, and endurance.
+- **Strength is Robert Jordan's scale** (`WEAVES.md`): 72 up to 1, then ++6 to ++1
+  for men only. It is stored as a magnitude so the formula stays a product, and
+  `Rules.level_of` / `level_name` turn it into "19(7)" for every screen and gate.
+  Level 1 is 100 and each level is a factor of `TUNE.level_ratio`; those ratios are
+  ours, the Companion only ranks. Creation buys a potential level: 40(28) for no
+  points, 1(+12) for 14, and saidin alone may spend 16 to reach ++1.
+- **A Talent never unlocks a weave** (Josh, 2026-11-13). A weave's `talent` field
+  names the Talent that multiplies its power by `TUNE.talent_power` and waives its
+  `level` gate. Gateway and Deathgate carry `level: 19`.
+- **Weaves can differ by sex:** `flows_saidin` on a row (Gateway, Healing).
+- Linking should also clear a strength gate; there is no linking yet.
 - **Flow slots** = total threads in the weave. Capacity starts at 2 and grows with
   lifetime channelling. It gates the big weaves (Blossoms of Fire needs 3) and lets
   you hold a shield while attacking.
 - **Spoiler setting** is `book_limit` on the profile versus `book` on each weave.
-
-## Where the game lags `weaves.md`
-`weaves.md` was revised on 2026-11-13 and `data/weaves.json` has not followed yet.
-These are decisions for Josh as much as chores, so they are listed, not silently done.
-- **Talents gate weaves that the document now says anyone can learn.** Healing needs
-  the Healing Talent, Making Fog needs Cloud Dancing, and Gateway and Deathgate need
-  Travelling. The document makes each Talent a large bonus instead, and gives
-  Travelling a strength gate (19(7), cleared by the Talent or by linking).
-- **No mapping from the Companion's strength levels to the game's numbers.** Strength
-  here runs from about 10 to a potential of 30-130; "19(7)" needs a number.
-- **Skimming is still a Talent** in `Profile.TALENTS`; the document folds it into
-  Travelling. Delving is a new Talent with no row.
-- **Balefire** is Fire 2 + Spirit 2 with a strength gate of 30. The document says all
-  five Powers, which is five flow slots (about 40 hours of play at current pacing).
-- **Gateway** is Spirit 2 for everyone; the document says Spirit + Fire for saidin.
-  Weaves have no per-Power variant yet. Men's Healing differs the same way.
-- **Book numbers disagree:** Lightning 3 here vs 5, Shield from the Source 2 vs 3,
-  Gateway 5 vs 6. Fireball is book 1 and "canon" here; the document has no book cite.
-- **Not in the document's tables at all:** Hammer of Air, Shield of Air, Riven Earth
-  and Making Fog. Their book numbers and flows are this game's guesses.
 
 ## Progression (src/core/progression.gd)
 One function, `Progression.award(profile, tally, activity, success)`, called when
@@ -188,3 +179,5 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
    has seen and heard the first.
 4. Client interpolation; send each player's look to the others.
 5. One linear mission; then casting by drawing (see VISION.md).
+6. From `WEAVES.md`, not built: Delving, Illusion and the weather weave as real
+   weaves; Skimming; techniques (tie off, invert, cut); linking; angreal.

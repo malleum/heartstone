@@ -2,8 +2,8 @@
 
 3D Wheel of Time game in Godot 4 (Forward+), GDScript. Co-op PvE: channellers vs
 Shadowspawn hordes. A private game for the user and friends. The vision is in
-`docs/VISION.md`; weave research is in `weaves.md` (the user maintains it; only read it
-when working on abilities).
+`docs/VISION.md`; canon weaves, Talents and the strength scale are in `docs/WEAVES.md` (read it when
+working on abilities; the user's rulings there are final).
 
 ## Dev environment
 - `nix develop` gives Godot 4, sway, grim, ffmpeg, imagemagick. `nix run` launches the

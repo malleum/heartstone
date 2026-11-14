@@ -19,6 +19,12 @@ const TUNE := {
 	affinity_k = 80000.0,
 	# Lifetime draw needed to hold this many flows at once: the headline progression.
 	flow_steps = [0, 0, 0, 60000, 250000, 700000, 1600000, 3200000, 6000000, 10000000, 16000000],
+	talent_power = 1.5,        # a weave woven by someone with the Talent for it
+	earth_singing = 1.2,
+	# Strength is stored as a magnitude and shown as a Companion level. Level 1 (the
+	# strongest woman) is magnitude 100 and every level down divides by this, so
+	# level 72 is about 10 and ++1 (the strongest man) about 121.
+	level_ratio = 1.033,
 	repeat_renown = 0.25,      # share of renown paid for replaying a cleared activity
 	endurance = 100.0,         # how much of the Power can be drawn before tiring
 	endurance_regen = 7.0,     # per second
@@ -52,6 +58,26 @@ static func slots_of(w: Dictionary, p: Dictionary) -> int:
 		n += int(flows_of(w, p)[e])
 	return n
 
+## A Talent no longer unlocks a weave: anyone can learn it, and the Talent makes
+## it much stronger and waives any strength gate.
+static func has_talent(p: Dictionary, w: Dictionary) -> bool:
+	return w.has("talent") and p.talents.has(w.talent)
+
+## The Wheel of Time Companion's scale as one number: 72 (weakest) up to 1 (the
+## strongest woman), then 0 down to -5 for the six men's levels ++6 up to ++1.
+static func level_of(strength: float) -> int:
+	return clampi(roundi(1.0 - log(maxf(strength, 0.01) / 100.0) / log(TUNE.level_ratio)), -5, 72)
+
+static func strength_of(level: int) -> float:
+	return 100.0 * pow(TUNE.level_ratio, 1.0 - level)
+
+## "19(7)", "8(+5)" or "++2": the level, then its rank on the older White Tower
+## scale, which began at what is now 13.
+static func level_name(level: int) -> String:
+	if level <= 0:
+		return "++%d" % (level + 6)
+	return "%d(%s)" % [level, str(level - 12) if level > 12 else "+%d" % (13 - level)]
+
 static func mastery_level(p: Dictionary, weave_id: String) -> int:
 	var xp: float = p.weaves.get(weave_id, {}).get("xp", 0.0)
 	return mini(int(sqrt(xp / TUNE.mastery_xp)), TUNE.mastery_cap)
@@ -63,10 +89,10 @@ static func cast_block(p: Dictionary, weave_id: String, free_slots: int, enduran
 		return "not learned"
 	if w.book > p.book_limit:
 		return "beyond your reading"
-	if w.has("talent") and not p.talents.has(w.talent):
-		return "needs the %s Talent" % w.talent
-	if p.strength < w.get("min_strength", 0.0):
-		return "not strong enough"
+	# A strength gate is written as a Companion level; the Talent for the weave
+	# waives it (Androl makes gateways his strength should not allow).
+	if w.has("level") and level_of(p.strength) > int(w.level) and not has_talent(p, w):
+		return "needs strength %s or the Talent" % level_name(int(w.level))
 	var fl := flows_of(w, p)
 	for e in fl:
 		if p.affinity[e] < TUNE.min_affinity:
@@ -86,8 +112,10 @@ static func power(p: Dictionary, weave_id: String) -> float:
 		total += fl[e]; aff += fl[e] * p.affinity[e]
 	aff /= total
 	var talent := 1.0
-	if fl.has("earth") and p.talents.has("earth_singing"):
-		talent = 1.2
+	if has_talent(p, w):
+		talent = TUNE.talent_power
+	elif fl.has("earth") and p.talents.has("earth_singing"):
+		talent = TUNE.earth_singing
 	# Affinity 0.5 is "ordinary": it neither helps nor hurts.
 	return p.strength * (0.5 + aff) * (1.0 + TUNE.mastery_power * mastery_level(p, weave_id)) * talent
 
