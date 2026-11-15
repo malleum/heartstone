@@ -56,7 +56,7 @@ working on abilities; the user's rulings there are final).
   `--spawn=type:n`, `--camyaw=deg --camdist=m --campitch=deg` (swing the bot's camera round it),
   `--log` (prints `BLOW <frame> <move>` so a blow's frames can be found; render with
   `KEEP_EVERY=1`).
-  Bench: `--species=myrddraal`.
+  Bench: `--species=myrddraal|draghkar|dreadlord`.
 - `src/game/armsfx.gd`: blade streaks, the warning wedge under an enemy's blow, stuck
   missiles. `src/game/keys.gd`: bindings are by key position; hints go through it.
 - `src/gen/armoury.gd`: generated weapon models; `Hero.arm` puts one in the hand.
@@ -73,6 +73,9 @@ working on abilities; the user's rulings there are final).
   each a throwaway character in front of one thing, N/B/R to move on, nothing saved.
   Add a station when you add something that needs feeling. `--ally=warder|channeller`
   puts a bot friend beside the player.
+- `tools/strokes.sh` (the sword forms side by side, four moments each). Bench:
+  `--mode=hound [--speed= --spring=<frame> --die=<frame>]`, `--species=draghkar|dreadlord`,
+  `--mode=heroes --strokes` / `--cloaks=<look>`. Game: `--spawn=type:n@metres`.
 - `tools/views.sh <name> [bench args]` (three views of a bench creature on one sheet)
   and `tools/skirts.sh` (the gowns standing and moving). After replacing a `.glb`, run
   `nix develop -c godot --headless --path . --import` or renders show the old model.

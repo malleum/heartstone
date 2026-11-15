@@ -530,6 +530,10 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if p.get("drawing", false): slow = minf(slow, Rules.TUNE.draw_slow)
 	if p.reel_until > t: slow = 0.0
 	var step: Vector3 = p.move * p.speed * slow * dt
+	if p.get("shove", Vector3.ZERO).length() > 0.2:
+		# Thrown back by a blow: carried a step whatever the feet wanted.
+		step += p.shove * dt
+		p.shove = p.shove.lerp(Vector3.ZERO, minf(7.0 * dt, 1.0))
 	if p.get("entranced", 0.0) > t:
 		# A Draghkar's song: your feet take you to it, and nothing else is yours.
 		var d: Dictionary = ents.get(p.get("entranced_by", 0), {})
@@ -669,9 +673,13 @@ func _strike(p: Dictionary) -> void:
 ## receiving end, then the hurt and whatever the blow does besides.
 func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, dir: Vector3) -> void:
 	if e.kind == "player":
+		var whole := dmg
 		dmg = _guarded(e, dmg, ents[by], dir)
 		if dmg < 0.0:
 			return
+		# Steel in the way takes the weight of the blow as well as its edge.
+		if dmg < whole:
+			on = {}
 		dmg *= 1.0 - Rules.cls(e.profile).armour
 	if on.has("stagger"):
 		e.stagger = maxf(e.stagger, on.stagger)
@@ -681,6 +689,9 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 		e.down = maxf(e.down, on.down)
 	if on.has("push"):
 		e.vel += dir * on.push
+		if e.kind == "player":
+			# (Players are moved by their own feet, not by vel: a shove is its own thing.)
+			e.shove = dir * float(on.push)
 	# How hard it was knocked, for the view: a hammer blow should look like one.
 	e.knock = float(on.get("push", 0.0)) + float(on.get("stagger", 0.0)) * 4.0
 	_hurt(e, dmg, by, weapon)
@@ -1242,7 +1253,7 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 							e.move = want
 							e.pos = Map.clamp_pos(Map.unblock(e.pos + e.vel * dt, e.radius))
 							continue
-						e.blow = _pick_blow(e)
+						e.blow = _pick_blow(e, target, players)
 						e.victim = target.id
 						pressing[target.id] = pressing.get(target.id, 0) + 1
 					e.atk += dt
@@ -1481,17 +1492,54 @@ func _fade_lunge(e: Dictionary, target: Dictionary, wind: float) -> void:
 	e.mode = "wind"; e.mode_t = wind
 	events.append({e = "lunge", id = e.id, yaw = e.aim_yaw, wind = wind, dist = float(L.dist)})
 
-## Which of its attacks an enemy tries next: a chop, a sweep, a thrust. Each has
-## its own arc, reach, height and time, so each asks for a different answer.
-func _pick_blow(e: Dictionary) -> Dictionary:
+## Which of its attacks an enemy tries next. Each has its own arc, reach, height
+## and time, so each asks for a different answer; which it is depends on what the
+## enemy holds and on what is in front of it, so it can be read and learned.
+func _pick_blow(e: Dictionary, target := {}, players := []) -> Dictionary:
 	var all: Array = e.row.get("attacks", [{kind = "chop", height = "over", arc = 30.0}])
-	# What it can do depends on what it holds: a spear thrusts, a club comes down.
 	var list := all.filter(func(x: Dictionary) -> bool: return not x.has("arms") or e.arm in x.arms)
 	if list.is_empty():
 		list = all
-	var a: Dictionary = list[rng.randi() % list.size()]
+	var weights: Array[float] = []
+	var total := 0.0
+	var dist: float = target.pos.distance_to(e.pos) if not target.is_empty() else 0.0
+	var crowd := 0
+	for p in players:
+		if p.pos.distance_to(e.pos) < e.row.reach + 1.0:
+			crowd += 1
+	var long := 0.0; var heavy := 0.0
+	for a in list:
+		long = maxf(long, float(a.get("reach", 1.0))); heavy = maxf(heavy, float(a.get("dmg", 1.0)))
+	for i in list.size():
+		var a: Dictionary = list[i]
+		# Its favourite comes first in the data.
+		var w := 2.0 if i == 0 else 1.0
+		if not target.is_empty():
+			# A high sweep over someone ducking is wasted, and it knows it.
+			if target.get("duck", false) and a.get("height", "mid") == "high":
+				w *= 0.01
+			# Two in front of it: the wide one.
+			if crowd >= 2 and float(a.get("arc", 30.0)) >= 55.0:
+				w *= 3.0
+			# At the edge of its reach: the long one.
+			if dist > e.row.reach * 0.7 and float(a.get("reach", 1.0)) >= long and long > 1.1:
+				w *= 3.0
+			# Someone who keeps turning its blows gets the heavy one.
+			if t - target.get("parry_at", -99.0) < 2.5 and float(a.get("dmg", 1.0)) >= heavy:
+				w *= 2.5
+		if a.kind == e.get("last_blow", ""):
+			w *= 0.5
+		weights.append(w); total += w
+	var roll := rng.randf() * total
+	var a: Dictionary = list[-1]
+	for i in list.size():
+		roll -= weights[i]
+		if roll <= 0.0:
+			a = list[i]
+			break
+	e.last_blow = a.kind
 	return {kind = a.kind, height = a.get("height", "mid"), arc = float(a.get("arc", 30.0)), reach = e.row.reach * a.get("reach", 1.0),
-		time = e.row.attack_time * a.get("time", 1.0), dmg = e.row.damage * a.get("dmg", 1.0)}
+		time = e.row.attack_time * a.get("time", 1.0), dmg = e.row.damage * a.get("dmg", 1.0), on = a.get("on", {})}
 
 ## The blow lands along the line it was committed to, on whoever is still there.
 func _enemy_blow(e: Dictionary, players: Array) -> void:
@@ -1523,7 +1571,7 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 		e.stagger = maxf(e.stagger, 0.3)
 		events.append({e = "evade", id = target.id, from = e.id, duck = target.safe_until <= t})
 		return
-	events.append({e = "attack", id = e.id, target = target.id, kind = b.kind})
+	events.append({e = "attack", id = e.id, target = target.id, kind = b.kind, push = float(b.get("on", {}).get("push", 0.0))})
 	var hp0: float = target.hp
 	_wound(target, b.dmg, e.id, "", b.get("on", {}), dir)
 	# A Myrddraal's black blade: the wound festers until it is Healed or runs its course.

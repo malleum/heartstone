@@ -222,6 +222,32 @@ Result of the first spike (seven review rounds, including a fresh-eyed reviewer)
   about 220 fps and 250 at about 180 fps at 1080p. Performance is not a constraint.
 - Bench: `TEST=1 tools/render.sh <dir> [frames] -- --mode=lineup|walk|horde|humans|rig|heroes`.
 
+## More Shadowspawn (15 Nov)
+Each is a row in `data/enemies.json` plus one behaviour in `Sim`; the row's doc line
+says what every number does.
+- **Darkhound** (`gen: HOUND`, `src/gen/hound.gd`): the same clay on a four-legged
+  skeleton of its own with its own gait (walk to gallop, crouch and spring, fall).
+  It answers to the Walker's calls so the game drives both alike. `pounce` reuses the
+  Myrddraal's lunge (`Sim._fade`) without the stalking; `regen` and `steel` are new.
+- **Draghkar** (`gen: DRAGHKAR`): a generated man (`Species.DRAGHKAR`) with `Wings`
+  (flat membranes on finger bones, hung from the chest bone; mirrored in their points,
+  because a mirrored node cannot also be turned reliably). `Sim._draghkar`: fly
+  (untargetable, like a Myrddraal in shadow), land, sing, lure, kiss, flee, away.
+  A player under the song has `entranced` (status bit 32768): input is overridden and
+  casting, striking and dodging are refused.
+- **Dreadlord** (`gen: DREADLORD`, `channels: true`): the archer's `ranged` block with
+  a `weapon` (dark_fire bursts) and a `wind` (it is seen gathering), plus `strike`
+  (a `doom` effect: marked ground, then lightning). Shield from the Source fastens on
+  anything with `channels`; cut off (bit 65536), it can do neither.
+- Draghkar and Dreadlord bodies are built the first time one is met, then kept.
+- **Trolloc blows**: `attacks` are per weapon, the favourite first; `Sim._pick_blow`
+  weighs them by the target (ducking, parrying), the crowd and the distance; `on` is
+  what a blow does to someone it lands on unguarded (players are shoved through
+  `shove`, since their `vel` is not what moves them).
+- **Sword forms**: `ArmPose.STROKES` holds a keyed path of the sword hand and blade
+  per form (t = 1 as the blow lands); a two-bone reach and a hand turned outright
+  follow it over whatever clip is playing, with the trunk twisted and leant.
+
 ## Player characters: sourced (src/gen/hero.gd)
 Decided 2026-11-13 after the first hands-on play, where the generated human was the
 worst thing on screen. `Hero` loads one of four Quaternius characters (male/female,

@@ -562,7 +562,9 @@ func _on_events(list: Array) -> void:
 						if e.dmg >= 4.0:
 							Weavefx.flash(self, a.node)
 					elif a.kind == "player" and not a.get("dead", false):
-						_play(a, "Hit_Chest", true)
+						# An overhead blow drives the head down, a shove throws them back.
+						_play(a, a.get("struck_by", "Hit_Chest"), true)
+						a.erase("struck_by")
 			"form":
 				if actors.has(e.id):
 					var a: Dictionary = actors[e.id]
@@ -588,6 +590,9 @@ func _on_events(list: Array) -> void:
 					my_form = {}
 					last_refusal = "No one there to hold"; refusal_t = 1.5
 			"attack":
+				# How the one struck takes it depends on what struck them (see "hit").
+				if actors.has(e.target):
+					actors[e.target].struck_by = "Hit_Knockback" if e.get("push", 0.0) >= 4.0 else ("Hit_Head" if e.get("kind", "") == "chop" else "Hit_Chest")
 				# A lunge at the victim: the gait has no attack clip, so borrow the hit spring.
 				if actors.has(e.id) and actors.has(e.target) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
 					var w: Walker = actors[e.id].node

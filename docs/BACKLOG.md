@@ -27,6 +27,15 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   bust and corset. Gowns now recut it in the dress's cloth (`bodice` on a look).
   Two Rivers and Wise One dress keep the leather. PLAYTEST 60.
 
+- [x] "do 2, 3, then 1. save drawing for later" (15 Nov):
+  2. Sword forms that look their own: each of the eight has a written hand-and-blade
+     path (`ArmPose.STROKES`), two hands on the hilt where the form wants it, and a
+     lifted knee for Heron Wading. The legs still come from the pack's clips. PLAYTEST 61.
+  3. More Shadowspawn: Darkhounds, a Draghkar, Dreadlords, and an activity that has
+     all three (The Wild Hunt). PLAYTEST 62 to 64.
+  1. Trolloc attacks by weapon and by situation, with hit reactions. PLAYTEST 65.
+  Casting by drawing is kept for later, by his word.
+
 ## Josh's hands-on notes, 14 Nov (tour playtest)
 His words, lightly tidied, with what was done about each on the night of 14-15 Nov.
 A tick means built, tested by rule and seen in a render; it does not mean it feels
@@ -138,8 +147,10 @@ are what the 4:44 review, or the next session, should pick up.
 ## Combat feel and rules
 - [ ] Effects per Power are all built (see Done). Not seen in a render: the
   charge arc between Trollocs, the daze motes, stun sparks, the thrown slide.
-- [ ] Trolloc attacks: chop, sweep and thrust exist but are picked at random.
-  Wanted: by the weapon carried, and a hit reaction on the player that matches.
+- [x] Trolloc attacks (15 Nov): each weapon has its own two blows (scythe-sword
+  sweeps and chops, axe chops hard and sweeps, spear thrusts long and shoves with the
+  haft, club smashes and shoves), chosen by what is in front of it, and a blow that
+  lands unguarded staggers you or throws you back, with a matching hit clip. PLAYTEST 65.
 
 ## Character and progression
 - [ ] Weave tree follow-ups: weaves beyond your book limit are simply absent (no
@@ -172,7 +183,9 @@ are what the 4:44 review, or the next session, should pick up.
   tried with two people.
 - [ ] Movement prediction is built but has only run on one machine, where there
   is no delay to hide. It needs a real connection to judge.
-- [ ] Enemies still to make: Draghkar, Darkhounds, Darkfriend channellers. Trolloc
+- [x] Darkhounds, Draghkar and Dreadlords (15 Nov): see ARCHITECTURE "More
+  Shadowspawn" and PLAYTEST 62 to 64. Not made: Gholam, Grey Men, Forsaken.
+- [ ] Trolloc
   archers carry whatever their body was given, not a bow. The Myrddraal has no
   cloak and no fear in its gaze. The wagon ring was lost by a two-bot party.
 - [ ] Stamina starts full each activity; it may be better carried between them.

@@ -481,6 +481,56 @@ func _shadowspawn() -> void:
 	seen = run(sim, 5.0)
 	check(not seen.has("loose") and not seen.has("doom"), "cut off, it throws nothing and marks nothing")
 
+func _trolloc_blows() -> void:
+	print("== Trolloc attacks by weapon")
+	Map.use("open")
+	var p := Profile.create({name = "Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var sim := Sim.new("camp_training", 5); sim._waves = []
+	var id := sim.add_player(p)
+	var me: Dictionary = sim.ents[id]
+	# Each weapon has its own blows and no others.
+	var kinds := {}
+	for arm in Sim.ARMS:
+		sim._add_enemy("trolloc", Vector3(0, 0, 2)); var e: Dictionary = sim.ents[sim._next - 1]
+		e.arm = arm; kinds[arm] = {}
+		for i in 60:
+			var b := sim._pick_blow(e, me, [me])
+			kinds[arm][b.kind + ":" + b.height] = kinds[arm].get(b.kind + ":" + b.height, 0) + 1
+		e.alive = false
+	check(kinds.spear.has("thrust:mid") and not kinds.spear.has("chop:over") and kinds.club.has("chop:over") and not kinds.club.has("sweep:high"), "a spear thrusts and never chops; a club smashes and never sweeps")
+	check(kinds.scythe.get("sweep:high", 0) > kinds.scythe.get("chop:over", 0) and kinds.axe.get("chop:over", 0) > kinds.axe.get("sweep:high", 0), "a scythe-sword mostly sweeps, an axe mostly chops")
+	# What is in front of it decides: no high sweep at someone ducking.
+	sim._add_enemy("trolloc", Vector3(0, 0, 2)); var sc: Dictionary = sim.ents[sim._next - 1]; sc.arm = "scythe"
+	me.duck = true
+	var high := 0
+	for i in 60:
+		if sim._pick_blow(sc, me, [me]).height == "high": high += 1
+	me.duck = false
+	check(high <= 6, "it does not sweep over someone ducking (%d of 60)" % high)
+	sc.alive = false
+	# A spear's thrust throws you back; an axe's chop leaves you reeling; steel in the way stops both.
+	var d := duel(p, "trolloc", 2.0)
+	sim = d[0]; id = d[1]; me = sim.ents[id]; var foe: Dictionary = d[2]
+	foe.arm = "spear"; foe.speed = 0.0
+	foe.aim_yaw = PI; foe.blow = {kind = "thrust", height = "mid", arc = 20.0, reach = 3.0, time = 0.0, dmg = 10.0, on = {push = 5}}
+	sim._enemy_blow(foe, [me])
+	var z0: float = me.pos.z
+	run(sim, 0.5)
+	check(me.pos.z < z0 - 0.5, "a spear thrust that lands throws you back")
+	foe.blow = {kind = "chop", height = "over", arc = 20.0, reach = 4.0, time = 0.0, dmg = 10.0, on = {stagger = 0.7}}
+	foe.aim_yaw = PI
+	sim._enemy_blow(foe, [me])
+	check(me.reel_until > sim.t, "an axe chop that lands leaves you reeling")
+	run(sim, 1.5)
+	me.yaw = 0.0; sim.set_input(id, Vector3.ZERO, 0.0)
+	sim.set_guard(id, true)
+	run(sim, 0.25)
+	var z1: float = me.pos.z
+	foe.blow = {kind = "thrust", height = "mid", arc = 20.0, reach = 5.0, time = 0.0, dmg = 10.0, on = {push = 5, stagger = 0.7}}
+	sim._enemy_blow(foe, [me])
+	run(sim, 0.3)
+	check(absf(me.pos.z - z1) < 0.2 and me.reel_until <= sim.t, "met with steel, it neither throws nor staggers you")
+
 func _arms() -> void:
 	print("== arms")
 	var warder := Profile.create({name = "Test Warder", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
@@ -539,6 +589,8 @@ func _arms() -> void:
 			Rules.enemies.trolloc.attacks = saved.filter(func(a: Dictionary) -> bool: return a.kind == kind)
 			d = duel(warder, "trolloc", 1.6)
 			sim = d[0]
+			# (The weapon whose blow this is: each has its own now.)
+			d[2].arm = {chop = "axe", sweep = "scythe", thrust = "spear"}[kind]
 			var me: Dictionary = sim.ents[d[1]]
 			me.yaw = 0.0
 			var done := false
@@ -772,5 +824,6 @@ func _init() -> void:
 	_powers()
 	_playtest()
 	_shadowspawn()
+	_trolloc_blows()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)
