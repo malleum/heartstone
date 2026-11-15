@@ -134,12 +134,28 @@ func _draw() -> void:
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(0, 0, 0, 0.5), 3.5, true)
 	draw_arc(cc, 9.0, 0, TAU, 28, Color(1, 1, 1, 0.85), 1.5, true)
 	draw_circle(cc, 1.6, Color(1, 1, 1, 0.9))
-	if n > 0 and (not armed or Rules.forms.has(known[g.selected])) and not Rules.weapons.has(known[g.selected]) and g.held_since < 0.0:
+	if not g.my_form.is_empty():
+		# A weave in the making: the ring fills as it is woven, and turns gold and
+		# beats when it is whole and waiting to be let go.
+		var f: float = clampf((g.clock - g.my_form.since) / maxf(g.my_form.time, 0.05), 0.0, 1.0)
+		var col: Color = Weavefx.colour(g.my_form.weave).lerp(Color.WHITE, 0.3)
+		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 40, Glyph.GOLD if f >= 1.0 else col, 3.0, true)
+		if f >= 1.0:
+			draw_arc(cc, 20.0 + 2.0 * sin(t * 12.0), 0, TAU, 40, Color(Glyph.GOLD, 0.55), 1.5, true)
+			Glyph.text(self, sans, cc + Vector2(0, 44), "let go to loose" if g.weaving else "", 13, Color(Glyph.GOLD, 0.9), 0)
+	elif n > 0 and Rules.forms.has(known[g.selected]) and g.held_since < 0.0:
 		var id: String = known[g.selected]
-		var total: float = float(Rules.forms[id].cooldown) if Rules.forms.has(id) else Rules.cooldown(p, id)
+		var total: float = float(Rules.forms[id].cooldown)
 		var wait: float = g.ready_at.get(id, 0.0) - g.clock
 		if wait > 0.0 and total > 0.0:
 			draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * (1.0 - wait / total), 32, Glyph.GOLD, 2.5, true)
+	elif armed and in_hand.get("shot", {}).get("crank", false):
+		# A crossbow: the ring is the crank. Full and gold, it is spanned.
+		var need: float = Rules.draw_time(p, g.hand())
+		var f: float = clampf(1.0 - (g.spanned.get(g.hand(), 0.0) - g.clock) / need, 0.0, 1.0)
+		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Glyph.GOLD if f >= 1.0 else Color(1, 1, 1, 0.6), 2.5, true)
+		if f < 1.0:
+			Glyph.text(self, sans, cc + Vector2(0, 44), "spanning", 13, Color(1, 1, 1, 0.7), 0)
 	elif armed and g.held_since >= 0.0:
 		# Holding the attack: the ring fills as a bow is drawn, or to the point a
 		# blow becomes a heavy one.

@@ -89,7 +89,7 @@ func _powers() -> void:
 	var me: Dictionary = sim.ents[id]
 	me.yaw = 0.0
 	check(sim.request_cast(id, "gateway", Vector3(0, 0, 40)) == "", "someone strong enough can open a gateway")
-	run(sim, 3.0)
+	run(sim, 4.5)
 	check(me.held.size() == 1 and sim.effects.size() == 1, "it stays open while held")
 	sim.set_input(id, Vector3(0, 0, 1), 0.0)
 	seen = run(sim, 1.5)
@@ -203,7 +203,7 @@ func _holds() -> void:
 	var sim: Sim = d[0]; var id: int = d[1]; var foe: Dictionary = d[2]
 	var me: Dictionary = sim.ents[id]
 	check(sim.request_cast(id, "bonds_of_air", foe.pos) == "", "Bonds of Air can be woven at a Trolloc")
-	run(sim, 1.0)
+	run(sim, 1.3)
 	var where: Vector3 = foe.pos
 	var seen := run(sim, 2.0)
 	check(foe.get("bound_by", 0) == id and foe.pos.distance_to(where) < 0.05 and not seen.has("swing"), "the Trolloc is held where it stands")
@@ -223,21 +223,21 @@ func _holds() -> void:
 	# Let go by weaving it again at the same one; and the strong break free.
 	foe.hp = 9999.0; foe.max_hp = 9999.0
 	me.cd = {}
-	sim.request_cast(id, "bonds_of_air", foe.pos); run(sim, 1.0)
+	sim.request_cast(id, "bonds_of_air", foe.pos); run(sim, 1.3)
 	check(foe.get("bound_by", 0) == id, "held again")
 	sim.request_cast(id, "bonds_of_air", foe.pos); run(sim, 0.2)
 	check(foe.get("bound_by", 0) == 0 and me.held.is_empty(), "weaving it at them again lets go")
 	d = duel(p, "trolloc_brute", 8.0)
 	sim = d[0]
 	sim.request_cast(d[1], "bonds_of_air", d[2].pos)
-	seen = run(sim, 1.0)
+	seen = run(sim, 1.3)
 	check(d[2].get("bound_by", 0) == d[1], "a bandleader can be held")
 	check(run(sim, 30.0).has("broke") and d[2].get("bound_by", 0) == 0, "but strains free in time")
 	# The dome is held too, and what holds it dies with you.
 	d = duel(p, "trolloc", 8.0)
 	sim = d[0]; me = sim.ents[d[1]]
-	sim.request_cast(d[1], "dome_of_air", me.pos); run(sim, 1.0)
-	sim.request_cast(d[1], "bonds_of_air", d[2].pos); run(sim, 1.0)
+	sim.request_cast(d[1], "dome_of_air", me.pos); run(sim, 1.7)
+	sim.request_cast(d[1], "bonds_of_air", d[2].pos); run(sim, 1.3)
 	check(me.held.size() == 2 and sim.free_slots(me) == 0 and me.barrier > 0.0, "dome and bonds together fill both flows")
 	check(sim.request_cast(d[1], "fireball", d[2].pos) == "too many flows", "and leave nothing to attack with: the third flow is what changes that")
 	p.channelled = Rules.TUNE.flow_steps[3]
@@ -311,9 +311,10 @@ func _arms() -> void:
 			while t < 3.0 and not done:
 				var foe: Dictionary = d[2]
 				match how:
-					"guard": sim.set_guard(d[1], true)
+					"guard":
+						if foe.swung and foe.atk >= foe.blow.time - 0.36: sim.set_guard(d[1], true)
 					"parry":
-						if foe.swung and foe.atk >= foe.blow.time - 0.15: sim.set_guard(d[1], true)
+						if foe.swung and foe.atk >= foe.blow.time - 0.1: sim.set_guard(d[1], true)
 					"duck": sim.set_duck(d[1], true)
 					"sidestep":
 						if foe.swung and foe.atk >= foe.blow.time - 0.12: sim.request_dodge(d[1], Vector3(1, 0, 0))
@@ -328,8 +329,8 @@ func _arms() -> void:
 	Rules.enemies.trolloc.attacks = saved
 	for kind in ["chop", "sweep", "thrust"]:
 		check(hurt[kind + "/stand"] > 10.0, "standing still, a %s lands" % kind)
-		check(hurt[kind + "/guard"] > 0.0 and hurt[kind + "/guard"] < hurt[kind + "/stand"] * 0.4, "a guard stops most of a %s" % kind)
-		check(hurt[kind + "/parry"] == 0.0, "a guard raised at the last moment parries a %s" % kind)
+		check(hurt[kind + "/guard"] < hurt[kind + "/stand"] * 0.4, "a parry pressed in time stops most of a %s" % kind)
+		check(hurt[kind + "/parry"] == 0.0, "a parry at the last moment stops all of a %s" % kind)
 		check(hurt[kind + "/sidestep"] == 0.0, "a sidestep at the last moment avoids a %s" % kind)
 	check(hurt["sweep/duck"] == 0.0, "a sweep passes over a duck")
 	check(hurt["chop/duck"] > 10.0 and hurt["thrust/duck"] > 10.0, "a chop or a thrust does not")
@@ -341,8 +342,27 @@ func _arms() -> void:
 	sim = d[0]
 	sim.ents[d[1]].stamina = 6.0
 	sim.ents[d[1]].yaw = 0.0
+	var broke := false
+	for i in 90:
+		if d[2].swung and d[2].atk >= d[2].blow.time - 0.36: sim.set_guard(d[1], true)
+		broke = broke or run(sim, 1.0 / 30.0).has("guard_break")
+	check(broke, "a parry with no stamina behind it breaks")
+	# Holding the button is not a guard: pressed long before, it stops nothing.
+	d = duel(warder, "trolloc", 1.6)
+	sim = d[0]; sim.ents[d[1]].yaw = 0.0
 	sim.set_guard(d[1], true)
-	check(run(sim, 3.0).has("guard_break"), "a guard with no stamina behind it breaks")
+	run(sim, 3.0)
+	check(sim.ents[d[1]].hp < sim.ents[d[1]].max_hp, "a parry pressed long before the blow stops nothing")
+	# A perfect parry shakes the one who struck and throws it back a step.
+	d = duel(warder, "trolloc", 1.6)
+	sim = d[0]; sim.ents[d[1]].yaw = 0.0
+	var gap0 := 0.0; var shaken := false
+	for i in 120:
+		if d[2].swung and d[2].atk >= d[2].blow.time - 0.08 and not shaken: sim.set_guard(d[1], true)
+		if not shaken: gap0 = d[2].pos.distance_to(sim.ents[d[1]].pos)
+		if run(sim, 1.0 / 30.0).has("parry"): shaken = true
+		if shaken and d[2].stagger < 1.0: break
+	check(shaken and d[2].pos.distance_to(sim.ents[d[1]].pos) > gap0 + 0.5, "a perfect parry shakes the attacker and throws it back a step")
 
 	# Missiles: an arrow reaches a distant Trolloc, and the quiver empties.
 	d = duel(hunter, "trolloc", 30.0)
@@ -387,7 +407,8 @@ func _arms() -> void:
 	ward.ents[cw].stamina = 100.0; ward.ents[ww].stamina = 100.0
 	var saw := []
 	for i in 120:
-		ward.set_guard(ww, true)
+		var wf: Dictionary = ward.ents[ww + 1]
+		if wf.swung and wf.atk >= wf.blow.time - 0.3: ward.set_guard(ww, true)
 		ward.step(1.0 / 30.0)
 		for e in ward.events: saw.append(e.e)
 		ward.events.clear()

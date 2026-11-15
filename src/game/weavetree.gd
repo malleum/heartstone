@@ -215,7 +215,7 @@ func _draw() -> void:
 	Glyph.text(self, serif, Vector2(40, 60), "The Forms" if _forms() else "The Weaves", 38, Color(0.97, 0.94, 0.88))
 	Glyph.text(self, sans, Vector2(42, 86), "One form is worked out at a time," if _forms() else "One weave is worked out at a time,", 14, Color(0.65, 0.67, 0.75))
 	Glyph.text(self, sans, Vector2(42, 106), "by fighting with anything." if _forms() else "by channelling anything.", 14, Color(0.65, 0.67, 0.75))
-	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), "T or Esc: back to the camp", 14, Color(0.65, 0.67, 0.75))
+	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), "%s or Esc: back to the camp" % Keys.name(KEY_T), 14, Color(0.65, 0.67, 0.75))
 	_card(hover if hover != "" else profile.get("study", ""))
 
 ## The panel on the right: what the weave under the pointer is and what it asks.

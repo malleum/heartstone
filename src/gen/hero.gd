@@ -288,7 +288,30 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 			x = (x - y * x.dot(y)).normalized()
 			holder.basis = Basis(x, y, x.cross(y))
 			holder.position = inv * (along * 0.085 - up * 0.03)
+			# Couched: the long axis runs out along the forearm, point first, so a
+			# driving arm drives the point (a spear thrust, not a punch with a stick).
+			var y2 := (inv * along).normalized()
+			var x2 := (inv * up).normalized()
+			x2 = (x2 - y2 * x2.dot(y2)).normalized()
+			holder.set_meta("grips", {"": holder.transform, "couched": Transform3D(Basis(x2, y2, x2.cross(y2)), inv * (along * 0.085 - up * 0.02))})
 		at.add_child(holder)
+
+## How the right hand holds what is in it: "" as carried, "couched" point-forward
+## along the arm for a thrust.
+static func grip(root: Node3D, mode: String) -> void:
+	var sk: Skeleton3D = root.get_meta("skeleton")
+	var at := sk.get_node_or_null("Held_hand_r")
+	if at and at.get_child_count() > 0 and at.get_child(0).has_meta("grips"):
+		var grips: Dictionary = at.get_child(0).get_meta("grips")
+		(at.get_child(0) as Node3D).transform = grips.get(mode, grips[""])
+
+## Whether what is carried in the right hand is seen (a thrown knife is gone
+## from it until the next comes to hand).
+static func show_held(root: Node3D, on: bool) -> void:
+	var sk: Skeleton3D = root.get_meta("skeleton")
+	var at := sk.get_node_or_null("Held_hand_r")
+	if at:
+		(at as Node3D).visible = on
 
 ## The clips were authored on a mannequin with other limb lengths. Keeping only the
 ## rotations (plus a rescaled hip height) lets every body keep its own proportions.
@@ -322,7 +345,7 @@ static func _library(kind: String, sk: Skeleton3D) -> AnimationLibrary:
 	# Weaving on the move: the library has no clip for it, so graft the jog's legs
 	# under each casting clip's upper body. Without this the feet slide.
 	var jog: Animation = lib.get_animation("Jog_Fwd")
-	for clip in CASTS + ["Spell_Simple_Enter"]:
+	for clip in CASTS + ["Spell_Simple_Enter", "Spell_Simple_Idle"]:
 		var a: Animation = lib.get_animation(clip).duplicate(true)
 		for t in range(a.get_track_count() - 1, -1, -1):
 			if _is_leg(a.track_get_path(t)):

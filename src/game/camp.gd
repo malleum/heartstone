@@ -116,7 +116,7 @@ func _ui() -> void:
 	hint = Label.new(); root.add_child(hint)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.offset_top = -44; hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "WASD walk   ·   click the world to look around   ·   walk through a doorway to begin   ·   T weaves or forms   ·   H hide the sheet   ·   Esc menu"
+	hint.text = "%s walk   ·   click the world to look around   ·   walk through a doorway to begin   ·   %s weaves or forms   ·   %s hide the sheet   ·   Esc menu" % [Keys.move(), Keys.name(KEY_T), Keys.name(KEY_H)]
 	hint.add_theme_font_size_override("font_size", 15); hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	hint.add_theme_color_override("font_outline_color", Color.BLACK); hint.add_theme_constant_override("outline_size", 5)
 	tree = WeaveTree.new(); root.add_child(tree); tree.visible = false
@@ -186,15 +186,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and not creating and not menu.visible and not tree.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
-		if ev.keycode == KEY_ESCAPE:
+		if ev.physical_keycode == KEY_ESCAPE:
 			if tree.visible: _show_tree(false)
 			elif captured: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else: _show_menu(not menu.visible)
-		elif ev.keycode == KEY_T and not creating and not profile.is_empty() and not menu.visible:
+		elif ev.physical_keycode == KEY_T and not creating and not profile.is_empty() and not menu.visible:
 			_show_tree(not tree.visible)
-		elif ev.keycode == KEY_TAB:
+		elif ev.physical_keycode == KEY_TAB:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		elif ev.keycode == KEY_H and not creating and not tree.visible:
+		elif ev.physical_keycode == KEY_H and not creating and not tree.visible:
 			# Put the sheet away to see the camp, and bring it back.
 			side.get_parent().get_parent().visible = not side.get_parent().get_parent().visible
 
@@ -238,14 +238,14 @@ func _process(dt: float) -> void:
 	hint.visible = true
 	var move := Vector3.ZERO
 	if not tree.visible and not menu.visible and get_viewport().gui_get_focus_owner() == null:
-		var v := Vector2(float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)), float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+		var v := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
 		v += Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		move = (Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)).limit_length(1.0)
 	if cl.has("stroll") and int(cl.stroll) < doors.size():
 		var to: Vector3 = doors[int(cl.stroll)].at - pos
 		move = to.normalized()
 		cam_yaw = lerp_angle(cam_yaw, atan2(-move.x, -move.z), 2.0 * dt)
-	var sprint := Input.is_key_pressed(KEY_SHIFT)
+	var sprint := Input.is_physical_key_pressed(KEY_SHIFT)
 	if move.length() > 0.1:
 		pos = Map.unblock(pos + move * (7.5 if sprint else 5.0) * dt, 0.45).limit_length(30.0)
 		# The doorways' posts are stone: you go between them, not through them.

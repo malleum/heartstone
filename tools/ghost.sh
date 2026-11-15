@@ -19,9 +19,9 @@ KEEP_EVERY=900 tools/render.sh renders/ghost_online 420 -- --ghost=online >"$out
 kill $srv 2>/dev/null
 fail=0
 want() { grep -qE "$2" "$out/$1" || { echo "  FAIL ($1): no '$2'"; fail=1; }; }
-for w in "blow cut" "blow backcut" "blow finisher" "blow overhead" "blow leg_sweep" "blow loose" "blow throw" "blow parting_the_silk" "dodge $" "dodge roll" "equip horse_bow"; do want arms "GHOST [0-9]+ $w"; done
+for w in "blow cut" "blow backcut" "blow finisher" "blow overhead" "blow leg_sweep" "blow loose" "blow throw" "blow parting_the_silk" "dodge $" "equip horse_bow"; do want arms "GHOST [0-9]+ $w"; done
 want arms "status guard=true"; want arms "duck=true"
-for w in "cast fireball" "hold dome_of_air" "tie dome_of_air" "refused not ready" "refused no one there to hold" "dodge"; do want weaves "GHOST [0-9]+ $w"; done
+for w in "cast fireball" "hold dome_of_air" "tie dome_of_air" "ready fireball" "refused no one there to hold" "dodge"; do want weaves "GHOST [0-9]+ $w"; done
 for w in "tree=true" "menu=true" "sheet=false" "pos=\([0-9.]+, 0.0, -2"; do want camp "$w"; done
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.

@@ -58,6 +58,13 @@ func _ready() -> void:
 		for w in args.weaves.split(","):
 			if Rules.weaves.has(w):
 				profile.weaves[w] = {known = true, xp = 0.0}
+	# --only=a,b: a throwaway channeller who knows these weaves and no others, so a
+	# bot can be made to show one weave in a render.
+	if args.has("only"):
+		profile.weaves = {}
+		for w in args.only.split(","):
+			if Rules.weaves.has(w):
+				profile.weaves[w] = {known = true, xp = 0.0}
 	if args.has("tie"):
 		profile.techniques = ["tie_off"]
 	if args.has("flows"):
@@ -112,6 +119,10 @@ func _ready() -> void:
 	if not args.has("auto") and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
+var weaving := false              # the mouse is held on a weave being made
+var my_form := {}                 # {weave, since, time, ready}: my weave in the making, for the HUD
+var spanned := {}                 # crossbow -> clock time it will be spanned again
+
 func _exit_tree() -> void:
 	if is_instance_valid(session):
 		session.queue_free()
@@ -127,30 +138,30 @@ func _unhandled_input(ev: InputEvent) -> void:
 		cam_yaw -= ev.relative.x * 0.003
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.2, 0.7)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
-		if ev.keycode == KEY_ESCAPE:
+		if ev.physical_keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		elif (ev.keycode == KEY_ENTER and _done) or ev.keycode == KEY_F10:
+		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
 			_to_camp()
-		elif args.has("tour") and ev.keycode in [KEY_N, KEY_B, KEY_R]:
-			_tour_go(1 if ev.keycode == KEY_N else (-1 if ev.keycode == KEY_B else 0))
-		elif ev.keycode == KEY_Q:
+		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
+			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == KEY_Q:
 			_select(posmod(selected - 1, n_known))
-		elif ev.keycode == KEY_E:
+		elif ev.physical_keycode == KEY_E:
 			_select(posmod(selected + 1, n_known))
-		elif ev.keycode == KEY_SPACE and me:
-			# Sidestep the way you are moving (back, if standing); with Shift, roll.
-			session.dodge(_move_dir(), Input.is_key_pressed(KEY_SHIFT))
-		elif ev.keycode in [KEY_CTRL, KEY_C]:
+		elif ev.physical_keycode == KEY_SPACE and me:
+			# Roll the way you are moving; standing still, step back.
+			session.dodge(_move_dir(), false)
+		elif ev.physical_keycode in [KEY_CTRL, KEY_C]:
 			session.duck(true)
-		elif ev.keycode == KEY_G and selected < known.size() and Rules.weaves.has(known[selected]):
+		elif ev.physical_keycode == KEY_G and selected < known.size() and Rules.weaves.has(known[selected]):
 			session.tie(known[selected])
-		elif ev.keycode == KEY_F and _armed() and me:
+		elif ev.physical_keycode == KEY_F and _armed() and me:
 			session.attack("throw", _aim_point())
 			_face(_aim_point())
-		var n: int = ev.keycode - KEY_1
+		var n: int = ev.physical_keycode - KEY_1
 		if n >= 0 and n < known.size():
 			_select(n)
-	elif ev is InputEventKey and not ev.pressed and ev.keycode in [KEY_CTRL, KEY_C]:
+	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode in [KEY_CTRL, KEY_C]:
 		session.duck(false)
 	elif ev is InputEventMouseButton:
 		if not ev.pressed:
@@ -160,14 +171,17 @@ func _unhandled_input(ev: InputEvent) -> void:
 				var held := clock - held_since
 				var at := _aim_point()
 				if Rules.weapons[hand()].has("shot"):
-					session.attack("light", at, clampf(held / Rules.draw_time(profile, hand()), 0.0, 1.0))
+					if not Rules.weapons[hand()].shot.get("crank", false):
+						session.attack("light", at, clampf(held / Rules.draw_time(profile, hand()), 0.0, 1.0))
 				else:
 					session.attack("heavy" if held > 0.35 else "light", at)
 				_face(at)
-			elif ev.button_index == MOUSE_BUTTON_RIGHT:
-				session.guard(false)
 			if ev.button_index == MOUSE_BUTTON_LEFT:
 				held_since = -1.0
+				if weaving and me:
+					# Let it go: it leaves as soon as it is whole, where the crosshair is then.
+					weaving = false
+					session.aim(_aim_point(), false)
 		elif Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		elif ev.button_index == MOUSE_BUTTON_LEFT:
@@ -175,11 +189,17 @@ func _unhandled_input(ev: InputEvent) -> void:
 				# A form goes at once; while it rests, the same click is a plain blow.
 				session.attack("form:" + _form(), _aim_point())
 				_face(_aim_point())
+			elif _armed() and Rules.weapons[hand()].get("shot", {}).get("crank", false) and me:
+				# A crossbow is spanned or it is not: the click looses it.
+				session.attack("light", _aim_point(), 1.0)
+				_face(_aim_point())
 			elif _armed():
 				held_since = clock
 			else:
 				_cast_selected()
-		elif ev.button_index == MOUSE_BUTTON_RIGHT and _armed():
+		elif ev.button_index == MOUSE_BUTTON_RIGHT and hand() != "" and me:
+			# A parry is the press, not the hold.
+			_face(_aim_point())
 			session.guard(true)
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_select(posmod(selected + 1, n_known))
@@ -221,7 +241,7 @@ func _select(i: int) -> void:
 
 func _move_dir() -> Vector3:
 	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-	v += Vector2(float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)), float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+	v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
 	return Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
 
 ## Turn to the target at once, so the blow or the weave goes the right way.
@@ -233,8 +253,10 @@ func _cast_selected() -> void:
 	if known.is_empty() or me == null:
 		return
 	var at := _aim_point()
-	session.cast(known[selected], at)
-	# Turn to the target at once so the cast animation throws the right way.
+	# The weave is begun now and held back for as long as the button is: it goes
+	# where the crosshair is when it is let go, not where it was when it was begun.
+	session.cast(known[selected], at, true)
+	weaving = true
 	face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
 	aim_t = 1.2
 
@@ -289,11 +311,18 @@ func _process(dt: float) -> void:
 		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI, 2.0 * dt)
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		v += Vector2(float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)), float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+		v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
 		var move := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
 		aim_t -= dt
 		if aim_t <= 0.0 and move.length() > 0.1:
 			face_yaw = atan2(move.x, move.z)
+		if not my_form.is_empty() and me:
+			# Face where the weave will go, and keep the host told (a few times a second).
+			var at := _aim_point()
+			face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
+			aim_t = 0.3
+			if frame % 4 == 0:
+				session.aim(at, weaving)
 		session.send_input(move, face_yaw)
 		_predict(move, dt)
 	if args.has("fxdemo"):
@@ -426,7 +455,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if args.has("tour"):
 		var st: Dictionary = Launch.TOUR[Launch.tour]
 		print("TOUR station %d %s" % [Launch.tour + 1, st.title])
-		tour_label.text = "%d / %d   %s\n%s\nN: next    B: back    R: again    F10: camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title, st.feel]
+		tour_label.text = "%d / %d   %s\n%s\n%s: next    %s: back    %s: again    F10: camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title, st.feel, Keys.name(KEY_N), Keys.name(KEY_B), Keys.name(KEY_R)]
 
 var _ally := 0
 
@@ -435,7 +464,7 @@ var _ally := 0
 func _on_events(list: Array) -> void:
 	for e in list:
 		# --ghost: say what the sim made of the scripted hands, for a test to read.
-		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "cast", "hold", "release", "tie", "loose", "strike"]:
+		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
 		match e.e:
 			"spawn":
@@ -456,7 +485,9 @@ func _on_events(list: Array) -> void:
 						if known.has(e.get("weapon", "")):
 							selected = known.find(e.weapon)
 						if not profile.get("kit", []).is_empty():
-							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: guard\nSpace: sidestep   Shift+Space: roll   Ctrl: duck   F: throw   1-9: change what is in hand", 9.0)
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: throw   1-9: change what is in hand" % Keys.name(KEY_F), 9.0)
+						elif not known.is_empty():
+							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
@@ -488,10 +519,28 @@ func _on_events(list: Array) -> void:
 						_play(a, "Hit_Chest", true)
 			"form":
 				if actors.has(e.id):
-					_play(actors[e.id], "Spell_Simple_Enter", true)
-					if is_instance_valid(actors[e.id].node):
-						Weavefx.forming(self, actors[e.id].node, e.weave, e.time)
-					Sfx.play(self, "hum", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -8.0)
+					var a: Dictionary = actors[e.id]
+					_play(a, "Spell_Simple_Enter", true)
+					# The hands stay raised for as long as the weave is in them.
+					a.busy = 0.0; a.erase("gesture"); a.forming = true
+					if is_instance_valid(a.node):
+						_end_form(a)
+						a.form_fx = Weavefx.forming(self, a.node, e.weave, e.time)
+						a.form_since = clock
+					Sfx.play(self, "hum", _ground(a.target) + Vector3(0, 1.4, 0), -8.0, clampf(1.6 / maxf(e.time, 0.4), 0.5, 1.6))
+					if e.id == session.my_id:
+						my_form = {weave = e.weave, since = clock, time = e.time, ready = false}
+			"ready":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Sfx.play(self, "chime", actors[e.id].node.position + Vector3(0, 1.4, 0), -4.0, 1.5)
+				if e.id == session.my_id:
+					my_form.ready = true
+			"fizzle":
+				if actors.has(e.id):
+					_end_form(actors[e.id])
+				if e.id == session.my_id:
+					my_form = {}
+					last_refusal = "No one there to hold"; refusal_t = 1.5
 			"attack":
 				# A lunge at the victim: the gait has no attack clip, so borrow the hit spring.
 				if actors.has(e.id) and actors.has(e.target) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
@@ -500,7 +549,39 @@ func _on_events(list: Array) -> void:
 					Sfx.play(self, "thud", w.position + Vector3(0, 1.2, 0), 0.0)
 			"swing":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
-					(actors[e.id].node as Walker).attack(e.get("kind", "chop"))
+					var w: Walker = actors[e.id].node
+					w.attack(e.get("kind", "chop"))
+					# Exactly where this blow will fall, on the ground, for as long as
+					# there is to get out of it or meet it.
+					Armsfx.telegraph(self, _ground(Vector3(w.pos.x, 0, w.pos.z)), e.yaw, e.reach + 0.45, e.arc, e.time, e.height)
+					Sfx.play(self, "whoosh", w.position + Vector3(0, 1.6, 0), -9.0, 0.6)
+			"lunge":
+				# A Myrddraal has chosen its line: a streak of shadow along the ground.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var n: Node3D = actors[e.id].node
+					Armsfx.lunge_line(self, _ground(Vector3(n.position.x, 0, n.position.z)), e.yaw, e.dist, e.wind)
+					if n is Walker:
+						(n as Walker).attack("thrust")
+					Sfx.play(self, "hum", n.position + Vector3(0, 1.2, 0), 2.0, 0.45)
+			"fade_out":
+				Weavefx.smoke(self, _ground(e.pos), false)
+			"fade_in":
+				Weavefx.smoke(self, _ground(e.pos), true)
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
+					actors[e.id].target = e.pos
+					(actors[e.id].node as Walker).teleport(e.pos, (actors[e.id].node as Walker).heading)
+				_banner("Behind you", 1.2)
+			"parry_try":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					var ap: AnimationPlayer = a.node.get_meta("anim")
+					# The block clip from its middle, where the blade is already across.
+					ap.play("Sword_Block", 0.06, 1.6)
+					ap.seek(0.25, true)
+					a.busy = Rules.TUNE.parry_window; a.erase("gesture")
+					Sfx.play(self, "whoosh", a.node.position + Vector3(0, 1.3, 0), -10.0, 1.9)
+			"pierce":
+				Weavefx.spit(self, e.pos, Weavefx.colour(e.weave))
 			"hold":
 				var key := "%d/%s/%d" % [e.id, e.weave, e.target]
 				if not holds.has(key):
@@ -536,8 +617,16 @@ func _on_events(list: Array) -> void:
 					var clip: String = m.clip if ap.has_animation(m.clip) else "Sword_Attack"
 					var len := ap.get_animation(clip).length
 					ap.play(clip, 0.08, clampf(len * m.get("at", 0.4) / maxf(e.wind, 0.05), 0.35, 4.0))
-					a.busy = e.wind + e.recover * 0.8
+					var whole: float = e.wind + e.recover * 0.8 + (int(m.get("repeat", 1)) - 1) * float(m.get("gap", 0.12))
+					a.busy = whole
 					a.erase("gesture")
+					a.reps = 0
+					# A thrust is made with the point forward along the arm.
+					Hero.grip(a.node, m.get("grip", ""))
+					a.grip_until = clock + whole if m.has("grip") else 0.0
+					# What makes a form its own: a turn of the whole body, a leap.
+					if m.has("spin") or m.has("leap"):
+						a.flourish = {t = 0.0, time = e.wind + e.recover * 0.5, spin = float(m.get("spin", 0.0)), leap = float(m.get("leap", 0.0)), land = e.wind}
 					if e.get("form", false) and e.id == session.my_id:
 						ready_at[e.move] = clock + float(Rules.forms[e.move].cooldown)
 						flash_t = 0.9; flash_text = Rules.forms[e.move].name
@@ -547,33 +636,71 @@ func _on_events(list: Array) -> void:
 					Sfx.play(self, "thud", e.pos, 1.0, 1.25)
 					if e.id == session.my_id:
 						punch = minf(punch + 0.25, 1.0)
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and e.has("dir"):
+					var a: Dictionary = actors[e.id]
+					var m: Dictionary = Rules.moves[e.move]
+					# The path of the blow, drawn where it cuts: what is inside it was hit.
+					a.reps = a.get("reps", 0) + 1
+					Armsfx.trail(self, a.node.position, e.dir, e.reach, m, a.reps, e.hits > 0)
+					if int(m.get("repeat", 1)) > 1 and a.reps > 1:
+						# A flurry: each wound is its own quick blow, hand after hand.
+						var ap: AnimationPlayer = a.node.get_meta("anim")
+						var clip: String = "Punch_Cross" if a.reps % 2 == 0 else "Punch_Jab"
+						ap.stop(); ap.play(clip, 0.02, ap.get_animation(clip).length * 0.35 / maxf(float(m.get("gap", 0.12)), 0.05))
+						Sfx.play(self, "whoosh", a.node.position + Vector3(0, 1.3, 0), -6.0, 1.7 + 0.1 * a.reps)
 			"dodge":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
 					var ap: AnimationPlayer = a.node.get_meta("anim")
-					ap.play("Roll", 0.05, ap.get_animation("Roll").length / maxf(e.time * (1.0 if e.roll else 1.6), 0.1))
+					_end_form(a)
+					if e.get("back", false):
+						# A step back, still facing them: the jog run backwards, leaning away.
+						ap.play("Jog_Fwd", 0.04, -2.6, true)
+						a.lean = {t = 0.0, time = e.time}
+					else:
+						# A roll goes head first the way you are travelling, so the body
+						# turns that way for as long as it lasts.
+						ap.play("Roll", 0.05, ap.get_animation("Roll").length * 0.62 / maxf(e.time, 0.1))
+						a.roll_yaw = atan2(e.dir.x, e.dir.z)
+						a.roll_until = clock + e.time
+						a.node.rotation.y = a.roll_yaw
 					a.busy = e.time
 					a.erase("gesture")
-					a.node.rotation.y = atan2(e.dir.x, e.dir.z)
 					Sfx.play(self, "whoosh", a.node.position + Vector3(0, 0.8, 0), -8.0, 0.8)
 			"parry", "block", "guard_break":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var at: Vector3 = actors[e.id].node.position + Vector3(0, 1.3, 0) + Basis(Vector3.UP, actors[e.id].node.rotation.y) * Vector3(0, 0, 0.6)
 					Weavefx.sparks(self, at, e.e == "parry")
-					Sfx.play(self, "chime" if e.e == "parry" else "thud", at, 2.0 if e.e == "parry" else 0.0, 1.9 if e.e == "parry" else 1.5)
+					Sfx.play(self, "clang", at, 3.0 if e.e == "parry" else -3.0, 1.0 if e.e == "parry" else 0.8)
 					if e.e == "parry":
-						Sfx.play(self, "clang", at, 3.0)
+						# Perfect: a ring of light off the steel, and the one who struck
+						# is thrown back on its heels.
+						Sfx.play(self, "chime", at, 4.0, 1.9)
+						Armsfx.ring_flash(self, at)
+						if actors.has(e.from) and is_instance_valid(actors[e.from].node) and actors[e.from].node is Walker:
+							var fw: Walker = actors[e.from].node
+							fw.hit((fw.position - actors[e.id].node.position).normalized(), 2.2)
+							Weavefx.flash(self, fw, 0.16)
 					if e.id == session.my_id:
 						flash_t = 1.0
-						flash_text = {parry = "Parried", block = "", guard_break = "Your guard is broken"}[e.e]
+						flash_text = {parry = "Perfect parry", block = "Parried", guard_break = "Your guard is broken"}[e.e]
 						if e.e != "block":
 							shake = minf(shake + 0.35, 1.0)
+						if e.e == "parry":
+							punch = 1.0
 			"evade":
 				if e.id == session.my_id:
 					flash_t = 0.7; flash_text = "Ducked under it" if e.duck else "Missed you"
 			"loose":
 				if e.id == session.my_id:
 					ammo[e.weapon] = e.left
+					if Rules.weapons.has(e.weapon) and Rules.weapons[e.weapon].get("shot", {}).get("crank", false):
+						spanned[e.weapon] = clock + Rules.draw_time(profile, e.weapon)
+				# What was thrown has left the hand: the last one leaves it empty, and
+				# the next comes to hand a moment later.
+				if actors.has(e.id) and actors[e.id].kind == "player" and is_instance_valid(actors[e.id].node) and Rules.weapons.has(e.weapon) and Rules.weapons[e.weapon].has("throw"):
+					Hero.show_held(actors[e.id].node, false)
+					actors[e.id].rearm = clock + 0.3 if e.left > 0 else -1.0
 				if actors.has(e.id):
 					var bow: bool = not Rules.weapons.has(e.weapon) or Rules.weapons[e.weapon].has("shot")
 					Sfx.play(self, "twang" if bow else "whoosh", _ground(actors[e.id].target) + Vector3(0, 1.4, 0), -1.0, 1.0 if bow else 2.2)
@@ -606,14 +733,26 @@ func _on_events(list: Array) -> void:
 			"pickup":
 				if e.id == session.my_id:
 					ammo[e.weapon] = e.left
+					flash_t = 0.6; flash_text = "+1"
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].get("weapon", "") == e.weapon:
+					Hero.show_held(actors[e.id].node, true)
+				if actors.has(e.id):
+					Sfx.play(self, "chime", _ground(actors[e.id].target) + Vector3(0, 1.0, 0), -8.0, 2.2)
 			"stick":
 				Sfx.play(self, "thud", e.pos, -4.0, 2.0)
+				# It stands in what it struck: a body carries it, the ground shows
+				# where it fell.
+				if e.into != 0 and actors.has(e.into) and is_instance_valid(actors[e.into].node) and actors[e.into].kind == "enemy":
+					Armsfx.stuck(actors[e.into].node, e.pos, e.get("dir", Vector3.FORWARD), e.weapon)
+				else:
+					Armsfx.puff(self, e.pos)
 			"cast":
 				if actors.has(e.id):
 					# Each channeller has their own gesture for each weave.
+					_end_form(actors[e.id])
 					_play(actors[e.id], Hero.cast_clip(actors[e.id].get("name", ""), e.weave), true)
 				if e.id == session.my_id:
-					ready_at[e.weave] = clock + Rules.cooldown(profile, e.weave)
+					my_form = {}
 				Weavefx.cast(self, e)
 			"blast":
 				Weavefx.blast(self, e.pos, e.radius, e.weave)
@@ -622,6 +761,14 @@ func _on_events(list: Array) -> void:
 					fx[e.id].queue_free(); fx.erase(e.id)
 			"wave":
 				_banner(("They come from every side" if Map.m.get("around", false) else "A wave comes down the pass") if e.left > 0 else "The last of them", 3.0)
+
+## The weave someone was making has left their hands (or come to nothing).
+func _end_form(a: Dictionary) -> void:
+	a.forming = false
+	if a.has("form_fx"):
+		if is_instance_valid(a.form_fx):
+			a.form_fx.queue_free()
+		a.erase("form_fx")
 
 func _play(a: Dictionary, clip: String, once := false) -> void:
 	var ap: AnimationPlayer = a.node.get_meta("anim")
@@ -690,12 +837,12 @@ func _on_snapshot(s: Dictionary) -> void:
 		n.position = _ground(Vector3(f[2], 0, f[3])) + Vector3(0, 1.2, 0)
 		if f[1] in ["projectile", "missile"]:
 			n.position.y = f[5]
-		if f[1] == "missile" and n.has_meta("flown") and was.distance_to(n.position) > 0.05:
+		if (f[1] == "missile" or n.has_meta("aimed")) and n.has_meta("flown") and was.distance_to(n.position) > 0.05:
 			# Point along the flight; knives and stones tumble instead.
 			n.basis = Basis.looking_at(n.position - was, Vector3.UP if absf((n.position - was).normalized().y) < 0.98 else Vector3.RIGHT)
 		n.set_meta("flown", true)
-		if f[1] == "ring":
-			n.scale = Vector3(f[4], 1.0, f[4]); n.position.y -= 0.9
+		if n.has_method("set_r"):
+			n.call("set_r", f[4], f[7] if f.size() > 7 else 0.0)
 
 ## Show what the sim says has happened to someone: 1 burning, 2 down, 4 stunned,
 ## 8 thrown.
@@ -703,7 +850,15 @@ func _status(a: Dictionary, bits: int) -> void:
 	a.status = bits
 	if not is_instance_valid(a.node):
 		return
-	for pair in [["burn", 1], ["stun", 4], ["fester", 256], ["charge", 512], ["daze", 1024]]:
+	# Gone into shadow: not there to be seen.
+	if a.kind == "enemy" and not a.get("dead", false):
+		a.node.visible = not (bits & 8192)
+	# A weave abandoned (a roll, a blow taken) leaves the hands without a word.
+	if a.has("form_fx") and not (bits & 2048) and clock - a.get("form_since", 0.0) > 0.3:
+		_end_form(a)
+		if a.get("node") == me:
+			my_form = {}
+	for pair in [["burn", 1], ["stun", 4], ["fester", 256], ["charge", 512], ["daze", 1024], ["wet", 4096]]:
 		var key: String = "fx_" + pair[0]
 		var on: bool = bits & pair[1] and not a.get("dead", false)
 		if on and not a.has(key):
@@ -739,9 +894,23 @@ func _draw_actors(dt: float) -> void:
 			var tgt := _ground(a.target)
 			var speed := n.position.distance_to(tgt) / maxf(dt, 0.001)
 			n.position = n.position.lerp(tgt, minf(12.0 * dt, 1.0))
-			n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
+			if a.get("roll_until", 0.0) > clock:
+				n.rotation.y = a.roll_yaw
+			else:
+				n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			a.speed = speed
+			_flourish(a, n, dt)
+			if a.get("rearm", -1.0) > 0.0 and clock >= a.rearm:
+				a.rearm = -1.0
+				Hero.show_held(n, true)
+			if a.get("grip_until", 0.0) > 0.0 and clock >= a.grip_until:
+				a.grip_until = 0.0
+				Hero.grip(n, "")
+			if a.get("forming", false) and a.busy <= 0.0:
+				# Hands raised and working for as long as the weave is in them.
+				_play(a, "Spell_Simple_Idle_Move" if speed > 0.6 else "Spell_Simple_Idle")
+				continue
 			if a.busy > 0.0 and a.has("gesture"):
 				# Starting or stopping mid-weave swaps the legs without restarting the arms.
 				var ap: AnimationPlayer = n.get_meta("anim")
@@ -754,8 +923,6 @@ func _draw_actors(dt: float) -> void:
 				var fam: String = Rules.weapons[a.weapon].family if Rules.weapons.has(a.get("weapon", "")) else ""
 				if st & 32:
 					_play(a, "Crouch_Fwd" if speed > 0.4 else "Crouch_Idle")
-				elif st & 16:
-					_play(a, "Idle_Shield" if Rules.weapons[a.weapon].has("shield") else "Sword_Block")
 				elif speed > 0.6:
 					_play(a, "Sprint" if speed > 6.5 else "Jog_Fwd")
 				else:
@@ -772,6 +939,32 @@ func _draw_actors(dt: float) -> void:
 	for w in walkers:
 		w.compute(dt)
 		w.apply()
+
+## What makes a form look like itself: the whole body turns, or leaves the
+## ground, on top of whatever clip the arms are playing; and a step back leans.
+func _flourish(a: Dictionary, n: Node3D, dt: float) -> void:
+	var body: Node3D = n.get_child(0) if n.get_child_count() > 0 else null
+	if body == null:
+		return
+	if a.has("flourish"):
+		var fl: Dictionary = a.flourish
+		fl.t += dt
+		var u := clampf(fl.t / maxf(fl.time, 0.05), 0.0, 1.0)
+		body.rotation.y = fl.spin * TAU * (u * u * (3.0 - 2.0 * u))
+		# Up, and down onto the blow as it lands.
+		var up := clampf(fl.t / maxf(fl.land, 0.05), 0.0, 1.0)
+		body.position.y = fl.leap * sin(up * PI) if fl.t < fl.land else 0.0
+		if u >= 1.0:
+			body.rotation.y = 0.0; body.position.y = 0.0
+			a.erase("flourish")
+	if a.has("lean"):
+		a.lean.t += dt
+		var u := clampf(a.lean.t / maxf(a.lean.time, 0.05), 0.0, 1.0)
+		body.rotation.x = -0.3 * sin(u * PI)
+		body.position.y = 0.12 * sin(u * PI)
+		if u >= 1.0:
+			body.rotation.x = 0.0; body.position.y = 0.0
+			a.erase("lean")
 
 ## Who a Healing thrown now would reach: a ring at their feet, so it is never a guess.
 var _heal_ring: MeshInstance3D
@@ -909,7 +1102,7 @@ func _on_finished(success: bool, report: Array) -> void:
 	Launch.report = report
 	Launch.last_name = profile.name
 	if args.has("tour"):
-		banner.text = ("Done." if success else "You fell.") + "\n\nN: next    R: again"
+		banner.text = ("Done." if success else "You fell.") + "\n\n%s: next    %s: again" % [Keys.name(KEY_N), Keys.name(KEY_R)]
 	elif not args.has("auto"):
 		banner.text += "\n\nEnter: back to camp"
 	if args.has("auto"):

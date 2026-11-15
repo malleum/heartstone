@@ -27,7 +27,7 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 		sim.set_guard(id, false)
 		# One roll to get clear; after that, legs.
 		if best < 2.5 and me.stamina > 200.0:
-			sim.request_dodge(id, -to, true)
+			sim.request_dodge(id, -to)
 		# Run from them, but round the field's edge and not into a corner.
 		var away := -to
 		if me.pos.length() > 30.0:
@@ -43,7 +43,7 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 	var danger := to
 	for eid in sim.ents:
 		var e: Dictionary = sim.ents[eid]
-		if e.alive and e.kind == "enemy" and e.swung and e.atk >= e.blow.time - 0.3 and e.pos.distance_to(me.pos) < e.blow.reach * 1.2 + 1.0:
+		if e.alive and e.kind == "enemy" and e.swung and e.atk >= e.blow.time - 0.25 and e.pos.distance_to(me.pos) < e.blow.reach * 1.2 + 1.0:
 			threats += 1
 			danger = e.pos - me.pos
 	var reach: float = Rules.weapons[me.weapon].reach + near.radius
@@ -55,7 +55,7 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 			sim.set_input(id, Vector3.ZERO, atan2(danger.x, danger.z))
 			sim.set_guard(id, true)
 			return
-		if me.hp < me.max_hp * 0.5 and sim.request_dodge(id, -to, true) == "":
+		if me.hp < me.max_hp * 0.5 and sim.request_dodge(id, -to) == "":
 			return
 	sim.set_guard(id, false)
 	# Hold your ground and let them come; only close the last stretch.
@@ -140,5 +140,8 @@ static func drive(sim: Sim, id: int) -> void:
 		# Where there is a line to hold, hold it: do not walk out in front of it.
 		move = to
 	sim.set_input(id, move, atan2(to.x, to.z))
-	if pick != "" and me.forming.is_empty():
+	if not me.forming.is_empty():
+		# A weave takes time to make: aim it where they are when it leaves.
+		sim.aim_cast(id, sim.aim_at(me, me.forming.weave, near), false)
+	elif pick != "":
 		sim.request_cast(id, pick, sim.aim_at(me, pick, near))

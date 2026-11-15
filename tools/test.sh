@@ -26,7 +26,7 @@ timeout 200 godot --headless --path . -s tests/net_test.gd -- client three 127.0
 c3=$!
 timeout 200 godot --headless --path . -s tests/net_test.gd -- client four 127.0.0.1:24699 tinker blues camp_training >"$out/c5" 2>&1 &
 c5=$!
-sleep 4
+sleep 2.5
 timeout 30 godot --headless --path . -s tests/net_test.gd -- lobby 127.0.0.1:24699 tinker >"$out/l" 2>&1
 timeout 60 godot --headless --path . -s tests/net_test.gd -- client stranger 127.0.0.1:24699 wrong >"$out/c4" 2>&1
 timeout 60 godot --headless --path . -s tests/net_test.gd -- vault 127.0.0.1:24699 tinker >"$out/v" 2>&1

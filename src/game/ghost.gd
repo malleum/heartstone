@@ -17,7 +17,6 @@ const SCRIPTS := {
 		[260, "mouse", MOUSE_BUTTON_LEFT, true], [300, "mouse", MOUSE_BUTTON_LEFT, false],
 		[360, "mouse", MOUSE_BUTTON_RIGHT, true], [420, "mouse", MOUSE_BUTTON_RIGHT, false],
 		[440, "tap", KEY_SPACE],
-		[480, "key", KEY_SHIFT, true], [482, "tap", KEY_SPACE], [490, "key", KEY_SHIFT, false],
 		[540, "key", KEY_CTRL, true], [560, "mouse", MOUSE_BUTTON_LEFT, true], [562, "mouse", MOUSE_BUTTON_LEFT, false], [600, "key", KEY_CTRL, false],
 		[630, "tap", KEY_2], [660, "mouse", MOUSE_BUTTON_LEFT, true], [720, "mouse", MOUSE_BUTTON_LEFT, false],
 		[760, "tap", KEY_3], [790, "tap", KEY_F],
@@ -30,7 +29,8 @@ const SCRIPTS := {
 		[240, "tap", KEY_G],
 		[280, "tap", KEY_3], [290, "mouse", MOUSE_BUTTON_LEFT, true], [291, "mouse", MOUSE_BUTTON_LEFT, false],
 		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
-		[420, "tap", KEY_E], [430, "tap", KEY_Q], [450, "tap", KEY_SPACE]],
+		[420, "tap", KEY_E], [430, "tap", KEY_Q], [436, "tap", KEY_1],
+		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE]],
 	# The camp: open and close everything, hide the sheet, walk at a doorway.
 	camp = [[30, "tap", KEY_T], [70, "tap", KEY_ESCAPE], [100, "tap", KEY_H], [130, "tap", KEY_H],
 		[160, "tap", KEY_ESCAPE], [200, "tap", KEY_ESCAPE],

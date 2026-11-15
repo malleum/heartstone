@@ -45,8 +45,12 @@ const TUNE := {
 	skill_speed = 0.02,
 	skill_thrift = 0.02,
 	guard_cost = 0.7,          # stamina per point of damage a guard stops
-	parry_window = 0.25,       # a guard raised this soon before the blow is a parry
-	parry_stagger = 1.1,
+	parry_window = 0.45,       # a parry pressed this long before the blow still stops it
+	parry_perfect = 0.14,      # pressed this late, it is perfect: the attacker is shaken and thrown back
+	parry_again = 0.7,         # s before a parry that met nothing can be tried again
+	parry_stagger = 1.6,
+	parry_shove = 7.0,         # how hard a perfect parry throws the attacker back
+	form_slow = 0.6,           # share of running speed kept while a weave is being made
 	chain_window = 0.5,        # s after a blow in which the next tap continues the chain
 	swing_slow = 0.45,         # share of running speed kept while winding up a blow
 	guard_slow = 0.5,
@@ -57,8 +61,8 @@ const TUNE := {
 	bond_regen = 3.0,
 	rest_after = 6.0,          # s without being hurt before you catch your breath
 	rest_regen = 0.03,         # share of full health recovered each second after that
-	sidestep = {dist = 2.6, time = 0.28, safe = 0.22, cost = 14.0},
-	roll = {dist = 4.8, time = 0.6, safe = 0.42, cost = 28.0},
+	# One dodge: a roll the way you are moving, or a step back if you are standing.
+	sidestep = {dist = 3.6, time = 0.4, safe = 0.32, cost = 16.0},
 }
 
 ## What each class is good at. skill_cap: ceiling on any weapon skill. guard,
@@ -322,7 +326,7 @@ static func guard_share(p: Dictionary, weapon_id: String) -> float:
 
 ## {dist, time, safe, cost} of a sidestep or a roll for this character.
 static func dodge(p: Dictionary, rolling: bool) -> Dictionary:
-	var d: Dictionary = TUNE.roll if rolling else TUNE.sidestep
+	var d: Dictionary = TUNE.sidestep
 	var c := cls(p)
 	return {dist = d.dist * (1.0 + 0.02 * stat(p, "quickness")), time = d.time, safe = d.safe * c.safe,
 		cost = d.cost * c.dodge_cost * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance"), 0.4)}

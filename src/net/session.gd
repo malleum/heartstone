@@ -19,7 +19,7 @@ signal vaulted(status: String, kept: Dictionary)  # the server's character store
 signal lobby(fights: Array)                     # the server said who is playing what
 
 const PORT := 24690
-const PROTO := 6               # bump when an RPC or the snapshot format changes
+const PROTO := 7               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 const MAX_ROOMS := 8
@@ -182,11 +182,17 @@ func send_input(move: Vector3, yaw: float) -> void:
 	else:
 		_move.rpc_id(1, move, yaw)
 
-func cast(weave: String, aim: Vector3) -> void:
+## hold: keep the finished weave in the hands until aim() lets it go.
+func cast(weave: String, at: Vector3, hold := false) -> void:
 	if is_host:
-		_do_cast(1, weave, aim)
+		_do_cast(1, weave, at, hold)
 	else:
-		_cast_req.rpc_id(1, weave, aim)
+		_cast_req.rpc_id(1, weave, at, hold)
+
+## Where the weave in the making should go, and whether to keep holding it back.
+func aim(at: Vector3, hold: bool) -> void:
+	if is_host: _do_arms(1, "aim", [at, hold])
+	else: _arms.rpc_id(1, "aim", [at, hold])
 
 ## Arms. kind: light | heavy | low | throw; charge is how far a bow was drawn.
 func attack(kind: String, aim: Vector3, charge := 1.0) -> void:
@@ -239,6 +245,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 				why = sim.request_attack(ent, a[0], a[1], float(a[2]))
 		"guard":
 			if a.size() == 1 and a[0] is bool: sim.set_guard(ent, a[0])
+		"aim":
+			if a.size() == 2 and a[0] is Vector3 and a[1] is bool: sim.aim_cast(ent, a[0], a[1])
 		"duck":
 			if a.size() == 1 and a[0] is bool: sim.set_duck(ent, a[0])
 		"dodge":
@@ -342,16 +350,16 @@ func _move(move: Vector3, yaw: float) -> void:
 		(seat[0] as Sim).set_input(seat[1], move, yaw)
 
 @rpc("any_peer", "reliable")
-func _cast_req(weave: String, aim: Vector3) -> void:
-	_do_cast(multiplayer.get_remote_sender_id(), weave, aim)
+func _cast_req(weave: String, at: Vector3, hold: bool) -> void:
+	_do_cast(multiplayer.get_remote_sender_id(), weave, at, hold)
 
-func _do_cast(peer: int, weave: String, aim: Vector3) -> void:
+func _do_cast(peer: int, weave: String, at: Vector3, hold := false) -> void:
 	var seat := _seat(peer)
 	var sim: Sim = seat[0]
 	var ent: int = seat[1]
 	if ent == 0 or sim == null or not Rules.weaves.has(weave):
 		return
-	var why := sim.request_cast(ent, weave, aim)
+	var why := sim.request_cast(ent, weave, at, hold)
 	if why != "":
 		if peer == 1: refused.emit(why)
 		else: _refused.rpc_id(peer, why)
