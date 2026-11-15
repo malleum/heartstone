@@ -8,7 +8,12 @@ One small program does both things Josh asked for:
   fairer than relaying one player's machine.
 - **Characters are kept on it,** so one character grows from any machine.
 
-Nothing has been deployed. Deploying changes minimus, so that step is Josh's.
+The config is in `malleum/nixos` (`modules/services/heartstone.nix`, tag `heartstone`
+on minimus, UDP 24690, join word in `modules/secrets/heartstone.yaml`; read it with
+`sops -d`). It evaluates but is **not yet live**: Josh still has to add the Oracle VCN
+ingress rule for UDP 24690 and run the switch on minimus. To pick up a newer game on the
+server: `nix flake update heartstone` there, then switch. The section below is what was
+written into that repo.
 
 ## Deploying on minimus (in `malleum/nixos`)
 
