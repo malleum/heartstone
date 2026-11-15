@@ -57,6 +57,10 @@ working on abilities; the user's rulings there are final).
 - `tools/bl.py`: run Python in the user's open Blender (full permission granted).
 - `src/test/test_scene.gd`: test bench (`TEST=1 tools/render.sh ...`). Modes via `-- --mode=lineup|walk|horde|humans|heroes`
   plus `--n --seed --dist --yaw --speed --hit=<frame> --die=<frame> --bench=<frames>`.
+- `tools/ghost.sh` tests the controls end to end: scripted hands (`src/game/ghost.gd`,
+  `-- --ghost=arms|weaves|camp`) press real keys and buttons and it checks what the
+  game did. Run it after touching input in `game.gd` or `camp.gd`: bots call the sim
+  directly and cannot catch input bugs (one was found this way).
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 

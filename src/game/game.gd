@@ -39,6 +39,7 @@ var ammo := {}                    # weapon -> arrows, knives or spears left
 var held_since := -1.0            # clock time the attack button went down, or -1
 var flash_t := 0.0                # a parry just rang: the HUD flashes
 var flash_text := ""
+var _ghost_st := 0
 var holds := {}                   # "caster/weave/target" -> {node, id, weave, target, tied}
 
 func _ready() -> void:
@@ -96,7 +97,9 @@ func _ready() -> void:
 	session.snapshot.connect(_on_snapshot)
 	session.events.connect(_on_events)
 	session.finished.connect(_on_finished)
-	session.refused.connect(func(why: String) -> void: last_refusal = why.capitalize(); refusal_t = 1.5)
+	session.refused.connect(func(why: String) -> void:
+		last_refusal = why.capitalize(); refusal_t = 1.5
+		if args.has("ghost"): print("GHOST %d refused %s" % [frame, why]))
 	session.rejected.connect(func(why: String) -> void:
 		_done = true
 		banner.text = "Could not join: %s\n\nEnter: back to camp" % why
@@ -241,7 +244,7 @@ func _aim_point() -> Vector3:
 	var best := Vector3.ZERO
 	var best_miss := 1.4
 	# Healing is aimed at a friend; everything else at the Shadow.
-	var friendly: bool = not known.is_empty() and Rules.weaves[known[selected]].kind == "heal"
+	var friendly: bool = not known.is_empty() and Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind == "heal"
 	for id in actors:
 		var a: Dictionary = actors[id]
 		if (a.kind == "player") != friendly or id == session.my_id or a.get("dead", false) or not is_instance_valid(a.node):
@@ -264,6 +267,8 @@ func _aim_point() -> Vector3:
 
 func _process(dt: float) -> void:
 	frame += 1
+	if args.has("ghost"):
+		Ghost.step(args.ghost, frame)
 	clock += dt
 	refusal_t -= dt
 	if session.my_id == 0:
@@ -397,6 +402,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 
 func _on_events(list: Array) -> void:
 	for e in list:
+		# --ghost: say what the sim made of the scripted hands, for a test to read.
+		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "cast", "hold", "release", "tie", "loose", "strike"]:
+			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
 		match e.e:
 			"spawn":
 				if not actors.has(e.id):
@@ -631,6 +639,9 @@ func _on_snapshot(s: Dictionary) -> void:
 			a.pred = a.srv
 		a.yaw = e[3]
 		_status(a, e[6])
+		if args.has("ghost") and id == session.my_id and int(e[6]) & (16 | 32) != _ghost_st:
+			_ghost_st = int(e[6]) & (16 | 32)
+			print("GHOST %d status guard=%s duck=%s" % [frame, _ghost_st & 16 != 0, _ghost_st & 32 != 0])
 		a.hp = e[4]
 		if id == session.my_id:
 			if e[4] < my_hp - 0.5:

@@ -31,11 +31,12 @@ var pos := Vector3(0, 0, 3.0)  # where the character stands, on the ground plane
 var face := PI - deg_to_rad(8.0)  # and which way they face (PI looks down -z, at the doorways)
 var doors: Array = []          # {id, at, open, node, name, sub}
 var _placed := false
+var _frame := 0
 
 func _ready() -> void:
 	Rules.load_data()
 	cl = Launch.cmdline()
-	if cl.has("auto") or cl.has("activity") or cl.has("join"):
+	if (cl.has("auto") or cl.has("activity") or cl.has("join")) and cl.get("ghost", "") != "camp":
 		# Bots, renders and scripted sessions skip the camp.
 		Launch.args = cl
 		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
@@ -204,6 +205,11 @@ func _show_menu(on: bool) -> void:
 func _process(dt: float) -> void:
 	if cam == null or model == null:
 		return
+	_frame += 1
+	if cl.has("ghost"):
+		Ghost.step(cl.ghost, _frame)
+		if _frame % 30 == 0:
+			print("GHOST %d camp tree=%s menu=%s sheet=%s pos=%s" % [_frame, tree.visible, menu.visible, side.get_parent().get_parent().visible, pos.snapped(Vector3.ONE * 0.1)])
 	_poll_lobby(dt)
 	if creating or profile.is_empty():
 		# Making a character: they stand and are looked at.

@@ -1,0 +1,52 @@
+class_name Ghost
+extends RefCounted
+## A scripted pair of hands: feeds real key and mouse events into the engine on
+## given frames, so the path a person's input takes (not a bot's direct calls into
+## the sim) can be exercised in a render or a test.
+##   -- --ghost=arms | weaves | camp
+## Each script is a list of [frame, what, ...]: "key" keycode down?, "mouse"
+## button down?, "tap" keycode (down and up).
+
+const SCRIPTS := {
+	# A fighter in the training yard: every control once.
+	arms = [[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],
+		[70, "key", KEY_W, true], [150, "key", KEY_W, false],
+		[160, "mouse", MOUSE_BUTTON_LEFT, true], [162, "mouse", MOUSE_BUTTON_LEFT, false],
+		[180, "mouse", MOUSE_BUTTON_LEFT, true], [182, "mouse", MOUSE_BUTTON_LEFT, false],
+		[200, "mouse", MOUSE_BUTTON_LEFT, true], [202, "mouse", MOUSE_BUTTON_LEFT, false],
+		[260, "mouse", MOUSE_BUTTON_LEFT, true], [300, "mouse", MOUSE_BUTTON_LEFT, false],
+		[360, "mouse", MOUSE_BUTTON_RIGHT, true], [420, "mouse", MOUSE_BUTTON_RIGHT, false],
+		[440, "tap", KEY_SPACE],
+		[480, "key", KEY_SHIFT, true], [482, "tap", KEY_SPACE], [490, "key", KEY_SHIFT, false],
+		[540, "key", KEY_CTRL, true], [560, "mouse", MOUSE_BUTTON_LEFT, true], [562, "mouse", MOUSE_BUTTON_LEFT, false], [600, "key", KEY_CTRL, false],
+		[630, "tap", KEY_2], [660, "mouse", MOUSE_BUTTON_LEFT, true], [720, "mouse", MOUSE_BUTTON_LEFT, false],
+		[760, "tap", KEY_3], [790, "tap", KEY_F],
+		[830, "tap", KEY_4], [850, "mouse", MOUSE_BUTTON_LEFT, true], [852, "mouse", MOUSE_BUTTON_LEFT, false],
+		[900, "tap", KEY_1]],
+	# A channeller: throw fire, raise the dome, bind, tie off, let go.
+	weaves = [[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],
+		[90, "tap", KEY_1], [100, "mouse", MOUSE_BUTTON_LEFT, true], [101, "mouse", MOUSE_BUTTON_LEFT, false],
+		[160, "tap", KEY_2], [170, "mouse", MOUSE_BUTTON_LEFT, true], [171, "mouse", MOUSE_BUTTON_LEFT, false],
+		[240, "tap", KEY_G],
+		[280, "tap", KEY_3], [290, "mouse", MOUSE_BUTTON_LEFT, true], [291, "mouse", MOUSE_BUTTON_LEFT, false],
+		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
+		[420, "tap", KEY_E], [430, "tap", KEY_Q], [450, "tap", KEY_SPACE]],
+	# The camp: open and close everything, hide the sheet, walk at a doorway.
+	camp = [[30, "tap", KEY_T], [70, "tap", KEY_ESCAPE], [100, "tap", KEY_H], [130, "tap", KEY_H],
+		[160, "tap", KEY_ESCAPE], [200, "tap", KEY_ESCAPE],
+		[230, "key", KEY_W, true], [560, "key", KEY_W, false]],
+}
+
+static func step(script: String, frame: int) -> void:
+	for row in SCRIPTS.get(script, []):
+		if row[0] != frame and not (row[1] == "tap" and row[0] + 2 == frame):
+			continue
+		if row[1] == "mouse":
+			var ev := InputEventMouseButton.new()
+			ev.button_index = row[2]; ev.pressed = row[3]
+			Input.parse_input_event(ev)
+		else:
+			var ev := InputEventKey.new()
+			ev.keycode = row[2]; ev.physical_keycode = row[2]
+			ev.pressed = row[3] if row[1] == "key" else row[0] == frame
+			Input.parse_input_event(ev)

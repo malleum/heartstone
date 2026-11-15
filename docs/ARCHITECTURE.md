@@ -292,6 +292,16 @@ that chase their sim position with their own gait.
 - `--auto` lets the bot play, which is how the game is rendered without a human
   (`tools/render.sh renders/game 240 -- --auto`).
 
+## Testing
+- `tools/test.sh`: rules and progression (`tests/run_tests.gd`: every weapon, every
+  defence, holds, enemies, Powers, whole activities played by bots), co-op over
+  localhost, and a dedicated server with two rooms, the lobby and the store.
+- `tools/ghost.sh`: the controls. `Ghost` feeds real input events on scripted
+  frames, the game prints what the sim made of them, and the script checks it.
+  It exists because bots drive the sim directly: an error on the input path
+  (aiming with a weapon selected) passed every other test.
+- `src/test/arms.tscn`, `looks.tscn`: lineups of every weapon and every outfit.
+
 ## Dev environment
 - NixOS flake: `nix develop` for the tools, `nix run` to play, `nix run .#horde` for
   the horde bench. Godot 4.7, Forward+.
