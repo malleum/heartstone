@@ -234,8 +234,13 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		elif w.has("shot"):
 			# The draw happens in the hand before the click is released; the sim only
 			# makes sure nobody looses faster than the bow can be drawn.
+			# The host counts the draw itself: an arrow has as much behind it as the
+			# string was actually held for, and one asked for undrawn is drawn now.
 			charge = clampf(charge, 0.2, 1.0)
-			wind = maxf(wind, p.shot_free + Rules.draw_time(p.profile, p.weapon) * charge - t)
+			var drawn: float = t - p.get("draw_since", t) if p.get("drawing", false) else 0.0
+			wind = maxf(wind, Rules.draw_time(p.profile, p.weapon) * charge - drawn)
+			if wind > 0.15 and not p.get("drawing", false):
+				p.draw_since = t
 	var cost := Rules.move_cost(p.profile, p.weapon, move_id, p.stamina)
 	p.stamina = maxf(p.stamina - cost, 0.0)
 	var to := aim - _feet(p); to.y = 0.0
@@ -243,6 +248,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	p.yaw = atan2(dir.x, dir.z)
 	p.guard = false
 	p.chain = chain + 1 if kind == "light" else 0
+	# The wait before a bow looses is the draw, and is seen as one.
+	p.drawing = m.get("missile", false) and w.has("shot") and not w.shot.get("crank", false) and wind > 0.15
 	p.swing = {move = move_id, weapon = p.weapon, left = wind, struck = false, recover = times[1], dir = dir, aim = aim, charge = charge}
 	if m.has("lunge"):
 		p.dash = {vel = dir * (m.lunge / maxf(wind, 0.05)), left = wind, lunge = true}
@@ -269,6 +276,15 @@ func set_guard(id: int, on: bool) -> void:
 	p.guard = true
 	events.append({e = "parry_try", id = id})
 
+## Drawing a bow: known to the sim only so that everyone can see it, and so that
+## nobody runs at full speed with a bow at full draw.
+func set_draw(id: int, on: bool) -> void:
+	var p: Dictionary = ents[id]
+	var was: bool = p.get("drawing", false)
+	p.drawing = on and p.alive and p.swing.is_empty() and Rules.weapons.has(p.weapon) and Rules.weapons[p.weapon].has("shot")
+	if p.drawing and not was:
+		p.draw_since = t
+
 func set_duck(id: int, on: bool) -> void:
 	ents[id].duck = on and ents[id].alive
 
@@ -288,7 +304,7 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 		return "too tired"
 	p.stamina = maxf(p.stamina - d.cost, 0.0)
 	# Leaving is always possible: it abandons a blow or a weave half made.
-	p.swing = {}; p.queued = {}; p.forming = {}; p.guard = false
+	p.swing = {}; p.queued = {}; p.forming = {}; p.guard = false; p.drawing = false
 	p.dash = {vel = dir * (d.dist / d.time), left = d.time}
 	p.safe_until = t + d.safe
 	events.append({e = "dodge", id = id, roll = rolling, back = back, dir = dir, time = d.time})
@@ -486,6 +502,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if not p.swing.is_empty() and not p.swing.struck: slow = minf(slow, Rules.TUNE.swing_slow)
 	if p.guard: slow = minf(slow, Rules.TUNE.guard_slow)
 	if p.duck: slow = minf(slow, Rules.TUNE.duck_slow)
+	if p.get("drawing", false): slow = minf(slow, Rules.TUNE.draw_slow)
 	if p.reel_until > t: slow = 0.0
 	var step: Vector3 = p.move * p.speed * slow * dt
 	if not p.dash.is_empty():
@@ -574,6 +591,7 @@ func _strike(p: Dictionary) -> void:
 		var shot: Dictionary = w.get("shot", w.get("throw", {}))
 		p.ammo[sw.weapon] = p.ammo.get(sw.weapon, 0) - 1
 		p.shot_free = t
+		p.drawing = false
 		var hand := _feet(p) + Vector3(0, 1.45, 0)
 		var throw: Vector3 = sw.aim - hand
 		throw = throw.normalized() if throw.length() > 0.5 else dir
@@ -1342,7 +1360,7 @@ func snapshot() -> Dictionary:
 				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0) \
 				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0) \
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
-				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0)
+				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:

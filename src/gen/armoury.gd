@@ -59,7 +59,39 @@ static func _bow(n: Node3D, height: float, bend: float, col: Color) -> void:
 			var p := Vector3(-bend * f * f, side * height * 0.5 * f, 0)
 			_rod(n, prev, p, 0.016 * (1.0 - 0.6 * (f - 1.0 / 6.0)), 0.016 * (1.0 - 0.6 * f), m)
 			prev = p
-	_rod(n, Vector3(-bend, -height * 0.5, 0), Vector3(-bend, height * 0.5, 0), 0.003, 0.003, _mat(Color(0.85, 0.82, 0.75)))
+	# The string is two halves meeting at the nock, so it can be drawn (see string()).
+	for name in ["StringA", "StringB"]:
+		var mi := MeshInstance3D.new(); var c := CylinderMesh.new()
+		c.top_radius = 0.003; c.bottom_radius = 0.003; c.height = 1.0; c.radial_segments = 5; c.rings = 1
+		mi.mesh = c; mi.material_override = _mat(Color(0.85, 0.82, 0.75)); mi.name = name
+		n.add_child(mi)
+	# The arrow on the string, seen only while drawing.
+	var nock := Node3D.new(); nock.name = "Nock"; nock.visible = false
+	_rod(nock, Vector3(0, 0, 0), Vector3(0.78, 0, 0), 0.005, 0.005, _mat(PALE))
+	_rod(nock, Vector3(0.78, 0, 0), Vector3(0.85, 0, 0), 0.013, 0.001, _mat(STEEL, 0.85))
+	_box(nock, Vector3(0.1, 0.045, 0.002), Vector3(0.06, 0, 0), _mat(Color(0.85, 0.85, 0.8)))
+	n.add_child(nock)
+	n.set_meta("bow", {height = height, bend = bend})
+	string(n, 0.0, false)
+
+## Draw the string of a bow built by _bow: pull 0 is at rest, 1 a full draw (the
+## nock comes back most of an arm's length). With `nocked`, an arrow rides it.
+static func string(bow: Node3D, pull: float, nocked: bool) -> void:
+	if not bow.has_meta("bow"):
+		return
+	var m: Dictionary = bow.get_meta("bow")
+	var nock := Vector3(-m.bend - pull * 0.5, 0, 0)
+	for pair in [["StringA", 1.0], ["StringB", -1.0]]:
+		var mi: MeshInstance3D = bow.get_node(pair[0])
+		var tip := Vector3(-m.bend, pair[1] * m.height * 0.5, 0)
+		var d := tip - nock
+		mi.position = (tip + nock) * 0.5
+		var y := d.normalized()
+		var x := y.cross(Vector3(0, 0, 1)).normalized()
+		mi.basis = Basis(x, y, x.cross(y)).scaled(Vector3(1, d.length(), 1))
+	var arrow: Node3D = bow.get_node("Nock")
+	arrow.visible = nocked
+	arrow.position = nock
 
 ## {main, off, off_bone}: main goes in the right hand; off (a bow, a buckler) on
 ## the named left-arm bone. Either may be null.

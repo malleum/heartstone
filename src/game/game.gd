@@ -177,6 +177,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 					session.attack("heavy" if held > 0.35 else "light", at)
 				_face(at)
 			if ev.button_index == MOUSE_BUTTON_LEFT:
+				if held_since >= 0.0 and hand() != "" and Rules.weapons[hand()].has("shot"):
+					session.draw(false)
 				held_since = -1.0
 				if weaving and me:
 					# Let it go: it leaves as soon as it is whole, where the crosshair is then.
@@ -195,6 +197,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_face(_aim_point())
 			elif _armed():
 				held_since = clock
+				if Rules.weapons[hand()].has("shot"):
+					session.draw(true)
 			else:
 				_cast_selected()
 		elif ev.button_index == MOUSE_BUTTON_RIGHT and hand() != "" and me:
@@ -308,7 +312,10 @@ func _process(dt: float) -> void:
 			Bot.drive(session.sim, session.my_id)
 		if args.has("stand"):
 			session.sim.set_input(session.my_id, Vector3.ZERO, session.sim.ents[session.my_id].yaw)
-		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI, 2.0 * dt)
+		# --camyaw=deg swings the bot's camera round it, to look at it from the side.
+		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI + deg_to_rad(float(args.get("camyaw", "0"))), 2.0 * dt)
+		if args.has("camdist"):
+			cam_dist = float(args.camdist)
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
@@ -332,6 +339,13 @@ func _process(dt: float) -> void:
 	if args.has("gate") and frame == 150 and session.is_host and me:
 		var p: Dictionary = session.sim.ents[session.my_id]
 		session.sim._cast(p, "gateway", p.pos + Vector3(sin(p.yaw), 0, cos(p.yaw)) * 14.0 + Vector3(6, 0, 0))
+	# --demo=weave[:metres]: weave it ahead again and again, whoever the character is,
+	# so one weave can be looked at in a render.
+	if args.has("demo") and frame % 240 == 100 and session.is_host and me:
+		var dp: Dictionary = session.sim.ents[session.my_id]
+		var parts: PackedStringArray = args.demo.split(":")
+		if Rules.weaves.has(parts[0]):
+			session.sim._cast(dp, parts[0], dp.pos + Vector3(sin(dp.yaw), 0, cos(dp.yaw)) * (float(parts[1]) if parts.size() > 1 else 13.0) + Vector3(0, 1.0, 0))
 	_draw_actors(dt)
 	_draw_fx(dt)
 	if me:
@@ -696,6 +710,8 @@ func _on_events(list: Array) -> void:
 					ammo[e.weapon] = e.left
 					if Rules.weapons.has(e.weapon) and Rules.weapons[e.weapon].get("shot", {}).get("crank", false):
 						spanned[e.weapon] = clock + Rules.draw_time(profile, e.weapon)
+				if actors.has(e.id) and Rules.weapons.has(e.weapon) and Rules.weapons[e.weapon].get("shot", {}).get("crank", false):
+					actors[e.id].span_until = clock + Rules.draw_time(profile, e.weapon)
 				# What was thrown has left the hand: the last one leaves it empty, and
 				# the next comes to hand a moment later.
 				if actors.has(e.id) and actors[e.id].kind == "player" and is_instance_valid(actors[e.id].node) and Rules.weapons.has(e.weapon) and Rules.weapons[e.weapon].has("throw"):
@@ -907,6 +923,7 @@ func _draw_actors(dt: float) -> void:
 			if a.get("grip_until", 0.0) > 0.0 and clock >= a.grip_until:
 				a.grip_until = 0.0
 				Hero.grip(n, "")
+			_bow_pose(a, n, id == session.my_id, dt)
 			if a.get("forming", false) and a.busy <= 0.0:
 				# Hands raised and working for as long as the weave is in them.
 				_play(a, "Spell_Simple_Idle_Move" if speed > 0.6 else "Spell_Simple_Idle")
@@ -939,6 +956,43 @@ func _draw_actors(dt: float) -> void:
 	for w in walkers:
 		w.compute(dt)
 		w.apply()
+
+## A bow being drawn, or a crossbow levelled: the arms are posed for it over
+## whatever the legs are doing, the string comes back, and an arrow is on it.
+func _bow_pose(a: Dictionary, n: Node3D, mine: bool, dt: float) -> void:
+	if not n.has_meta("pose"):
+		return
+	var pose: ArmPose = n.get_meta("pose")
+	var w: Dictionary = Rules.weapons.get(a.get("weapon", ""), {})
+	var shot: Dictionary = w.get("shot", {})
+	var drawing: bool = a.get("status", 0) & 16384 and not shot.is_empty() and not shot.get("crank", false)
+	if drawing:
+		a.draw_t = a.get("draw_t", 0.0) + dt
+	else:
+		a.draw_t = 0.0
+	var want := 0.0
+	if drawing:
+		pose.mode = "bow"
+		pose.pull = clampf(a.draw_t / maxf(Rules.draw_time(profile, a.weapon), 0.1), 0.0, 1.0)
+		want = 1.0
+	elif shot.get("crank", false) and a.get("busy", 0.0) <= 0.0 and not (a.get("status", 0) & 64):
+		# A crossbow is carried levelled; while it is being spanned it points at the ground.
+		pose.mode = "crossbow"
+		want = 1.0
+		pose.pitch = lerpf(pose.pitch, -0.9 if a.get("span_until", 0.0) > clock else (cam_pitch * 0.6 if mine else 0.0), minf(dt * 8.0, 1.0))
+	if drawing:
+		pose.pitch = lerpf(pose.pitch, cam_pitch * 0.7 + 0.08 if mine else 0.08, minf(dt * 10.0, 1.0))
+	pose.weight = move_toward(pose.weight, want, dt * (7.0 if want > 0.0 else 9.0))
+	if pose.weight <= 0.01:
+		pose.mode = ""
+	if w.get("family", "") == "bow" and not shot.get("crank", false):
+		Hero.bow(n, "draw" if pose.weight > 0.4 and pose.mode == "bow" else "", pose.pull if drawing else 0.0, drawing)
+		if a.get("was_drawing", false) != drawing:
+			a.was_drawing = drawing
+			# The arrow is on the string, not in the hand, for as long as it is drawn.
+			Hero.show_held(n, not drawing)
+			if drawing:
+				Sfx.play(self, "hum", n.position + Vector3(0, 1.4, 0), -12.0, 2.2)
 
 ## What makes a form look like itself: the whole body turns, or leaves the
 ## ground, on top of whatever clip the arms are playing; and a step back leans.

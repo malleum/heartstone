@@ -55,6 +55,7 @@ const TUNE := {
 	swing_slow = 0.45,         # share of running speed kept while winding up a blow
 	guard_slow = 0.5,
 	duck_slow = 0.4,
+	draw_slow = 0.45,          # share of running speed kept with a bow drawn
 	gang = 2,                  # how many enemies may be mid-attack on one person at once; the rest wait their turn
 	ward_reach = 3.5,          # a guarding Warder this close to a channeller takes blows meant for them
 	bond_reach = 15.0,         # a Warder and a channeller this close both recover stamina faster

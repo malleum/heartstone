@@ -260,6 +260,14 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 		n = n.get_parent()
 	var fwd := to_model.inverse() * Vector3(0, 0, 1)
 	var up := to_model.inverse() * Vector3(0, 1, 0)
+	# The pose that draws a bow needs the same directions.
+	var pose: ArmPose = root.get_meta("pose") if root.has_meta("pose") else null
+	if pose == null:
+		pose = ArmPose.new()
+		sk.add_child(pose)
+		root.set_meta("pose", pose)
+	pose.fwd = fwd.normalized(); pose.up = up.normalized(); pose.left = up.cross(fwd).normalized()
+	pose.mode = ""; pose.weight = 0.0
 	for part in [[kit.main, "hand_r"], [kit.off, kit.off_bone]]:
 		if part[0] == null:
 			continue
@@ -275,7 +283,17 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 		sk.add_child(at)
 		var inv := rest.basis.inverse()
 		var holder: Node3D = part[0]
-		if part[1].begins_with("lowerarm"):
+		if part[1] == "hand_l" and part[0].has_meta("bow"):
+			# A bow: carried along the arm; to shoot, upright with the string
+			# toward the archer (grip "draw").
+			var yb := (inv * fwd).normalized()
+			var xb := (inv * along).normalized()
+			xb = (xb - yb * xb.dot(yb)).normalized()
+			holder.basis = Basis(xb, yb, xb.cross(yb))
+			holder.position = inv * (along * 0.085 - up * 0.03)
+			holder.set_meta("grips", {"": holder.transform})
+			pose.grip_l = holder.basis
+		elif part[1].begins_with("lowerarm"):
 			# A buckler: flat against the back of the forearm.
 			var out := inv * up
 			var x := (inv * along).normalized()
@@ -293,6 +311,7 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 			var y2 := (inv * along).normalized()
 			var x2 := (inv * up).normalized()
 			x2 = (x2 - y2 * x2.dot(y2)).normalized()
+			pose.grip_r = holder.basis
 			holder.set_meta("grips", {"": holder.transform, "couched": Transform3D(Basis(x2, y2, x2.cross(y2)), inv * (along * 0.085 - up * 0.02))})
 		at.add_child(holder)
 
@@ -304,6 +323,16 @@ static func grip(root: Node3D, mode: String) -> void:
 	if at and at.get_child_count() > 0 and at.get_child(0).has_meta("grips"):
 		var grips: Dictionary = at.get_child(0).get_meta("grips")
 		(at.get_child(0) as Node3D).transform = grips.get(mode, grips[""])
+
+## The bow in the left hand: how far its string is drawn, and whether an arrow is
+## on it. (ArmPose turns the hand to hold it upright.)
+static func bow(root: Node3D, _mode: String, pull: float, nocked: bool) -> void:
+	var sk: Skeleton3D = root.get_meta("skeleton")
+	var at := sk.get_node_or_null("Held_hand_l")
+	if at == null or at.get_child_count() == 0 or not at.get_child(0).has_meta("grips"):
+		return
+	var b: Node3D = at.get_child(0)
+	Armoury.string(b, pull, nocked)
 
 ## Whether what is carried in the right hand is seen (a thrown knife is gone
 ## from it until the next comes to hand).

@@ -124,7 +124,7 @@ static func drive(sim: Sim, id: int) -> void:
 		var rng: float = row.base.get("range", row.base.get("radius", 99.0))
 		reach = maxf(reach, rng)
 		# Do not weave fire at your own feet.
-		if rng < best or (row.get("self", 0.0) > 0.0 and best < row.base.radius + 2.5):
+		if rng < best or (row.get("self", 0.0) > 0.0 and best < row.base.radius + 2.5) or (row.kind == "blossom" and best < row.base.radius_max + 2.0):
 			continue
 		if me.cd.get(w, 0.0) > sim.t or Rules.cast_block(me.profile, w, sim.free_slots(me), me.stamina) != "":
 			continue

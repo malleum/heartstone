@@ -203,6 +203,10 @@ func guard(on: bool) -> void:
 	if is_host: _do_arms(1, "guard", [on])
 	else: _arms.rpc_id(1, "guard", [on])
 
+func draw(on: bool) -> void:
+	if is_host: _do_arms(1, "draw", [on])
+	else: _arms.rpc_id(1, "draw", [on])
+
 func duck(on: bool) -> void:
 	if is_host: _do_arms(1, "duck", [on])
 	else: _arms.rpc_id(1, "duck", [on])
@@ -245,6 +249,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 				why = sim.request_attack(ent, a[0], a[1], float(a[2]))
 		"guard":
 			if a.size() == 1 and a[0] is bool: sim.set_guard(ent, a[0])
+		"draw":
+			if a.size() == 1 and a[0] is bool: sim.set_draw(ent, a[0])
 		"aim":
 			if a.size() == 2 and a[0] is Vector3 and a[1] is bool: sim.aim_cast(ent, a[0], a[1])
 		"duck":

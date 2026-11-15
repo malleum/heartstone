@@ -99,9 +99,9 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			var core := _mesh(c, Color(1.0, 0.9, 0.7), 9.0)
 			core.rotation.x = PI * 0.5; core.position.z = 0.45
 			n.add_child(core)
-			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.06; tail.height = 2.2; tail.radial_segments = 6; tail.rings = 1
-			var tm := _mesh(tail, Color(1.0, 0.45, 0.1, 0.35), 3.0)
-			tm.rotation.x = -PI * 0.5; tm.position.z = 1.3
+			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.06; tail.height = 5.0; tail.radial_segments = 6; tail.rings = 1
+			var tm := _mesh(tail, Color(1.0, 0.45, 0.1, 0.4), 3.0)
+			tm.rotation.x = -PI * 0.5; tm.position.z = 2.7
 			n.add_child(tm)
 			n.add_child(_light(TINT.fire, 1.2, 3.5))
 			n.set_meta("aimed", true)
@@ -256,24 +256,27 @@ class Blossom extends Node3D:
 	var scorch: MeshInstance3D
 	var lamp: OmniLight3D
 	const ARMS := 5
-	const PER := 7
+	const PER := 9
 
 	func _ready() -> void:
 		# The pillar: six feet of fire, no wider than a man.
-		pillar = Weavefx._particles(Weavefx.TINT.fire, 120, 0.5, 0.3, 4.0, 3.0, 6.0)
+		pillar = Weavefx._particles(Color(1.0, 0.35, 0.06), 90, 0.45, 0.22, 4.4, 3.0, 5.0)
 		pillar.position.y = -1.0
 		add_child(pillar)
 		for a in ARMS:
 			for j in PER:
-				var e := Weavefx._particles(Weavefx.TINT.fire, 20, 0.75, 0.5 + 0.35 * j / PER, 0.7, 1.5, 35.0)
+				# Small deep-orange tongues, close together: an arm of flame, not a cloud.
+				var e := Weavefx._particles(Color(1.0, 0.28, 0.04), 22, 0.55, 0.4 + 0.25 * j / PER, 1.0, 2.6, 22.0)
+				# Dimmer than a fireball's flame: many overlap, and it must stay orange.
+				((e.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.5, 0.5, 0.5)
 				e.emitting = false
 				add_child(e)
 				arms.append([e, a, (j + 1.0) / PER])
 		var c := CylinderMesh.new(); c.top_radius = 1.0; c.bottom_radius = 1.0; c.height = 0.04
-		scorch = Weavefx._mesh(c, Color(1.0, 0.35, 0.05, 0.16), 1.2)
+		scorch = Weavefx._mesh(c, Color(0.9, 0.22, 0.03, 0.2), 0.6)
 		scorch.position.y = -1.12
 		add_child(scorch)
-		lamp = Weavefx._light(Weavefx.TINT.fire, 5.0, 8.0)
+		lamp = Weavefx._light(Weavefx.TINT.fire, 3.0, 8.0)
 		add_child(lamp)
 
 	func set_r(radius: float, _yaw: float) -> void:
@@ -286,7 +289,7 @@ class Blossom extends Node3D:
 		pillar.emitting = age < 1.0
 		scorch.scale = Vector3(r, 1.0, r)
 		lamp.omni_range = 6.0 + r * 2.0
-		lamp.light_energy = 5.0 + r * 0.6 + sin(age * 9.0) * 0.6
+		lamp.light_energy = 2.5 + r * 0.3 + sin(age * 9.0) * 0.4
 		for row in arms:
 			var e: GPUParticles3D = row[0]
 			var fr: float = row[2]
@@ -317,7 +320,8 @@ class Wedge extends Node3D:
 			var mi := MeshInstance3D.new(); mi.mesh = c; mi.material_override = rock
 			mi.rotation = Vector3(randf_range(-0.35, 0.35), randf() * TAU, randf_range(-0.35, 0.35))
 			add_child(mi); teeth.append(mi)
-			var f := Weavefx._particles(Weavefx.TINT.fire, 22, 0.55, 0.55, 1.2, 2.6, 30.0)
+			var f := Weavefx._particles(Color(1.0, 0.3, 0.05), 20, 0.5, 0.5, 1.2, 2.8, 30.0)
+			((f.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.55, 0.55, 0.55)
 			add_child(f); fires.append(f)
 		# Dust thrown up behind the front.
 		var d := Weavefx._particles(Color(0.36, 0.28, 0.2), 60, 1.1, 1.1, 2.0, 0.8, 80.0, false)
@@ -335,8 +339,9 @@ class Wedge extends Node3D:
 			var at := Vector3(sin(a) * r, 0.0, cos(a) * r)
 			# The ground rises and drops in a ripple along the front.
 			var up := absf(sin(age * 7.0 + i * 1.3))
-			(teeth[i] as MeshInstance3D).position = at + Vector3(0, -1.9 + 0.95 * up, 0)
-			(fires[i] as GPUParticles3D).position = at + Vector3(0, -0.7, 0)
+			var h: float = ((teeth[i] as MeshInstance3D).mesh as CylinderMesh).height
+			(teeth[i] as MeshInstance3D).position = at + Vector3(0, -1.2 - h * 0.5 + h * (0.25 + 0.75 * up), 0)
+			(fires[i] as GPUParticles3D).position = at + Vector3(0, -0.9 + h * 0.5 * up, 0)
 		(get_node("Dust") as GPUParticles3D).position = Vector3(0, -0.9, maxf(r - 1.2, 0.0))
 		lamp.position = Vector3(0, 0.2, r)
 
