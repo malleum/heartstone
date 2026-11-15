@@ -12,6 +12,9 @@
   "wagon_ring": {"map": "wagon_ring", "name": "The wagon ring", "kind": "holdout", "blurb": "A merchant train caught in open hills, wagons drawn into a ring. They come from every side, with archers, and an Eyeless leads them.",
     "requires": {"done": ["tarwins_gap_watch"]}, "renown": 18, "teaches": [], "shows": ["bonds_of_air", "lightning", "rolling_ring"], "yield": {"strength": 1.0, "mastery": 1.0},
     "waves": [{"t": 3, "spawn": {"trolloc": 8, "trolloc_archer": 3}}, {"t": 40, "spawn": {"trolloc": 12, "trolloc_archer": 4}}, {"t": 85, "spawn": {"myrddraal": 1, "trolloc": 12, "trolloc_archer": 3}}]},
+  "wild_hunt": {"name": "The Wild Hunt", "kind": "holdout", "blurb": "Something has your trail: hounds that leave their prints in stone, a thing that sings from the dark, and one who channels for the Shadow.",
+    "requires": {"renown": 30, "done": ["tarwins_gap_watch"]}, "renown": 22, "teaches": [], "shows": ["shielding", "arrows_of_fire", "lightning"], "yield": {"strength": 1.0, "mastery": 1.0},
+    "waves": [{"t": 2, "spawn": {"darkhound": 3}}, {"t": 35, "spawn": {"trolloc": 10, "draghkar": 1}}, {"t": 75, "spawn": {"dreadlord": 1, "darkhound": 4, "trolloc": 8}}]},
   "dream_spar": {"name": "Sparring in Tel'aran'rhiod", "kind": "spar", "blurb": "Duel a friend in the World of Dreams. Nothing here can truly harm you.",
     "requires": {"renown": 15}, "renown": 3, "teaches": [], "yield": {"strength": 0.3, "mastery": 1.0}, "waves": []}
 }

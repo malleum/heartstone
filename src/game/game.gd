@@ -18,12 +18,15 @@ var face_yaw := 0.0            # my character faces its travel direction, or the
 var aim_t := 0.0               # seconds left facing the aim after a cast
 var selected := 0
 var shake := 0.0               # camera trauma, 0..1, decays every frame
+var my_trance := false         # a Draghkar has me
 var punch := 0.0               # a landed blow pushes the view in for an instant
 var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
 var variants: Array = []       # generated Trolloc data, shared between enemies
 var fade := {}                 # generated Myrddraal data
+var made := {}                 # other generated creatures, by gen name, built when first met
+var told := {}                 # warnings given once
 var hud: Hud
 var hurt_t := 0.0              # 1 when just struck, fading: the HUD reddens the edges
 var banner: Label
@@ -465,10 +468,14 @@ func _on_started(_my_id: int, activity: String) -> void:
 	# them in a render.
 	if args.has("spawn") and session.is_host:
 		for part in args.spawn.split(","):
+			# type:count, or type:count@metres for things that fight from a distance.
+			var far := 7.0
+			if part.contains("@"):
+				far = float(part.get_slice("@", 1)); part = part.get_slice("@", 0)
 			var kv: PackedStringArray = part.split(":")
 			if Rules.enemies.has(kv[0]):
 				for i in (int(kv[1]) if kv.size() > 1 else 1):
-					session.sim._add_enemy(kv[0], Vector3(randf_range(-3, 3), 0, -7.0 - i * 2.0))
+					session.sim._add_enemy(kv[0], Vector3(randf_range(-3, 3), 0, -far - i * 2.0))
 
 	# --ally=warder|channeller: a bot friend at your side (--ally_hp=45 starts them hurt),
 	# for the things that need someone else: Healing, a Warder's ward, the bond.
@@ -524,6 +531,10 @@ func _on_events(list: Array) -> void:
 						(a.node as Walker).vel = Vector3.ZERO
 						(a.node as Walker).die(a.node.position - (me.position if me else Vector3.ZERO))
 						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
+					elif a.node is Hound:
+						(a.node as Hound).vel = Vector3.ZERO
+						(a.node as Hound).die(a.node.position - (me.position if me else Vector3.ZERO))
+						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
 					elif a.kind == "player":
 						(a.node.get_meta("anim") as AnimationPlayer).play("Death01", 0.15)
 					else:
@@ -545,6 +556,11 @@ func _on_events(list: Array) -> void:
 							a.hold = clampf(e.dmg * 0.004 + knock * 0.008, 0.05, 0.2)
 							if e.by == session.my_id:
 								punch = minf(punch + e.dmg * 0.01, 1.0)
+					elif a.node is Hound and not a.get("dead", false):
+						var from2: Vector3 = actors[e.by].node.position if actors.has(e.by) and is_instance_valid(actors[e.by].node) else (me.position if me else Vector3.ZERO)
+						(a.node as Hound).hit(a.node.position - from2, clampf(0.55 + float(e.get("knock", 0.0)) * 0.14, 0.55, 2.0))
+						if e.dmg >= 4.0:
+							Weavefx.flash(self, a.node)
 					elif a.kind == "player" and not a.get("dead", false):
 						_play(a, "Hit_Chest", true)
 			"form":
@@ -578,6 +594,10 @@ func _on_events(list: Array) -> void:
 					w.hit((_ground(actors[e.target].target) - w.position).normalized(), 0.35)
 					Sfx.play(self, "thud", w.position + Vector3(0, 1.2, 0), 0.0)
 			"swing":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Hound:
+					var h: Hound = actors[e.id].node
+					h.attack("bite")
+					Armsfx.telegraph(self, _ground(Vector3(h.pos.x, 0, h.pos.z)), e.yaw, e.reach + 0.45, e.arc, e.time, e.height)
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
 					var w: Walker = actors[e.id].node
 					w.attack(e.get("kind", "chop"))
@@ -592,7 +612,47 @@ func _on_events(list: Array) -> void:
 					Armsfx.lunge_line(self, _ground(Vector3(n.position.x, 0, n.position.z)), e.yaw, e.dist, e.wind)
 					if n is Walker:
 						(n as Walker).attack("thrust")
+					elif n is Hound:
+						(n as Hound).attack("thrust")
 					Sfx.play(self, "hum", n.position + Vector3(0, 1.2, 0), 2.0, 0.45)
+			"aloft", "land":
+				if actors.has(e.id):
+					actors[e.id].aloft = e.e == "aloft"
+			"song":
+				# The tell: rings of sound going out from it for as long as it has to sing.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Weavefx.song(actors[e.id].node, e.time)
+					Sfx.play(self, "hum", actors[e.id].node.position + Vector3(0, 1.6, 0), 4.0, 1.9)
+					if e.target == session.my_id:
+						_banner("It is singing to you: strike it, or get out of its sight", e.time)
+			"entranced":
+				if e.id == session.my_id:
+					_banner("The song has you", 3.0)
+				elif actors.has(e.id):
+					_banner("The song has %s: hurt the Draghkar" % actors[e.id].get("name", "a friend"), 3.0)
+			"kiss":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].node is Walker:
+					(actors[e.id].node as Walker).attack("thrust")
+			"song_end":
+				if e.target == session.my_id and my_trance:
+					_banner("The song breaks", 1.5)
+			"channel":
+				# A Dreadlord gathering the Power: it shows in its hands, as it does in yours.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					_end_form(a)
+					a.form_fx = Weavefx.forming(self, a.node, "fireball", e.time)
+					a.form_since = clock + e.time
+					if a.node is Walker:
+						(a.node as Walker).attack("chop")
+			"doom":
+				# Marked ground: a full circle, for as long as there is to leave it.
+				Armsfx.telegraph(self, _ground(e.pos), 0.0, e.radius, 180.0, e.time, "mid")
+				Sfx.play(self, "hum", _ground(e.pos), 3.0, 0.7)
+			"doom_hit":
+				Weavefx.doom(self, _ground(e.pos), e.radius)
+				Sfx.play(self, "boom", _ground(e.pos), 4.0, 0.8)
+				shake_at(_ground(e.pos), e.radius)
 			"fade_out":
 				Weavefx.smoke(self, _ground(e.pos), false)
 			"fade_in":
@@ -838,6 +898,34 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 		w.teleport(pos, 0.0)
 		actors[id] = {node = w, kind = "enemy", target = pos, fade = true}
 		_banner("An Eyeless is among them", 4.0)
+	elif row.gen == "HOUND":
+		var h := Hound.instantiate()
+		add_child(h)
+		h.teleport(pos, 0.0)
+		actors[id] = {node = h, kind = "enemy", target = pos}
+		if not told.has("hound"):
+			told.hound = true
+			_banner("Darkhounds: steel barely slows them. Burn them", 5.0)
+	elif row.gen in ["DRAGHKAR", "DREADLORD"]:
+		# Made the first time one is seen (a few seconds of clay), then kept.
+		if not made.has(row.gen):
+			made[row.gen] = Creature.build(Species.roll(Species.DRAGHKAR if row.gen == "DRAGHKAR" else Species.DREADLORD, 11, {lod = 1.3}))
+		var w := Creature.instantiate(made[row.gen])
+		add_child(w)
+		w.teleport(pos, 0.0)
+		actors[id] = {node = w, kind = "enemy", target = pos}
+		if row.gen == "DRAGHKAR":
+			var u: float = made[row.gen].spec.height / 1.8
+			var wings := Wings.build(u)
+			var at := BoneAttachment3D.new(); at.bone_name = "chest"
+			w.sk.add_child(at)
+			wings.position = Vector3(0, 0.2, -0.13) * u
+			at.add_child(wings)
+			actors[id].wings = wings
+			actors[id].lift = 0.0
+			_banner("A Draghkar: do not let it finish its song", 5.0)
+		else:
+			_banner("A Dreadlord: it channels. Shield it, or stay out of the marked ground", 5.0)
 	else:
 		var post := MeshInstance3D.new()
 		var m := CylinderMesh.new(); m.top_radius = 0.22; m.bottom_radius = 0.28; m.height = 2.0
@@ -893,8 +981,11 @@ func _status(a: Dictionary, bits: int) -> void:
 	if not is_instance_valid(a.node):
 		return
 	# Gone into shadow: not there to be seen.
-	if a.kind == "enemy" and not a.get("dead", false):
+	# (A Draghkar out of reach is on the wing, and very much to be seen.)
+	if a.kind == "enemy" and not a.get("dead", false) and not a.has("wings"):
 		a.node.visible = not (bits & 8192)
+	if a.get("node") == me:
+		my_trance = bits & 32768 != 0
 	# A weave abandoned (a roll, a blow taken) leaves the hands without a word.
 	if a.has("form_fx") and not (bits & 2048) and clock - a.get("form_since", 0.0) > 0.3:
 		_end_form(a)
@@ -923,7 +1014,20 @@ func _draw_actors(dt: float) -> void:
 				var to: Vector3 = a.target - w.pos; to.y = 0.0
 				var st: int = a.get("status", 0)
 				w.downed = st & 2
-				if st & 10:
+				if a.has("wings"):
+					# Up when it flies, face down along its flight with the wings out;
+					# down and upright, wings trailing, when it lands.
+					a.lift = move_toward(a.lift, 1.0 if a.get("aloft", false) else 0.0, dt * 1.6)
+					var k: float = a.lift * a.lift * (3.0 - 2.0 * a.lift)
+					w.sk.position.y = 5.0 * k
+					w.sk.rotation.x = 1.15 * k
+					(a.wings as Wings).spread = k
+				if a.get("aloft", false):
+					# On the wing it is carried where the sim has it; it does not walk there.
+					w.vel = Vector3.ZERO
+					w.pos += to * minf(8.0 * dt, 1.0)
+					w.heading = lerp_angle(w.heading, a.yaw, minf(6.0 * dt, 1.0))
+				elif st & 10:
 					# Thrown or flat on the ground: it is carried, it does not walk there,
 					# so it keeps facing the way it was and slides.
 					w.vel = Vector3.ZERO
@@ -931,6 +1035,21 @@ func _draw_actors(dt: float) -> void:
 				else:
 					w.vel = (to * 3.0).limit_length(5.5) if to.length() > 0.25 else Vector3.ZERO
 			walkers.append(w)
+		elif a.node is Hound:
+			var h: Hound = a.node
+			if not a.get("dead", false):
+				var to: Vector3 = a.target - h.pos; to.y = 0.0
+				var st: int = a.get("status", 0)
+				h.downed = st & 2
+				if st & 10:
+					h.vel = Vector3.ZERO
+					h.pos += to * minf(10.0 * dt, 1.0)
+				else:
+					# Fast enough to keep up with a spring, and it faces where the sim
+					# says when it is not going anywhere.
+					h.vel = (to * 5.0).limit_length(22.0) if to.length() > 0.2 else Vector3.ZERO
+					if to.length() <= 0.2:
+						h.heading = lerp_angle(h.heading, a.yaw, minf(8.0 * dt, 1.0))
 		elif a.kind == "player":
 			var n: Node3D = a.node
 			var tgt := _ground(a.target)

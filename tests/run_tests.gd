@@ -390,6 +390,97 @@ func _playtest() -> void:
 			if fx.kind == "missile" and full.is_empty() and fx.id != half.get("id", -1): full = fx.duplicate()
 	check(not half.is_empty() and not full.is_empty() and full.vel.length() > half.vel.length() * 1.6 and full.dmg > half.dmg * 3.0, "a half-drawn longbow throws a slower, far weaker arrow")
 
+func _shadowspawn() -> void:
+	print("== Darkhounds, Draghkar, Dreadlords")
+	Map.use("open")
+	var p := Profile.create({name = "Tester", potential_pts = 14, affinity_pts = {fire = 2, spirit = 2}})
+	for w in Rules.weaves:
+		p.weaves[w] = {known = true, xp = 0.0}
+	p.channelled = Rules.TUNE.flow_steps[10]; p.book_limit = 99
+	p.potential = Rules.strength_of(8.0); p.strength = p.potential
+	var blade := Profile.create({name = "Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	# Darkhound: springs from a distance along a line it has chosen.
+	var d := duel(p, "darkhound", 9.0)
+	var sim: Sim = d[0]; var id: int = d[1]; var foe: Dictionary = d[2]
+	var me: Dictionary = sim.ents[id]
+	var hp0: float = me.hp
+	var seen := run(sim, 4.0)
+	check(seen.has("lunge") and me.hp < hp0, "a Darkhound springs, and its bite lands")
+	check(me.get("fester", 0.0) > 0.0, "and the bite festers")
+	# Steel does half to it; the Power does all; left alone it mends.
+	sim = Sim.new("camp_training", 5); sim._waves = []
+	id = sim.add_player(blade); sim._add_enemy("darkhound", Vector3(0, 0, 30)); foe = sim.ents[id + 1]; foe.speed = 0.0
+	sim._hurt(foe, 40.0, id, "sword")
+	check(is_equal_approx(foe.max_hp - foe.hp, 20.0), "steel does half its work on a Darkhound")
+	var h: float = foe.hp
+	sim._hurt(foe, 40.0, id, "fireball")
+	check(h - foe.hp >= 39.9, "a weave does all of it")
+	run(sim, 6.0)      # (the fire on it has to burn out first)
+	h = foe.hp
+	run(sim, 5.0)
+	check(foe.hp > h + 20.0, "left alone, its wounds close")
+	# Draghkar: aloft it cannot be reached; it lands and sings; unbroken, the song takes you.
+	d = duel(p, "draghkar", 30.0)
+	sim = d[0]; id = d[1]; foe = d[2]; me = sim.ents[id]
+	run(sim, 0.3)
+	check(foe.get("gone", false) and sim._targets(me).is_empty(), "a Draghkar on the wing is out of reach")
+	seen = run(sim, 4.0)
+	check(seen.has("land") and seen.has("song") and not foe.get("gone", false), "it lands a bowshot off and begins to sing")
+	seen = run(sim, 3.0)
+	check(seen.has("entranced") and me.get("entranced", 0.0) > sim.t, "let it finish and the song has you")
+	check(sim.request_cast(id, "fireball", foe.pos) == "the song has you" and sim.request_dodge(id, Vector3.RIGHT) == "the song has you", "you can neither weave nor step aside")
+	var far0: float = me.pos.distance_to(foe.pos)
+	sim.set_input(id, Vector3(0, 0, -1), 0.0)
+	run(sim, 2.0)
+	check(me.pos.distance_to(foe.pos) < far0 - 2.0, "and your feet take you to it whatever you want")
+	hp0 = me.hp
+	seen = run(sim, 9.0)
+	check(seen.has("kiss") and me.hp < hp0 * 0.85 and me.alive, "its kiss drains you, and then lets you go")
+	check(me.get("entranced", 0.0) <= sim.t and seen.has("aloft"), "the trance ends and it takes wing again")
+	# Hurt it while it sings and the song breaks.
+	d = duel(p, "draghkar", 30.0)
+	sim = d[0]; id = d[1]; foe = d[2]; me = sim.ents[id]
+	var sang := false
+	for i in 600:
+		sim.step(1.0 / 60.0)
+		for e in sim.events:
+			if e.e == "song": sang = true
+		sim.events.clear()
+		if sang: break
+	sim._hurt(foe, 10.0, id, "fireball")
+	seen = run(sim, 4.0)
+	check(sang and seen.has("song_end") and not seen.has("entranced"), "hurt it while it sings and the song breaks")
+	# Dreadlord: gathers and throws fire that bursts; marks the ground for lightning.
+	d = duel(p, "dreadlord", 18.0)
+	sim = d[0]; id = d[1]; foe = d[2]; me = sim.ents[id]
+	hp0 = me.hp
+	seen = run(sim, 8.0)
+	check(seen.has("channel") and seen.has("loose") and seen.has("blast"), "a Dreadlord gathers the Power, throws fire, and it bursts")
+	check(seen.has("doom") and seen.has("doom_hit") and me.hp < hp0, "it marks the ground and lightning falls there")
+	# Step out of the mark and the lightning finds nothing.
+	d = duel(p, "dreadlord", 18.0)
+	sim = d[0]; id = d[1]; foe = d[2]; me = sim.ents[id]
+	foe.row = foe.row.duplicate(); foe.row.erase("ranged"); foe.speed = 0.01
+	var marked := false; var struck := false
+	for i in 900:
+		sim.step(1.0 / 60.0)
+		for e in sim.events:
+			if e.e == "doom": marked = true; sim.set_input(id, Vector3(1, 0, 0), 0.0)
+			if e.e == "doom_hit": struck = true
+		sim.events.clear()
+		if struck: break
+	check(marked and struck and is_equal_approx(me.hp, me.max_hp), "walk out of the mark and it strikes empty ground")
+	# Shielded, it can do neither.
+	d = duel(p, "dreadlord", 14.0)
+	sim = d[0]; id = d[1]; foe = d[2]; me = sim.ents[id]
+	foe.speed = 0.0; foe.strike_at = 99.0; foe.atk = -99.0
+	check(sim.request_cast(id, "shielding", foe.pos, false) == "", "a Dreadlord can be Shielded")
+	run(sim, 3.0)
+	check(foe.get("severed", 0.0) > sim.t, "and it is cut off")
+	foe.strike_at = 0.0; foe.atk = 0.0
+	seen = run(sim, 5.0)
+	check(not seen.has("loose") and not seen.has("doom"), "cut off, it throws nothing and marks nothing")
+
 func _arms() -> void:
 	print("== arms")
 	var warder := Profile.create({name = "Test Warder", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
@@ -680,5 +771,6 @@ func _init() -> void:
 	_foes()
 	_powers()
 	_playtest()
+	_shadowspawn()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

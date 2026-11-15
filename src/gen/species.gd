@@ -83,6 +83,24 @@ static var MYRDDRAAL: Dictionary:
 		return t
 
 
+## A Draghkar: man-shaped, too tall and too thin, corpse-pale, with eyes too large
+## for its face. The wings are not clay: see wings.gd.
+static var DRAGHKAR: Dictionary:
+	get:
+		var t := HUMAN.duplicate()
+		t.merge({species = "draghkar", height = Vector2(2.0, 2.05), bulk = Vector2(0.68, 0.72), limb = Vector2(0.78, 0.82), muscle = 0.12, gut = 0.0, hunch = 0.35,
+			skin = Color(0.78, 0.76, 0.74), fur = Color(0.03, 0.03, 0.03), outfit = "draghkar", fem = 0.0, hair = "bald", beard = 0,
+			f_jaw = 0.82, f_chin = 1.3, f_cheek = 0.7, f_brow = 0.8, f_lip = 1.3, f_eye = 1.45, f_eye_gap = 1.07}, true)
+		return t
+
+## A Dreadlord: one who channels for the Shadow. A man in black and blood-red, hooded.
+static var DREADLORD: Dictionary:
+	get:
+		var t := HUMAN.duplicate()
+		t.merge({species = "dreadlord", height = Vector2(1.84, 1.88), bulk = Vector2(0.92, 0.96), outfit = "dreadlord", fem = 0.0, hair = "short", beard = 0,
+			skin = Color(0.8, 0.66, 0.58), hunch = 0.0}, true)
+		return t
+
 static func roll(table: Dictionary, seed_: int, overrides := {}) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(seed_)

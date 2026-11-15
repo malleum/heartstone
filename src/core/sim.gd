@@ -97,7 +97,8 @@ func free_slots(p: Dictionary) -> int:
 func _aimed(p: Dictionary, w: Dictionary, aim: Vector3) -> int:
 	var best := 0; var best_d := 3.0
 	for e in _targets(p):
-		if w.kind == "sever" and e.kind != "player":
+		# (A Dreadlord channels, and can be cut off like anyone who does.)
+		if w.kind == "sever" and e.kind != "player" and not e.get("row", {}).get("channels", false):
 			continue
 		if e.get("row", {}).get("speed", 1.0) == 0.0:
 			continue
@@ -127,6 +128,8 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 	var p: Dictionary = ents[id]
 	if not p.alive or not p.forming.is_empty() or not p.swing.is_empty() or not p.dash.is_empty() or p.reel_until > t:
 		return "busy"
+	if p.get("entranced", 0.0) > t:
+		return "the song has you"
 	if p.severed > t:
 		return "shielded from the Source"
 	if p.get("bound_by", 0) != 0:
@@ -190,6 +193,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	var p: Dictionary = ents[id]
 	if not p.alive:
 		return "busy"
+	if p.get("entranced", 0.0) > t:
+		return "the song has you"
 	if p.weapon == "":
 		return "nothing in hand"
 	if p.get("bound_by", 0) != 0:
@@ -293,6 +298,8 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	var p: Dictionary = ents[id]
 	if not p.alive or (not p.dash.is_empty() and not p.dash.has("lunge")) or p.reel_until > t:
 		return "busy"
+	if p.get("entranced", 0.0) > t:
+		return "the song has you"
 	dir.y = 0.0
 	# With no direction given it is a step back, out of reach, still facing them.
 	var back := dir.length() <= 0.1
@@ -523,6 +530,15 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if p.get("drawing", false): slow = minf(slow, Rules.TUNE.draw_slow)
 	if p.reel_until > t: slow = 0.0
 	var step: Vector3 = p.move * p.speed * slow * dt
+	if p.get("entranced", 0.0) > t:
+		# A Draghkar's song: your feet take you to it, and nothing else is yours.
+		var d: Dictionary = ents.get(p.get("entranced_by", 0), {})
+		if d.is_empty() or not d.alive:
+			p.entranced = 0.0
+		else:
+			var to: Vector3 = (d.pos - p.pos) * Vector3(1, 0, 1)
+			step = to.normalized() * float(d.row.song.pull) * dt if to.length() > 1.4 else Vector3.ZERO
+			p.forming = {}
 	if not p.dash.is_empty():
 		# A sidestep, a roll or a lunge carries you; your feet are not your own.
 		step = p.dash.vel * dt
@@ -820,7 +836,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			else:
 				e.severed = 1e9
 				e.forming = {}
-				for h in e.held.duplicate():
+				for h in e.get("held", []).duplicate():
 					release(e.id, h.weave, h.target)
 				p.held[-1].breaks = t + b.duration * 4.0 * k
 
@@ -909,6 +925,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 				e.forming = {}
 		if on.has("down") and e.kind == "enemy" and not e.row.get("steady", false):
 			e.down = maxf(e.down, on.down)
+	# Darkhounds: steel wounds close almost as they open. The Power is what kills them.
+	if e.kind == "enemy" and e.row.has("steel") and weave != "" and not Rules.weaves.has(weave):
+		dmg *= float(e.row.steel)
 	if e.get("barrier", 0.0) > 0.0:
 		var soak := minf(e.barrier, dmg)
 		e.barrier -= soak; dmg -= soak
@@ -917,6 +936,12 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 	e.hp -= dmg
 	if dmg > 0.0:
 		e.hurt_t = t
+		# Pain ends the song, for the singer and for the one who hears it.
+		if e.kind == "enemy" and e.get("mode", "") in ["sing", "lure", "kiss"]:
+			_song_end(e)
+		elif e.kind == "player" and not quiet and e.get("entranced", 0.0) > t and by != e.get("entranced_by", 0):
+			e.entranced = 0.0
+			events.append({e = "song_end", id = e.entranced_by, target = e.id})
 	if not quiet and dmg > 0.0 and e.get("charge", 0.0) > 0.0 and not e.get("charge_new", false):
 		# The charge leaves it for the two nearest of its own kind.
 		e.charge = 0.0
@@ -1016,6 +1041,12 @@ func _step_effects(dt: float) -> void:
 						if fx.stagger > 0.0: mon.stagger = fx.stagger
 						if fx.get("push", 0.0) > 0.0: mon.push = fx.push
 						_wound(ents[fx.struck], fx.dmg, fx.owner, fx.weapon, mon, flat.normalized())
+					if fx.get("blast", 0.0) > 0.0:
+						# Woven fire: it bursts where it lands, and scorches who stands near.
+						events.append({e = "blast", weave = fx.weapon, pos = fx.pos, radius = fx.blast})
+						for o in _targets(owner):
+							if o.id != fx.get("struck", 0) and _feet(o).distance_to(fx.pos) < fx.blast + o.radius and o.get("safe_until", 0.0) <= t:
+								_hurt(o, fx.dmg * 0.6, fx.owner, "")
 					events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = fx.get("struck", 0), dir = fx.vel.normalized()})
 					# It lies where it fell, to be gathered up: thrown weapons always, an
 					# arrow if it did not break.
@@ -1037,6 +1068,15 @@ func _step_effects(dt: float) -> void:
 							e.gated = t + 2.0
 							events.append({e = "gate_pass", id = e.id, pos = e.pos})
 							break
+			"doom":
+				# Lightning called down on a marked circle: be out of it when it falls.
+				fx.left -= dt
+				alive = fx.left > 0.0 and owner.alive and owner.get("severed", 0.0) <= t and owner.stagger <= 0.0
+				if fx.left <= 0.0 and owner.alive and owner.get("severed", 0.0) <= t:
+					events.append({e = "doom_hit", pos = fx.pos, radius = fx.rad})
+					for o in _targets(owner):
+						if _feet(o).distance_to(fx.pos) < fx.rad + o.radius * 0.5 and o.get("safe_until", 0.0) <= t:
+							_hurt(o, fx.dmg, fx.owner, "")
 			"drop":
 				fx.left -= dt
 				alive = fx.left > 0.0
@@ -1132,9 +1172,23 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			e.yaw = atan2(want.x, want.z)
 		var shot: Dictionary = e.row.get("ranged", {})
 		var far: float = target.pos.distance_to(e.pos) if not target.is_empty() else 0.0
-		if e.row.has("lunge") and not target.is_empty() and (e.get("mode", "") == "gone" or free) and _fade(e, target, players, dt):
+		# Darkhounds mend when left alone.
+		if e.row.has("regen") and t - e.get("hurt_t", -99.0) > float(e.row.regen.after) and e.hp < e.max_hp:
+			e.hp = minf(e.hp + float(e.row.regen.rate) * dt, e.max_hp)
+		var cut_off: bool = e.get("severed", 0.0) > t
+		if e.row.has("strike") and free and not cut_off and far < float(e.row.strike.range) and t >= e.get("strike_at", float(e.row.strike.first)):
+			# A Dreadlord marks the ground under you, and the lightning follows.
+			var K: Dictionary = e.row.strike
+			e.strike_at = t + float(K.every) * rng.randf_range(0.8, 1.2)
+			var at: Vector3 = target.pos + target.move * target.speed * 0.4
+			at.y = Terrain.height(at.x, at.z)
+			effects.append({kind = "doom", owner = e.id, pos = at, left = float(K.wind), rad = float(K.radius), dmg = float(K.dmg), weave = "doom", id = _fx_id()})
+			events.append({e = "doom", id = e.id, pos = at, radius = float(K.radius), time = float(K.wind)})
+		if e.row.has("song") and not target.is_empty() and _draghkar(e, target, free, dt):
 			want = e.want
-		elif free and not shot.is_empty() and not e.swung and far > shot.keep * 0.45:
+		elif (e.row.has("lunge") or e.row.has("pounce")) and not target.is_empty() and (e.get("mode", "") == "gone" or free) and _fade(e, target, players, dt):
+			want = e.want
+		elif free and not shot.is_empty() and not cut_off and not e.swung and far > shot.keep * 0.45:
 			# An archer: close to bowshot, stand, draw, loose. Pressed close, it
 			# falls back on its blade like any other.
 			e.yaw = atan2(target.pos.x - e.pos.x, target.pos.z - e.pos.z)
@@ -1144,8 +1198,12 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 				e.atk = 0.0
 			else:
 				e.atk += dt
+				# One who channels is seen to gather it first.
+				if shot.has("wind") and e.atk >= shot.time - shot.wind and not e.get("told", false):
+					e.told = true
+					events.append({e = "channel", id = e.id, time = float(shot.wind)})
 				if e.atk >= shot.time:
-					e.atk = 0.0
+					e.atk = 0.0; e.told = false
 					var from: Vector3 = _feet(e) + Vector3(0, 1.9, 0)
 					var at: Vector3 = _feet(target) + Vector3(0, 0.65 if target.duck else 1.1, 0)
 					var secs: float = Vector2(at.x - from.x, at.z - from.z).length() / shot.speed
@@ -1153,9 +1211,10 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 					at.y += 0.5 * shot.gravity * secs * secs
 					# Not every arrow is true.
 					at += Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.5, 0.5), rng.randf_range(-1, 1)) * far * 0.035
-					effects.append({kind = "missile", owner = e.id, weapon = "trolloc_arrow", pos = from, vel = (at - from).normalized() * shot.speed,
-						dmg = float(shot.dmg), radius = 0.5, left = shot.range * 1.5, gravity = shot.gravity, stagger = 0.0, id = _fx_id()})
-					events.append({e = "loose", id = e.id, weapon = "trolloc_arrow", left = 0})
+					var what: String = shot.get("weapon", "trolloc_arrow")
+					effects.append({kind = "missile", owner = e.id, weapon = what, pos = from, vel = (at - from).normalized() * shot.speed,
+						dmg = float(shot.dmg), radius = 0.5, left = shot.range * 1.5, gravity = shot.gravity, stagger = 0.0, blast = float(shot.get("blast", 0.0)), id = _fx_id()})
+					events.append({e = "loose", id = e.id, weapon = what, left = 0})
 		elif free:
 			var to: Vector3 = target.pos - e.pos
 			var dist := to.length()
@@ -1225,7 +1284,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 ## e.want); false leaves it to fight as anything else would.
 func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool:
 	var row: Dictionary = e.row
-	var L: Dictionary = row.lunge
+	# (A Darkhound's pounce is the same commitment as a Myrddraal's lunge, without
+	# the stalking and the shadows.)
+	var L: Dictionary = row.get("lunge", row.get("pounce", {}))
 	var to: Vector3 = target.pos - e.pos
 	var dist := to.length()
 	var toward := to / maxf(dist, 0.01)
@@ -1263,7 +1324,7 @@ func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool
 				for p in players:
 					if p.alive and p.pos.distance_to(e.pos) < 1.5 + p.radius:
 						e.lunged = true
-						e.blow = {kind = "thrust", height = "mid", arc = 50.0, reach = 2.2, time = 0.0, dmg = row.damage * float(L.dmg)}
+						e.blow = {kind = "thrust", height = "mid", arc = 50.0, reach = 2.2, time = 0.0, dmg = row.damage * float(L.dmg), on = L.get("on", {})}
 						_enemy_blow(e, players)
 						e.blow = {}
 						if e.get("mode", "") != "lunge":
@@ -1286,8 +1347,16 @@ func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool
 	if e.swung or not e.blow.is_empty() or t < e.get("close_until", 0.0):
 		return false
 	e.yaw = atan2(to.x, to.z)
-	if t >= e.get("think", 2.0):
+	if t >= e.get("think", 2.0 if row.has("shadow") else 0.5):
 		var roll := rng.randf()
+		if not row.has("shadow"):
+			# A hound: spring if the line is clear, else just run them down.
+			if dist >= float(L.min) and dist <= float(L.max) and not Map.crosses(e.pos, target.pos, e.radius):
+				_fade_lunge(e, target, float(L.wind))
+				return true
+			# Too far, it keeps coming and looks again at once; too close, it bites.
+			e.think = t + (0.0 if dist > float(L.max) else rng.randf_range(1.0, 2.0))
+			return false
 		if t >= e.get("shadow_at", float(row.shadow.first)) and (dist > float(L.max) or roll < 0.45):
 			e.gone = true
 			e.mode = "gone"; e.mode_t = float(row.shadow.gone)
@@ -1301,6 +1370,8 @@ func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool
 		e.close_until = t + 2.5
 		e.think = t + 2.5 + rng.randf_range(1.0, 2.0)
 		return false
+	if not row.has("stalk"):
+		return false
 	# Circle at a few paces: never still, never quite in reach.
 	var keep := float(row.stalk)
 	var side: Vector3 = toward.rotated(Vector3.UP, PI * 0.5 * e.get("side", 1.0))
@@ -1310,10 +1381,99 @@ func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool
 		e.want = (side + toward * clampf((dist - keep) * 0.6, -1.0, 1.0)).normalized() * e.speed * 0.5
 	return true
 
+## The Draghkar: it comes on the wing, where nothing on the ground can reach it,
+## lands a bowshot short and sings. If the song is let run its course the one it
+## sings to walks to it, helpless, and it feeds. Hurt it, or put something between
+## you and it, and the song breaks. Returns true while it is doing any of this.
+func _draghkar(e: Dictionary, target: Dictionary, free: bool, dt: float) -> bool:
+	var S: Dictionary = e.row.song
+	e.want = Vector3.ZERO
+	var mode: String = e.get("mode", "")
+	if not free and not e.get("gone", false):
+		# Staggered, bound or dazed on the ground: it cannot sing.
+		if mode in ["sing", "lure", "kiss"]:
+			_song_end(e)
+		return true
+	match mode:
+		"", "fly":
+			if mode == "":
+				e.mode = "fly"; e.gone = true; e.side = rng.randf_range(-1.2, 1.2)
+				events.append({e = "aloft", id = e.id})
+			# To a place a bowshot short of them, off to one side.
+			# (The side is chosen once: aimed afresh each step it would circle for ever.)
+			if not e.has("perch"):
+				var from: Vector3 = (e.pos - target.pos) * Vector3(1, 0, 1)
+				e.perch = (from.normalized() if from.length() > 0.5 else Vector3.FORWARD).rotated(Vector3.UP, e.side * 0.5)
+			var perch: Vector3 = Map.clamp_pos(target.pos + e.perch * float(S.range) * 0.65)
+			var to: Vector3 = perch - e.pos
+			e.yaw = atan2(to.x, to.z)
+			if to.length() < 1.5:
+				e.mode = "land"; e.mode_t = 0.8; e.gone = false; e.erase("perch")
+				e.pos = Map.unblock(e.pos, e.radius)
+				events.append({e = "land", id = e.id})
+			else:
+				e.want = to.normalized() * float(S.fly)
+		"land":
+			e.mode_t -= dt
+			e.yaw = atan2(target.pos.x - e.pos.x, target.pos.z - e.pos.z)
+			if e.mode_t <= 0.0:
+				e.mode = "sing"; e.mode_t = float(S.hold); e.victim = target.id
+				events.append({e = "song", id = e.id, target = target.id, time = float(S.hold)})
+		"sing", "lure", "kiss":
+			var v: Dictionary = ents.get(e.get("victim", 0), {})
+			if v.is_empty() or not v.alive:
+				_song_end(e)
+				return true
+			var d: float = v.pos.distance_to(e.pos)
+			e.yaw = atan2(v.pos.x - e.pos.x, v.pos.z - e.pos.z)
+			if mode == "sing":
+				if d > float(S.range) * 1.25 or Map.crosses(e.pos, v.pos, 0.0):
+					_song_end(e)
+					return true
+				e.mode_t -= dt
+				if e.mode_t <= 0.0:
+					v.entranced = t + float(S.last); v.entranced_by = e.id; v.forming = {}
+					e.mode = "lure"
+					events.append({e = "entranced", id = v.id, by = e.id})
+			elif mode == "lure":
+				if v.get("entranced", 0.0) <= t:
+					_song_end(e)
+				elif d < 1.9:
+					e.mode = "kiss"; e.mode_t = float(S.kiss)
+					events.append({e = "kiss", id = e.id, target = v.id})
+			else:
+				# The kiss: what it takes is not blood.
+				_hurt(v, v.max_hp * float(S.drain) * dt, e.id, "", true)
+				e.mode_t -= dt
+				if e.mode_t <= 0.0 or not v.alive:
+					_song_end(e)
+		"flee":
+			# On the ground a moment longer, then up and away to come again.
+			e.mode_t -= dt
+			if e.mode_t <= 0.0:
+				e.mode = "away"; e.mode_t = rng.randf_range(4.0, 6.5); e.gone = true; e.side = rng.randf_range(-1.2, 1.2)
+				events.append({e = "aloft", id = e.id})
+		"away":
+			e.mode_t -= dt
+			var out: Vector3 = (e.pos - target.pos) * Vector3(1, 0, 1)
+			var around: Vector3 = out.normalized().rotated(Vector3.UP, PI * 0.5) if out.length() > 0.5 else Vector3.RIGHT
+			e.want = (around + out.normalized() * clampf((20.0 - out.length()) * 0.2, -1.0, 1.0)).normalized() * float(S.fly) * 0.7
+			e.yaw = atan2(e.want.x, e.want.z)
+			if e.mode_t <= 0.0:
+				e.mode = "fly"
+	return true
+
+func _song_end(e: Dictionary) -> void:
+	var v: Dictionary = ents.get(e.get("victim", 0), {})
+	if not v.is_empty() and v.get("entranced_by", 0) == e.id:
+		v.entranced = 0.0
+	events.append({e = "song_end", id = e.id, target = e.get("victim", 0)})
+	e.mode = "flee"; e.mode_t = 1.2
+
 ## Choose the line and crouch: the lunge follows after `wind` seconds, along that
 ## line and no other.
 func _fade_lunge(e: Dictionary, target: Dictionary, wind: float) -> void:
-	var L: Dictionary = e.row.lunge
+	var L: Dictionary = e.row.get("lunge", e.row.get("pounce", {}))
 	# It aims a little ahead of where its victim is going.
 	var at: Vector3 = target.pos + target.move * target.speed * 0.15
 	e.aim_yaw = atan2(at.x - e.pos.x, at.z - e.pos.z)
@@ -1365,7 +1525,7 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 		return
 	events.append({e = "attack", id = e.id, target = target.id, kind = b.kind})
 	var hp0: float = target.hp
-	_wound(target, b.dmg, e.id, "", {}, dir)
+	_wound(target, b.dmg, e.id, "", b.get("on", {}), dir)
 	# A Myrddraal's black blade: the wound festers until it is Healed or runs its course.
 	if target.hp < hp0 and e.row.has("fester"):
 		target.fester = float(e.row.fester.secs); target.fester_dps = float(e.row.fester.dps)
@@ -1386,7 +1546,8 @@ func snapshot() -> Dictionary:
 				| (16 if e.get("guard", false) else 0) | (32 if e.get("duck", false) else 0) | (64 if e.get("safe_until", 0.0) > t else 0) \
 				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0) \
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
-				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0)
+				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
+				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
 	var fx := []
 	for f in effects:

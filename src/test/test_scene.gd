@@ -58,6 +58,8 @@ func _generate(specs: Array) -> Array:
 
 var walkers: Array[Walker] = []
 var follow: Walker
+var chase: Node3D          # anything else the camera should keep in frame
+var chase_off := Vector3.ZERO
 var follow_off := Vector3.ZERO
 var frame := 0
 var events := {}     # frame -> Callable
@@ -67,6 +69,17 @@ func _spawn(data: Dictionary, x: float, z: float, yaw := 0.0) -> Walker:
 	add_child(w)
 	w.teleport(Vector3(x, 0, z), yaw)
 	walkers.append(w)
+	if data.spec.get("species", "") == "draghkar":
+		# Wings as the game hangs them; --spread=1 shows them out (the second one flies).
+		var u: float = data.spec.height / 1.8
+		var wings := Wings.build(u)
+		var at := BoneAttachment3D.new(); at.bone_name = "chest"
+		w.sk.add_child(at)
+		wings.position = Vector3(0, 0.2, -0.13) * u
+		at.add_child(wings)
+		if walkers.size() == 2:
+			wings.spread = _f("spread", 1.0)
+			w.sk.position.y = 2.0 * wings.spread; w.sk.rotation.x = 1.15 * wings.spread
 	return w
 
 func _process(dt: float) -> void:
@@ -90,6 +103,8 @@ func _process(dt: float) -> void:
 	if follow:
 		var c := Vector3(follow.pos.x, follow.root_y + follow.L, follow.pos.z)
 		_look(c + follow_off, c)
+	if chase:
+		_look(chase.position + chase_off, chase.position + Vector3(0, 0.8, 0))
 
 func _f(key: String, def: float) -> float:
 	return float(args.get(key, str(def)))
@@ -107,6 +122,10 @@ func _trollocs(n: int, extra := {}) -> Array:
 		# --species=myrddraal: the Eyeless on the bench instead.
 		if args.get("species", "") == "myrddraal":
 			specs.append(Species.roll(Species.MYRDDRAAL, 7 + i, {lod = 1.2}))
+		elif args.get("species", "") == "draghkar":
+			specs.append(Species.roll(Species.DRAGHKAR, 11 + i, {lod = 1.3}))
+		elif args.get("species", "") == "dreadlord":
+			specs.append(Species.roll(Species.DREADLORD, 11 + i, {lod = 1.3}))
 		else:
 			specs.append(Species.roll(Species.TROLLOC, seed0 + i, o))
 	return _generate(specs)
@@ -242,6 +261,28 @@ func _mode_heroes() -> void:
 			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)
 	var d := _f("dist", 4.4); var ang := deg_to_rad(_f("yaw", 20))
 	_look(Vector3(sin(ang) * d, _f("camy", 1.3), cos(ang) * d), Vector3(0, _f("aty", 1.0), 0))
+
+## --mode=hound [--speed=6] [--spring=<frame>] [--die=<frame>]: Darkhounds, to look at.
+func _mode_hound() -> void:
+	Terrain.amp = 0.0
+	Rules.load_data()
+	var hs := []
+	for i in int(_f("n", 2)):
+		var h := Hound.instantiate()
+		add_child(h)
+		h.teleport(Vector3(i * 1.6 - 0.8, 0, -i * 1.2), deg_to_rad(_f("face", 90)))
+		h.vel = Vector3(sin(h.heading), 0, cos(h.heading)) * _f("speed", 0)
+		hs.append(h)
+	if args.has("spring"):
+		events[int(args.spring)] = func() -> void:
+			for h in hs: h.attack("thrust")
+	if args.has("die"):
+		events[int(args.die)] = func() -> void:
+			for h in hs: h.vel = Vector3.ZERO; h.die(Vector3(0, 0, 1))
+	chase = hs[0]
+	var d := _f("dist", 4.5); var ang := deg_to_rad(_f("yaw", 20))
+	chase_off = Vector3(sin(ang) * d, _f("camy", 1.4), cos(ang) * d)
+	_look(chase_off, Vector3(0, _f("aty", 0.8), 0))
 
 ## Idle line-up, seen from roughly where a third-person player camera would sit.
 func _mode_lineup() -> void:

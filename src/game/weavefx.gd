@@ -6,6 +6,9 @@ extends RefCounted
 const TINT := {fire = Color(1.0, 0.42, 0.1), earth = Color(0.75, 0.5, 0.2), air = Color(0.7, 0.85, 1.0), water = Color(0.25, 0.5, 1.0), spirit = Color(0.95, 0.95, 1.0)}
 
 static func colour(weave: String) -> Color:
+	# What the Shadow's channellers throw is not in the book of weaves.
+	if not Rules.weaves.has(weave):
+		return Color(1.0, 0.12, 0.04)
 	var fl: Dictionary = Rules.weaves[weave].flows
 	var c := Color(0, 0, 0); var n := 0.0
 	for e in fl:
@@ -126,6 +129,17 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.free()
 			n = Blossom.new()
 			g.add_child(n)
+		"missile" when weave == "dark_fire":
+			# A Dreadlord's fire: a red-black ball with a dull trail.
+			var s := SphereMesh.new(); s.radius = 0.3; s.height = 0.6
+			n.add_child(_mesh(s, Color(1.0, 0.1, 0.03), 5.0))
+			var core := SphereMesh.new(); core.radius = 0.17; core.height = 0.34
+			n.add_child(_mesh(core, Color(0.05, 0.0, 0.0), 0.0))
+			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.22; tail.height = 2.6; tail.radial_segments = 6; tail.rings = 1
+			var tm := _mesh(tail, Color(0.8, 0.05, 0.02, 0.4), 2.5)
+			tm.rotation.x = -PI * 0.5; tm.position.z = 1.4
+			n.add_child(tm)
+			n.add_child(_light(Color(1.0, 0.15, 0.05), 2.5, 6.0))
 		"missile":
 			var mm := Armoury.missile(weave)
 			# Small things are drawn larger than life in the air, or they are not seen.
@@ -516,7 +530,7 @@ static func status(kind: String) -> Node3D:
 
 static func blast(g: Node3D, at: Vector3, radius: float, weave: String) -> void:
 	var col := colour(weave)
-	if Rules.weaves[weave].get("dart", false):
+	if Rules.weaves.has(weave) and Rules.weaves[weave].get("dart", false):
 		spit(g, at, col)
 		return
 	var s := SphereMesh.new(); s.radius = 1.0; s.height = 2.0
@@ -600,6 +614,29 @@ static func _bar(g: Node3D, a: Vector3, b: Vector3, thick: float, col: Color, en
 		# Cylinders run along Y, looking_at aims -Z: tip it over.
 		mi.basis = Basis.looking_at(b - a, Vector3.UP if absf((b - a).normalized().y) < 0.98 else Vector3.RIGHT) * Basis(Vector3.RIGHT, PI * 0.5)
 	return mi
+
+## A Draghkar's song, made visible: pale rings going out from it for as long as it
+## sings. `who` carries them, so they end with it.
+static func song(who: Node3D, secs: float) -> void:
+	var n := int(secs / 0.45) + 1
+	for i in n:
+		var t := TorusMesh.new(); t.inner_radius = 0.92; t.outer_radius = 1.0; t.rings = 32; t.ring_segments = 6
+		var mi := _mesh(t, Color(0.75, 0.6, 1.0, 0.0), 3.0)
+		mi.position.y = 1.5; mi.scale = Vector3.ONE * 0.3
+		who.add_child(mi)
+		var tw := who.create_tween()
+		tw.tween_interval(i * 0.45)
+		tw.tween_property(mi.material_override, "albedo_color:a", 0.7, 0.1)
+		tw.set_parallel()
+		tw.tween_property(mi, "scale", Vector3(9, 2.5, 9), 1.3)
+		tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 1.3).set_delay(0.15)
+		tw.set_parallel(false)
+		tw.tween_callback(mi.queue_free)
+
+## Lightning called down by a Dreadlord (the bolt and a burst where it lands).
+static func doom(g: Node3D, at: Vector3, radius: float) -> void:
+	_bolt(g, at, Color(1.0, 0.25, 0.2))
+	blast(g, at + Vector3(0, 0.5, 0), radius, "doom")
 
 ## Forked lightning: a jittered path from the clouds, one branch, a flash, a crack.
 static func _bolt(g: Node3D, at: Vector3, col: Color) -> void:

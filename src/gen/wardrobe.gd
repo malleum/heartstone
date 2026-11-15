@@ -17,6 +17,9 @@ const OUTFITS := {
 	# a cloak that hangs still whatever the wind does.
 	myrddraal = [["trousers", Color(0.012, 0.012, 0.014)], ["boots", Color(0.008, 0.008, 0.01), 0.85], ["scales", Color(0.03, 0.03, 0.036), Color(0.16, 0.16, 0.19)], ["belt", Color(0.02, 0.02, 0.02)],
 		["cloak", Color(0.006, 0.006, 0.008)], ["hood", Color(0.006, 0.006, 0.008)], ["blade"]],
+	draghkar = [["trousers", Color(0.02, 0.018, 0.02)], ["belt", Color(0.03, 0.02, 0.02)]],
+	dreadlord = [["trousers", Color(0.015, 0.015, 0.018)], ["boots", Color(0.01, 0.01, 0.012), 0.7], ["coat", Color(0.02, 0.018, 0.02), 0.75, 1.0, [Color(0.5, 0.03, 0.03), Color(0.5, 0.03, 0.03)]],
+		["belt", Color(0.45, 0.03, 0.03)], ["hood", Color(0.1, 0.012, 0.014)]],
 	domani = [["boots", Color(0.3, 0.2, 0.12), 0.3], ["dress", Color(0.55, 0.2, 0.22), Color(0.8, 0.65, 0.3)], ["belt", Color(0.7, 0.55, 0.2)]],
 }
 
