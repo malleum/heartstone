@@ -1,7 +1,8 @@
 extends SceneTree
 ## Co-op smoke test. One process hosts a holdout, others join as bot clients:
 ##   godot --headless -s tests/net_test.gd -- host <players>
-##   godot --headless -s tests/net_test.gd -- client <name> [address] [word]
+##   godot --headless -s tests/net_test.gd -- client <name> [address] [word] [room] [activity]
+##   godot --headless -s tests/net_test.gd -- lobby <address> <word>   (prints who is playing)
 ##   godot --headless -s tests/net_test.gd -- vault <address> <word>   (a dedicated server's store)
 ## Each prints one "NET ..." line that tools/test.sh checks.
 
@@ -35,13 +36,18 @@ func _init() -> void:
 		s.set_physics_process(true)
 	elif role == "vault":
 		_vault(a[1], a[2])
+	elif role == "lobby":
+		s.lobby.connect(func(fights: Array) -> void:
+			print("NET lobby %d fights: %s" % [fights.size(), JSON.stringify(fights)]); quit())
+		s.ask_lobby(a[1], a[2])
 	else:
 		Profile.dir = "user://test_profiles"
 		var p := Profile.create({name = "Net " + a[1], potential_pts = 8, affinity_pts = {fire = 6}})
 		var before: float = p.channelled
 		s.rejected.connect(func(why: String) -> void:
 			print("NET client %s rejected: %s" % [a[1], why]); quit())
-		s.join(a[2] if a.size() > 2 else "127.0.0.1", p, "tarwins_gap_watch", a[3] if a.size() > 3 else "")
+		# With an address it is a dedicated server, and perhaps a room on it.
+		s.join(a[2] if a.size() > 2 else "127.0.0.1", p, a[5] if a.size() > 5 else "tarwins_gap_watch", a[3] if a.size() > 3 else "", a[4] if a.size() > 4 else "")
 		s.events.connect(func(list: Array) -> void:
 			for e in list:
 				if e.e == "spawn": foes[e.id] = true

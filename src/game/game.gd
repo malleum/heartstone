@@ -103,7 +103,7 @@ func _ready() -> void:
 		print("GAME rejected: ", why))
 	if args.has("join"):
 		banner.text = "Reaching %s…" % args.join
-		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""))
+		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""))
 	else:
 		session.host(args.get("activity", "tarwins_gap_watch"), profile)
 	if not args.has("auto") and DisplayServer.get_name() != "headless":
@@ -286,6 +286,7 @@ func _process(dt: float) -> void:
 		if aim_t <= 0.0 and move.length() > 0.1:
 			face_yaw = atan2(move.x, move.z)
 		session.send_input(move, face_yaw)
+		_predict(move, dt)
 	if args.has("fxdemo"):
 		_fx_demo(dt)
 	# --gate: open a gateway ahead early on, whatever the character's strength, so
@@ -622,7 +623,13 @@ func _on_snapshot(s: Dictionary) -> void:
 			# Snapshots can outrun the event that introduces someone; wait for it.
 			continue
 		var a: Dictionary = actors[id]
-		a.target = Vector3(e[1], 0, e[2]); a.yaw = e[3]
+		# My own body on a client is drawn where my keys have taken it (see
+		# _predict), not where the host last said: the host's word only corrects it.
+		a.srv = Vector3(e[1], 0, e[2])
+		if id != session.my_id or session.is_host or not a.has("pred"):
+			a.target = a.srv
+			a.pred = a.srv
+		a.yaw = e[3]
 		_status(a, e[6])
 		a.hp = e[4]
 		if id == session.my_id:
@@ -747,6 +754,33 @@ func _draw_heal_mark() -> void:
 		add_child(_heal_ring)
 	_heal_ring.visible = true
 	_heal_ring.position = actors[who].node.position + Vector3(0, 0.12 + 0.05 * sin(clock * 4.0), 0)
+
+## Over the internet the host's answer to a key press is a round trip late. So a
+## client moves its own body at once, by the same rule the host will apply, and
+## leans back toward the host's position as it arrives: gently while moving, firmly
+## when still, and all at once if the two disagree badly (a sidestep, a gateway, a
+## throw).
+func _predict(move: Vector3, dt: float) -> void:
+	if session.is_host or not actors.has(session.my_id):
+		return
+	var a: Dictionary = actors[session.my_id]
+	if not a.has("pred") or a.get("dead", false):
+		return
+	var st: int = a.get("status", 0)
+	var slow := 1.0
+	if a.get("busy", 0.0) > 0.0: slow = 0.5
+	if st & 16: slow = minf(slow, Rules.TUNE.guard_slow)
+	if st & 32: slow = minf(slow, Rules.TUNE.duck_slow)
+	if st & (2 | 4 | 128): slow = 0.0
+	var pred: Vector3 = a.pred
+	pred = Map.clamp_pos(Map.unblock(pred + move.limit_length(1.0) * Rules.run_speed(profile) * slow * dt, 0.45))
+	var err: Vector3 = a.srv - pred
+	if err.length() > 3.0 or st & (8 | 64):
+		pred = a.srv
+	else:
+		pred += err * minf(dt * (1.5 if move.length() > 0.1 else 6.0), 1.0)
+	a.pred = pred
+	a.target = pred
 
 ## Held weaves sit on whoever they hold and trail a thread back to the weaver.
 func _draw_holds(dt: float) -> void:

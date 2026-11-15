@@ -147,7 +147,18 @@ Single-player is the same path with the host as sole player.
 - `Session.version()` (a protocol number plus a hash of the data tables) is sent
   on joining; a host turns away a player whose game differs. Bump `PROTO` when
   an RPC or the snapshot format changes.
-- Not done: prediction, a lobby, reconnect, rooms, encryption.
+- **Rooms:** a host keeps `_rooms` (name -> sim, activity, peers, tick) and sends
+  each room's events and snapshots only to its peers. Hosting from the camp is
+  one room, "". A server makes a room for each name asked for.
+- **Secrets without encryption** (this Godot build has no DTLS): `_greet` sends
+  each arrival a nonce; `_proof` hashes the word with it; the passphrase lock is
+  `_seal`ed (AES-CBC) under a key made of word and nonce. See `SERVER.md`.
+- **Lobby:** `ask_lobby` returns who is in which room; the camp polls it.
+- **Prediction:** a client moves its own body at once (`game.gd` `_predict`, the
+  same speed rules as the sim) and leans back toward the host's position as
+  snapshots arrive, snapping if they disagree by more than 3 m.
+- Not done: reconnect, a certificate to prove the server is the real one,
+  friends visible in the camp.
 
 ## Maps (src/core/map.gd, src/world/scenery.gd)
 A map is pure maths in `Map`: a corridor along -Z whose half-width varies with z,
@@ -312,8 +323,8 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
    body freezes, never the sim, so co-op is unaffected.)
 2. More to hold and more techniques: inverting, cutting another's weave,
    linking. (Holding, upkeep and tying off are built.)
-3. Co-op basics: a marker for who Healing will reach, a lobby screen. (The
-   server, looks sent to other players and latecomer joins are built.)
+3. Co-op: friends visible in the camp, reconnecting. (The server with rooms and
+   a lobby, prediction, looks and latecomer joins are built.)
 4. More enemies (Draghkar, Darkhounds, Darkfriend channellers) and a third map.
    (Archers, the Myrddraal, pathing round walls and the wagon ring are built.)
 5. One linear mission; then casting by drawing (see VISION.md).

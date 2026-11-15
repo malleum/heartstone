@@ -14,8 +14,9 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 ## Character and progression
 - [ ] Weave tree follow-ups: weaves beyond your book limit are simply absent (no
   hint that more exist); long names can touch a neighbour.
-- [ ] Camp follow-ups: doorways are not solid; the sheet cannot be hidden; other
-  players are not seen in the camp; the doorways show light, not the place.
+- [ ] Camp follow-ups: other players are not seen in the camp; the doorways show
+  a silhouette of the place, not the place itself; the armoury and appearance are
+  panels, not things you walk to.
 - [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
   have no shape keys; only skin, eyes, hair and beard change). Armour is mail
   drawn on cloth, not plate. The women's bodice stays the pack's leather.
@@ -32,21 +33,25 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 - [ ] **Deploy the server on minimus.** It is built and tested on localhost (see
   Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24680 is
   Josh's step, because it changes his server.
-- [ ] Server follow-ups: rooms for more than one fight at a time, encryption, a
-  lobby that shows who is there.
+- [ ] Server follow-ups: reconnecting after a dropped connection; proof that the
+  server is the real one; friends seen walking in the camp.
 
 ## Found by looking (Claude)
 - [ ] Gateway: the edges do not cut, and nothing uses one yet (a mission could).
 - [ ] Healing has a marker and a refusal when nobody is in reach; it has not been
   tried with two people.
-- [ ] Other players are smoothed but not predicted; over the internet your own
-  movement will lag by the round trip. Not tried over a real connection.
+- [ ] Movement prediction is built but has only run on one machine, where there
+  is no delay to hide. It needs a real connection to judge.
 - [ ] Enemies still to make: Draghkar, Darkhounds, Darkfriend channellers. Trolloc
   archers carry whatever their body was given, not a bow. The Myrddraal has no
   cloak and no fear in its gaze. The wagon ring was lost by a two-bot party.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 ## Done
+- 2026-11-14: **polish.** Server: up to eight fights at once in named rooms, a
+  list of who is playing what, and the word and passphrases no longer cross the
+  network. Co-op: your own movement is predicted. Camp: the doorway posts are
+  solid, H hides the sheet, and each doorway shows a silhouette of where it leads.
 - 2026-11-14: **looks.** Hair style and colour, skin, eyes, height, build and a
   beard are chosen at creation and can be changed later (Appearance on the
   sheet), and other players see them. Sixteen more outfits: Cairhienin slashes,

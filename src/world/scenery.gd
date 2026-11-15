@@ -28,7 +28,9 @@ static func fire(g: Node3D, at: Vector3) -> void:
 ## A standing stone doorway for the camp: two posts, a lintel, and a surface of
 ## folding light in the colour of where it leads (dark when it may not be passed).
 ## The node faces +z; the caller turns it toward the camp.
-static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, title: String, sub: String) -> Node3D:
+## scene: what shows through it (1 a mountain pass, 2 a ring of wagons, 3 a yard
+## of posts, 4 stars).
+static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, title: String, sub: String, scene := 0) -> Node3D:
 	var n := Node3D.new(); g.add_child(n)
 	n.position = at; n.rotation.y = yaw
 	var stone := _mat(Color(0.2, 0.2, 0.21))
@@ -41,6 +43,7 @@ static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, 
 	var mi := MeshInstance3D.new(); mi.mesh = q; mi.position = Vector3(0, 1.65, 0)
 	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
 	sm.set_shader_parameter("tint", tint); sm.set_shader_parameter("lit", 1.0 if lit else 0.0)
+	sm.set_shader_parameter("scene", scene)
 	mi.material_override = sm; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	n.add_child(mi)
 	if lit:

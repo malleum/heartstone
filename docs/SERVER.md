@@ -51,10 +51,17 @@ In the camp, under **Server**:
 - **the server's word:** the word above.
 - **your passphrase:** yours alone, four letters or more. It guards your
   character's name on the server.
-- **Play on the server:** when ticked, starting an activity starts it on the
-  server. The first to arrive chooses the activity; everyone who starts anything
-  after that joins the same fight, even part-way through. When it ends or everyone
-  leaves, the next arrival chooses again.
+- **room:** a name your group agrees on. Everyone who types the same room plays
+  together; a different room is a different fight at the same time. Blank is the
+  common room.
+- **Doorways lead to the server:** when ticked, walking through a doorway starts
+  that activity on the server, in your room. The first to arrive chooses the
+  activity; anyone who then walks through any doorway with the same room joins
+  that fight, even part-way through. When it ends or everyone leaves, the next
+  arrival chooses again.
+- **Who is playing:** the camp asks the server every twelve seconds. The Server
+  panel lists each fight (who, what, how long in), and standing at a doorway
+  tells you if friends are already fighting in your room.
 - **Save, and send this character:** from then on the camp exchanges the character
   with the server every time it is shown. The copy that has channelled longer
   wins, in both directions.
@@ -62,18 +69,27 @@ In the camp, under **Server**:
   it instead of making a new one.
 
 ## What it does not do
-- One fight at a time: there are no rooms. Fine for one group of friends.
-- The connection is not encrypted, so the word and passphrase cross the internet
-  in the clear. Do not reuse a real password.
+- Up to eight fights at once, six players in each.
+- **Secrets.** This build of Godot has no encrypted transport, so the game sends
+  nothing secret instead. The server greets each connection with a number used
+  once; the word is proved by a hash of word and number, and your passphrase
+  never leaves your machine (only a lock made from it, sealed under a key made
+  from the word and the number). Someone listening on the network learns
+  neither and cannot replay what they heard. Limits: with **no word set** the
+  seal protects nothing, so set one; the characters themselves are sent in the
+  clear; and nothing proves the server is the real one.
 - Characters are trusted as sent (no anti-cheat, by design: friends only). The
   server only checks that a character is shaped like one.
 - Progress is saved when an activity ends; a character is sent to the server when
   you are next in the camp.
+- You do not see friends walking about in the camp, only their names in a fight.
 
 ## Where it lives
 - `src/net/server.gd`: the program (a Godot script with no window).
-- `src/net/session.gd`: `serve`, `_hello` (the word, starting a fight, the roster
-  for latecomers), `_vault` (the character store), `vault_sync` (the client side).
+- `src/net/session.gd`: `serve`, `_rooms`, `_hello` (the word, the room, starting
+  a fight, the roster for latecomers), `_who` (the lobby), `_vault` (the character
+  store), `_greet` / `_proof` / `_seal` (secrets), `vault_sync` and `ask_lobby`
+  (the client side).
 - `flake.nix`: `packages.server`, `nixosModules.default`, `checks.module`.
-- `tools/test.sh` runs a server, a player, a stranger with the wrong word and the
-  character store on localhost.
+- `tools/test.sh` runs a server on localhost with two players in two rooms at
+  once, the lobby query, a stranger with the wrong word, and the character store.
