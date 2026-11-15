@@ -216,6 +216,17 @@ func _mode_heroes() -> void:
 		cloaks = Hero.CLOAKS.keys().filter(func(k: String) -> bool: return k != "none")
 		ids = []
 		for c in cloaks: ids.append(args.cloaks)
+	# --strokes[=look]: one fighter per written sword form, all struck at --at (frame),
+	# taking --land seconds to the blow, to compare them side by side.
+	var strokes: Array = ArmPose.STROKES.keys() if args.has("strokes") else []
+	if not strokes.is_empty():
+		Rules.load_data()
+		if args.has("only"): strokes = Array(args.only.split(","))
+		ids = []
+		for k in strokes: ids.append(args.strokes if args.strokes != "1" else "warder")
+		events[int(_f("at", 10))] = func() -> void:
+			for i in rigs.size():
+				Hero.stroke(rigs[i], strokes[i], _f("land", 0.5), _f("after", 0.5))
 	for i in ids.size():
 		var st := {} if cloaks.is_empty() else {cloak = cloaks[i], cloak_len = int(_f("len", -1)) if args.has("len") else i % 4}
 		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i, st)
@@ -224,6 +235,8 @@ func _mode_heroes() -> void:
 		var ap: AnimationPlayer = r.get_meta("anim")
 		if i == 0 and not args.has("quiet"): print("HERO clips ", ap.get_animation_list())
 		ap.play(args.get("clip", "Idle"))
+		if not strokes.is_empty():
+			Hero.arm(r, "sword"); ap.play(args.get("clip", "Sword_Idle"))
 	if args.has("then"):
 		events[int(_f("at", 30))] = func() -> void:
 			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)

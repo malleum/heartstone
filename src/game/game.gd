@@ -659,6 +659,10 @@ func _on_events(list: Array) -> void:
 					# A thrust is made with the point forward along the arm.
 					Hero.grip(a.node, m.get("grip", ""))
 					a.grip_until = clock + whole if m.has("grip") else 0.0
+					# A form with a stroke of its own: the arm and blade follow it,
+					# whatever the clip does with the legs.
+					# (An ordinary blow ends any stroke still running.)
+					Hero.stroke(a.node, e.move, e.wind, e.recover * 0.8)
 					# What makes a form its own: a turn of the whole body, a leap.
 					if m.has("spin") or m.has("leap"):
 						a.flourish = {t = 0.0, time = e.wind + e.recover * 0.5, spin = float(m.get("spin", 0.0)), leap = float(m.get("leap", 0.0)), land = e.wind}
@@ -688,6 +692,7 @@ func _on_events(list: Array) -> void:
 					var a: Dictionary = actors[e.id]
 					var ap: AnimationPlayer = a.node.get_meta("anim")
 					_end_form(a)
+					Hero.stroke(a.node, "", 0.1, 0.1)
 					if e.get("back", false):
 						# A step back, still facing them: the jog run backwards, leaning away.
 						ap.play("Jog_Fwd", 0.04, -2.6, true)

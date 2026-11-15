@@ -349,6 +349,11 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 			holder.set_meta("grips", {"": holder.transform, "couched": Transform3D(Basis(x2, y2, x2.cross(y2)), inv * (along * 0.085 - up * 0.02))})
 		at.add_child(holder)
 
+## Play a written-out sword stroke (ArmPose.STROKES) over whatever clip is running.
+static func stroke(root: Node3D, id: String, land: float, after: float) -> void:
+	if root.has_meta("pose"):
+		(root.get_meta("pose") as ArmPose).stroke(id, land, after)
+
 ## How the right hand holds what is in it: "" as carried, "couched" point-forward
 ## along the arm for a thrust.
 static func grip(root: Node3D, mode: String) -> void:
