@@ -211,6 +211,8 @@ func _process(dt: float) -> void:
 	_frame += 1
 	if cl.get("ghost", "") == "flow":
 		_ghost_flow()
+	elif cl.get("ghost", "") == "online":
+		_ghost_online()
 	elif cl.has("ghost"):
 		Ghost.step(cl.ghost, _frame)
 		if _frame % 30 == 0:
@@ -333,11 +335,15 @@ func _sync(name_: String, local: Dictionary) -> void:
 		old.free()
 	var s := Session.new()
 	get_tree().root.add_child(s)
+	# The lambdas below may run after the Session is gone (the time-out always
+	# does), so they hold its id, not the node.
+	var sid := s.get_instance_id()
 	var finish := func(status: String, kept: Dictionary) -> void:
-		if not is_instance_valid(s):
+		var live := instance_from_id(sid) as Session
+		if live == null:
 			return
 		multiplayer.multiplayer_peer = null
-		s.queue_free()
+		live.queue_free()
 		online_note = status if status != "" else "%s is kept on %s" % [kept.name, online.server]
 		var newer: bool = not kept.is_empty() and (local.is_empty() or float(kept.seconds) > float(local.seconds))
 		if newer:
@@ -432,6 +438,25 @@ func _press(box: Control, text: String) -> bool:
 	print("GHOST flow: no button '%s'" % text)
 	return false
 
+## --ghost=online: with a server on 127.0.0.1:24699 (word "tinker"), send a
+## character to it, ask who is playing, and walk through a doorway into a fight
+## hosted there. The settings are held in memory only: the player's own are not touched.
+func _ghost_online() -> void:
+	match _frame:
+		10:
+			Profile.dir = "user://ghost_profiles"
+			var p := Profile.create({name = "Ghost Net", potential_pts = 8, affinity_pts = {fire = 4}})
+			p.seconds = 77.0
+			Profile.save(p)
+			online = {server = "127.0.0.1:24699", word = "tinker", key = "ghostpass", room = "ghosts", play = true}
+			_select("Ghost Net")
+		90:
+			print("GHOST online sync: %s" % online_note)
+			_lobby_t = 0.0
+		200:
+			print("GHOST online lobby: %s" % _lobby_text().replace("\n", " | "))
+			cl.stroll = "0"
+
 func _ghost_flow() -> void:
 	match _frame:
 		10:
@@ -494,11 +519,13 @@ func _poll_lobby(dt: float) -> void:
 	_lobby_t = 12.0
 	var s := Session.new()
 	get_tree().root.add_child(s)
+	var sid := s.get_instance_id()
 	var done := func(list: Array) -> void:
-		if not is_instance_valid(s):
+		var live := instance_from_id(sid) as Session
+		if live == null:
 			return
 		multiplayer.multiplayer_peer = null
-		s.queue_free()
+		live.queue_free()
 		fights = list
 		if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Server":
 			_menu_fill()

@@ -374,8 +374,8 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## The ground can only be built once we know which activity (and so which map) this
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
-	if Launch.cmdline().get("ghost", "") == "flow":
-		print("GHOST flow entered %s as %s" % [activity, profile.name])
+	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
+		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
 	Map.use(Rules.activities[activity].get("map", "open"))
 	var ground := Terrain.build_mesh(240.0, 0.75)
 	add_child(ground)
@@ -417,7 +417,7 @@ func _on_events(list: Array) -> void:
 					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name), e.get("style", {}))
 					add_child(rig)
 					rig.position = _ground(e.pos)
-					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name}
+					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI}
 					Hero.arm(rig, e.get("weapon", ""))
 					actors[e.id].weapon = e.get("weapon", "")
 					if e.id == session.my_id:

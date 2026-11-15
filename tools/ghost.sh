@@ -4,11 +4,19 @@
 # did what a person would expect. Needs the GPU (it runs through tools/render.sh),
 # so it is separate from tools/test.sh. Usage: tools/ghost.sh
 cd "$(dirname "$0")/.."
+command -v godot >/dev/null || exec nix develop -c "$0" "$@"
 out=$(mktemp -d)
 KEEP_EVERY=900 tools/render.sh renders/ghost_arms 960 -- --activity=camp_training --name=GhostW --class=warder --kit=sword,horse_bow,belt_knife --forms --ghost=arms >"$out/arms" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_weaves 520 -- --activity=camp_training --name=GhostC --aff=fire --weaves=fireball,dome_of_air,bonds_of_air --tie --flows=3 --ghost=weaves >"$out/weaves" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_camp 600 -- --who=Bot --ghost=camp >"$out/camp" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_flow 520 -- --ghost=flow >"$out/flow" 2>&1
+# A server on this machine, and the camp going through it: store a character, ask
+# who is playing, walk through a doorway into a fight the server hosts.
+HEARTSTONE_WORD=tinker timeout 120 godot --headless --path . -s src/net/server.gd -- --port=24699 >"$out/srv" 2>&1 &
+srv=$!
+sleep 2
+KEEP_EVERY=900 tools/render.sh renders/ghost_online 420 -- --ghost=online >"$out/online" 2>&1
+kill $srv 2>/dev/null
 fail=0
 want() { grep -qE "$2" "$out/$1" || { echo "  FAIL ($1): no '$2'"; fail=1; }; }
 for w in "blow cut" "blow backcut" "blow finisher" "blow overhead" "blow leg_sweep" "blow loose" "blow throw" "blow parting_the_silk" "dodge $" "dodge roll" "equip horse_bow"; do want arms "GHOST [0-9]+ $w"; done
@@ -18,6 +26,8 @@ for w in "tree=true" "menu=true" "sheet=false" "pos=\([0-9.]+, 0.0, -2"; do want
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.
 for w in "created: Ghost Maiden cls=aiel" "armoury: kit=\[\"sling\"" "appearance: look=novice" "study: dance_of_spears" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done
-if grep -hE "SCRIPT ERROR|^ERROR" -A2 "$out"/arms "$out"/weaves "$out"/camp "$out"/flow; then fail=1; fi
+want online "GHOST online sync: Ghost Net is kept on"; want online "GHOST flow entered camp_training as Ghost Net \(joined a host\)"
+want srv "SERVER keeps Ghost Net"; want srv "SERVER begins camp_training for Ghost Net in room 'ghosts'"
+if grep -hE "SCRIPT ERROR|^ERROR" -A2 "$out"/arms "$out"/weaves "$out"/camp "$out"/flow "$out"/online; then fail=1; fi
 [[ $fail -eq 0 ]] && echo "GHOST RESULT: ok" || echo "GHOST RESULT: FAILED"
 rm -rf "$out"
