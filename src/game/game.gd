@@ -49,7 +49,7 @@ func _ready() -> void:
 	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
 	_hud()
 	var name_: String = args.get("name", "Novice")
-	profile = Profile.load_profile(name_)
+	profile = {} if args.has("tour") else Profile.load_profile(name_)
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
 		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
@@ -131,6 +131,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		elif (ev.keycode == KEY_ENTER and _done) or ev.keycode == KEY_F10:
 			_to_camp()
+		elif args.has("tour") and ev.keycode in [KEY_N, KEY_B, KEY_R]:
+			_tour_go(1 if ev.keycode == KEY_N else (-1 if ev.keycode == KEY_B else 0))
 		elif ev.keycode == KEY_Q:
 			_select(posmod(selected - 1, n_known))
 		elif ev.keycode == KEY_E:
@@ -273,6 +275,8 @@ func _process(dt: float) -> void:
 	refusal_t -= dt
 	if session.my_id == 0:
 		return
+	if _ally != 0 and session.sim.ents.has(_ally):
+		Bot.drive(session.sim, _ally)
 	if args.has("auto") and not session.is_host:
 		_client_bot()
 	elif args.has("auto"):
@@ -360,6 +364,17 @@ func _fx_demo(dt: float) -> void:
 		Weavefx.cast(self, {weave = id, kind = Rules.weaves[id].kind, pos = me.position, at = at, dir = dir})
 	print("FXDEMO ", frame, " ", id)
 
+## --tour: on to the next station (or back, or the same again); past the last, to camp.
+func _tour_go(step: int) -> void:
+	Launch.tour += step
+	if Launch.tour < 0 or Launch.tour >= Launch.TOUR.size():
+		Launch.tour = 0
+		_to_camp()
+		return
+	multiplayer.multiplayer_peer = null
+	Launch.args = Launch.station()
+	get_tree().change_scene_to_file("res://src/game/game.tscn")
+
 ## Leaving mid-activity (F10) abandons it: nothing is awarded, nothing is lost.
 func _to_camp() -> void:
 	multiplayer.multiplayer_peer = null
@@ -399,6 +414,20 @@ func _on_started(_my_id: int, activity: String) -> void:
 			if Rules.enemies.has(kv[0]):
 				for i in (int(kv[1]) if kv.size() > 1 else 1):
 					session.sim._add_enemy(kv[0], Vector3(randf_range(-3, 3), 0, -7.0 - i * 2.0))
+
+	# --ally=warder|channeller: a bot friend at your side (--ally_hp=45 starts them hurt),
+	# for the things that need someone else: Healing, a Warder's ward, the bond.
+	if args.has("ally") and session.is_host:
+		var ap: Dictionary = Profile.create({name = "Friend", potential_pts = 8, affinity_pts = {fire = 4, earth = 2}}) if args.ally == "channeller" \
+			else Profile.create({name = "Friend", cls = args.ally, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Rules.CLASSES[args.ally].kit})
+		_ally = session.sim.add_player(ap, Vector3(2.5, 0, 1.0))
+		if args.has("ally_hp"):
+			session.sim.ents[_ally].hp = float(args.ally_hp)
+	if args.has("tour"):
+		var st: Dictionary = Launch.TOUR[Launch.tour]
+		tour_label.text = "%d / %d   %s\n%s\nN: next    B: back    R: again    F10: camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title, st.feel]
+
+var _ally := 0
 
 # --- mirroring the sim ----------------------------------------------------------------
 
@@ -850,7 +879,16 @@ func _hud() -> void:
 	banner.add_theme_font_size_override("font_size", 32)
 	banner.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
 	banner.add_theme_color_override("font_outline_color", Color.BLACK); banner.add_theme_constant_override("outline_size", 8)
+	# --tour: what this station is for, kept on screen.
+	tour_label = Label.new(); layer.add_child(tour_label)
+	tour_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	tour_label.offset_left = 24; tour_label.offset_top = 16
+	tour_label.add_theme_font_override("font", Glyph.serif())
+	tour_label.add_theme_font_size_override("font_size", 21)
+	tour_label.add_theme_color_override("font_color", Color(0.98, 0.9, 0.62))
+	tour_label.add_theme_color_override("font_outline_color", Color.BLACK); tour_label.add_theme_constant_override("outline_size", 7)
 
+var tour_label: Label
 var _banner_t := 0.0
 func _banner(text: String, secs: float) -> void:
 	banner.text = text; _banner_t = secs
@@ -869,7 +907,9 @@ func _on_finished(success: bool, report: Array) -> void:
 	banner.text = ("The line held.\n\n" if success else "You fell. In the camp you wake, and remember.\n\n") + "\n".join(report)
 	Launch.report = report
 	Launch.last_name = profile.name
-	if not args.has("auto"):
+	if args.has("tour"):
+		banner.text = ("Done." if success else "You fell.") + "\n\nN: next    R: again"
+	elif not args.has("auto"):
 		banner.text += "\n\nEnter: back to camp"
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])

@@ -36,6 +36,12 @@ var _frame := 0
 func _ready() -> void:
 	Rules.load_data()
 	cl = Launch.cmdline()
+	if cl.has("tour"):
+		# --tour[=N]: straight into the stations (N starts at that one, counting from 1).
+		Launch.tour = clampi(int(cl.tour) - 1, 0, Launch.TOUR.size() - 1)
+		Launch.args = Launch.station()
+		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
+		return
 	if (cl.has("auto") or cl.has("activity") or cl.has("join")) and cl.get("ghost", "") != "camp":
 		# Bots, renders and scripted sessions skip the camp.
 		Launch.args = cl

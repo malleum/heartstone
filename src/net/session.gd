@@ -460,5 +460,7 @@ func _result(tally: Dictionary, success: bool) -> void:
 ## The moment an activity pays into the persistent character.
 func _apply_result(tally: Dictionary, success: bool) -> void:
 	var report := Progression.award(profile, tally, activity, success)
-	Profile.save(profile)
+	# The tour's characters are throwaway: nothing they do is kept.
+	if not Launch.args.has("tour"):
+		Profile.save(profile)
 	finished.emit(success, report)

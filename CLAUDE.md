@@ -61,6 +61,10 @@ working on abilities; the user's rulings there are final).
   `-- --ghost=arms|weaves|camp`) press real keys and buttons and it checks what the
   game did. Run it after touching input in `game.gd` or `camp.gd`: bots call the sim
   directly and cannot catch input bugs (one was found this way).
+- `-- --tour[=N]` (table in `src/game/launch.gd`): short stations for hands-on testing,
+  each a throwaway character in front of one thing, N/B/R to move on, nothing saved.
+  Add a station when you add something that needs feeling. `--ally=warder|channeller`
+  puts a bot friend beside the player.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 
