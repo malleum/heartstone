@@ -5,6 +5,60 @@ The order is free: he said to pick whatever makes sense and to guess when unsure
 Move an item to "Done" with the date when it is built, and say what was assumed in
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
+## Josh's hands-on notes, 14 Nov (tour playtest)
+His words, lightly tidied. Do all of it, in detail; tick each when built and seen in a render.
+
+**Keys**
+- [ ] "Make it work with Dvorak keybinds. I hate having to switch back and forth between
+  keyboards." (Movement and every other key should sit where WASD etc. sit physically.)
+
+**Weaves**
+- [ ] "Heave the Ground feels and looks lame."
+- [ ] "The water starter weave feels exactly like the starter air weave."
+- [ ] "I want the cooldown to be a pre-cooldown, not a cooldown proper, to make it feel
+  like it takes time to weave up a weave before using it (this will also make sense once
+  manually drawing to weave is introduced)."
+- [ ] "Cool and different animations for this weaving activation delay, especially with
+  sparks of the elements' colours."
+- [ ] Big weaves: "same complaints as above."
+- [ ] Arrows of Fire: "less bloom and more speed and penetration, like small bullet
+  projectiles on fire."
+- [ ] Blossoms of Fire: "a 6 ft tall very small pillar of fire (where you aim) and then
+  it blossoms out into a 10 to 30 ft radius slow spinning fire tornado (but still
+  relatively short for how wide the spinning arms of fire are)."
+- [ ] Rolling Ring of Earth and Fire: "should look cooler and be more directed, not a
+  full 360. Narrower than 90."
+- [ ] Gateway: "I can't test it because the person you gave me wasn't strong enough."
+  (Tour character needs the strength for it.)
+
+**The Fade**
+- [ ] "The Fade design needs much work. Its running speed is good, but it's weird just
+  running around with it following me. It needs some sort of occasional lunge attack, or
+  a fade into shadow, disappear and reappear in a different shadow ability."
+
+**Melee: "still needs a good bit of work"**
+- [ ] "Trollocs need more precise swing attacks."
+- [ ] Parry: "if I hit my parry button (it should do nothing if I just hold it) right
+  before their swing hits me, an animation plays blocking it, and if I timed it perfectly
+  at the last possible moment they even get shaken and lose a step, like the perfect
+  parry in Resident Evil 4 remake."
+- [ ] "It's impossible to see thrown knives and where they land, and they are still
+  shown in the hand after being thrown and being out of them."
+- [ ] "Some of the forms look and feel like the normal two sword attacks."
+- [ ] "The sidestep by default plays the forwards roll animation but my character goes
+  backward, which just looks wrong."
+- [ ] "Drop the Shift+Space keybind: it doesn't feel different from the normal dodge."
+- [ ] "Flurry of blows on the knife looks like the normal animation."
+- [ ] "The Aiel spear light attack looks really dumb."
+- [ ] "Have the attacks show a clear visual hit box of what they are hitting (even if
+  slightly bigger than the weapon), in almost a light anime style, so it's clear the path
+  I'm swinging at."
+- [ ] "Vary knockback/stun frames between different forms and weapons to add variety."
+- [ ] "Improve the animations, graphics and physics of the bow, crossbow and sling. Make
+  it clear by projectile speed, damage and arc when it is not a fully charged shot. Don't
+  even let the crossbow do a light shot. Give the bow more power and speed the longer it
+  is charged (with an animation for that). Sling: less warm-up, its rate of fire is fast."
+
 ## Combat feel and rules
 - [ ] Effects per Power are all built (see Done). Not seen in a render: the
   charge arc between Trollocs, the daze motes, stun sparks, the thrown slide.
