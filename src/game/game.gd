@@ -425,6 +425,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 			session.sim.ents[_ally].hp = float(args.ally_hp)
 	if args.has("tour"):
 		var st: Dictionary = Launch.TOUR[Launch.tour]
+		print("TOUR station %d %s" % [Launch.tour + 1, st.title])
 		tour_label.text = "%d / %d   %s\n%s\nN: next    B: back    R: again    F10: camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title, st.feel]
 
 var _ally := 0

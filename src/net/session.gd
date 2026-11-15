@@ -18,7 +18,7 @@ signal rejected(why: String)                    # could not join at all
 signal vaulted(status: String, kept: Dictionary)  # the server's character store answered
 signal lobby(fights: Array)                     # the server said who is playing what
 
-const PORT := 24680
+const PORT := 24690
 const PROTO := 6               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 

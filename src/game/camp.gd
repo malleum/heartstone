@@ -584,7 +584,7 @@ func _menu_fill() -> void:
 		_text(menu_box, online_note, 14, Color(0.95, 0.85, 0.55))
 	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8))
 	_text(menu_box, "Friends, without a server", 24)
-	_text(menu_box, "With the box above unticked, walking through a doorway hosts that activity on this machine: friends join you by address (UDP port 24680, or a VPN such as Tailscale).", 14, Color(0.7, 0.72, 0.78))
+	_text(menu_box, "With the box above unticked, walking through a doorway hosts that activity on this machine: friends join you by address (UDP port 24690, or a VPN such as Tailscale).", 14, Color(0.7, 0.72, 0.78))
 	var addr := LineEdit.new(); addr.placeholder_text = "friend's address"; menu_box.add_child(addr)
 	_button(menu_box, "Join a friend", func() -> void:
 		if addr.text.strip_edges() != "" and not profile.is_empty():

@@ -31,7 +31,7 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 
 ## Online
 - [ ] **Deploy the server on minimus.** It is built and tested on localhost (see
-  Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24680 is
+  Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24690 is
   Josh's step, because it changes his server.
 - [ ] Server follow-ups: reconnecting after a dropped connection; proof that the
   server is the real one; friends seen walking in the camp.

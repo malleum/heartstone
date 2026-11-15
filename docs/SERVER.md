@@ -20,7 +20,7 @@ inputs.heartstone.url = "github:malleum/heartstone";
 imports = [ inputs.heartstone.nixosModules.default ];
 services.heartstone = {
   enable = true;
-  # port = 24680;            # UDP; opened in the firewall unless openFirewall = false
+  # port = 24690;            # UDP; opened in the firewall unless openFirewall = false
   environmentFile = "/run/secrets/heartstone";   # a file containing: HEARTSTONE_WORD=some-word
 };
 ```
@@ -28,7 +28,7 @@ services.heartstone = {
 - **The word** is what friends type to be let in. Without `environmentFile` anyone
   who finds the port can play and store characters. Keep the file out of the Nix
   store (sops-nix, agenix, or a file placed by hand).
-- If minimus sits behind a router, forward **UDP 24680** to it. That is the only
+- If minimus sits behind a router, forward **UDP 24690** to it. That is the only
   port. Nothing goes through the web server or needs a certificate.
 - The service runs as a throwaway user with a locked-down sandbox. Its only
   writable place is `/var/lib/heartstone`; characters are JSON files under

@@ -1,7 +1,7 @@
 extends SceneTree
 ## The dedicated server (for minimus): friends on different networks all join it,
 ## so nobody needs a VPN or a forwarded port, and it keeps their characters.
-##   godot --headless --path . -s src/net/server.gd -- [--port=24680] [--word=secret]
+##   godot --headless --path . -s src/net/server.gd -- [--port=24690] [--word=secret]
 ## The word can also come from HEARTSTONE_WORD, so it need not appear in `ps`.
 ## It runs one fight at a time: the first player to arrive chooses the activity,
 ## everyone after joins it, and when it ends or empties the next arrival chooses again.

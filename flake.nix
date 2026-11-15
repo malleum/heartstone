@@ -43,7 +43,7 @@
         let cfg = config.services.heartstone; in {
           options.services.heartstone = {
             enable = lib.mkEnableOption "the Heartstone dedicated server (co-op meeting point and character store)";
-            port = lib.mkOption { type = lib.types.port; default = 24680; description = "UDP port players connect to."; };
+            port = lib.mkOption { type = lib.types.port; default = 24690; description = "UDP port players connect to."; };
             openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the UDP port in the firewall."; };
             environmentFile = lib.mkOption {
               type = lib.types.nullOr lib.types.path; default = null;

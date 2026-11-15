@@ -10,7 +10,12 @@ static var last_activity := ""
 
 static func cmdline() -> Dictionary:
 	var out := {}
-	for a in OS.get_cmdline_user_args():
+	# In the standalone, flags work with or without the `--` separator Godot wants
+	# (`dist/heartstone --tour`): nobody remembers the separator.
+	var all: Array = Array(OS.get_cmdline_user_args())
+	if OS.has_feature("template"):
+		all += Array(OS.get_cmdline_args()).filter(func(x: String) -> bool: return x.begins_with("--"))
+	for a: String in all:
 		var kv := a.trim_prefix("--").split("=")
 		out[kv[0]] = kv[1] if kv.size() > 1 else "1"
 	return out
