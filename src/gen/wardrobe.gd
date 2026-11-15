@@ -13,7 +13,10 @@ const OUTFITS := {
 	aes_sedai = [["boots", Color(0.2, 0.15, 0.1), 0.3], ["dress", Color(0.1, 0.25, 0.5), Color(0.8, 0.8, 0.85)], ["shawl", Color(0.85, 0.85, 0.82), Color(0.1, 0.25, 0.5)]],
 	cairhien = [["trousers", Color(0.08, 0.08, 0.09)], ["boots", Color(0.06, 0.05, 0.05), 0.6], ["coat", Color(0.09, 0.09, 0.11), 0.5, 1.0, [Color(0.6, 0.1, 0.1), Color(0.75, 0.6, 0.15), Color(0.15, 0.3, 0.6)]], ["belt", Color(0.05, 0.05, 0.05)]],
 	warder = [["trousers", Color(0.16, 0.19, 0.15)], ["boots", Color(0.1, 0.08, 0.06), 0.7], ["coat", Color(0.17, 0.22, 0.16), 0.3, 1.0], ["belt", Color(0.12, 0.08, 0.05)], ["sword"]],
-	myrddraal = [["trousers", Color(0.015, 0.015, 0.018)], ["boots", Color(0.01, 0.01, 0.012), 0.8], ["coat", Color(0.012, 0.012, 0.015), 0.85, 1.0], ["belt", Color(0.02, 0.02, 0.02)], ["blade"]],
+	# Black armour of overlapping plates like a serpent's scales, a deep hood, and
+	# a cloak that hangs still whatever the wind does.
+	myrddraal = [["trousers", Color(0.012, 0.012, 0.014)], ["boots", Color(0.008, 0.008, 0.01), 0.85], ["scales", Color(0.03, 0.03, 0.036), Color(0.16, 0.16, 0.19)], ["belt", Color(0.02, 0.02, 0.02)],
+		["cloak", Color(0.006, 0.006, 0.008)], ["hood", Color(0.006, 0.006, 0.008)], ["blade"]],
 	domani = [["boots", Color(0.3, 0.2, 0.12), 0.3], ["dress", Color(0.55, 0.2, 0.22), Color(0.8, 0.65, 0.3)], ["belt", Color(0.7, 0.55, 0.2)]],
 }
 
@@ -61,6 +64,43 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 				kit.shells.append(sh_)
 			"belt":
 				kit.shells.append({mask = Gear._band(waist - 0.022 * u, waist + 0.022 * u, half * 0.93, 0.0), thick = 0.03 * u, col = _c(g[1], Gear.LEATHER)})
+			"scales":
+				# Armour to the thigh and down the arms: rows of small plates, each
+				# row lapping the one below, drawn as a pale edge on black.
+				var hem := lerpf(hip_y, J[C.SHIN].y, 0.35)
+				var m := _torso(hem, J[C.NECK].y + 0.05 * u, J, u)
+				for side in 2:
+					var o := C.RIGHT * side
+					m.cone(J[C.UARM + o], J[C.UARM + o].lerp(J[C.HAND + o], 0.95), 0.08 * u, 0.055 * u)
+				var p := Sdf.new()
+				p.use(0, _c(g[2], Gear.LEATHER), 0.003)
+				var y := hem + 0.02 * u
+				while y < J[C.NECK].y:
+					p.box(Vector3(0, y, 0), Vector3(1.0, 0.0045 * u, 1.0), 0.001).op = Sdf.PAINT
+					y += 0.042 * u
+				# Lacquered hide, not iron: the plate material rusts, and nothing of a
+				# Myrddraal's does.
+				kit.shells.append({mask = m, thick = 0.02 * u, col = _c(g[1], Gear.LEATHER), paint = p})
+			"cloak":
+				# From the shoulders to the ankles behind, wide at the hem. It is cut
+				# as its own bell so it stands off the body, and weighted broadly so it
+				# hangs as one piece.
+				var m := _torso(sh.y - 0.06 * u, J[C.NECK].y + 0.05 * u, J, u)
+				var bell := Sdf.new()
+				bell.k = 0.04 * u
+				# (Kept close about the body: a bell standing far off it falls outside
+				# the grid the body is meshed in and comes out in rags.)
+				bell.cone(Vector3(0, waist + 0.04 * u, 0.01 * u), Vector3(0, 0.07 * u, 0.02 * u), 0.15 * u, 0.26 * u, Vector2(1, 0.7))
+				kit.shells.append({mask = m, thick = 0.03 * u, col = _c(g[1], Gear.CLOTH), solid = bell, wide = true})
+			"hood":
+				# Deep, and close about the head: the face is a pale shape far back in it.
+				var m := Sdf.new()
+				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u
+				m.ball(hc + Vector3(0, 0.02, -0.02) * u, Vector3(0.15, 0.15, 0.16) * u)
+				m.ball(J[C.NECK] + Vector3(0, 0.0, -0.02) * u, Vector3(0.17, 0.09, 0.13) * u)
+				var face := m.ball(hc + Vector3(0, -0.035, 0.13) * u, Vector3(0.07, 0.105, 0.085) * u)
+				face.op = Sdf.CARVE; face.k = 0.01
+				kit.shells.append({mask = m, thick = 0.05 * u, col = _c(g[1], Gear.CLOTH)})
 			"shoufa":
 				var m := Sdf.new()
 				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u

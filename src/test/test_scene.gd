@@ -104,7 +104,11 @@ func _trollocs(n: int, extra := {}) -> Array:
 		if args.has("head"): o.head = args.head
 		# --weapon=0..3: scythe-sword, axe, spear, club (and always armed).
 		if args.has("weapon"): o.weapon_kind = int(args.weapon)
-		specs.append(Species.roll(Species.TROLLOC, seed0 + i, o))
+		# --species=myrddraal: the Eyeless on the bench instead.
+		if args.get("species", "") == "myrddraal":
+			specs.append(Species.roll(Species.MYRDDRAAL, 7 + i, {lod = 1.2}))
+		else:
+			specs.append(Species.roll(Species.TROLLOC, seed0 + i, o))
 	return _generate(specs)
 
 # --- fps bench: frame times over a window, after a warm-up --------------------
