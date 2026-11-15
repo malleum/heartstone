@@ -241,6 +241,19 @@ peasant/ranger) and drives it with the Universal Animation Library.
   skirt behave like trousers) and drawn by `shaders/garment.gdshader`, where UV.y runs
   from the top edge to the hem so bands, trim, fringe and fancloth are a line each.
   Trousers are hidden under a skirt. A new culture is a new row.
+- The skirt (redone 15 Nov after "they don't quite look right") is cut from the
+  outfit's own measured waist and hips, gathered under a waistband, and falls in
+  folds that deepen to the hem. `pleat()` in the Blender script and in the garment
+  shader are the same function (the shader shades the creases): change both. After
+  rebuilding a `.glb`, run `godot --headless --import` inside `nix develop`, or
+  renders keep showing the old model.
+- Cloaks are the player's choice, not only the look's: `style.cloak` picks a row of
+  `Hero.CLOAKS` over any dress and `style.cloak_len` cuts it short (the shader
+  discards below `cut` and rescales so hems and fur sit at the new edge). A look's
+  `bodice` colour recuts the pack's leather bodice as cloth (torso mesh only).
+- The Myrddraal's cowl is a free-standing hollow shape (`free = true` on a wardrobe
+  shell: meshed once, whole, not cut to the body's grids) with the face set back
+  inside it; `Faces` has an `eyeless` branch (hollows of smooth skin, hard mouth).
 - `shaders/outfit.gdshader` also draws Cairhienin `slashes`, Tairen `sleeve`
   stripes, silk `sheen` and `mail` (rings of steel where the cloth is) from one
   row each; its cloth masks are set from colours measured in the atlas.

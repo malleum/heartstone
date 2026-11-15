@@ -702,6 +702,16 @@ func _style_options(parent: Control, style: Dictionary, man: bool) -> Dictionary
 			items[i] = row[2][i][0]
 		out[row[0]] = _option(parent, row[1], items)
 		out[row[0]].select(maxi(items.keys().find(int(style.get(row[0], row[3]))), 0))
+	var cloaks := {"": "As the dress wears it"}
+	for id in Hero.CLOAKS:
+		cloaks[id] = Hero.CLOAKS[id][0]
+	out.cloak = _option(parent, "Cloak", cloaks)
+	out.cloak.select(maxi(cloaks.keys().find(str(style.get("cloak", ""))), 0))
+	var lens := {}
+	for i in Hero.CLOAK_LENGTHS.size():
+		lens[i] = Hero.CLOAK_LENGTHS[i][0]
+	out.cloak_len = _option(parent, "Cloak length", lens)
+	out.cloak_len.select(clampi(int(style.get("cloak_len", 0)), 0, lens.size() - 1))
 	if man:
 		out.beard = _option(parent, "Beard", {0: "Clean-shaven", 1: "Bearded"})
 		out.beard.select(1 if style.get("beard", false) else 0)
@@ -715,6 +725,10 @@ func _style_of(w: Dictionary) -> Dictionary:
 		st.hair_col = int(w.hair_col.get_selected_metadata())
 	for k in ["skin", "eyes", "height", "build"]:
 		st[k] = int(w[k].get_selected_metadata())
+	if w.cloak.get_selected_metadata() != "":
+		st.cloak = w.cloak.get_selected_metadata()
+	if int(w.cloak_len.get_selected_metadata()) > 0:
+		st.cloak_len = int(w.cloak_len.get_selected_metadata())
 	if w.has("beard"):
 		st.beard = int(w.beard.get_selected_metadata()) == 1
 	return st

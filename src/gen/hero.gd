@@ -19,6 +19,26 @@ const SKINS := [["Fair", Color(1.0, 1.0, 1.0)], ["Pale", Color(1.2, 1.17, 1.15)]
 const EYES := [["Brown", Color(1, 1, 1)], ["Blue", Color(0.55, 0.8, 1.6)], ["Grey", Color(0.8, 0.9, 1.05)], ["Green", Color(0.6, 1.25, 0.7)], ["Dark", Color(0.45, 0.4, 0.4)], ["Hazel", Color(1.1, 1.0, 0.6)]]
 const HEIGHTS := [["Short", 0.93], ["Below middling", 0.965], ["Middling", 1.0], ["Tall", 1.035], ["Very tall", 1.07]]
 const BUILDS := [["Slight", 0.92], ["Lean", 0.96], ["Middling", 1.0], ["Sturdy", 1.05], ["Broad", 1.1]]
+## Cloaks anyone may choose over any dress: id -> [label, colour, garment style, trim].
+## "" keeps whatever the dress comes with. Lengths cut the same cloak short in the shader.
+const CLOAKS := {
+	none = ["No cloak"],
+	wool_brown = ["Brown wool", Color(0.2, 0.14, 0.09), 0, Color.WHITE],
+	wool_grey = ["Grey wool", Color(0.2, 0.2, 0.21), 0, Color.WHITE],
+	green = ["Forest green", Color(0.07, 0.16, 0.08), 0, Color.WHITE],
+	black = ["Black", Color(0.02, 0.02, 0.025), 0, Color.WHITE],
+	blue = ["Deep blue, trimmed", Color(0.06, 0.1, 0.3), 4, Color(0.75, 0.75, 0.8)],
+	crimson = ["Crimson, gold hem", Color(0.42, 0.04, 0.04), 4, Color(0.8, 0.62, 0.2)],
+	white = ["Snow white", Color(0.86, 0.86, 0.84), 0, Color.WHITE],
+	fur = ["Winter cloak, fur-trimmed", Color(0.16, 0.12, 0.09), 7, Color(0.62, 0.56, 0.46)],
+	lined = ["Black, lined with scarlet", Color(0.025, 0.025, 0.03), 8, Color(0.55, 0.04, 0.05)],
+	lined_blue = ["Grey, lined with blue", Color(0.24, 0.24, 0.26), 8, Color(0.08, 0.16, 0.5)],
+	silk = ["Worked silk", Color(0.1, 0.3, 0.26), 6, Color(0.85, 0.75, 0.4)],
+	vines = ["Embroidered with vines", Color(0.12, 0.1, 0.2), 9, Color(0.8, 0.7, 0.35)],
+	patches = ["Gleeman's patches", Color(0.3, 0.25, 0.2), 5, Color.WHITE],
+	fancloth = ["Fancloth", Color(0.2, 0.2, 0.18), 3, Color.WHITE],
+}
+const CLOAK_LENGTHS := [["To the calf", 1.0], ["To the knee", 0.74], ["To the waist", 0.5], ["Shoulder cape", 0.3]]
 const AJAHS := {blue = Color(0.08, 0.16, 0.55), green = Color(0.07, 0.33, 0.12), yellow = Color(0.6, 0.47, 0.1), red = Color(0.5, 0.04, 0.04),
 	white = Color(0.85, 0.85, 0.82), grey = Color(0.34, 0.34, 0.36), brown = Color(0.26, 0.15, 0.07)}
 
@@ -28,9 +48,9 @@ const AJAHS := {blue = Color(0.08, 0.16, 0.55), green = Color(0.07, 0.33, 0.12),
 const LOOKS := {
 	two_rivers_f = {label = "Two Rivers wool", sex = "f", base = "female_peasant", p = Color(0.78, 0.74, 0.62), s = Color(0.1, 0.16, 0.1),
 		skirt = [Color(0.1, 0.17, 0.11), 4, Color(0.55, 0.5, 0.36)], hair = "Hair_Long"},
-	novice = {label = "Novice white", sex = "f", base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
+	novice = {label = "Novice white", sex = "f", bodice = Color(0.84, 0.84, 0.82), base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
 		skirt = [Color(0.86, 0.86, 0.84), 0, Color.WHITE]},
-	accepted = {label = "Accepted (banded hem)", sex = "f", base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
+	accepted = {label = "Accepted (banded hem)", sex = "f", bodice = Color(0.84, 0.84, 0.82), base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
 		skirt = [Color(0.86, 0.86, 0.84), 1, Color.WHITE]},
 	aiel_f = {label = "Aiel cadin'sor", sex = "f", base = "female_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
 	hunter_f = {label = "Traveller's cloak", sex = "f", base = "female_ranger", hide = ["Hood", "Pauldron"], p = Color(0.2, 0.24, 0.38), s = Color(0.08, 0.08, 0.1),
@@ -62,15 +82,15 @@ const LOOKS := {
 		coat = [Color(0.03, 0.03, 0.035), 4, Color(0.09, 0.09, 0.1)], pins = 1},
 	wise_one = {label = "Wise One (algode and shawl)", sex = "f", base = "female_peasant", p = Color(0.9, 0.88, 0.82), s = Color(0.3, 0.22, 0.15),
 		skirt = [Color(0.3, 0.23, 0.16), 0, Color.WHITE], shawl = [Color(0.36, 0.28, 0.2), 2, Color(0.5, 0.42, 0.32)], hair = "Hair_Long"},
-	cairhien_f = {label = "Cairhienin gown (slashed)", sex = "f", base = "female_peasant", p = Color(0.06, 0.06, 0.09), s = Color(0.04, 0.04, 0.05), slashes = 4,
+	cairhien_f = {label = "Cairhienin gown (slashed)", sex = "f", bodice = Color(0.05, 0.05, 0.075), base = "female_peasant", p = Color(0.06, 0.06, 0.09), s = Color(0.04, 0.04, 0.05), slashes = 4,
 		skirt = [Color(0.055, 0.055, 0.08), 6, Color(0.6, 0.1, 0.1)], hair = "Hair_Buns"},
-	noble_f = {label = "Lady's silk gown", sex = "f", base = "female_peasant", p = Color(0.12, 0.38, 0.3), s = Color(0.06, 0.2, 0.16), sheen = 1.0,
+	noble_f = {label = "Lady's silk gown", sex = "f", bodice = Color(0.07, 0.24, 0.19), base = "female_peasant", p = Color(0.12, 0.38, 0.3), s = Color(0.06, 0.2, 0.16), sheen = 1.0,
 		skirt = [Color(0.1, 0.34, 0.27), 6, Color(0.85, 0.75, 0.4)]},
-	domani_f = {label = "Domani gown", sex = "f", base = "female_peasant", p = Color(0.6, 0.2, 0.22), s = Color(0.45, 0.14, 0.16), sheen = 0.7,
+	domani_f = {label = "Domani gown", sex = "f", bodice = Color(0.46, 0.13, 0.15), base = "female_peasant", p = Color(0.6, 0.2, 0.22), s = Color(0.45, 0.14, 0.16), sheen = 0.7,
 		skirt = [Color(0.58, 0.19, 0.21), 6, Color(0.85, 0.65, 0.3)], hair = "Hair_Long"},
-	tairen_f = {label = "Tairen gown (striped sleeves)", sex = "f", base = "female_peasant", p = Color(0.75, 0.62, 0.3), s = Color(0.3, 0.1, 0.1), sleeve = Color(0.3, 0.08, 0.1, 1.0), sheen = 0.4,
+	tairen_f = {label = "Tairen gown (striped sleeves)", sex = "f", bodice = Color(0.5, 0.11, 0.11), base = "female_peasant", p = Color(0.75, 0.62, 0.3), s = Color(0.3, 0.1, 0.1), sleeve = Color(0.3, 0.08, 0.1, 1.0), sheen = 0.4,
 		skirt = [Color(0.6, 0.14, 0.14), 4, Color(0.8, 0.68, 0.3)]},
-	tinker_f = {label = "Tinker's colours", sex = "f", base = "female_peasant", p = Color(0.2, 0.55, 0.85), s = Color(0.85, 0.3, 0.1),
+	tinker_f = {label = "Tinker's colours", sex = "f", bodice = Color(0.75, 0.2, 0.45), base = "female_peasant", p = Color(0.2, 0.55, 0.85), s = Color(0.85, 0.3, 0.1),
 		skirt = [Color(0.85, 0.7, 0.1), 4, Color(0.7, 0.12, 0.3)], shawl = [Color(0.1, 0.5, 0.25), 2, Color(0.9, 0.8, 0.2)]},
 	armswoman = {label = "Armswoman's mail and cloak", sex = "f", base = "female_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.12, 0.1, 0.08), mail = true,
 		cloak = [Color(0.16, 0.2, 0.3), 0, Color.WHITE]},
@@ -103,7 +123,7 @@ static func looks() -> Dictionary:
 		var col: Color = AJAHS[a]
 		out["aes_sedai_" + a] = {label = "Aes Sedai, %s Ajah" % a.capitalize(), sex = "f", base = "female_peasant",
 			p = col.lerp(Color(0.85, 0.85, 0.82), 0.55), s = col.darkened(0.45), hair = "Hair_Buns",
-			skirt = [col.darkened(0.15), 4, col.lerp(Color.WHITE, 0.5)], shawl = [col, 2, Color(0.92, 0.9, 0.82)]}
+			bodice = col.darkened(0.3), skirt = [col.darkened(0.15), 4, col.lerp(Color.WHITE, 0.5)], shawl = [col, 2, Color(0.92, 0.9, 0.82)]}
 	return out
 
 static func kind_for(profile: Dictionary) -> String:
@@ -151,10 +171,21 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 			m.visible = false
 		if n in ["Skirt", "Cloak", "Shawl", "Coat"]:
 			var spec: Array = look.get(n.to_lower(), [])
+			var cut := 1.0
+			if n == "Cloak":
+				# The player's own cloak goes over whatever the dress came with.
+				var own: Array = CLOAKS.get(str(style.get("cloak", "")), [])
+				if own.size() == 1:
+					spec = []
+				elif own.size() == 4:
+					spec = own.slice(1)
+				cut = CLOAK_LENGTHS[clampi(int(style.get("cloak_len", 0)), 0, CLOAK_LENGTHS.size() - 1)][1]
 			m.visible = not spec.is_empty()
 			if m.visible:
 				var gm := ShaderMaterial.new(); gm.shader = GARMENT
 				gm.set_shader_parameter("base", spec[0]); gm.set_shader_parameter("style", spec[1]); gm.set_shader_parameter("trim", spec[2])
+				gm.set_shader_parameter("pleats", n == "Skirt")
+				gm.set_shader_parameter("cut", cut)
 				m.material_override = gm
 		elif n.begins_with("Hair") or n.begins_with("Eyebrows"):
 			# The pack ships hair as a grey map meant to be tinted.
@@ -185,6 +216,9 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 					om.set_shader_parameter("sleeve", look.get("sleeve", Color(0, 0, 0, 0)))
 					om.set_shader_parameter("sheen", float(look.get("sheen", 0.0)))
 					om.set_shader_parameter("mail", bool(look.get("mail", false)))
+					# Only the torso piece: boots and bracers stay leather.
+					if look.has("bodice") and n.ends_with("_Body"):
+						om.set_shader_parameter("bodice", look.bodice)
 					m.set_surface_override_material(i, om)
 	# One hairstyle shows: the player's choice, else the look's own, else one picked
 	# by the seed. None under a hood, or for a shaved head.

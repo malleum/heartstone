@@ -73,6 +73,9 @@ working on abilities; the user's rulings there are final).
   each a throwaway character in front of one thing, N/B/R to move on, nothing saved.
   Add a station when you add something that needs feeling. `--ally=warder|channeller`
   puts a bot friend beside the player.
+- `tools/views.sh <name> [bench args]` (three views of a bench creature on one sheet)
+  and `tools/skirts.sh` (the gowns standing and moving). After replacing a `.glb`, run
+  `nix develop -c godot --headless --path . --import` or renders show the old model.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 

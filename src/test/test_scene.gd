@@ -210,8 +210,15 @@ func _mode_heroes() -> void:
 	var ids: Array = Hero.looks().keys()
 	if args.has("looks"):
 		ids = Array(args.looks.split(","))
+	# --cloaks=look: one look wearing every cloak in turn, lengths cycling.
+	var cloaks: Array = []
+	if args.has("cloaks"):
+		cloaks = Hero.CLOAKS.keys().filter(func(k: String) -> bool: return k != "none")
+		ids = []
+		for c in cloaks: ids.append(args.cloaks)
 	for i in ids.size():
-		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i)
+		var st := {} if cloaks.is_empty() else {cloak = cloaks[i], cloak_len = int(_f("len", -1)) if args.has("len") else i % 4}
+		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i, st)
 		r.position = Vector3((i - (ids.size() - 1) * 0.5) * 1.0, 0, 0)
 		add_child(r); rigs.append(r)
 		var ap: AnimationPlayer = r.get_meta("anim")

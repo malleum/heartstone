@@ -58,7 +58,7 @@ def smooth(a, b, x):
     t = min(max((x - a) / (b - a), 0.0), 1.0)
     return t * t * (3.0 - 2.0 * t)
 
-def sheet(name, arm, rows, closed):
+def sheet(name, arm, rows, closed, flip=False):
     """rows: list of rings, each a list of (position, {bone: weight}). Returns the object."""
     n = len(rows[0]); verts = []; faces = []; uvs = []
     for j, ring in enumerate(rows):
@@ -67,7 +67,7 @@ def sheet(name, arm, rows, closed):
     for j in range(len(rows) - 1):
         for i in range(n if closed else n - 1):
             a = j * n + i; b = j * n + (i + 1) % n
-            faces.append((a, b, b + n, a + n))
+            faces.append((a + n, b + n, b, a) if flip else (a, b, b + n, a + n))
     me = bpy.data.meshes.new(name); me.from_pydata(verts, [], faces)
     uv = me.uv_layers.new(name="UVMap")
     for poly in me.polygons:
@@ -111,20 +111,40 @@ def garments(arm, female):
         return {"pelvis": 1.0 - follow, "thigh_l": follow * l * (1 - low), "thigh_r": follow * (1 - l) * (1 - low),
                 "calf_l": follow * l * low, "calf_r": follow * (1 - l) * low}
 
-    # Skirt: waist to ankle, A-line with soft folds.
+    # Skirt: gathered at the natural waist, close over the hips, then falling in
+    # deep folds to the ankle. The numbers at the top are the outfit's own waist
+    # and hips (measured), so the cloth starts on the body: cut to shoulder width
+    # it stood off the waist like a hoop. shaders/garment.gdshader repeats pleat()
+    # to shade the creases, so change both together.
     if female:
-        rows = []; top = hip.z + 0.09; hem = 0.09; N = 32
-        for j in range(12):
-            t = j / 11.0; z = top + (hem - top) * t; ring = []
-            for i in range(N):
-                a = i / N * math.tau
-                fold = 1.0 + 0.045 * math.sin(a * 7.0) * smooth(0.15, 1.0, t)
-                rx = ((tw + 0.03) + (0.33 - tw) * t ** 0.75) * fold
-                ry = ((td + 0.035) + (0.31 - td) * t ** 0.75) * fold
+        def pleat(a):
+            f = 0.7 * math.sin(a * 9.0 + 0.7 * math.sin(a * 2.0)) + 0.3 * math.sin(a * 15.0 + 1.3)
+            # Where the two waves meet the crease would be a slot that the sun never reaches.
+            return f if f > -0.55 else -0.55 + (f + 0.55) * 0.25
+        rows = []; top = hip.z + 0.165; hem = 0.075; N = 132; R = 26
+        for j in range(R):
+            # Row 0 is tucked inside the bodice so the waist never shows a gap.
+            t = max(0.0, (j - 1) / (R - 2.0)); z = top + (hem - top) * t + (0.012 if j == 0 else 0.0); ring = []
+            hips = smooth(-0.04, 0.08, t)   # the body widens fast under the belt
+            fall = smooth(0.12, 1.0, t) ** 1.25
+            deep = 0.005 + 0.011 * smooth(0.0, 0.25, t) + 0.034 * smooth(0.2, 1.0, t)     # crease depth, metres
+            # The seam column is doubled (an open sheet whose ends meet) and put
+            # behind: a closed ring's last quad ran u backwards through every pleat.
+            for i in range(N + 1):
+                a = math.pi + i / N * math.tau
+                f = pleat(a)
+                back = 0.5 - 0.5 * math.cos(a)      # 0 in front, 1 behind
+                rx = 0.124 + 0.085 * hips + 0.1 * fall
+                ry = (0.11 + 0.04 * hips + 0.085 * fall) * (1.0 - back) + (0.087 + 0.09 * hips + 0.12 * fall) * back
+                if j == 0:
+                    rx *= 0.8; ry *= 0.8
+                rx += deep * f; ry += deep * f
                 x = math.sin(a) * rx
-                ring.append((Vector((x, cy + math.cos(a) * ry, z)), legs(x, t)))
+                # The hem lifts a little on each fold's crest and dips behind.
+                zz = z + 0.012 * f * smooth(0.8, 1.0, t) - 0.02 * back * smooth(0.6, 1.0, t)
+                ring.append((Vector((x, 0.0 - math.cos(a) * ry, zz)), legs(x, t * 0.94 + 0.06)))
             rows.append(ring)
-        sheet("Skirt", arm, rows, True)
+        sheet("Skirt", arm, rows, False, flip=True)     # this one runs the other way round the body
 
     # Coat: the skirts of a long coat, belted at the waist, open down the front and
     # falling to the knee. With the tunic above recoloured it reads as one garment;

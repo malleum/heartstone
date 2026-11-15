@@ -78,8 +78,8 @@ static var MYRDDRAAL: Dictionary:
 		var t := HUMAN.duplicate()
 		# Taller than a tall man and thin with it; skin like something kept from the sun.
 		t.merge({species = "myrddraal", height = Vector2(2.06, 2.12), bulk = Vector2(0.72, 0.76), limb = Vector2(0.84, 0.88), muscle = 0.2, gut = 0.0,
-			skin = Color(0.86, 0.86, 0.84), fur = Color(0.03, 0.03, 0.03), outfit = "myrddraal", fem = 0.0, hair = "bald", beard = 0, eyeless = true,
-			f_jaw = 0.92, f_chin = 1.2, f_cheek = 0.8, f_brow = 0.75, f_lip = 0.75}, true)
+			skin = Color(0.8, 0.81, 0.8), fur = Color(0.03, 0.03, 0.03), outfit = "myrddraal", fem = 0.0, hair = "bald", beard = 0, eyeless = true,
+			f_jaw = 0.86, f_chin = 1.25, f_cheek = 0.7, f_brow = 1.1, f_lip = 0.75}, true)
 		return t
 
 

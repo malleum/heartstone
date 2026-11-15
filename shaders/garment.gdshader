@@ -4,7 +4,12 @@ render_mode cull_disabled;
 // edge and 1 at the hem, so hems, bands and fringes are one line each.
 uniform vec3 base : source_color = vec3(0.2, 0.25, 0.18);
 uniform vec3 trim : source_color = vec3(0.9, 0.9, 0.85);
-uniform int style = 0;   // 0 plain wool, 1 seven-banded hem (Accepted), 2 fringed shawl with vines, 3 fancloth, 4 trimmed hem, 5 gleeman's patches, 6 silk with a worked border
+uniform int style = 0;   // 0 plain wool, 1 seven-banded hem (Accepted), 2 fringed shawl with vines, 3 fancloth, 4 trimmed hem, 5 gleeman's patches, 6 silk with a worked border, 7 fur-trimmed, 8 lined (inside is trim), 9 embroidered vines
+// Skirts: creases are shaded where the mesh folds inward (pleat() matches
+// tools/blender/build_heroes.py), with a band and gathers at the waist.
+uniform bool pleats = false;
+// Cloaks worn short: everything below this much of the length is cut away.
+uniform float cut = 1.0;
 varying vec3 wp;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -19,6 +24,10 @@ void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 
 void fragment() {
 	float v = UV.y, u = UV.x;
+	if (cut < 0.999) {
+		if (v > cut) { discard; }
+		v /= cut;      // hems, borders and fur sit at the new edge
+	}
 	vec3 c = base;
 	// Woven texture: fine threads plus broad uneven dye.
 	c *= 0.86 + 0.1 * noise(UV * vec2(340.0, 420.0)) + 0.1 * noise(UV * vec2(9.0, 5.0));
@@ -52,8 +61,39 @@ void fragment() {
 	} else if (style == 6) {
 		// Silk with a worked border: smooth, and trimmed at hem and edge.
 		if (v > 0.9 || (v > 0.84 && v < 0.865)) { c = trim; }
+	} else if (style == 7) {
+		// Fur at the collar and along the hem: pale, tufted, uneven at its edge.
+		float tuft = noise(UV * vec2(160.0, 60.0));
+		float edge = 0.03 * noise(vec2(u * 40.0, 3.0));
+		if (v < 0.075 + edge || v > 0.9 - edge) { c = trim * (0.7 + 0.5 * tuft); }
+	} else if (style == 8) {
+		// Lined: the inside is the trim colour, and it shows as a line at the hem.
+		if (!FRONT_FACING) { c = trim * 1.8; }
+		else if (v > 0.975) { c = trim; }
+	} else if (style == 9) {
+		// Vines worked in thread above the hem, with leaves.
+		float vine = abs(v - 0.86 - 0.035 * sin(u * 60.0));
+		c = mix(c, trim, 1.0 - smoothstep(0.005, 0.013, vine));
+		float leaf = step(0.7, fract(u * 19.0 + 0.5)) * (1.0 - smoothstep(0.02, 0.05, vine));
+		c = mix(c, trim, leaf * 0.8);
+		if (v > 0.965) { c = trim; }
 	}
-	if (!FRONT_FACING) { c *= 0.55; }
+	if (pleats) {
+		float a = 3.14159265 + u * 6.2831853;
+		float f = 0.7 * sin(a * 9.0 + 0.7 * sin(a * 2.0)) + 0.3 * sin(a * 15.0 + 1.3);
+		if (f < -0.55) { f = -0.55 + (f + 0.55) * 0.25; }
+		float deep = 0.25 + 0.75 * smoothstep(0.1, 0.9, v);
+		c *= 1.0 - 0.5 * deep * (1.0 - smoothstep(-0.66, 0.35, f));
+		c *= 1.0 + 0.1 * deep * smoothstep(0.3, 1.0, f);
+		// Gathers stitched under the waistband.
+		float gather = smoothstep(0.1, 0.0, v) * (0.5 + 0.5 * sin(u * 6.2831853 * 66.0));
+		c *= 1.0 - 0.22 * gather;
+		if (v < 0.055) { c = base * 0.62; }
+	}
+	// The inside of a garment is in its own shade.
+	if (!FRONT_FACING) { c *= pleats ? 0.22 : 0.55; }
 	ALBEDO = c;
 	ROUGHNESS = 0.92;
+	// Nothing shines on the inside: the sky's reflection made it look see-through.
+	if (!FRONT_FACING) { ROUGHNESS = 1.0; SPECULAR = 0.0; }
 }

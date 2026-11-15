@@ -38,13 +38,35 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 	sd.use(HEAD, skin, 0.01)
 	sd.cone(_v(0, 0.09, 0.097), _v(0, 0.052, 0.111 + 0.009 * nl), 0.0095 * s.f_bridge, 0.0115)
 	sd.ball(_v(0, 0.0465, 0.113 + 0.01 * nl), _v(0.0128 * nw, 0.0115, 0.012))
-	# Lips: a little geometry, mostly colour.
-	var lipc := skin.lerp(Color(0.35, 0.07, 0.06, 0.5), 0.3 + 0.25 * fem)
-	sd.use(HEAD, lipc, 0.007)
-	sd.ball(_v(0, 0.0235, 0.101), _v(0.021, 0.0055 * lip, 0.008))
-	sd.ball(_v(0, 0.013, 0.099), _v(0.019, 0.0065 * lip, 0.008))
-	sd.use(HEAD, Color(0.05, 0.015, 0.015, 0.5), 0.0025)
-	sd.ball(_v(0, 0.0185, 0.106), _v(0.022, 0.0012, 0.006)).op = Sdf.PAINT
+	var blind: bool = s.get("eyeless", false)
+	if blind:
+		# The Eyeless: gaunt, bloodless, and nothing where the eyes should be but
+		# two shallow hollows of smooth skin under the brow. The mouth is a short
+		# hard line turned down at the corners (a wide one reads as a smile).
+		var shade := Color(skin.darkened(0.2), 0.5)
+		for sx in [-1.0, 1.0]:
+			sd.use(HEAD, skin, 0.014)
+			sd.ball(_v(0.03 * sx, 0.083, 0.112), _v(0.017, 0.0095, 0.012)).op = Sdf.CARVE
+			sd.use(HEAD, skin, 0.02)
+			sd.ball(_v(0.05 * sx, 0.034, 0.083), _v(0.012, 0.024, 0.014)).op = Sdf.CARVE
+			sd.use(HEAD, shade, 0.012)
+			sd.ball(_v(0.03 * sx, 0.083, 0.1), _v(0.019, 0.011, 0.014)).op = Sdf.PAINT
+			sd.ball(_v(0.046 * sx, 0.034, 0.078), _v(0.012, 0.024, 0.014)).op = Sdf.PAINT
+			sd.use(HEAD, Color(0.07, 0.06, 0.065, 0.5), 0.002)
+			sd.ball(_v(0.0165 * sx, 0.0168, 0.103), _v(0.004, 0.0013, 0.006), Basis(Vector3.BACK, -0.5 * sx)).op = Sdf.PAINT
+		sd.use(HEAD, Color(skin.darkened(0.2), 0.5), 0.006)
+		sd.ball(_v(0, 0.0215, 0.1), _v(0.016, 0.0035, 0.007))
+		sd.ball(_v(0, 0.0155, 0.099), _v(0.015, 0.0035, 0.007))
+		sd.use(HEAD, Color(0.07, 0.06, 0.065, 0.5), 0.002)
+		sd.ball(_v(0, 0.0185, 0.106), _v(0.0155, 0.0012, 0.006)).op = Sdf.PAINT
+	else:
+		# Lips: a little geometry, mostly colour.
+		var lipc := skin.lerp(Color(0.35, 0.07, 0.06, 0.5), 0.3 + 0.25 * fem)
+		sd.use(HEAD, lipc, 0.007)
+		sd.ball(_v(0, 0.0235, 0.101), _v(0.021, 0.0055 * lip, 0.008))
+		sd.ball(_v(0, 0.013, 0.099), _v(0.019, 0.0065 * lip, 0.008))
+		sd.use(HEAD, Color(0.05, 0.015, 0.015, 0.5), 0.0025)
+		sd.ball(_v(0, 0.0185, 0.106), _v(0.022, 0.0012, 0.006)).op = Sdf.PAINT
 	var eyes := []
 	var iris: Color = [Color(0.12, 0.07, 0.03), Color(0.1, 0.2, 0.32), Color(0.16, 0.25, 0.12), Color(0.2, 0.2, 0.22)][rng.randi() % 4]
 	# A Myrddraal has smooth skin where eyes would be: no sockets, no eyes, no brows.
@@ -61,7 +83,7 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 		sd.use(HEAD, hair, 0.012)
 		sd.ball(_v(0, -0.012, 0.06), _v(0.05 * jw, 0.034, 0.04))
 		sd.ball(_v(0, 0.031, 0.1), _v(0.024, 0.005, 0.008))
-	elif fem < 0.5:
+	elif fem < 0.5 and not blind:
 		# Stubble shadow.
 		sd.use(HEAD, skin.lerp(Color(hair, 0.5), 0.3), 0.02)
 		sd.ball(_v(0, -0.005, 0.06), _v(0.055, 0.035, 0.045)).op = Sdf.PAINT

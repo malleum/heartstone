@@ -5,6 +5,28 @@ The order is free: he said to pick whatever makes sense and to guess when unsure
 Move an item to "Done" with the date when it is built, and say what was assumed in
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
+## Josh's notes, 15 Nov
+- [x] "all the skirts and dresses need something because they don't quite look
+  right": the skirt's waist had been cut to shoulder width, so it stood off the body
+  like a hoop, and it was a smooth cone. Rebuilt: fitted waist and hips from the
+  model's own measurements, waistband and gathers, folds deepening to the hem, the
+  inside in shade. PLAYTEST 57.
+- [x] "the fade's head doesn't look right at all": the hood was a puffy cap round a
+  smiling mannequin face. Now a deep cowl falling onto the shoulders with the face
+  set back in it, and a gaunt eyeless face. PLAYTEST 58.
+
+- [x] "give more cloak options for characters": any character can now wear any of
+  fourteen cloaks over any dress (plain wools, trimmed, fur-trimmed winter cloak,
+  lined in a second colour, worked silk, embroidered vines, gleeman's patches,
+  fancloth) or none, at four lengths (calf, knee, waist, shoulder cape). Chosen at
+  creation and under Appearance; `Hero.CLOAKS`, `Hero.CLOAK_LENGTHS`; saved in
+  `style.cloak` / `style.cloak_len`. It is one cloak shape cut short in the shader:
+  no hood up, no different drape. PLAYTEST 59.
+- [x] Picked by me ("find something that needs to be worked on"): the gowns' bodice
+  was the pack's brown leather whatever the dress, so a novice in white had a leather
+  bust and corset. Gowns now recut it in the dress's cloth (`bodice` on a look).
+  Two Rivers and Wise One dress keep the leather. PLAYTEST 60.
+
 ## Josh's hands-on notes, 14 Nov (tour playtest)
 His words, lightly tidied, with what was done about each on the night of 14-15 Nov.
 A tick means built, tested by rule and seen in a render; it does not mean it feels
@@ -106,7 +128,7 @@ are what the 4:44 review, or the next session, should pick up.
 - Render flags `--log` (prints the frame each blow starts) and `--campitch`.
 
 **Known loose ends from that night**
-- The dedicated-server test's training-yard client timed out about one run in four.
+- The dedicated-server test's training-yard client timed out about one run in four (it did again on 15 Nov; the test bot stood still and threw short at posts out of range, so it now walks into range).
   Likely cause found and fixed at 4:44: a practice post could spawn behind a tree where
   fireballs never reached it; posts are now placed with a clear line. Passed since,
   but it was intermittent, so a few more runs are needed to be sure.
@@ -127,7 +149,7 @@ are what the 4:44 review, or the next session, should pick up.
   panels, not things you walk to.
 - [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
   have no shape keys; only skin, eyes, hair and beard change). Armour is mail
-  drawn on cloth, not plate. The women's bodice stays the pack's leather.
+  drawn on cloth, not plate. (The women's bodice is now cloth on gowns, 15 Nov.)
 - [ ] **Casting by drawing** a shape after choosing the Powers (see VISION.md).
 
 ## Other classes and arms

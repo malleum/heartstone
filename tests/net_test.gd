@@ -78,7 +78,9 @@ func _client_bot() -> void:
 	if best > 1e8:
 		return
 	var to := (target - me).normalized()
-	s.send_input(-to if best < 7.0 else Vector3.ZERO, atan2(to.x, to.z))
+	# Practice posts do not come to you: walk into range (and round whatever rise
+	# was in the way) instead of throwing short for three minutes.
+	s.send_input(-to if best < 7.0 else (to if best > 13.0 else Vector3.ZERO), atan2(to.x, to.z))
 	cast_t -= 1.0 / 60.0
 	if cast_t <= 0.0:
 		cast_t = 0.3

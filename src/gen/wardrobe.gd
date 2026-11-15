@@ -93,18 +93,23 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 				bell.cone(Vector3(0, waist + 0.04 * u, 0.01 * u), Vector3(0, 0.07 * u, 0.02 * u), 0.15 * u, 0.26 * u, Vector2(1, 0.7))
 				kit.shells.append({mask = m, thick = 0.03 * u, col = _c(g[1], Gear.CLOTH), solid = bell, wide = true})
 			"hood":
-				# Deep, and close about the head: the face is a pale shape far back in it.
-				var m := Sdf.new()
+				# A cowl, not a cap: its own hollow shape standing off the skull, the
+				# rim thrown forward so the face sits back in its shadow, falling in
+				# one piece onto the shoulders, with the point hanging behind.
 				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u
-				m.ball(hc + Vector3(0, 0.02, -0.02) * u, Vector3(0.15, 0.15, 0.16) * u)
-				m.ball(J[C.NECK] + Vector3(0, 0.0, -0.02) * u, Vector3(0.17, 0.09, 0.13) * u)
-				# The cowl comes to a soft peak above and behind the crown.
-				var peak := Sdf.new()
-				peak.k = 0.035 * u
-				peak.ball(hc + Vector3(0, 0.105, -0.06) * u, Vector3(0.075, 0.07, 0.105) * u)
-				var face := m.ball(hc + Vector3(0, -0.035, 0.13) * u, Vector3(0.07, 0.105, 0.085) * u)
-				face.op = Sdf.CARVE; face.k = 0.01
-				kit.shells.append({mask = m, thick = 0.05 * u, col = _c(g[1], Gear.CLOTH), solid = peak})
+				var m := Sdf.new()
+				m.ball(J[C.NECK] + Vector3(0, -0.01, -0.01) * u, Vector3(0.2, 0.075, 0.15) * u)
+				var cowl := Sdf.new()
+				cowl.k = 0.04 * u
+				cowl.ball(hc + Vector3(0, 0.02, 0.03) * u, Vector3(0.11, 0.135, 0.135) * u)
+				cowl.ball(hc + Vector3(0, 0.025, 0.115) * u, Vector3(0.113, 0.13, 0.125) * u)
+				cowl.cone(hc + Vector3(0, -0.06, -0.02) * u, J[C.NECK] + Vector3(0, -0.035, -0.015) * u, 0.105 * u, 0.185 * u, Vector2(1, 0.74))
+				cowl.chain([hc + Vector3(0, 0.09, -0.06) * u, hc + Vector3(0, 0.0, -0.13) * u, hc + Vector3(0, -0.12, -0.135) * u], 0.05 * u, 0.014 * u)
+				# The opening: a tall narrow oval, run down to the throat.
+				cowl.k = 0.012 * u
+				cowl.cone(hc + Vector3(0, -0.012, 0.03) * u, hc + Vector3(0, -0.035, 0.36) * u, 0.086 * u, 0.094 * u, Vector2(0.9, 1)).op = Sdf.CARVE
+				cowl.cone(hc + Vector3(0, -0.07, 0.06) * u, hc + Vector3(0, -0.13, 0.33) * u, 0.066 * u, 0.08 * u, Vector2(0.8, 1)).op = Sdf.CARVE
+				kit.shells.append({mask = m, thick = 0.018 * u, col = _c(g[1], Gear.CLOTH), solid = cowl, free = true})
 			"shoufa":
 				var m := Sdf.new()
 				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u

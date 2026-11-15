@@ -170,11 +170,18 @@ static func _shell(sh: Dictionary, grids: Array[Sdf.Grid], regions: Array, body_
 	for gi in grids.size():
 		var g := grids[gi]
 		var box := g.box().intersection(mb)
-		if box.size.x <= g.c * 2.0 or box.size.y <= g.c * 2.0 or box.size.z <= g.c * 2.0:
+		# A free-standing piece (a cowl) is meshed once, whole, at the finest cell:
+		# cut to the body's grids it loses whatever stands outside them.
+		var free: bool = sh.get("free", false)
+		if free and gi != grids.size() - 1:
+			continue
+		if not free and (box.size.x <= g.c * 2.0 or box.size.y <= g.c * 2.0 or box.size.z <= g.c * 2.0):
 			continue
 		if gi > 0 and sh.get("coarse_only", false):
 			continue
-		if sh.has("solid"):
+		if free:
+			box = mb.merge((sh.solid as Sdf).bounds().grow(0.03))
+		elif sh.has("solid"):
 			box = g.box().intersection(mb.merge((sh.solid as Sdf).bounds().grow(0.05)))
 		var lg := Sdf.Grid.make(box, g.c)
 		mask.fill(lg)
@@ -198,7 +205,7 @@ static func _shell(sh: Dictionary, grids: Array[Sdf.Grid], regions: Array, body_
 			for sp in (sh.solid as Sdf).prims:
 				Sdf.splat(lg, sp)
 		var skip: Array[AABB] = []
-		if gi == 0 and not sh.get("coarse_only", false):
+		if gi == 0 and not free and not sh.get("coarse_only", false):
 			for rj in range(1, regions.size()):
 				skip.append((regions[rj][0] as AABB).grow(-g.c))
 		var m := Sdf.surface(lg, skip, 0.045 * u)

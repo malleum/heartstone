@@ -9,6 +9,9 @@ uniform int mode = 0;               // 0: ranger atlas (green cloth). 1: peasant
 uniform vec3 primary : source_color = vec3(0.3, 0.5, 0.2);     // tunic / shirt
 uniform vec3 secondary : source_color = vec3(0.05, 0.12, 0.06); // trousers, hood / vest
 uniform bool has_normal = true;
+// Gowns: the pack's bodice is leather (yoke, bust and corset). With alpha above
+// zero it is recut in this cloth instead, so a dress is one garment to the hem.
+uniform vec4 bodice : source_color = vec4(0.0);
 // Cairhienin slashes: `slashes` horizontal bars of House colour across the chest.
 uniform int slashes = 0;
 uniform vec3 slash_a : source_color = vec3(0.6, 0.1, 0.1);
@@ -43,6 +46,10 @@ void fragment() {
 		float wool = 1.0 - smoothstep(0.02, 0.04, lum);
 		o = mix(o, primary * min(lum / 0.25, 1.5), shirt);
 		o = mix(o, secondary * min(lum / 0.012, 2.4), wool);
+		if (bodice.a > 0.0) {
+			float leather = smoothstep(0.5, 0.72, sat) * smoothstep(0.012, 0.03, lum) * (1.0 - shirt);
+			o = mix(o, bodice.rgb * clamp(lum / 0.075, 0.45, 1.5), leather * bodice.a);
+		}
 	}
 	// How much of this texel is cloth of the main colour (shirt, tunic, coat).
 	float body = 0.0;
