@@ -158,7 +158,13 @@ static func build(weapon_id: String) -> Dictionary:
 			_rod(n, Vector3(0, -0.15, 0), Vector3(0, 0.5, 0), 0.018, 0.018, _mat(WOOD))
 			_box(n, Vector3(0.08, 0.09, 0.2), Vector3(0, 0.5, 0), _mat(DARK, 0.7))
 		"cudgel": _rod(n, Vector3(0, -0.12, 0), Vector3(0, 0.62, 0), 0.018, 0.04, _mat(WOOD))
-		"sling": _rod(n, Vector3(0, 0, 0), Vector3(0, -0.45, 0.05), 0.006, 0.006, _mat(LEATHER))
+		"sling":
+			# Two cords to a pouch with a stone in it.
+			_rod(n, Vector3(0, 0, 0), Vector3(0, -0.5, 0.03), 0.005, 0.005, _mat(LEATHER))
+			_rod(n, Vector3(0, 0, 0), Vector3(0, -0.5, -0.03), 0.005, 0.005, _mat(LEATHER))
+			var stone := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 0.04; sp.height = 0.08
+			stone.mesh = sp; stone.material_override = _mat(Color(0.42, 0.42, 0.44)); stone.position = Vector3(0, -0.52, 0)
+			n.add_child(stone)
 		"longbow", "horn_bow", "horse_bow":
 			var b := Node3D.new()
 			_bow(b, 1.85 if weapon_id == "longbow" else 1.15, 0.2 if weapon_id == "longbow" else 0.24, PALE if weapon_id == "longbow" else HORN)

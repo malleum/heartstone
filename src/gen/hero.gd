@@ -334,6 +334,20 @@ static func bow(root: Node3D, _mode: String, pull: float, nocked: bool) -> void:
 	var b: Node3D = at.get_child(0)
 	Armoury.string(b, pull, nocked)
 
+## Turn what is in the right hand about the fist (a sling being whirled);
+## a negative angle puts it back as it is carried.
+static func whirl(root: Node3D, angle: float) -> void:
+	var sk: Skeleton3D = root.get_meta("skeleton")
+	var at := sk.get_node_or_null("Held_hand_r")
+	if at == null or at.get_child_count() == 0:
+		return
+	var h: Node3D = at.get_child(0)
+	if angle < 0.0:
+		# At rest a sling hangs from the fist, whatever the arm is doing.
+		h.global_basis = Basis.IDENTITY
+	else:
+		h.rotate_object_local(Vector3.RIGHT, angle)
+
 ## Whether what is carried in the right hand is seen (a thrown knife is gone
 ## from it until the next comes to hand).
 static func show_held(root: Node3D, on: bool) -> void:

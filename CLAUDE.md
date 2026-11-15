@@ -53,7 +53,9 @@ working on abilities; the user's rulings there are final).
   `--class=warder|aiel|hunter [--kit=sword,longbow]` for a throwaway fighter.
   For looking at one thing: `--only=weave` (the bot knows nothing else),
   `--demo=weave[:metres]` (woven ahead every 4 s whoever the bot is), `--strength=N`,
-  `--spawn=type:n`, `--camyaw=deg --camdist=m` (swing the bot's camera round it).
+  `--spawn=type:n`, `--camyaw=deg --camdist=m --campitch=deg` (swing the bot's camera round it),
+  `--log` (prints `BLOW <frame> <move>` so a blow's frames can be found; render with
+  `KEEP_EVERY=1`).
   Bench: `--species=myrddraal`.
 - `src/game/armsfx.gd`: blade streaks, the warning wedge under an enemy's blow, stuck
   missiles. `src/game/keys.gd`: bindings are by key position; hints go through it.

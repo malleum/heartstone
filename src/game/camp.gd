@@ -665,7 +665,7 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "") -> void:
 		_text(side, "A channeller may carry one weapon and train it a little.", 14, Color(0.7, 0.72, 0.78))
 		make.kit = [_weapon_option("Carries", "", true)]
 	else:
-		_text(side, "Twenty points, spent once. Might is how hard you hit, and what a longbow asks of you. Quickness shortens every blow and lengthens every sidestep. Endurance makes everything cost less breath and lets you take more. A point in a weapon is a level of skill with that family to begin with; the rest comes by using it.", 14, Color(0.7, 0.72, 0.78))
+		_text(side, "Twenty points, spent once. Might is how hard you hit, and what a longbow asks of you. Quickness shortens every blow and lengthens every roll. Endurance makes everything cost less breath and lets you take more. A point in a weapon is a level of skill with that family to begin with; the rest comes by using it.", 14, Color(0.7, 0.72, 0.78))
 		for st in ["might", "quickness", "endurance"]:
 			make.stats[st] = _spin(side, st.capitalize(), 8, 3)
 		_text(side, "Skill at arms", 20)

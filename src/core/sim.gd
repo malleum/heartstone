@@ -413,7 +413,15 @@ func _spawn_wave(w: Dictionary) -> void:
 		for i in int(w.spawn[type]):
 			var ang := rng.randf_range(-0.7, 0.7)
 			var d := rng.randf_range(8.0, 13.0) if training else rng.randf_range(38.0, 52.0)
-			_add_enemy(type, Vector3(sin(ang) * d, 0, -cos(ang) * d) if Map.m.is_empty() else Map.spawn(rng))
+			var at := Vector3(sin(ang) * d, 0, -cos(ang) * d)
+			# A practice post is never put behind a tree: it could not be hit from
+			# where the novice stands, and the exercise would never end.
+			for attempt in 12:
+				if not training or _clear_of_trees(Vector3.ZERO, at):
+					break
+				ang = rng.randf_range(-0.7, 0.7); d = rng.randf_range(8.0, 13.0)
+				at = Vector3(sin(ang) * d, 0, -cos(ang) * d)
+			_add_enemy(type, at if Map.m.is_empty() else Map.spawn(rng))
 	# Trollocs brought by a Myrddraal are linked to it, and die when it does.
 	var lord := 0
 	for id in range(first, _next):
@@ -424,6 +432,16 @@ func _spawn_wave(w: Dictionary) -> void:
 			if id != lord and ents[id].row.get("tier", 1) <= 2:
 				ents[id].lord = lord
 	events.append({e = "wave", left = _waves.size()})
+
+## Is the straight line from a to b free of tree trunks (with room to spare)?
+func _clear_of_trees(a: Vector3, b: Vector3) -> bool:
+	var ab := Vector2(b.x - a.x, b.z - a.z)
+	for tr in Map.trees():
+		var ap := Vector2(tr.x - a.x, tr.z - a.z)
+		var u := clampf(ap.dot(ab) / maxf(ab.length_squared(), 0.01), 0.0, 1.0)
+		if (ap - ab * u).length() < tr.r + 1.2:
+			return false
+	return true
 
 var _dist := PackedInt32Array()
 var _dist_t := -9.0
@@ -647,7 +665,10 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 		e.down = maxf(e.down, on.down)
 	if on.has("push"):
 		e.vel += dir * on.push
+	# How hard it was knocked, for the view: a hammer blow should look like one.
+	e.knock = float(on.get("push", 0.0)) + float(on.get("stagger", 0.0)) * 4.0
 	_hurt(e, dmg, by, weapon)
+	e.knock = 0.0
 
 ## What is left of a blow after the target's guard. -1: it never landed (parried).
 func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3) -> float:
@@ -911,7 +932,7 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			_hurt(o, e.get("charge_dmg", 10.0), by, weave, true)
 	e.charge_new = false
 	if not quiet:
-		events.append({e = "hit", id = e.id, dmg = dmg, by = by})
+		events.append({e = "hit", id = e.id, dmg = dmg, by = by, knock = e.get("knock", 0.0)})
 	if e.hp <= 0.0:
 		e.alive = false
 		# The dead hold nothing.

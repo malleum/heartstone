@@ -128,6 +128,9 @@ func _draw() -> void:
 		var sel_id: String = known[g.selected]
 		var sw: Dictionary = Rules.forms[sel_id] if Rules.forms.has(sel_id) else (Rules.weapons[sel_id] if Rules.weapons.has(sel_id) else Rules.weaves[sel_id])
 		Glyph.text(self, serif, Vector2(W * 0.5, H - 132.0), sw.name, 22, Color(0.97, 0.94, 0.88), 0)
+		if Rules.weaves.has(sel_id):
+			# What the chosen weave costs in time: there is nothing else to wait for.
+			Glyph.text(self, sans, Vector2(W * 0.5, H - 114.0), "%.1f s to weave" % Rules.form_time(p, sel_id), 12, Color(0.75, 0.78, 0.86), 0)
 
 	# Crosshair: a ring that fills as the chosen weave comes ready.
 	var cc := Vector2(W, H) * 0.5

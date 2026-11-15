@@ -210,8 +210,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_cast_selected()
 		elif ev.button_index == MOUSE_BUTTON_RIGHT and hand() != "" and me:
 			# A parry is the press, not the hold.
-			_face(_aim_point())
-			session.guard(true)
+			if Rules.guard_share(profile, hand()) <= 0.0:
+				last_refusal = "Nothing to parry with: roll instead"; refusal_t = 1.5
+			else:
+				_face(_aim_point())
+				session.guard(true)
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_select(posmod(selected + 1, n_known))
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -323,6 +326,8 @@ func _process(dt: float) -> void:
 		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI + deg_to_rad(float(args.get("camyaw", "0"))), 2.0 * dt)
 		if args.has("camdist"):
 			cam_dist = float(args.camdist)
+		if args.has("campitch"):
+			cam_pitch = deg_to_rad(float(args.campitch))
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
@@ -528,12 +533,16 @@ func _on_events(list: Array) -> void:
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
 					if a.node is Walker and not a.get("dead", false):
-						(a.node as Walker).hit(a.node.position - (me.position if me else Vector3.ZERO), 0.9)
+						# The body answers the blow: a knife barely moves it, a hammer or a
+						# shoving spear throws it back on its heels and it hangs longer.
+						var knock: float = e.get("knock", 0.0)
+						var from: Vector3 = actors[e.by].node.position if actors.has(e.by) and is_instance_valid(actors[e.by].node) else (me.position if me else Vector3.ZERO)
+						(a.node as Walker).hit(a.node.position - from, clampf(0.55 + knock * 0.14, 0.55, 2.4))
 						# Hit-stop, for the one struck only: it flashes and hangs for a few
 						# frames, heavier blows longer. The world keeps moving (co-op).
 						if e.dmg >= 4.0:
 							Weavefx.flash(self, a.node)
-							a.hold = clampf(e.dmg * 0.004, 0.05, 0.14)
+							a.hold = clampf(e.dmg * 0.004 + knock * 0.008, 0.05, 0.2)
 							if e.by == session.my_id:
 								punch = minf(punch + e.dmg * 0.01, 1.0)
 					elif a.kind == "player" and not a.get("dead", false):
@@ -629,6 +638,9 @@ func _on_events(list: Array) -> void:
 					if e.id == session.my_id and known.has(e.weapon) and _form() == "":
 						selected = known.find(e.weapon)
 			"blow":
+				# (--log: say when each of my blows begins, to find its frames in a render.)
+				if args.has("log") and e.id == session.my_id:
+					print("BLOW %d %s wind=%.2f" % [frame, e.move, e.wind])
 				# The clip is played at whatever speed makes the blade arrive when the
 				# sim lands the blow.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -642,6 +654,8 @@ func _on_events(list: Array) -> void:
 					a.busy = whole
 					a.erase("gesture")
 					a.reps = 0
+					if e.move == "sling":
+						a.whirl_until = clock + e.wind + 0.1
 					# A thrust is made with the point forward along the arm.
 					Hero.grip(a.node, m.get("grip", ""))
 					a.grip_until = clock + whole if m.has("grip") else 0.0
@@ -927,6 +941,9 @@ func _draw_actors(dt: float) -> void:
 			if a.get("rearm", -1.0) > 0.0 and clock >= a.rearm:
 				a.rearm = -1.0
 				Hero.show_held(n, true)
+			# A sling is whirled for as long as the throw takes.
+			if a.get("weapon", "") == "sling":
+				Hero.whirl(n, dt * 34.0 if clock < a.get("whirl_until", 0.0) else -1.0)
 			if a.get("grip_until", 0.0) > 0.0 and clock >= a.grip_until:
 				a.grip_until = 0.0
 				Hero.grip(n, "")
@@ -1137,9 +1154,13 @@ func _hud() -> void:
 	# --tour: what this station is for, kept on screen.
 	tour_label = Label.new(); layer.add_child(tour_label)
 	tour_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	tour_label.offset_left = 24; tour_label.offset_top = 16
+	# Under the name and strength at the top left, in a column narrow enough to
+	# leave the middle of the screen (and the banner) clear.
+	tour_label.offset_left = 30; tour_label.offset_top = 122
+	tour_label.custom_minimum_size = Vector2(470, 0)
+	tour_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tour_label.add_theme_font_override("font", Glyph.serif())
-	tour_label.add_theme_font_size_override("font_size", 21)
+	tour_label.add_theme_font_size_override("font_size", 17)
 	tour_label.add_theme_color_override("font_color", Color(0.98, 0.9, 0.62))
 	tour_label.add_theme_color_override("font_outline_color", Color.BLACK); tour_label.add_theme_constant_override("outline_size", 7)
 

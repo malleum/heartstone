@@ -98,9 +98,13 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u
 				m.ball(hc + Vector3(0, 0.02, -0.02) * u, Vector3(0.15, 0.15, 0.16) * u)
 				m.ball(J[C.NECK] + Vector3(0, 0.0, -0.02) * u, Vector3(0.17, 0.09, 0.13) * u)
+				# The cowl comes to a soft peak above and behind the crown.
+				var peak := Sdf.new()
+				peak.k = 0.035 * u
+				peak.ball(hc + Vector3(0, 0.105, -0.06) * u, Vector3(0.075, 0.07, 0.105) * u)
 				var face := m.ball(hc + Vector3(0, -0.035, 0.13) * u, Vector3(0.07, 0.105, 0.085) * u)
 				face.op = Sdf.CARVE; face.k = 0.01
-				kit.shells.append({mask = m, thick = 0.05 * u, col = _c(g[1], Gear.CLOTH)})
+				kit.shells.append({mask = m, thick = 0.05 * u, col = _c(g[1], Gear.CLOTH), solid = peak})
 			"shoufa":
 				var m := Sdf.new()
 				var hc := J[C.HEAD] + Vector3(0, 0.1, -0.02) * u

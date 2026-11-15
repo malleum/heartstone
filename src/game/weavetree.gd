@@ -251,6 +251,9 @@ func _card(id: String) -> void:
 			yy += 24.0
 	yy += 10.0
 	var lines := []
+	if not _forms():
+		# There are no cooldowns: what a weave costs in time is the making of it.
+		lines.append(["Takes %.1f s to weave" % Rules.form_time(profile, id), Color(0.8, 0.82, 0.9)])
 	match _state(id):
 		"known":
 			lines.append(["Known." if _forms() else "Known. Mastery %d." % Rules.mastery_level(profile, id), Glyph.GOLD])

@@ -275,7 +275,10 @@ class Blossom extends Node3D:
 	var arms: Array = []       # [emitter, arm index, fraction along the arm]
 	var pillar: GPUParticles3D
 	var scorch: MeshInstance3D
+	var rim: MeshInstance3D
+	var edge: Array = []
 	var lamp: OmniLight3D
+	const RIM := 14
 	const ARMS := 5
 	const PER := 9
 
@@ -287,16 +290,26 @@ class Blossom extends Node3D:
 		for a in ARMS:
 			for j in PER:
 				# Small deep-orange tongues, close together: an arm of flame, not a cloud.
-				var e := Weavefx._particles(Color(1.0, 0.28, 0.04), 22, 0.55, 0.4 + 0.25 * j / PER, 1.0, 2.6, 22.0)
+				var e := Weavefx._particles(Color(1.0, 0.28, 0.04), 26, 0.6, 0.6 + 0.35 * j / PER, 1.0, 2.6, 22.0)
 				# Dimmer than a fireball's flame: many overlap, and it must stay orange.
-				((e.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.5, 0.5, 0.5)
+				((e.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.7, 0.7, 0.7)
 				e.emitting = false
 				add_child(e)
 				arms.append([e, a, (j + 1.0) / PER])
 		var c := CylinderMesh.new(); c.top_radius = 1.0; c.bottom_radius = 1.0; c.height = 0.04
-		scorch = Weavefx._mesh(c, Color(0.9, 0.22, 0.03, 0.2), 0.6)
+		# The ground under it: burnt black, with a hot edge where the fire is spreading.
+		scorch = Weavefx._mesh(c, Color(0.05, 0.02, 0.01, 0.4), 0.0)
 		scorch.position.y = -1.12
 		add_child(scorch)
+		var rt := TorusMesh.new(); rt.inner_radius = 0.955; rt.outer_radius = 1.0
+		rim = Weavefx._mesh(rt, Color(1.0, 0.4, 0.06, 0.8), 3.5)
+		rim.position.y = -1.08
+		add_child(rim)
+		for i in RIM:
+			var e := Weavefx._particles(Color(1.0, 0.3, 0.05), 12, 0.5, 0.45, 0.8, 2.2, 25.0)
+			((e.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = Color(0.6, 0.6, 0.6)
+			e.emitting = false
+			add_child(e); edge.append(e)
 		lamp = Weavefx._light(Weavefx.TINT.fire, 3.0, 8.0)
 		add_child(lamp)
 
@@ -309,6 +322,11 @@ class Blossom extends Node3D:
 		var open := r > 1.0
 		pillar.emitting = age < 1.0
 		scorch.scale = Vector3(r, 1.0, r)
+		rim.scale = Vector3(r, 1.0, r)
+		for i in RIM:
+			var ea: float = -spin * 0.5 + i * TAU / RIM
+			(edge[i] as GPUParticles3D).position = Vector3(cos(ea) * r, -0.95, sin(ea) * r)
+			(edge[i] as GPUParticles3D).emitting = open
 		lamp.omni_range = 6.0 + r * 2.0
 		lamp.light_energy = 2.5 + r * 0.3 + sin(age * 9.0) * 0.4
 		for row in arms:
