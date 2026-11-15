@@ -67,9 +67,9 @@ static func trail(g: Node3D, feet: Vector3, dir: Vector3, reach: float, m: Dicti
 			var side := face * Vector3(0.18 * flip if int(m.get("repeat", 1)) > 1 else 0.0, 0, 0)
 			_streak(g, _lance(r1 + 0.3, 0.16 + 0.1 * minf(float(m.get("dmg", 1.0)), 2.0)), Transform3D(face * Basis(Vector3.FORWARD, 0.4 * flip), feet + Vector3(0, 1.2, 0) + side), col, 0.2, 0.6)
 		"down":
-			# A standing crescent in the plane of the blow: over the head, down in front.
-			var b := face * Basis(Vector3.FORWARD, PI * 0.5) * Basis(Vector3.UP, 0.0)
-			_streak(g, _band(-0.2, 1.75, r0, r1, true), Transform3D(face * Basis(Vector3.BACK, PI * 0.5) * Basis(Vector3.UP, PI * 0.5), feet + Vector3(0, 1.0, 0)), col, secs + 0.04)
+			# A standing crescent in the plane of the blow: from over the head, down
+			# in front. (The band's own +Z is turned up and its +X forward.)
+			_streak(g, _band(-0.35, 1.9, r0, r1, true), Transform3D(face * Basis(Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0)), feet + Vector3(0, 1.0, 0)), col, secs + 0.04)
 		"low":
 			_streak(g, _band(-arc * flip, arc * flip, r0, r1, true), Transform3D(face, feet + Vector3(0, 0.3, 0)), col, secs)
 		"ring":

@@ -65,6 +65,13 @@ func _ready() -> void:
 		for w in args.only.split(","):
 			if Rules.weaves.has(w):
 				profile.weaves[w] = {known = true, xp = 0.0}
+	# --strength=N: a throwaway channeller of that Companion level (1 is the
+	# strongest woman), fully grown into it, who has read every book: nothing is
+	# out of reach for lack of strength or by the spoiler setting.
+	if args.has("strength"):
+		profile.potential = Rules.strength_of(float(args.strength))
+		profile.strength = profile.potential
+		profile.book_limit = 99
 	if args.has("tie"):
 		profile.techniques = ["tie_off"]
 	if args.has("flows"):

@@ -51,6 +51,12 @@ working on abilities; the user's rulings there are final).
   `launch`. Camp renders: `-- --who=Name --show=tree|menu --stroll=N`. `-- --auto` skips the camp and lets a bot play; add `--fxdemo` to review effects,
   `--name=Bot` to keep off a real character, `--stand` to watch melee,
   `--class=warder|aiel|hunter [--kit=sword,longbow]` for a throwaway fighter.
+  For looking at one thing: `--only=weave` (the bot knows nothing else),
+  `--demo=weave[:metres]` (woven ahead every 4 s whoever the bot is), `--strength=N`,
+  `--spawn=type:n`, `--camyaw=deg --camdist=m` (swing the bot's camera round it).
+  Bench: `--species=myrddraal`.
+- `src/game/armsfx.gd`: blade streaks, the warning wedge under an enemy's blow, stuck
+  missiles. `src/game/keys.gd`: bindings are by key position; hints go through it.
 - `src/gen/armoury.gd`: generated weapon models; `Hero.arm` puts one in the hand.
 - `src/gen/hero.gd`: player characters (sourced Quaternius models and clips), built by
   `tools/blender/build_heroes.py`. `human_rig.gd`: older generated humans, bench only.

@@ -127,12 +127,33 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n = Blossom.new()
 			g.add_child(n)
 		"missile":
-			n.add_child(Armoury.missile(weave))
+			var mm := Armoury.missile(weave)
+			# Small things are drawn larger than life in the air, or they are not seen.
+			var small: bool = weave in ["throwing_knives", "belt_knife", "sling"]
+			if small:
+				mm.scale = Vector3.ONE * 2.2
+			n.add_child(mm)
+			# A pale streak behind it, so the eye can follow where it went.
+			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.035 if small else 0.022; tail.height = 2.4; tail.radial_segments = 5; tail.rings = 1
+			var tm := _mesh(tail, Color(1.0, 0.97, 0.9, 0.45), 2.5)
+			tm.rotation.x = -PI * 0.5; tm.position.z = 1.3
+			n.add_child(tm)
+			if small:
+				n.add_child(_light(Color(1.0, 0.95, 0.85), 0.8, 2.5))
 		"drop":
-			# Spent and lying where it fell, point down, to be gathered up.
+			# Spent and standing where it fell, point down, to be gathered up: a
+			# ring on the ground and a thread of light mark it from a distance.
 			var m := Armoury.missile(weave)
 			m.rotation = Vector3(-1.2, randf() * TAU, 0); m.position.y = -1.05
+			if weave in ["throwing_knives", "belt_knife"]:
+				m.scale = Vector3.ONE * 1.8
 			n.add_child(m)
+			var ring := TorusMesh.new(); ring.inner_radius = 0.3; ring.outer_radius = 0.34
+			var ri := _mesh(ring, Color(1.0, 0.82, 0.4, 0.7), 2.5); ri.position.y = -1.14
+			n.add_child(ri)
+			var beam := CylinderMesh.new(); beam.top_radius = 0.0; beam.bottom_radius = 0.03; beam.height = 1.6; beam.radial_segments = 5; beam.rings = 1
+			var bi := _mesh(beam, Color(1.0, 0.85, 0.45, 0.3), 2.0); bi.position.y = -0.35
+			n.add_child(bi)
 		"blast":
 			var c := CylinderMesh.new(); c.top_radius = 0.9; c.bottom_radius = 0.9; c.height = 0.05
 			var mi := _mesh(c, TINT.fire, 2.0); mi.position.y = -1.1

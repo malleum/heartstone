@@ -48,8 +48,21 @@ for lack of stamina.
   `profile.study` is the one weave being studied; `Progression.award` pays every
   activity's draw into it and picks the cheapest open weave if none is chosen.
   Activities `show` weaves (seen) and only the training yard `teaches` outright.
-- **Cooldowns** (`cooldown` on a row) are kept per player in the sim; the view
-  mirrors its own from the cast event for the HUD.
+- **No cooldowns: weaving takes time instead** (Josh, 14 Nov: "a pre-cooldown, not a
+  cooldown proper"; it is also where casting by drawing will slot in). `form` on a row
+  is the seconds it takes. `request_cast(..., hold)` begins it; with `hold` the whole
+  weave waits in the hands (event `ready`) until `aim_cast(id, aim, false)`, and the aim
+  used is the one given last, so a weave goes where the player is looking when it
+  leaves. Held weaves that fasten on someone pick their target at that moment
+  (`fizzle` if nobody is there). The view sends the aim a few times a second.
+- **Parry is a press** (`Sim.set_guard` keeps its old name): it opens a window
+  (`parry_window`), perfect within `parry_perfect`. There is no held guard.
+- **Keys are by position** (`Keys`, `physical_keycode`), never by letter: see
+  `src/game/keys.gd`. Use `Keys.name(KEY_X)` in any hint.
+- **Arm poses the animation pack lacks** (drawing a bow, levelling a crossbow) are a
+  `SkeletonModifier3D` (`src/gen/armpose.gd`) that turns the arm bones after the clip
+  has played; the bow hand is turned outright so the bow stands upright whatever
+  twist the clip left in the arm.
 - **What a weave leaves behind** is data: `on_hit` (burn, stun, down), `self` (share
   of a blast its weaver takes), and `gravity`/`loft` for an arcing projectile.
 - **Creation:** the first three points in the two Powers of your half of the Source

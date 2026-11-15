@@ -246,6 +246,150 @@ func _holds() -> void:
 	sim._hurt(me, 50.0, d[2].id, "")
 	check(d[2].get("bound_by", 0) == 0, "the dead hold nothing")
 
+## What Josh asked for after the first tour: weaving takes time and is held back
+## until let go; each starter does its own thing; the fire weaves; the Eyeless;
+## flurries, bows, the crossbow, what is thrown.
+func _playtest() -> void:
+	print("== weave-up, new weaves, the Eyeless, missiles")
+	Map.use("open")
+	var p := Profile.create({name = "Tester", potential_pts = 14, affinity_pts = {fire = 2, water = 1, earth = 1}})
+	for w in Rules.weaves:
+		p.weaves[w] = {known = true, xp = 0.0}
+	p.channelled = Rules.TUNE.flow_steps[10]; p.book_limit = 99
+	p.potential = Rules.strength_of(8.0); p.strength = p.potential
+	for w in Rules.weaves:
+		check(not Rules.weaves[w].has("cooldown") and float(Rules.weaves[w].form) >= 0.9, "%s has no cooldown and takes time to weave" % w)
+	# A weave held back waits in the hands, and goes where it is aimed when let go.
+	var d := duel(p, "dummy", 12.0)
+	var sim: Sim = d[0]; var id: int = d[1]; var foe: Dictionary = d[2]
+	var me: Dictionary = sim.ents[id]
+	check(sim.request_cast(id, "fireball", Vector3(30, 1, 0), true) == "", "a weave can be begun and held")
+	var seen := run(sim, 2.0)
+	check(seen.has("ready") and not seen.has("cast") and not me.forming.is_empty(), "it is whole, and waits")
+	var hp0: float = foe.hp
+	sim.aim_cast(id, sim.aim_at(me, "fireball", foe), false)
+	seen = run(sim, 1.5)
+	check(seen.has("cast") and foe.hp < hp0, "let go, it flies where it is aimed then, not where it was begun")
+	check(sim.request_cast(id, "fireball", foe.pos) == "", "and there is no cooldown: the next can be begun at once")
+	run(sim, 2.0)
+	# Lash of Water: hauls them in, soaks them, and lightning finds the soaked.
+	d = duel(p, "trolloc", 12.0)
+	sim = d[0]; id = d[1]; foe = d[2]; foe.hp = 9999.0; me = sim.ents[id]
+	sim.request_cast(id, "water_lash", foe.pos)
+	run(sim, 1.5)
+	check(foe.pos.distance_to(me.pos) < 9.0 and foe.get("wet", 0.0) > 0.0, "a Lash of Water hauls a Trolloc in and soaks it")
+	var dry := Sim.new("camp_training", 5); dry._waves = []
+	var did := dry.add_player(p); dry._add_enemy("trolloc", Vector3(0, 0, 9)); dry.ents[did + 1].hp = 9999.0
+	dry._hurt(dry.ents[did + 1], 100.0, did, "lightning")
+	var h: float = foe.hp
+	foe.stagger = 0.0
+	sim._hurt(foe, 100.0, id, "lightning")
+	check(h - foe.hp > (9999.0 - dry.ents[did + 1].hp) * 1.4, "lightning hits the soaked harder")
+	# Arrows of Fire go through the first body into the one behind.
+	sim = Sim.new("camp_training", 5); sim._waves = []
+	id = sim.add_player(p)
+	sim._add_enemy("trolloc", Vector3(0, 0, 8)); sim._add_enemy("trolloc", Vector3(0, 0, 11)); sim._add_enemy("dummy", Vector3(40, 0, 40))
+	for k in [1, 2]: sim.ents[id + k].hp = 9999.0; sim.ents[id + k].speed = 0.0
+	sim.request_cast(id, "arrows_of_fire", Vector3(0, 1.1, 8))
+	seen = run(sim, 2.2)
+	check(sim.ents[id + 1].hp < 9999.0 and sim.ents[id + 2].hp < 9999.0 and seen.has("pierce"), "a dart of fire goes through one Trolloc into the next")
+	# Blossoms of Fire: a pillar, then a wide wheel that burns what stands in it.
+	sim = Sim.new("camp_training", 5); sim._waves = []
+	id = sim.add_player(p)
+	sim._add_enemy("trolloc", Vector3(4.5, 0, 25)); sim._add_enemy("dummy", Vector3(60, 0, 60))
+	var far: Dictionary = sim.ents[id + 1]; far.hp = 9999.0; far.speed = 0.0
+	sim.request_cast(id, "blossoms_of_fire", Vector3(0, 0, 25))
+	run(sim, Rules.weaves.blossoms_of_fire.form + 0.4)
+	check(sim.effects.size() == 1 and sim.effects[0].kind == "blossom" and far.hp == 9999.0, "it begins as a pillar too thin to reach a Trolloc four paces off")
+	run(sim, 3.0)
+	var wheel: Dictionary = sim.effects[0]
+	check(wheel.rad >= 3.0 and wheel.rad <= 9.0 and far.hp < 9999.0 and far.burn > 0.0, "then opens to between 10 and 30 feet and burns it")
+	run(sim, 6.0)
+	check(sim.effects.is_empty(), "and burns out")
+	# The Rolling Ring is a wedge: it strikes ahead and not behind.
+	sim = Sim.new("camp_training", 5); sim._waves = []
+	id = sim.add_player(p)
+	sim._add_enemy("trolloc", Vector3(0, 0, 9)); sim._add_enemy("trolloc", Vector3(0, 0, -9)); sim._add_enemy("trolloc", Vector3(9, 0, 0))
+	for k in [1, 2, 3]: sim.ents[id + k].hp = 9999.0; sim.ents[id + k].speed = 0.0
+	sim.request_cast(id, "rolling_ring", Vector3(0, 0, 9))
+	run(sim, Rules.weaves.rolling_ring.form + 2.0)
+	check(sim.ents[id + 1].hp < 9999.0 and sim.ents[id + 2].hp == 9999.0 and sim.ents[id + 3].hp == 9999.0, "the Rolling Ring strikes where it is thrown and not behind or beside")
+	check(float(Rules.weaves.rolling_ring.base.arc) * 2.0 < 90.0, "and is narrower than a quarter circle")
+
+	# The Eyeless: it lunges along a line it has chosen, and it steps through shadow.
+	var blade := Profile.create({name = "Test Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
+	sim = Sim.new("camp_training", 9); sim._waves = []
+	id = sim.add_player(blade)
+	sim._add_enemy("myrddraal", Vector3(0, 0, 9)); sim._add_enemy("dummy", Vector3(60, 0, 60))
+	var fade: Dictionary = sim.ents[id + 1]
+	var lunged := false; var gone := false; var back := false; var hidden := false
+	for i in 30 * 40:
+		sim.ents[id].hp = sim.ents[id].max_hp
+		sim.step(1.0 / 30.0)
+		for e in sim.events:
+			if e.e == "lunge": lunged = true
+			if e.e == "fade_out": gone = true
+			if e.e == "fade_in": back = true
+		if fade.get("gone", false):
+			hidden = hidden or not sim._targets(sim.ents[id]).has(fade)
+		sim.events.clear()
+	check(lunged, "a Myrddraal lunges")
+	check(gone and back and hidden, "and goes into shadow, where nothing can touch it, and comes out again")
+	# Step off the line of a lunge and it goes past and is open.
+	sim = Sim.new("camp_training", 9); sim._waves = []
+	id = sim.add_player(blade)
+	sim._add_enemy("myrddraal", Vector3(0, 0, 8)); sim._add_enemy("dummy", Vector3(60, 0, 60))
+	fade = sim.ents[id + 1]
+	sim._fade_lunge(fade, sim.ents[id], 0.7)
+	sim.set_input(id, Vector3(1, 0, 0), 0.0)
+	seen = run(sim, 1.6)
+	check(seen.has("miss") and sim.ents[id].hp == sim.ents[id].max_hp, "walk off the line of its lunge and it goes past")
+
+	# A flurry lands four times. A thrown-out weapon is not in the hand.
+	var aiel := Profile.create({name = "Test Maiden", cls = "aiel", sex = "f", stat_pts = {might = 2, quickness = 5, endurance = 3}, skill_pts = {knife = 3, spear = 3}, kit = ["aiel_knife", "javelins"]})
+	aiel.forms = {knife_flurry = {known = true}}
+	d = duel(aiel, "trolloc", 1.4)
+	sim = d[0]; id = d[1]; d[2].hp = 9999.0
+	check(sim.request_attack(id, "form:knife_flurry", d[2].pos) == "", "a flurry can be thrown")
+	var strikes := 0
+	for i in 60:
+		sim.ents[id].hp = sim.ents[id].max_hp
+		strikes += run(sim, 1.0 / 30.0).count("strike")
+	check(strikes == 4, "a flurry is four blows (%d)" % strikes)
+	d = duel(aiel, "dummy", 14.0)
+	sim = d[0]; id = d[1]; d[2].hp = 9999.0
+	sim.equip(id, "javelins")
+	sim.ents[id].ammo.javelins = 1
+	run(sim, 0.3)
+	sim.request_attack(id, "light", d[2].pos + Vector3(0, 2, 0)); run(sim, 1.5)
+	check(sim.ents[id].ammo.javelins == 0 and sim.request_attack(id, "light", d[2].pos) != "", "with the last javelin thrown there is nothing in the hand to throw")
+	# The crossbow has no half shot, and spans itself after each bolt.
+	var hunter := Profile.create({name = "Test Hunter", cls = "hunter", stat_pts = {might = 4, quickness = 3, endurance = 2}, skill_pts = {bow = 3}, kit = ["crossbow", "longbow"]})
+	d = duel(hunter, "dummy", 20.0)
+	sim = d[0]; id = d[1]; d[2].hp = 99999.0; d[2].max_hp = 99999.0
+	check(sim.request_attack(id, "light", d[2].pos + Vector3(0, 1, 0), 0.1) == "", "a spanned crossbow looses")
+	run(sim, 0.5)
+	check(sim.effects.size() > 0 or d[2].hp < d[2].max_hp, "at full strength however it was asked for")
+	check(sim.request_attack(id, "light", d[2].pos, 1.0) == "still spanning", "and cannot loose again until it is spanned")
+	run(sim, Rules.draw_time(hunter, "crossbow") + 0.3)
+	check(sim.request_attack(id, "light", d[2].pos + Vector3(0, 1, 0), 1.0) == "", "which it does by itself")
+	run(sim, 1.0)
+	# A half-drawn longbow throws a slower, weaker arrow than a full one.
+	sim.equip(id, "longbow"); run(sim, 0.3)
+	sim.request_attack(id, "light", d[2].pos + Vector3(0, 6, 0), 0.3)
+	var half := {}
+	for i in 60:
+		sim.step(1.0 / 30.0)
+		for fx in sim.effects:
+			if fx.kind == "missile" and half.is_empty(): half = fx.duplicate()
+	sim.request_attack(id, "light", d[2].pos + Vector3(0, 6, 0), 1.0)
+	var full := {}
+	for i in 90:
+		sim.step(1.0 / 30.0)
+		for fx in sim.effects:
+			if fx.kind == "missile" and full.is_empty() and fx.id != half.get("id", -1): full = fx.duplicate()
+	check(not half.is_empty() and not full.is_empty() and full.vel.length() > half.vel.length() * 1.6 and full.dmg > half.dmg * 3.0, "a half-drawn longbow throws a slower, far weaker arrow")
+
 func _arms() -> void:
 	print("== arms")
 	var warder := Profile.create({name = "Test Warder", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
@@ -535,5 +679,6 @@ func _init() -> void:
 	_holds()
 	_foes()
 	_powers()
+	_playtest()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

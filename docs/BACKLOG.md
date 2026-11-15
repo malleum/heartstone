@@ -6,58 +6,98 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 ## Josh's hands-on notes, 14 Nov (tour playtest)
-His words, lightly tidied. Do all of it, in detail; tick each when built and seen in a render.
+His words, lightly tidied, with what was done about each on the night of 14-15 Nov.
+A tick means built, tested by rule and seen in a render; it does not mean it feels
+right: every one is a question in `PLAYTEST.md` (43 to 54). "To look at again" lines
+are what the 4:44 review, or the next session, should pick up.
 
 **Keys**
-- [ ] "Make it work with Dvorak keybinds. I hate having to switch back and forth between
-  keyboards." (Movement and every other key should sit where WASD etc. sit physically.)
+- [x] "Make it work with Dvorak keybinds. I hate having to switch back and forth between
+  keyboards." Every binding is now by the key's position (`physical_keycode`), so the
+  hand sits in the same place on any layout; hints name the letter your layout has
+  there (`src/game/keys.gd`). Not checked on a real Dvorak board.
 
 **Weaves**
-- [ ] "Heave the Ground feels and looks lame."
-- [ ] "The water starter weave feels exactly like the starter air weave."
-- [ ] "I want the cooldown to be a pre-cooldown, not a cooldown proper, to make it feel
-  like it takes time to weave up a weave before using it (this will also make sense once
-  manually drawing to weave is introduced)."
-- [ ] "Cool and different animations for this weaving activation delay, especially with
-  sparks of the elements' colours."
-- [ ] Big weaves: "same complaints as above."
-- [ ] Arrows of Fire: "less bloom and more speed and penetration, like small bullet
-  projectiles on fire."
-- [ ] Blossoms of Fire: "a 6 ft tall very small pillar of fire (where you aim) and then
-  it blossoms out into a 10 to 30 ft radius slow spinning fire tornado (but still
-  relatively short for how wide the spinning arms of fire are)."
-- [ ] Rolling Ring of Earth and Fire: "should look cooler and be more directed, not a
-  full 360. Narrower than 90."
-- [ ] Gateway: "I can't test it because the person you gave me wasn't strong enough."
-  (Tour character needs the strength for it.)
+- [x] "Heave the Ground feels and looks lame." A ridge of rock spikes (taller than a
+  man mid-line) erupts along 17 m, nearest first, throws them 9 back and puts them
+  down 2 s; dust, thuds, shake.
+- [x] "The water starter weave feels exactly like the starter air weave." Lash of
+  Water is now a whip along a narrow 18 m line that **hauls them in**, knocks them down
+  and leaves them **soaked** (slowed 40% for 6 s; lightning hits the soaked 60% harder).
+  Hammer of Air stays the wide shove away.
+- [x] "I want the cooldown to be a pre-cooldown." No weave has a cooldown. The time is
+  in the weaving (0.9 s fireball to 6 s balefire). Hold the button to weave; once whole
+  it waits in the hands and goes where you are looking **when you let go** (a tap
+  looses it the moment it is whole).
+- [x] "Cool and different animations for this weaving activation delay, especially with
+  sparks of the elements' colours." Each Power moves its own way (`Weavefx.FormFx`):
+  Fire climbs from the feet in a helix, Earth is slow stones lifting, Air fast wide
+  rings, Water a figure of eight, Spirit motes falling inward under a halo; a core in
+  the weave's colour grows on the hands, then pulses and throws sparks when whole.
+- [x] Big weaves: "same complaints as above." Same system; more flows show more threads.
+- [x] Arrows of Fire: six thin white-hot darts at 85 m/s, 7 degrees of spread, each
+  goes through two bodies; a spit of sparks on impact and no fireball bloom.
+- [x] Blossoms of Fire: a 0.6 m pillar for 0.7 s where aimed, then it opens over 1.4 s
+  into a low wheel of five flame arms turning at 0.75 rad/s for 5 s, 3 to 9 m radius by
+  strength (10 to 30 ft). It burns you too if you stand in it (40%).
+  *To look at again:* the arms are thin and dim from a low camera; never seen from above.
+- [x] Rolling Ring: a wedge 34 degrees each side of where it is thrown (68 in all),
+  22 m, rock teeth heaving along the front with fire and dust.
+- [x] Gateway: the tour's channeller is strength 8 with every book read (`--strength=8`),
+  so it can be woven at station 4.
 
 **The Fade**
-- [ ] "The Fade design needs much work. Its running speed is good, but it's weird just
-  running around with it following me. It needs some sort of occasional lunge attack, or
-  a fade into shadow, disappear and reappear in a different shadow ability."
+- [x] Design: taller (2.06 to 2.12 m) and thinner, deep hood, mantle and a long robe,
+  black lacquered scale armour in lapping rows. *To look at again:* the hood is round
+  rather than peaked; the robe is close-cut because a wide cloak falls outside the mesh
+  grid; it has no cloak that hangs separately.
+- [x] Behaviour: it circles at 6 m, then **lunges** 12 m along a line shown on the
+  ground (0.7 s warning; off the line it goes past and is open 1.3 s; it can be
+  parried), or closes for one cut and backs off, or **goes into shadow** (untouchable
+  1.1 s) and comes out 3.4 m behind you, lunging half a second later.
 
-**Melee: "still needs a good bit of work"**
-- [ ] "Trollocs need more precise swing attacks."
-- [ ] Parry: "if I hit my parry button (it should do nothing if I just hold it) right
-  before their swing hits me, an animation plays blocking it, and if I timed it perfectly
-  at the last possible moment they even get shaken and lose a step, like the perfect
-  parry in Resident Evil 4 remake."
-- [ ] "It's impossible to see thrown knives and where they land, and they are still
-  shown in the hand after being thrown and being out of them."
-- [ ] "Some of the forms look and feel like the normal two sword attacks."
-- [ ] "The sidestep by default plays the forwards roll animation but my character goes
-  backward, which just looks wrong."
-- [ ] "Drop the Shift+Space keybind: it doesn't feel different from the normal dodge."
-- [ ] "Flurry of blows on the knife looks like the normal animation."
-- [ ] "The Aiel spear light attack looks really dumb."
-- [ ] "Have the attacks show a clear visual hit box of what they are hitting (even if
-  slightly bigger than the weapon), in almost a light anime style, so it's clear the path
-  I'm swinging at."
-- [ ] "Vary knockback/stun frames between different forms and weapons to add variety."
-- [ ] "Improve the animations, graphics and physics of the bow, crossbow and sling. Make
-  it clear by projectile speed, damage and arc when it is not a fully charged shot. Don't
-  even let the crossbow do a light shot. Give the bow more power and speed the longer it
-  is charged (with an animation for that). Sling: less warm-up, its rate of fire is fast."
+**Melee**
+- [x] "Trollocs need more precise swing attacks." The blow hits exactly the wedge shown
+  on the ground from the moment it commits (red: cannot be ducked; orange: can), with
+  no extra reach; it no longer runs through you while swinging.
+- [x] Parry: a press, not a hold (holding does nothing). Within 0.45 s before the blow
+  it is stopped (a block clip plays, sparks); within the last 0.14 s it is **perfect**:
+  nothing gets through, they reel 1.6 s and are thrown back a step, a ring of light,
+  and your next blow does half again. A parry that meets nothing cannot be retried for
+  0.7 s.
+- [x] Thrown knives: drawn 2.2x in flight with a pale streak and a small light; where
+  they land a gold ring and a thread of light mark them; they stand in a body they hit.
+  The hand is empty after a throw (the next comes to hand 0.3 s later) and stays empty
+  when they are all thrown; nothing can be struck with a weapon that has been thrown.
+- [x] Forms differ: each has its own streak shape and colour and most a body movement
+  (two spins for Apple Blossoms and Whirling Staff, one for Heron Wading, a leap for
+  the Boar, the Swallow and Hew, a dash for Parting the Silk and Sheathing the Sword).
+  *To look at again:* seen only as small figures in contact sheets; the underlying arm
+  clips are still shared between several forms.
+- [x] Sidestep: with a direction it is a roll that way, body turned to it; standing
+  still it is a step back, facing them (the jog played backwards, leaning away).
+- [x] Shift+Space is gone: one dodge (3.6 m, 0.4 s, 0.32 s untouchable).
+- [x] Flurry is four separate quick stabs, hand after hand, each with its own streak.
+- [x] The Aiel spear: thrusts are made with the spear turned point-forward along the
+  arm ("couched" grip), with a lance streak. *To look at again:* not judged close up.
+- [x] "A clear visual hit box": every blow leaves a streak the size of what it could
+  hit (reach plus a little, the move's arc): level crescents, standing crescents for
+  overhead blows, low ones for sweeps, rings, lances for thrusts.
+- [x] Knockback and stun vary by weapon (`impact` on each weapon: a hammer staggers 1 s
+  and shoves 7, a pike shoves 8, a knife does neither) and by form.
+- [x] Bows: a draw pose (bow arm out, string hand back to the cheek), a string that
+  bends with an arrow on it, seen on other players too. A half draw is slow, short and
+  weak (speed and damage go with the square of the draw). Longbow 1.5 s for 105 at
+  88 m/s. Crossbow: no light shot, one click, 135 at 105 m/s, then it spans itself for
+  2.6 s. Sling: 0.12 s wind-up. Arrows have a streak and knock back.
+  *To look at again:* the crossbow and sling poses have not been looked at in a render;
+  the sling has no whirl.
+
+**Known loose ends from that night**
+- The dedicated-server test's training-yard client times out about one run in four
+  (it passed three of four runs); not tracked down.
+- Blade trails use the move's arc from the weapon data, so a streak can be wider than
+  the clip's arm movement suggests.
 
 ## Combat feel and rules
 - [ ] Effects per Power are all built (see Done). Not seen in a render: the

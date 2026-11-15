@@ -7,7 +7,8 @@ extends RefCounted
 ## the system which letter the player's own layout has there.
 
 static func name(k: Key) -> String:
-	var code := DisplayServer.keyboard_get_keycode_from_physical(k)
+	# (A headless run has no keyboard to ask.)
+	var code := DisplayServer.keyboard_get_keycode_from_physical(k) if DisplayServer.get_name() != "headless" else KEY_NONE
 	var s := OS.get_keycode_string(code if code != KEY_NONE else k)
 	return s if s != "" else OS.get_keycode_string(k)
 

@@ -1142,10 +1142,15 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 				# Committed: it no longer turns, and it carries forward into the blow.
 				# Step out of its line and it misses.
 				e.atk += dt
-				want = Vector3(sin(e.aim_yaw), 0, cos(e.aim_yaw)) * e.speed * 0.6
+				# (A step into it, no more: it does not run through the one it is striking.)
+				want = Vector3(sin(e.aim_yaw), 0, cos(e.aim_yaw)) * minf(e.speed * 0.6, 2.2) if dist > e.radius + target.radius + 0.5 else Vector3.ZERO
 				if e.atk >= e.blow.time:
 					_enemy_blow(e, players)
 					e.atk = 0.0; e.swung = false; e.blow = {}
+					if e.row.has("lunge"):
+						# A Myrddraal does not stand and trade blows: one cut, and away.
+						e.close_until = 0.0
+						e.think = t + rng.randf_range(1.0, 2.0)
 			else:
 				e.yaw = atan2(to.x, to.z)
 				if dist > e.row.reach * 0.8:
@@ -1257,7 +1262,7 @@ func _fade(e: Dictionary, target: Dictionary, players: Array, dt: float) -> bool
 				e.mode = ""; e.think = t + rng.randf_range(1.2, 2.6); e.side = 1.0 if rng.randf() < 0.5 else -1.0
 			return true
 	# Stalking. Mid-cut, or sent in to close, it fights like anything else.
-	if e.swung or not e.blow.is_empty() or t < e.get("close_until", 0.0) or dist < row.reach * 0.8:
+	if e.swung or not e.blow.is_empty() or t < e.get("close_until", 0.0):
 		return false
 	e.yaw = atan2(to.x, to.z)
 	if t >= e.get("think", 2.0):

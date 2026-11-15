@@ -306,3 +306,12 @@ better and, for Travelling, removes the strength gate.
 - [Fandom WoT Wiki — Weave](https://wot.fandom.com/wiki/Weave) · [Five Powers](https://wot.fandom.com/wiki/Five_Powers) · [Arrows of Fire](https://wot.fandom.com/wiki/Arrows_of_Fire)
 - [1999 Wheel of Time PC game walkthrough](https://www.cyberly.org/game-cheats/pc-walkthroughs/wheel-of-time.html) (balefire as Fire + Spirit — game, not book)
 - [D&D Wiki homebrew weaves](https://dnd-wiki.org/wiki/3.5e_Weaves) (non-canon; shown only to explain disputes)
+
+## Changes of 14-15 Nov (Josh's tour notes)
+- No weave has a cooldown; `form` is the time it takes to weave, and a whole weave
+  is held back until let go. See ARCHITECTURE.md.
+- Lash of Water (invented) is a whip that hauls in, downs and soaks; soaked things
+  are slowed and take more from lightning. Hammer of Air is unchanged.
+- Arrows of Fire are piercing darts. Blossoms of Fire is a pillar that opens into a
+  slow wheel of fire 10 to 30 ft across (Josh's description). The Rolling Ring rolls
+  out as a wedge under 90 degrees wide, not a full circle (Josh's ruling for the game).

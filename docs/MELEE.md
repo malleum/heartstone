@@ -253,3 +253,17 @@ The names above are from the books (the sword forms from Rand's and Lan's fights
 the ashandarei and thrown knives from Mat, the Aiel kit from the Maidens and the
 Stone Dogs, the longbow from the Two Rivers, crossbows from the Band of the Red
 Hand). Numbers are the game's own.
+
+## Changes of 14-15 Nov (Josh's tour notes)
+What is written above about guarding, sidestep and roll is superseded:
+- **Parry** is a press (right click), not a held guard: 0.45 s window, perfect in
+  the last 0.14 s. A Warder's ward is a parry made beside the channeller.
+- **One dodge** (Space): a roll the way you move, a step back when standing.
+- **Blade streaks** show each blow's path; a **wedge on the ground** shows where an
+  enemy's blow will land. Forms have their own streak, colour, spin or leap
+  (`trail`, `tint`, `spin`, `leap`, `repeat`, `grip` on a move).
+- Weapons have an `impact` (push, stagger). Spear thrusts use a couched grip.
+- Bows are drawn with a pose and a bending string; the host counts the draw.
+  Crossbows have no half shot and span themselves. A thrown weapon is gone from
+  the hand until picked up.
+The details and numbers are in BACKLOG.md (top section) and PLAYTEST.md 47 to 53.
