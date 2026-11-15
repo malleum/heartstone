@@ -74,6 +74,9 @@ func _ready() -> void:
 
 func _saved() -> Array:
 	var out := []
+	# A first run has no characters, and no folder for them yet.
+	if not DirAccess.dir_exists_absolute(Profile.dir):
+		return out
 	for f in DirAccess.get_files_at(Profile.dir):
 		if f.ends_with(".json"):
 			out.append(f.trim_suffix(".json"))
@@ -206,7 +209,9 @@ func _process(dt: float) -> void:
 	if cam == null or model == null:
 		return
 	_frame += 1
-	if cl.has("ghost"):
+	if cl.get("ghost", "") == "flow":
+		_ghost_flow()
+	elif cl.has("ghost"):
 		Ghost.step(cl.ghost, _frame)
 		if _frame % 30 == 0:
 			print("GHOST %d camp tree=%s menu=%s sheet=%s pos=%s" % [_frame, tree.visible, menu.visible, side.get_parent().get_parent().visible, pos.snapped(Vector3.ONE * 0.1)])
@@ -416,6 +421,67 @@ func _sheet() -> void:
 			_button(side, n.capitalize(), func() -> void: Launch.report = []; _select(n))
 	_button(side, "New character…", _creation)
 	_button(side, "Server, friends, quit  (Esc)", func() -> void: _show_menu(true))
+
+## --ghost=flow: go through the camp's screens as a person would, pressing the
+## real buttons (found by their text), and say what happened. For tools/ghost.sh.
+func _press(box: Control, text: String) -> bool:
+	for b in box.find_children("*", "Button", true, false):
+		if (b as Button).text.begins_with(text) and not (b is OptionButton or b is CheckBox):
+			(b as Button).pressed.emit()
+			return true
+	print("GHOST flow: no button '%s'" % text)
+	return false
+
+func _ghost_flow() -> void:
+	match _frame:
+		10:
+			Profile.dir = "user://ghost_profiles"
+			for f in _saved():
+				DirAccess.remove_absolute(Profile.dir + "/" + f + ".json")
+			_creation("aiel")
+		20:
+			make.name.text = "Ghost Maiden"
+			make.style.skin.select(2); make.style.hair_col.select(6); make.style.height.select(3)
+			_creation_changed()
+		30:
+			_press(side, "Begin")
+		40:
+			print("GHOST flow created: %s cls=%s kit=%s style=%s doors=%d" % [profile.get("name", "-"), profile.get("cls", "-"), profile.get("kit", []), profile.get("style", {}), doors.size()])
+			_press(side, "The armoury")
+		50:
+			var first: OptionButton = menu_box.find_children("*", "OptionButton", true, false)[0]
+			first.select(first.item_count - 1); first.item_selected.emit(first.item_count - 1)
+			_press(menu_box, "Take these")
+		60:
+			print("GHOST flow armoury: kit=%s menu=%s" % [profile.get("kit", []), menu.visible])
+			_press(side, "Appearance")
+		70:
+			var dress: OptionButton = menu_box.find_children("*", "OptionButton", true, false)[0]
+			dress.select(1); dress.item_selected.emit(1)
+		80:
+			_press(menu_box, "Keep this")
+		90:
+			print("GHOST flow appearance: look=%s style=%s" % [profile.get("look", "-"), profile.get("style", {})])
+			_press(side, "The forms")
+		100:
+			var opts := Rules.study_options(profile)
+			print("GHOST flow tree: visible=%s options=%s" % [tree.visible, opts])
+			if not opts.is_empty():
+				tree.chosen.emit(opts[0])
+		110:
+			print("GHOST flow study: %s" % profile.get("study", "-"))
+			_show_tree(false)
+			_show_menu(true)
+		120:
+			_press(menu_box, "Back to the camp")
+		130:
+			_creation("channeller", "Ghost Weaver", "saidin")
+		140:
+			_press(side, "Begin")
+		150:
+			print("GHOST flow second: %s power=%s starter=%s saved=%s" % [profile.get("name", "-"), profile.get("power", "-"), profile.get("starter", "-"), _saved()])
+			# Walk into the first doorway, as feet would.
+			cl.stroll = "0"
 
 ## Who is on the server now, asked every so often while the camp is open. One
 ## connection at a time: it waits if a character is being exchanged.

@@ -374,6 +374,8 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## The ground can only be built once we know which activity (and so which map) this
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
+	if Launch.cmdline().get("ghost", "") == "flow":
+		print("GHOST flow entered %s as %s" % [activity, profile.name])
 	Map.use(Rules.activities[activity].get("map", "open"))
 	var ground := Terrain.build_mesh(240.0, 0.75)
 	add_child(ground)
