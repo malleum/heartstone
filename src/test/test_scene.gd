@@ -102,6 +102,8 @@ func _trollocs(n: int, extra := {}) -> Array:
 		var o := {head = heads[(i + seed0) % heads.size()]}
 		o.merge(extra)
 		if args.has("head"): o.head = args.head
+		# --weapon=0..3: scythe-sword, axe, spear, club (and always armed).
+		if args.has("weapon"): o.weapon_kind = int(args.weapon)
 		specs.append(Species.roll(Species.TROLLOC, seed0 + i, o))
 	return _generate(specs)
 
@@ -243,6 +245,10 @@ func _mode_walk() -> void:
 		events[int(args.hit)] = func() -> void: walkers[0].hit(Vector3(-1, 0, 0.3), _f("force", 1.0))
 	if args.has("die"):
 		events[int(args.die)] = func() -> void: walkers[0].die(Vector3(-1, 0, 0))
+	# --attack=chop|sweep|thrust --at=<frame>: one weapon swing, to look at.
+	if args.has("attack"):
+		events[int(_f("at", 20))] = func() -> void:
+			for w in walkers: w.attack(args.attack)
 	if args.has("stop"):
 		events[int(args.stop)] = func() -> void: walkers[0].vel = Vector3.ZERO
 	slide_check = true
