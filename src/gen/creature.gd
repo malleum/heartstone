@@ -139,7 +139,7 @@ static func build(s: Dictionary) -> Dictionary:
 		Sdf.skin(pm, pr.prims, pr.prims, NB, 0.02, 0.01, Color(0, 0, 0, -1))
 		gear.append(pm)
 	for e in eyes:
-		_eye(body, head_xf * (e.pos * s.head_size * u), e.r * s.head_size * u, head_xf.basis * e.dir, e.iris)
+		_eye(body, head_xf * (e.pos * s.head_size * u), e.r * s.head_size * u, head_xf.basis * e.dir, e.iris, e.get("white", Color(0.7, 0.68, 0.64)))
 	if s.has("rig_bones"):
 		# Generator bone indices -> the sourced skeleton's bone indices.
 		var remap: PackedInt32Array = s.rig_bones
@@ -170,6 +170,23 @@ static func _shell(sh: Dictionary, grids: Array[Sdf.Grid], regions: Array, body_
 	for gi in grids.size():
 		var g := grids[gi]
 		var box := g.box().intersection(mb)
+		# A hanging piece with a cell size of its own (a full cloak): its solid is
+		# meshed alone, once, and hung from one bone so that it does not walk with
+		# the legs.
+		if sh.has("cell"):
+			if gi == 0:
+				var so: Sdf = sh.solid
+				var cg := Sdf.Grid.make(so.bounds().grow(float(sh.cell) * 3.0), float(sh.cell))
+				so.fill(cg)
+				var cm := Sdf.surface(cg, [], 0.06 * u)
+				Sdf.skin(cm, body_prims, paint, NB, 0.09 * u, 0.012 * u, sh.col)
+				if sh.has("bone"):
+					for vi in cm.verts.size():
+						for k in 4:
+							cm.bones[vi * 4 + k] = int(sh.bone) if k == 0 else 0
+							cm.weights[vi * 4 + k] = 1.0 if k == 0 else 0.0
+				out.append(cm)
+			continue
 		# A free-standing piece (a cowl) is meshed once, whole, at the finest cell:
 		# cut to the body's grids it loses whatever stands outside them.
 		var free: bool = sh.get("free", false)
@@ -322,7 +339,10 @@ static func _hand(sd: Sdf, s: Dictionary, bone: int, wr: Vector3, tip: Vector3, 
 	sd.use(bone, skin, 0.012 * hs)
 	var rot := Basis(d.cross(fwd).normalized(), d, fwd)
 	sd.box(wr + d * 0.05 * hs, Vector3(0.017, 0.05, 0.043) * hs, 0.014 * hs, rot)
-	var claws: bool = s.species != "human"
+	# Talons: 0 none (men, and the Eyeless, who have a man's hands), 1 a Trolloc's
+	# thick nails, more for a Draghkar's hooks.
+	var talon: float = s.get("talons", 0.0 if s.species == "human" else 1.0)
+	var claws := talon > 0.0
 	for f in 4:
 		var z := (f - 1.5) * 0.023 * hs
 		var flen := (0.075 - absf(f - 1.4) * 0.008) * hs
@@ -335,7 +355,7 @@ static func _hand(sd: Sdf, s: Dictionary, bone: int, wr: Vector3, tip: Vector3, 
 		sd.cone(mid, end, 0.0105 * hs, 0.009 * hs)
 		if claws:
 			sd.use(bone, horn, 0.004 * hs)
-			sd.cone(end, end + (d - inward * 1.3).normalized() * 0.03 * hs, 0.008 * hs, 0.002 * hs)
+			sd.cone(end, end + (d - inward * 1.3).normalized() * 0.03 * talon * hs, 0.008 * hs, 0.002 * hs)
 	var ta := wr + d * 0.035 * hs + fwd * 0.04 * hs
 	var tb := ta + (d + fwd * 0.9 - inward * 0.3).normalized() * 0.045 * hs
 	sd.use(bone, skin, 0.008 * hs)
@@ -370,7 +390,7 @@ static func _hoof_or_paw(sd: Sdf, s: Dictionary, bone: int, ball: Vector3, toe: 
 
 
 ## Eyes are rigid spheres added after meshing: far too small for the clay grid.
-static func _eye(m: Sdf.MeshData, c: Vector3, r: float, dir: Vector3, iris: Color) -> void:
+static func _eye(m: Sdf.MeshData, c: Vector3, r: float, dir: Vector3, iris: Color, white := Color(0.7, 0.68, 0.64)) -> void:
 	var base := m.verts.size()
 	var rings := 7; var segs := 10
 	dir = dir.normalized()
@@ -380,7 +400,7 @@ static func _eye(m: Sdf.MeshData, c: Vector3, r: float, dir: Vector3, iris: Colo
 			var ph := TAU * j / segs
 			var n := Vector3(sin(th) * cos(ph), cos(th), sin(th) * sin(ph))
 			var f := n.dot(dir)
-			var col := Color(0.7, 0.68, 0.64, 0.12)
+			var col := Color(white, 0.12)
 			if f > 0.93: col = Color(0.005, 0.005, 0.005, 0.12)
 			elif f > 0.72: col = Color(iris, 0.12)
 			m.verts.append(c + n * r); m.norms.append(n); m.ao.append(1.0); m.cols.append(col)

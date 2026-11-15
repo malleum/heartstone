@@ -36,6 +36,14 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
   1. Trolloc attacks by weapon and by situation, with hit reactions. PLAYTEST 65.
   Casting by drawing is kept for later, by his word.
 
+- [x] "research what all the shadow spawn are supposed to look like ... improvements
+  and major refactors upon everything other than trollocs" (15 Nov): the table in
+  ARCHITECTURE ("What the Shadowspawn are meant to look like") has canon against the
+  game for each. Rebuilt: the Myrddraal (body, armour, cloak, sword, hands), the
+  Draghkar's face, talons and wing fold, the Darkhound's head, hackles and death.
+  Blender was not needed: these are generated in the game's own clay. Left: Draghkar
+  teeth, wings that wrap, prints in stone, women Dreadlords. PLAYTEST 67 to 69.
+
 ## Josh's hands-on notes, 14 Nov (tour playtest)
 His words, lightly tidied, with what was done about each on the night of 14-15 Nov.
 A tick means built, tested by rule and seen in a render; it does not mean it feels

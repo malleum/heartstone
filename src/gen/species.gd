@@ -77,9 +77,9 @@ static var MYRDDRAAL: Dictionary:
 	get:
 		var t := HUMAN.duplicate()
 		# Taller than a tall man and thin with it; skin like something kept from the sun.
-		t.merge({species = "myrddraal", height = Vector2(2.06, 2.12), bulk = Vector2(0.72, 0.76), limb = Vector2(0.84, 0.88), muscle = 0.2, gut = 0.0,
+		t.merge({species = "myrddraal", height = Vector2(2.06, 2.1), bulk = Vector2(0.9, 0.93), limb = Vector2(0.96, 1.0), muscle = 0.6, gut = 0.0, talons = 0.0,
 			skin = Color(0.8, 0.81, 0.8), fur = Color(0.03, 0.03, 0.03), outfit = "myrddraal", fem = 0.0, hair = "bald", beard = 0, eyeless = true,
-			f_jaw = 0.86, f_chin = 1.25, f_cheek = 0.7, f_brow = 1.1, f_lip = 0.75}, true)
+			f_jaw = 0.86, f_chin = 1.25, f_cheek = 0.7, f_brow = 0.45, f_lip = 0.75}, true)
 		return t
 
 
@@ -90,7 +90,7 @@ static var DRAGHKAR: Dictionary:
 		var t := HUMAN.duplicate()
 		t.merge({species = "draghkar", height = Vector2(2.0, 2.05), bulk = Vector2(0.68, 0.72), limb = Vector2(0.78, 0.82), muscle = 0.12, gut = 0.0, hunch = 0.35,
 			skin = Color(0.78, 0.76, 0.74), fur = Color(0.03, 0.03, 0.03), outfit = "draghkar", fem = 0.0, hair = "bald", beard = 0,
-			f_jaw = 0.82, f_chin = 1.3, f_cheek = 0.7, f_brow = 0.8, f_lip = 1.3, f_eye = 1.45, f_eye_gap = 1.07}, true)
+			f_jaw = 0.82, f_chin = 1.3, f_cheek = 0.7, f_brow = 0.8, f_lip = 1.3, f_eye = 1.5, f_eye_gap = 1.08, talons = 2.6, maw = true, eyes_black = true}, true)
 		return t
 
 ## A Dreadlord: one who channels for the Shadow. A man in black and blood-red, hooded.
@@ -98,7 +98,7 @@ static var DREADLORD: Dictionary:
 	get:
 		var t := HUMAN.duplicate()
 		t.merge({species = "dreadlord", height = Vector2(1.84, 1.88), bulk = Vector2(0.92, 0.96), outfit = "dreadlord", fem = 0.0, hair = "short", beard = 0,
-			skin = Color(0.8, 0.66, 0.58), hunch = 0.0}, true)
+			skin = Color(0.8, 0.66, 0.58), hunch = 0.0, talons = 0.0}, true)
 		return t
 
 static func roll(table: Dictionary, seed_: int, overrides := {}) -> Dictionary:

@@ -40,17 +40,18 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 	sd.ball(_v(0, 0.0465, 0.113 + 0.01 * nl), _v(0.0128 * nw, 0.0115, 0.012))
 	var blind: bool = s.get("eyeless", false)
 	if blind:
-		# The Eyeless: gaunt, bloodless, and nothing where the eyes should be but
-		# two shallow hollows of smooth skin under the brow. The mouth is a short
-		# hard line turned down at the corners (a wide one reads as a smile).
+		# The Eyeless: gaunt, bloodless, and nothing at all where the eyes should
+		# be: skin as smooth as an egg from brow to cheek (Josh, 15 Nov: no hollows).
+		# The gap between brow and cheekbone is filled so no socket is even hinted.
+		sd.use(HEAD, skin, 0.022)
+		for sx in [-1.0, 1.0]:
+			sd.ball(_v(0.03 * sx, 0.083, 0.09), _v(0.022, 0.016, 0.018))
+		# The mouth is a short hard line turned down at the corners (a wide one reads as a smile).
 		var shade := Color(skin.darkened(0.2), 0.5)
 		for sx in [-1.0, 1.0]:
-			sd.use(HEAD, skin, 0.014)
-			sd.ball(_v(0.03 * sx, 0.083, 0.112), _v(0.017, 0.0095, 0.012)).op = Sdf.CARVE
 			sd.use(HEAD, skin, 0.02)
 			sd.ball(_v(0.05 * sx, 0.034, 0.083), _v(0.012, 0.024, 0.014)).op = Sdf.CARVE
 			sd.use(HEAD, shade, 0.012)
-			sd.ball(_v(0.03 * sx, 0.083, 0.1), _v(0.019, 0.011, 0.014)).op = Sdf.PAINT
 			sd.ball(_v(0.046 * sx, 0.034, 0.078), _v(0.012, 0.024, 0.014)).op = Sdf.PAINT
 			sd.use(HEAD, Color(0.07, 0.06, 0.065, 0.5), 0.002)
 			sd.ball(_v(0.0165 * sx, 0.0168, 0.103), _v(0.004, 0.0013, 0.006), Basis(Vector3.BACK, -0.5 * sx)).op = Sdf.PAINT
@@ -59,6 +60,32 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 		sd.ball(_v(0, 0.0155, 0.099), _v(0.015, 0.0035, 0.007))
 		sd.use(HEAD, Color(0.07, 0.06, 0.065, 0.5), 0.002)
 		sd.ball(_v(0, 0.0185, 0.106), _v(0.0155, 0.0012, 0.006)).op = Sdf.PAINT
+	elif s.get("maw", false):
+		# A Draghkar: the mouth is a wound, too wide and too red, open on teeth
+		# like needles.
+		var red := Color(0.42, 0.01, 0.02, 0.5)
+		sd.use(HEAD, red, 0.005)
+		sd.ball(_v(0, 0.029, 0.1), _v(0.032, 0.008, 0.0095))
+		sd.ball(_v(0, 0.004, 0.097), _v(0.029, 0.008, 0.0095))
+		sd.use(HEAD, Color(0.02, 0.0, 0.0, 0.5), 0.004)
+		sd.ball(_v(0, 0.013, 0.106), _v(0.029, 0.013, 0.015)).op = Sdf.CARVE
+		# (Everything is painted as well: blended clay alone takes the skin's colour.)
+		# The whole of it raw red, from under the nose to the chin's fold, darker inside.
+		sd.use(HEAD, Color(0.26, 0.008, 0.014, 0.5), 0.004)
+		sd.ball(_v(0, 0.01, 0.096), _v(0.034, 0.027, 0.024)).op = Sdf.PAINT
+		sd.use(HEAD, Color(0.03, 0.0, 0.0, 0.5), 0.003)
+		sd.ball(_v(0, 0.008, 0.094), _v(0.027, 0.013, 0.016)).op = Sdf.PAINT
+		sd.use(HEAD, Color(0.3, 0.008, 0.015, 0.5), 0.003)
+		sd.ball(_v(0, 0.0305, 0.104), _v(0.034, 0.0075, 0.012)).op = Sdf.PAINT
+		sd.ball(_v(0, -0.007, 0.1), _v(0.031, 0.0085, 0.016)).op = Sdf.PAINT
+		var bone := Color(0.9, 0.88, 0.8, 0.0)
+		for i in 7:
+			var tx := (i - 3.0) * 0.0075
+			var tz := 0.1035 - absf(tx) * 0.1
+			for tooth in [[_v(tx, 0.027, tz), _v(tx, 0.011, tz + 0.001)], [_v(tx + 0.0037, -0.002, tz - 0.002), _v(tx + 0.0037, 0.012, tz)]]:
+				sd.use(HEAD, bone, 0.001)
+				sd.cone(tooth[0], tooth[1], 0.0027, 0.0005)
+				sd.cone(tooth[0], tooth[1], 0.0031, 0.0008).op = Sdf.PAINT
 	else:
 		# Lips: a little geometry, mostly colour.
 		var lipc := skin.lerp(Color(0.35, 0.07, 0.06, 0.5), 0.3 + 0.25 * fem)
@@ -74,7 +101,15 @@ static func build(sd: Sdf, s: Dictionary, rng: RandomNumberGenerator) -> Array:
 		var ex: float = 0.031 * s.f_eye_gap * sx
 		sd.use(HEAD, skin.darkened(0.1), 0.008)
 		sd.ball(_v(ex, 0.083, 0.106), _v(0.0175 * eye, 0.0112 * eye, 0.017)).op = Sdf.CARVE
-		eyes.append({pos = _v(ex, 0.0835, 0.0945), r = 0.0128, dir = _v(sx * 0.08, 0, 1), iris = iris})
+		if s.get("eyes_black", false):
+			# Too large, and with nothing in them: no white, no colour, no lid. Clay,
+			# like the rest of it, so they sit in the face whatever its shape.
+			sd.use(HEAD, Color(0.004, 0.004, 0.006, 0.0), 0.002)
+			sd.ball(_v(ex, 0.083, 0.0985), _v(0.0155 * eye, 0.0105 * eye, 0.0115))
+			sd.ball(_v(ex, 0.083, 0.1), _v(0.0165 * eye, 0.0112 * eye, 0.013)).op = Sdf.PAINT
+			continue
+		else:
+			eyes.append({pos = _v(ex, 0.0835, 0.0945), r = 0.0128, dir = _v(sx * 0.08, 0, 1), iris = iris})
 		# Eyebrow.
 		sd.use(HEAD, Color(hair.darkened(0.2), 0.8), 0.004)
 		sd.cone(_v(0.014 * sx, 0.1005, 0.1), _v(0.05 * sx, 0.1, 0.086), 0.0045, 0.003).op = Sdf.PAINT

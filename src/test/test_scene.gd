@@ -294,6 +294,12 @@ func _mode_lineup() -> void:
 	var d := _f("dist", 9); var ang := deg_to_rad(_f("yaw", 0)); var cx := _f("cx", 0)
 	var y0 := Terrain.height(cx, 0)
 	_look(Vector3(cx + sin(ang) * d, y0 + _f("camy", 2.0), cos(ang) * d), Vector3(cx, y0 + _f("aty", 1.5), 0))
+	# --face=0.8: straight at the first one's face from that far (--turn=deg swings round it).
+	if args.has("face"):
+		var w: Walker = walkers[0]
+		var head: Vector3 = w.position + Vector3(0, float(data[0].spec.height) * _f("headh", 0.93), 0)
+		var a := w.heading + deg_to_rad(_f("turn", 0))
+		_look(head + Vector3(sin(a), 0.03, cos(a)) * _f("face", 0.8), head)
 
 ## A few creatures crossing uneven ground, camera tracking from the side.
 func _mode_walk() -> void:

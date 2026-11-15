@@ -59,6 +59,7 @@ func _process(dt: float) -> void:
 		var side := 1.0 if i == 0 else -1.0
 		var p := _w[i]
 		# Folded: swept back behind the shoulders and drawn in. Spread: straight out.
-		p.rotation = Vector3(0, side * lerpf(1.45, 0.0, spread), 0)
+		# (Not straight back: angled, so that from behind the two make a cloak.)
+		p.rotation = Vector3(0, side * lerpf(1.02, 0.0, spread), 0)
 		p.rotate_object_local(Vector3(0, 0, 1), side * (beat + lerpf(-0.25, 0.08, spread)))
-		p.scale = Vector3(lerpf(0.5, 1.0, spread), 1, 1)
+		p.scale = Vector3(lerpf(0.55, 1.0, spread), 1, 1)

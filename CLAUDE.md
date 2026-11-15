@@ -75,7 +75,7 @@ working on abilities; the user's rulings there are final).
   puts a bot friend beside the player.
 - `tools/strokes.sh` (the sword forms side by side, four moments each). Bench:
   `--mode=hound [--speed= --spring=<frame> --die=<frame>]`, `--species=draghkar|dreadlord`,
-  `--mode=heroes --strokes` / `--cloaks=<look>`. Game: `--spawn=type:n@metres`.
+  `--mode=heroes --strokes` / `--cloaks=<look>`; lineup `--face=0.8 [--turn=deg]` looks the first one in the face. Game: `--spawn=type:n@metres`.
 - `tools/views.sh <name> [bench args]` (three views of a bench creature on one sheet)
   and `tools/skirts.sh` (the gowns standing and moving). After replacing a `.glb`, run
   `nix develop -c godot --headless --path . --import` or renders show the old model.

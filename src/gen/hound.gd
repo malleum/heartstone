@@ -61,28 +61,37 @@ static func data() -> Dictionary:
 	sd.cone(j[HIPS] + Vector3(0, -0.04, 0), j[CHEST] + Vector3(0, -0.1, -0.1), 0.2, 0.25).bone2 = CHEST
 	sd.use(CHEST, fur, 0.07)
 	sd.ball(j[CHEST] + Vector3(0, -0.12, 0.02), Vector3(0.28, 0.35, 0.33))
-	sd.ball(j[CHEST] + Vector3(0, 0.12, -0.02), Vector3(0.17, 0.14, 0.24))
+	sd.ball(j[CHEST] + Vector3(0, 0.14, -0.02), Vector3(0.21, 0.17, 0.27))
 	sd.use(HIPS, fur, 0.06)
 	sd.ball(j[HIPS] + Vector3(0, -0.02, 0), Vector3(0.22, 0.24, 0.26))
 	# Neck and head: thick neck carried low and forward, a long heavy muzzle.
 	sd.use(NECK, fur, 0.06)
 	sd.cone(j[CHEST] + Vector3(0, 0.04, 0.1), j[HEAD] + Vector3(0, -0.05, -0.06), 0.25, 0.17).bone2 = HEAD
 	sd.use(HEAD, fur, 0.035)
-	sd.ball(j[HEAD], Vector3(0.16, 0.145, 0.18))
-	sd.cone(j[HEAD] + Vector3(0, -0.03, 0.1), j[HEAD] + Vector3(0, -0.07, 0.4), 0.115, 0.072, Vector2(1, 0.8))
+	sd.ball(j[HEAD], Vector3(0.175, 0.155, 0.19))
+	sd.cone(j[HEAD] + Vector3(0, -0.03, 0.1), j[HEAD] + Vector3(0, -0.07, 0.42), 0.13, 0.085, Vector2(1, 0.8))
 	sd.use(HEAD, hide, 0.02)
 	sd.ball(j[HEAD] + Vector3(0, -0.055, 0.44), Vector3(0.045, 0.035, 0.04))            # nose
 	sd.use(HEAD, fur, 0.02)
-	sd.cone(j[HEAD] + Vector3(0, -0.13, 0.06), j[HEAD] + Vector3(0, -0.15, 0.36), 0.06, 0.04, Vector2(1, 0.6))   # lower jaw
+	sd.cone(j[HEAD] + Vector3(0, -0.15, 0.04), j[HEAD] + Vector3(0, -0.2, 0.38), 0.075, 0.05, Vector2(1, 0.6))   # lower jaw, hanging open
 	for sx in [-1.0, 1.0]:
 		# Ears laid back; brow ridges over the eyes.
 		sd.use(HEAD, fur, 0.015)
 		sd.cone(j[HEAD] + Vector3(0.09 * sx, 0.09, -0.06), j[HEAD] + Vector3(0.13 * sx, 0.2, -0.16), 0.045, 0.012, Vector2(0.5, 1))
 		sd.ball(j[HEAD] + Vector3(0.07 * sx, 0.07, 0.1), Vector3(0.04, 0.025, 0.05))
-		# Teeth: a pale line along the muzzle and two fangs.
-		sd.use(HEAD, Color(0.75, 0.72, 0.62, 0.0), 0.004)
-		sd.cone(j[HEAD] + Vector3(0.045 * sx, -0.105, 0.38), j[HEAD] + Vector3(0.045 * sx, -0.165, 0.375), 0.014, 0.004)
-		sd.box(j[HEAD] + Vector3(0.06 * sx, -0.108, 0.24), Vector3(0.012, 0.012, 0.11), 0.004).op = Sdf.PAINT
+		# Teeth like burnished steel: long fangs above and below, and a row behind them.
+		sd.use(HEAD, Color(0.62, 0.64, 0.68, 0.0), 0.003)
+		sd.cone(j[HEAD] + Vector3(0.05 * sx, -0.105, 0.4), j[HEAD] + Vector3(0.05 * sx, -0.19, 0.395), 0.017, 0.003)
+		sd.cone(j[HEAD] + Vector3(0.04 * sx, -0.175, 0.37), j[HEAD] + Vector3(0.04 * sx, -0.11, 0.375), 0.013, 0.003)
+		for i in 5:
+			var tz := 0.15 + i * 0.045
+			sd.cone(j[HEAD] + Vector3((0.075 - i * 0.004) * sx, -0.1, tz), j[HEAD] + Vector3((0.075 - i * 0.004) * sx, -0.145, tz), 0.011, 0.002)
+	# Hackles: a ridge of coarse spines from the skull to the hips.
+	for i in 11:
+		var f := i / 10.0
+		var at: Vector3 = j[HEAD].lerp(j[CHEST] + Vector3(0, 0.2, -0.05), minf(f * 2.0, 1.0)).lerp(j[HIPS] + Vector3(0, 0.2, 0), maxf(f * 2.0 - 1.0, 0.0))
+		sd.use(CHEST if f > 0.3 and f < 0.8 else (HEAD if f <= 0.3 else HIPS), fur, 0.02)
+		sd.cone(at, at + Vector3(0, 0.1 + 0.05 * sin(f * PI), -0.06), 0.035, 0.006)
 	# Tail: carried low.
 	sd.use(TAIL, fur, 0.03)
 	sd.chain([j[TAIL] + Vector3(0, 0.02, 0.06), j[TAIL] + Vector3(0, -0.12, -0.2), j[TAIL] + Vector3(0, -0.4, -0.3), j[TAIL] + Vector3(0, -0.6, -0.26)], 0.06, 0.025)
@@ -159,9 +168,23 @@ func hit(dir: Vector3, strength := 1.0) -> void:
 	flinch = minf(flinch + 0.5 * strength, 1.0)
 	push += dir.normalized() * 1.6 * strength
 
+## Killed, a Darkhound does not lie there: it runs to liquid shadow and is gone.
 func die(dir: Vector3) -> void:
 	dead = 0.0
 	push += dir.normalized() * 1.5
+	var pool := MeshInstance3D.new()
+	var c := CylinderMesh.new(); c.top_radius = 1.0; c.bottom_radius = 1.0; c.height = 0.02; c.radial_segments = 24; c.rings = 1
+	pool.mesh = c
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.0, 0.0, 0.0, 0.9); m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED      # shadow, not a mirror
+	pool.material_override = m
+	pool.position.y = 0.03; pool.scale = Vector3(0.2, 1, 0.2)
+	add_child(pool)
+	var tw := create_tween()
+	tw.tween_property(pool, "scale", Vector3(1.15, 1, 1.15), 1.4).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(1.6)
+	tw.tween_property(m, "albedo_color:a", 0.0, 1.6)
 
 func _place() -> void:
 	position = Vector3(pos.x, Terrain.height(pos.x, pos.z), pos.z)
@@ -206,8 +229,12 @@ func _pose(dt: float) -> void:
 	var bob := sin(phase * TAU * 2.0) * 0.035 * run * go
 	var pitch := sin(phase * TAU + 0.6) * 0.1 * run * go + crouch * 0.22 + stretch * 0.08 - flinch * 0.12
 	# On its side when dead or thrown down.
-	sk.position = Vector3(0, bob - crouch * 0.2 - fall * 0.62 + stretch * 0.12, 0)
-	sk.rotation = Vector3(-pitch, 0, fall * 1.45)
+	# Dead, it sinks into its own shadow; thrown down, it only lies on its side.
+	var melt := smoothstep(0.25, 1.5, dead) if dead >= 0.0 else 0.0
+	sk.position = Vector3(0, bob - crouch * 0.2 - fall * 0.62 * (1.0 - melt) + stretch * 0.12, 0)
+	sk.rotation = Vector3(-pitch, 0, fall * 1.45 * (1.0 - melt * 0.4))
+	sk.scale = Vector3(1.0 + melt * 0.35, maxf(1.0 - melt, 0.02), 1.0 + melt * 0.35)
+	sk.visible = melt < 0.985
 	var q := func(axis: Vector3, ang: float) -> Quaternion: return Quaternion(axis, ang)
 	sk.set_bone_pose_rotation(CHEST, q.call(Vector3.RIGHT, sin(phase * TAU + 1.2) * 0.08 * run * go))
 	sk.set_bone_pose_rotation(NECK, q.call(Vector3.RIGHT, 0.28 * run * go + crouch * 0.1 - stretch * 0.3 + flinch * 0.4 - bite * 0.15 + fall * 0.3))

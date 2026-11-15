@@ -130,6 +130,15 @@ static func _weapon(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGener
 			var hc := g + a * 1.15 * u
 			p.cone(hc, hc + a * 0.36 * u, 0.05 * u, 0.004 * u, Vector2(0.35, 1))
 			p.chain([hc + a * 0.05 * u, hc + a * 0.1 * u + up * 0.12 * u, hc - a * 0.02 * u + up * 0.2 * u, hc - a * 0.12 * u + up * 0.17 * u], 0.024 * u, 0.006 * u)
+		4:  # a Myrddraal's sword: straight, long, and black as the forge it came from
+			var black := Color(0.006, 0.006, 0.008, LEATHER)
+			p.use(C.HAND + o, black, 0.006 * u)
+			p.cone(g - a * 0.13 * u, g + a * 0.1 * u, 0.02 * u, 0.02 * u)
+			p.ball(g - a * 0.15 * u, Vector3.ONE * 0.032 * u)
+			p.box(g + a * 0.11 * u, Vector3(0.022, 0.13, 0.02) * u, 0.008 * u, rot)
+			p.use(C.HAND + o, black, 0.004 * u)
+			p.cone(g + a * 0.12 * u, g + a * 1.02 * u, 0.05 * u, 0.03 * u, Vector2(0.22, 1))
+			p.cone(g + a * 1.02 * u, g + a * 1.16 * u, 0.03 * u, 0.003 * u, Vector2(0.22, 1))
 		3:  # spiked club
 			p.cone(g - a * 0.2 * u, g + a * 0.7 * u, 0.022 * u, 0.034 * u)
 			var hc := g + a * 0.78 * u

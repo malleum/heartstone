@@ -68,33 +68,64 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 			"belt":
 				kit.shells.append({mask = Gear._band(waist - 0.022 * u, waist + 0.022 * u, half * 0.93, 0.0), thick = 0.03 * u, col = _c(g[1], Gear.LEATHER)})
 			"scales":
-				# Armour to the thigh and down the arms: rows of small plates, each
-				# row lapping the one below, drawn as a pale edge on black.
-				var hem := lerpf(hip_y, J[C.SHIN].y, 0.35)
-				var m := _torso(hem, J[C.NECK].y + 0.05 * u, J, u)
-				for side in 2:
-					var o := C.RIGHT * side
-					m.cone(J[C.UARM + o], J[C.UARM + o].lerp(J[C.HAND + o], 0.95), 0.08 * u, 0.055 * u)
+				# Black plate in overlapping strips (lames): a close under-layer, and
+				# over it every strip standing proud of the one below, round the trunk
+				# and in rings down the arms, each with a dull edge.
+				var hem := lerpf(hip_y, J[C.SHIN].y, 0.3)
+				var top := J[C.NECK].y + 0.05 * u
+				var build := func() -> Sdf:
+					var mm := _torso(hem, top, J, u)
+					for side in 2:
+						var o := C.RIGHT * side
+						mm.cone(J[C.UARM + o], J[C.UARM + o].lerp(J[C.HAND + o], 0.95), 0.085 * u, 0.06 * u)
+					return mm
+				kit.shells.append({mask = build.call(), thick = 0.016 * u, col = _c(g[1].darkened(0.3), Gear.LEATHER)})
+				var m: Sdf = build.call()
 				var p := Sdf.new()
 				p.use(0, _c(g[2], Gear.LEATHER), 0.003)
-				var y := hem + 0.02 * u
-				while y < J[C.NECK].y:
-					p.box(Vector3(0, y, 0), Vector3(1.0, 0.0045 * u, 1.0), 0.001).op = Sdf.PAINT
-					y += 0.042 * u
-				# Lacquered hide, not iron: the plate material rusts, and nothing of a
+				var pitch := 0.062 * u; var gap := 0.016 * u
+				var y := hem + pitch
+				while y < top:
+					# The gap between two strips (cut out of the proud layer) and the
+					# worn edge just above it.
+					m.box(Vector3(0, y, 0), Vector3(half * 0.99, gap * 0.5, 1.0), 0.002).op = Sdf.CARVE
+					p.box(Vector3(0, y + gap * 0.5 + 0.004 * u, 0), Vector3(half * 0.99, 0.004 * u, 1.0), 0.001).op = Sdf.PAINT
+					y += pitch
+				for side in [-1.0, 1.0]:
+					var x := half * 1.02
+					while x < absf(J[C.HAND].x):
+						m.box(Vector3(x * side, sh.y, 0), Vector3(gap * 0.5, 0.4 * u, 1.0), 0.002).op = Sdf.CARVE
+						p.box(Vector3((x - gap * 0.5 - 0.004 * u) * side, sh.y, 0), Vector3(0.004 * u, 0.4 * u, 1.0), 0.001).op = Sdf.PAINT
+						x += pitch
+				# Lacquered, not iron: the plate material rusts, and nothing of a
 				# Myrddraal's does.
-				kit.shells.append({mask = m, thick = 0.02 * u, col = _c(g[1], Gear.LEATHER), paint = p})
+				kit.shells.append({mask = m, thick = 0.034 * u, col = _c(g[1], Gear.LEATHER), paint = p})
+				# Pauldrons: two more strips over each shoulder.
+				var pa := Sdf.new()
+				for side in 2:
+					var o := C.RIGHT * side
+					pa.ball(J[C.UARM + o] + Vector3(0, 0.02 * u, 0), Vector3(0.11, 0.075, 0.11) * u)
+				kit.shells.append({mask = pa, thick = 0.05 * u, col = _c(g[1], Gear.LEATHER)})
 			"cloak":
-				# From the shoulders to the ankles behind, wide at the hem. It is cut
-				# as its own bell so it stands off the body, and weighted broadly so it
-				# hangs as one piece.
-				var m := _torso(sh.y - 0.06 * u, J[C.NECK].y + 0.05 * u, J, u)
-				var bell := Sdf.new()
-				bell.k = 0.04 * u
-				# (Kept close about the body: a bell standing far off it falls outside
-				# the grid the body is meshed in and comes out in rags.)
-				bell.cone(Vector3(0, waist + 0.04 * u, 0.01 * u), Vector3(0, 0.07 * u, 0.02 * u), 0.15 * u, 0.26 * u, Vector2(1, 0.7))
-				kit.shells.append({mask = m, thick = 0.03 * u, col = _c(g[1], Gear.CLOTH), solid = bell, wide = true})
+				# From the shoulders to the heels, open down the front, and still: it
+				# is hung from the chest alone, so no stride or wind stirs it.
+				var top := sh.y + 0.02 * u
+				var neck := J[C.NECK].y + 0.03 * u
+				var cl := Sdf.new()
+				cl.k = 0.035 * u
+				var back := -0.03 * u
+				# A yoke closed over the shoulders and up to the cowl, then the fall.
+				cl.cone(Vector3(0, neck, back), Vector3(0, top, back), 0.13 * u, 0.31 * u, Vector2(1, 0.72))
+				cl.cone(Vector3(0, top, back), Vector3(0, 0.09 * u, back - 0.06 * u), 0.31 * u, 0.47 * u, Vector2(1, 0.8))
+				cl.k = 0.015 * u
+				cl.cone(Vector3(0, neck - 0.045 * u, back), Vector3(0, top - 0.04 * u, back), 0.09 * u, 0.27 * u, Vector2(1, 0.7)).op = Sdf.CARVE
+				cl.cone(Vector3(0, top - 0.04 * u, back), Vector3(0, -0.1 * u, back - 0.06 * u), 0.27 * u, 0.43 * u, Vector2(1, 0.78)).op = Sdf.CARVE
+				# The front is open: the armour and the sword arm show.
+				cl.box(Vector3(0, top * 0.5, 0.62 * u), Vector3(0.2 * u, top, 0.5 * u), 0.02, Basis.IDENTITY).op = Sdf.CARVE
+				for side in [-1.0, 1.0]:
+					cl.box(Vector3(0.42 * u * side, top * 0.5, 0.5 * u), Vector3(0.3 * u, top, 0.36 * u), 0.02, Basis(Vector3.UP, 0.55 * side)).op = Sdf.CARVE
+				cl.box(Vector3(0, -0.5, 0), Vector3(3, 0.5 + 0.07 * u, 3), 0.0).op = Sdf.CARVE
+				kit.shells.append({mask = cl, solid = cl, cell = 0.017 * u, bone = C.CHEST, thick = 0.0, col = _c(g[1], Gear.CLOTH)})
 			"hood":
 				# A cowl, not a cap: its own hollow shape standing off the skull, the
 				# rim thrown forward so the face sits back in its shadow, falling in
@@ -148,7 +179,7 @@ static func dress(s: Dictionary, J: PackedVector3Array, _rng: RandomNumberGenera
 				# A black blade carried bare in the hand (the Myrddraal's), built by
 				# the same code as the Trollocs' weapons so the swing arm knows it.
 				s.weapon_side = 1
-				s.weapon_kind = 0
+				s.weapon_kind = 4
 				kit.props.append(Gear._weapon(s, J, _rng, 1))
 			"sword":
 				var p := Sdf.new()
