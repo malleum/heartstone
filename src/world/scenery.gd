@@ -25,6 +25,14 @@ static func fire(g: Node3D, at: Vector3) -> void:
 	l.shadow_enabled = false
 	g.add_child(l); l.position = at + Vector3(0, 1.4, 0)
 
+## A torch on a pole driven into the ground.
+static func torch(g: Node3D, at: Vector3) -> void:
+	_box(g, Vector3(0.07, 2.2, 0.07), at + Vector3(0, 1.1, 0), _mat(Color(0.14, 0.1, 0.06)), Vector3(0.05, 0, 0.04))
+	var f := Weavefx._particles(Color(1.0, 0.5, 0.15), 18, 0.5, 0.18, 0.2, 1.4, 12.0)
+	g.add_child(f); f.position = at + Vector3(0, 2.25, 0)
+	var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.58, 0.28); l.light_energy = 2.4; l.omni_range = 10.0
+	g.add_child(l); l.position = at + Vector3(0, 2.4, 0)
+
 ## A standing stone doorway for the camp: two posts, a lintel, and a surface of
 ## folding light in the colour of where it leads (dark when it may not be passed).
 ## The node faces +z; the caller turns it toward the camp.
@@ -100,22 +108,147 @@ static func walls(g: Node3D) -> void:
 					n.add_child(wheel)
 			_box(n, Vector3(0.08, 0.08, 2.4), Vector3(0, 0.7, 3.2), wood, Vector3(0.18, 0, 0))
 
+# --- props ---------------------------------------------------------------------------
+
+static func _cyl(parent: Node3D, r0: float, r1: float, h: float, at: Vector3, mat: Material, rot := Vector3.ZERO, seg := 12) -> MeshInstance3D:
+	var c := CylinderMesh.new(); c.bottom_radius = r0; c.top_radius = r1; c.height = h; c.radial_segments = seg; c.rings = 1
+	var mi := MeshInstance3D.new(); mi.mesh = c; mi.material_override = mat; mi.position = at; mi.rotation = rot
+	parent.add_child(mi)
+	return mi
+
+## A cask: staves bulging at the middle, two iron hoops.
+static func barrel(g: Node3D, at: Vector3, rng: RandomNumberGenerator, lying := false) -> void:
+	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = rng.randf() * TAU
+	var k := rng.randf_range(0.85, 1.1)
+	var wood := _mat(Color(0.3, 0.2, 0.11) * rng.randf_range(0.8, 1.1)); var iron := _mat(Color(0.09, 0.09, 0.1), 0.6)
+	var b := Node3D.new(); n.add_child(b)
+	if lying:
+		b.rotation.z = PI * 0.5; b.position.y = 0.33 * k
+	_cyl(b, 0.27 * k, 0.33 * k, 0.42 * k, Vector3(0, 0.21 * k, 0), wood)
+	_cyl(b, 0.33 * k, 0.27 * k, 0.42 * k, Vector3(0, 0.63 * k, 0), wood)
+	_cyl(b, 0.25 * k, 0.25 * k, 0.02, Vector3(0, 0.83 * k, 0), _mat(Color(0.2, 0.13, 0.07)))
+	for y in [0.2, 0.64]:
+		_cyl(b, 0.325 * k, 0.325 * k, 0.05, Vector3(0, y * k, 0), iron)
+
+## A packing crate: boards with a frame of battens and one across each face.
+static func crate(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
+	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = rng.randf() * TAU
+	var w := rng.randf_range(0.6, 0.95); var h := rng.randf_range(0.5, 0.75); var d := rng.randf_range(0.55, 0.8)
+	var board := _mat(Color(0.42, 0.31, 0.19) * rng.randf_range(0.8, 1.1)); var batten := _mat(Color(0.24, 0.17, 0.1))
+	_box(n, Vector3(w, h, d), Vector3(0, h * 0.5, 0), board)
+	var t := 0.06
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			_box(n, Vector3(t, h + 0.02, t), Vector3(sx * (w - t) * 0.5, h * 0.5, sz * (d - t) * 0.5) * Vector3(1.03, 1, 1.03), batten)
+	for sy in [0.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			_box(n, Vector3(w + 0.03, t, t), Vector3(0, sy * (h - t) + t * 0.5, sz * (d - t) * 0.515), batten)
+		for sx in [-1.0, 1.0]:
+			_box(n, Vector3(t, t, d + 0.03), Vector3(sx * (w - t) * 0.515, sy * (h - t) + t * 0.5, 0), batten)
+	for sz in [-1.0, 1.0]:
+		_box(n, Vector3(t, sqrt(w * w + h * h) - 0.1, 0.03), Vector3(0, h * 0.5, sz * d * 0.51), batten, Vector3(0, 0, atan2(w, h)))
+
+## Sacks of grain slumped on one another.
+static func sacks(g: Node3D, at: Vector3, rng: RandomNumberGenerator, count := 3) -> void:
+	var cloth := _mat(Color(0.52, 0.45, 0.32) * rng.randf_range(0.85, 1.05), 1.0)
+	for i in count:
+		var s := SphereMesh.new(); s.radius = 0.5; s.height = 1.0; s.radial_segments = 10; s.rings = 6
+		var mi := MeshInstance3D.new(); mi.mesh = s; mi.material_override = cloth
+		var top := i == count - 1 and count > 2
+		mi.position = at + (Vector3(0, 0.42, 0) if top else Vector3((i - (count - 2) * 0.5) * 0.62, 0.17, rng.randf_range(-0.1, 0.1)))
+		mi.scale = Vector3(rng.randf_range(0.75, 0.9), 0.36, rng.randf_range(0.5, 0.6))
+		mi.rotation = Vector3(0, rng.randf_range(-0.5, 0.5), rng.randf_range(-0.12, 0.12))
+		g.add_child(mi)
+
+## A bale of hay.
+static func bale(g: Node3D, at: Vector3, yaw: float) -> void:
+	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = yaw
+	_box(n, Vector3(1.1, 0.5, 0.6), Vector3(0, 0.25, 0), _mat(Color(0.62, 0.5, 0.22), 1.0))
+	for sx in [-0.3, 0.3]:
+		_box(n, Vector3(0.03, 0.52, 0.62), Vector3(sx, 0.25, 0), _mat(Color(0.3, 0.22, 0.1)))
+
+## A practice post: a man-high pell, hacked about, bound in rope where blows
+## land, a crossbar for arms and a straw-stuffed sack for a head.
+static func practice_post(seed: int) -> Node3D:
+	var rng := RandomNumberGenerator.new(); rng.seed = seed
+	var n := Node3D.new()
+	var wood := _mat(Color(0.3, 0.21, 0.13) * rng.randf_range(0.85, 1.1)); var rope := _mat(Color(0.55, 0.47, 0.3), 1.0)
+	_cyl(n, 0.13, 0.11, 1.9, Vector3(0, 0.95, 0), wood, Vector3(rng.randf_range(-0.03, 0.03), 0, rng.randf_range(-0.03, 0.03)), 8)
+	_cyl(n, 0.2, 0.15, 0.25, Vector3(0, 0.12, 0), _mat(Color(0.2, 0.19, 0.18)), Vector3.ZERO, 7)
+	_cyl(n, 0.145, 0.14, 0.5, Vector3(0, 1.2, 0), rope, Vector3.ZERO, 10)
+	_cyl(n, 0.05, 0.045, 1.2, Vector3(0, 1.5, 0), wood, Vector3(0, rng.randf_range(-0.3, 0.3), PI * 0.5 + rng.randf_range(-0.08, 0.08)), 6)
+	var s := SphereMesh.new(); s.radius = 0.17; s.height = 0.4; s.radial_segments = 10; s.rings = 6
+	var head := MeshInstance3D.new(); head.mesh = s; head.material_override = _mat(Color(0.5, 0.43, 0.3), 1.0); head.position = Vector3(0, 2.02, 0)
+	n.add_child(head)
+	_cyl(n, 0.1, 0.12, 0.05, Vector3(0, 1.84, 0), rope, Vector3.ZERO, 8)
+	return n
+
+## The training yard: a rail fence round the ground, with what a yard has at its
+## edges. Nothing here is solid, so it is all kept out of the way of the fighting.
+static func yard(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 19
+	var wood := _mat(Color(0.27, 0.19, 0.11))
+	var c := Vector3(0, 0, -6.0); var r := 21.0; var n := 30
+	for i in n:
+		var a0 := i * TAU / n; var a1 := (i + 1) * TAU / n
+		var p0 := _ground(c.x + sin(a0) * r, c.z + cos(a0) * r); var p1 := _ground(c.x + sin(a1) * r, c.z + cos(a1) * r)
+		_box(g, Vector3(0.11, 1.25, 0.11), p0 + Vector3(0, 0.55, 0), wood, Vector3(rng.randf_range(-0.05, 0.05), a0, rng.randf_range(-0.05, 0.05)))
+		if i == 0 or i == n - 1:
+			continue   # the gate, behind where you come in
+		var mid := (p0 + p1) * 0.5; var d := p1 - p0
+		for y in [0.45, 0.9]:
+			var rail := MeshInstance3D.new(); var b := BoxMesh.new(); b.size = Vector3(0.07, 0.09, d.length() + 0.15)
+			rail.mesh = b; rail.material_override = wood; g.add_child(rail)
+			rail.look_at_from_position(mid + Vector3(0, y + rng.randf_range(-0.03, 0.03), 0), p1 + Vector3(0, y, 0), Vector3.UP)
+	# Archery butts on the far side.
+	for i in 3:
+		var a := PI + (i - 1) * 0.16
+		var p := _ground(c.x + sin(a) * (r - 2.0), c.z + cos(a) * (r - 2.0))
+		var t := Node3D.new(); g.add_child(t); t.position = p; t.rotation.y = a + PI
+		_cyl(t, 0.62, 0.62, 0.28, Vector3(0, 1.05, 0), _mat(Color(0.66, 0.56, 0.3), 1.0), Vector3(PI * 0.5 - 0.15, 0, 0), 18)
+		_cyl(t, 0.4, 0.4, 0.29, Vector3(0, 1.05, 0), _mat(Color(0.75, 0.72, 0.62), 1.0), Vector3(PI * 0.5 - 0.15, 0, 0), 18)
+		_cyl(t, 0.14, 0.14, 0.3, Vector3(0, 1.05, 0), _mat(Color(0.5, 0.1, 0.08)), Vector3(PI * 0.5 - 0.15, 0, 0), 12)
+		for sx in [-0.4, 0.4]:
+			_box(t, Vector3(0.07, 1.7, 0.07), Vector3(sx, 0.8, -0.3), wood, Vector3(-0.3, 0, 0))
+		_box(t, Vector3(0.07, 1.7, 0.07), Vector3(0, 0.75, -0.75), wood, Vector3(0.45, 0, 0))
+	# A weapon rack, bales, a water butt and a bench along the sides.
+	for side: float in [-1.0, 1.0]:
+		var a: float = side * 1.35
+		var p := _ground(c.x + sin(a) * (r - 1.5), c.z + cos(a) * (r - 1.5))
+		var rack := Node3D.new(); g.add_child(rack); rack.position = p; rack.rotation.y = a + PI
+		for sx in [-0.9, 0.9]:
+			_box(rack, Vector3(0.09, 1.5, 0.09), Vector3(sx, 0.75, 0), wood)
+		for y in [0.5, 1.35]:
+			_box(rack, Vector3(1.9, 0.07, 0.07), Vector3(0, y, 0), wood)
+		for k in 6:
+			var x := -0.7 + k * 0.28
+			_cyl(rack, 0.02, 0.02, 1.6 + (k % 3) * 0.25, Vector3(x, 0.85 + (k % 3) * 0.12, 0.12), _mat(Color(0.36, 0.27, 0.16)), Vector3(-0.1, 0, 0), 5)
+			if k % 2 == 0:
+				_box(rack, Vector3(0.05, 0.3, 0.015), Vector3(x, 1.78 + (k % 3) * 0.24, 0.04), _mat(Color(0.45, 0.46, 0.5), 0.4), Vector3(-0.1, 0, 0))
+		for k in 3:
+			var a2: float = a + side * (0.2 + (k if k < 2 else 0.5) * 0.085)
+			bale(g, _ground(c.x + sin(a2) * (r - 1.2), c.z + cos(a2) * (r - 1.2)) + Vector3(0, 0.5 if k == 2 else 0.0, 0), a2 + PI * 0.5)
+		barrel(g, _ground(c.x + sin(a - side * 0.14) * (r - 1.2), c.z + cos(a - side * 0.14) * (r - 1.2)), rng)
+		var bp := _ground(c.x + sin(a - side * 0.3) * (r - 1.4), c.z + cos(a - side * 0.3) * (r - 1.4))
+		var bench := Node3D.new(); g.add_child(bench); bench.position = bp; bench.rotation.y = a - side * 0.3 + PI
+		_box(bench, Vector3(1.8, 0.07, 0.32), Vector3(0, 0.45, 0), wood)
+		for sx in [-0.75, 0.75]:
+			_box(bench, Vector3(0.08, 0.45, 0.28), Vector3(sx, 0.22, 0), wood)
+
 ## The caravan's ground: a fire in the middle of the ring and a few bales and casks.
 static func wagon_ring(g: Node3D) -> void:
 	walls(g)
 	fire(g, _ground(0.0, 0.0) + Vector3(2.5, 0, 2.0))
 	var rng := RandomNumberGenerator.new(); rng.seed = 3
-	var sack := _mat(Color(0.5, 0.42, 0.3)); var cask := _mat(Color(0.25, 0.16, 0.09))
-	for i in 10:
+	for i in 12:
 		var a := rng.randf() * TAU
 		var p := _ground(sin(a) * rng.randf_range(3.5, 6.5), cos(a) * rng.randf_range(3.5, 6.5))
-		if i % 2 == 0:
-			_box(g, Vector3(0.9, 0.5, 0.6), p + Vector3(0, 0.25, 0), sack, Vector3(0, rng.randf() * TAU, 0))
-		else:
-			var b := MeshInstance3D.new(); var c := CylinderMesh.new(); c.top_radius = 0.3; c.bottom_radius = 0.3; c.height = 0.8
-			b.mesh = c; b.material_override = cask; b.position = p + Vector3(0, 0.4, 0); g.add_child(b)
+		match i % 3:
+			0: crate(g, p, rng)
+			1: barrel(g, p, rng, i % 2 == 0)
+			2: sacks(g, p, rng, 2 + i % 2)
 
-static func tarwins_gap(g: Node3D) -> void:
+static func tarwins_gap(g: Node3D, night := false) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 11
 	var stone := _mat(Color(0.2, 0.19, 0.18))
 	var wood := _mat(Color(0.16, 0.11, 0.07))
@@ -128,6 +261,14 @@ static func tarwins_gap(g: Node3D) -> void:
 		_box(g, Vector3(0.09, 2.0, 0.09), p + Vector3(0, 0.6, -0.4), wood, Vector3(-0.85, rng.randf_range(-0.2, 0.2), 0))
 	for sx in [-w * 0.55, w * 0.55]:
 		fire(g, _ground(sx, z0 + 4.0))
+	if night:
+		# Watch fires thrown well out up the pass, to see what comes by, and
+		# torches along the line.
+		for k in 3:
+			for sx in [-w * 0.6, w * 0.6]:
+				fire(g, _ground(sx * (1.0 - k * 0.1), z0 - 16.0 - k * 17.0))
+		for sx in [-w * 0.9, -w * 0.3, w * 0.3, w * 0.9]:
+			torch(g, _ground(sx, z0 + 1.5))
 	# Banner poles behind the line, so the place reads as held ground from a distance.
 	var cloth := _mat(Color(0.55, 0.1, 0.08), 0.8)
 	for sx in [-w * 0.8, w * 0.8]:

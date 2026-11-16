@@ -487,14 +487,17 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if Map.id == "tarwins_gap":
 		# A low sun behind the defenders: it lights the floor of the pass and the
 		# faces of whatever comes down it, instead of leaving both in cliff shadow.
-		World.build(self, 14.0, -24.0)
+		var night: bool = Rules.activities[activity].get("night", false)
+		World.build(self, 14.0, -24.0, night)
 		(ground.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("road", 7.0)
-		Scenery.tarwins_gap(self)
+		Scenery.tarwins_gap(self, night)
 	elif Map.id == "wagon_ring":
 		World.build(self, 60.0, -30.0)
 		Scenery.wagon_ring(self)
 	else:
 		World.build(self)
+		if activity == "camp_training":
+			Scenery.yard(self)
 	Scenery.scatter(self)
 	dreaming = Rules.activities[activity].get("dream", false)
 	if dreaming:
@@ -1048,9 +1051,8 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 		else:
 			_banner("A Dreadlord: it channels. Shield it, or stay out of the marked ground", 5.0)
 	else:
-		var post := MeshInstance3D.new()
-		var m := CylinderMesh.new(); m.top_radius = 0.22; m.bottom_radius = 0.28; m.height = 2.0
-		post.mesh = m; post.position = _ground(pos) + Vector3(0, 1, 0)
+		var post := Scenery.practice_post(id)
+		post.position = _ground(pos); post.rotation.y = PI + sin(id * 2.3) * 0.4
 		add_child(post)
 		actors[id] = {node = post, kind = "post", target = pos}
 
