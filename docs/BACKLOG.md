@@ -266,3 +266,10 @@ are what the 4:44 review, or the next session, should pick up.
   - **Feet jog while you weave on the move.**
   - **Casting gestures vary** by person and weave (five gestures, chosen by a hash
     of the name and the weave).
+- 2026-11-16, Dreamworld duelling (asked for 15 Nov; first version built, see
+  ARCHITECTURE "Duelling in the dream" and PLAYTEST 72-74). Still to do:
+  - Rebinding the dream keys in the camp (`profile.dream_keys` is already read).
+  - More imagined things (a change of clothes, a sudden pit under a runner, a
+    mirror image), and dream moves against Shadowspawn in a dream mission.
+  - A duel of real players over the server has passed the co-op test path only as
+    far as snapshots; nobody has fought one.

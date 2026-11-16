@@ -220,6 +220,11 @@ func tie(weave: String) -> void:
 	if is_host: _do_arms(1, "tie", [weave])
 	else: _arms.rpc_id(1, "tie", [weave])
 
+## A dream move, aimed where the player is looking (Tel'aran'rhiod only).
+func dream(move: String, aim: Vector3) -> void:
+	if is_host: _do_arms(1, "dream", [move, aim])
+	else: _arms.rpc_id(1, "dream", [move, aim])
+
 func equip(weapon: String) -> void:
 	if is_host: _do_arms(1, "equip", [weapon])
 	else: _arms.rpc_id(1, "equip", [weapon])
@@ -259,6 +264,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 2 and a[0] is Vector3 and a[1] is bool: why = sim.request_dodge(ent, a[0], a[1])
 		"equip":
 			if a.size() == 1 and a[0] is String: why = sim.equip(ent, a[0])
+		"dream":
+			if a.size() == 2 and a[0] is String and a[1] is Vector3: why = sim.request_dream(ent, a[0], a[1])
 		"tie":
 			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
 	if why != "" and why != "busy":
@@ -441,8 +448,8 @@ func _welcome(ent: int, activity_id: String) -> void:
 @rpc("authority", "unreliable_ordered")
 func _snap(t: float, flat: PackedFloat32Array, fx: Array) -> void:
 	var es := []
-	for i in range(0, flat.size(), 7):
-		es.append([int(flat[i]), flat[i + 1], flat[i + 2], flat[i + 3], flat[i + 4], flat[i + 5], int(flat[i + 6])])
+	for i in range(0, flat.size(), 8):
+		es.append([int(flat[i]), flat[i + 1], flat[i + 2], flat[i + 3], flat[i + 4], flat[i + 5], int(flat[i + 6]), flat[i + 7]])
 	snapshot.emit({t = t, ents = es, fx = fx})
 
 @rpc("authority", "reliable")

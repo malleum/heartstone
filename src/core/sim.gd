@@ -19,6 +19,7 @@ var rng := RandomNumberGenerator.new()
 var _next := 1
 var _waves: Array = []
 var _spar := false
+var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dream)
 
 func _init(activity: String, seed_ := 1) -> void:
 	Rules.load_data()
@@ -27,6 +28,8 @@ func _init(activity: String, seed_ := 1) -> void:
 	var act: Dictionary = Rules.activities[activity]
 	_waves = act.get("waves", []).duplicate(true)
 	_spar = act.kind == "spar"
+	dream = act.get("dream", false)
+	Dream.load_data()
 	Map.use(act.get("map", "open"))
 
 func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
@@ -37,7 +40,8 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 		cd = {}, burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, vel = Vector3.ZERO,
 		# Arms: what is in hand, the blow in progress, and how it is being defended.
 		weapon = "", ammo = {}, swing = {}, queued = {}, chain = 0, chain_t = 0.0, shot_free = -99.0,
-		guard = false, guard_since = 0.0, parry_at = -9.0, parry_free = 0.0, duck = false, safe_until = 0.0, dash = {}, reel_until = 0.0}
+		guard = false, guard_since = 0.0, parry_at = -9.0, parry_free = 0.0, duck = false, safe_until = 0.0, dash = {}, reel_until = 0.0,
+		will = 100.0, will_t = -99.0, chained = 0.0, shaken = 0.0, deny_until = 0.0}
 	var p: Dictionary = ents[id]
 	p.speed = Rules.run_speed(profile)
 	p.max_hp = Rules.max_hp(profile); p.hp = p.max_hp
@@ -134,6 +138,8 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 		return "shielded from the Source"
 	if p.get("bound_by", 0) != 0:
 		return "bound in Air"
+	if p.chained > t:
+		return "chained"
 	var row: Dictionary = Rules.weaves.get(weave, {})
 	var target := 0
 	if row.get("hold", false):
@@ -199,6 +205,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		return "nothing in hand"
 	if p.get("bound_by", 0) != 0:
 		return "bound in Air"
+	if p.chained > t:
+		return "chained"
 	if not p.swing.is_empty():
 		p.queued = {kind = kind, aim = aim, charge = charge}
 		return ""
@@ -267,6 +275,10 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 ## A parry is a moment, not a stance: pressing it puts the weapon in the way for
 ## parry_window seconds, and then it cannot be tried again for a breath. Holding
 ## the button does nothing more. (The name is kept from when it was a held guard.)
+## A dream move (data/dream.json), where the activity is in Tel'aran'rhiod.
+func request_dream(id: int, move: String, aim: Vector3) -> String:
+	return Dream.request(self, id, move, aim)
+
 func set_guard(id: int, on: bool) -> void:
 	var p: Dictionary = ents[id]
 	if not on or not p.alive or t < p.parry_free or p.reel_until > t or Rules.guard_share(p.profile, p.weapon) <= 0.0:
@@ -300,6 +312,8 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 		return "busy"
 	if p.get("entranced", 0.0) > t:
 		return "the song has you"
+	if p.chained > t:
+		return "chained"
 	dir.y = 0.0
 	# With no direction given it is a step back, out of reach, still facing them.
 	var back := dir.length() <= 0.1
@@ -554,8 +568,12 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		p.dash.left -= dt
 		if p.dash.left <= 0.0:
 			p.dash = {}
-	if p.get("bound_by", 0) != 0:
+	if p.get("bound_by", 0) != 0 or p.chained > t:
 		step = Vector3.ZERO
+	elif p.get("mired", 0.0) > t:
+		step *= p.mire
+	if dream:
+		Dream.step_player(self, p, dt)
 	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius))
 	_step_holds(p, dt)
 	_step_swing(p, dt)
@@ -905,6 +923,13 @@ func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -
 func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) -> void:
 	if not e.alive:
 		return
+	# Arms and weaves are made to kill Trollocs. Between two people sparring they
+	# would end it in a few blows, so they do a share of their work (dream-things
+	# are made for this and do all of theirs).
+	if _spar and e.kind == "player" and weave != "dream":
+		# ...and no one blow takes more than a share of a body, or a strong
+		# channeller ends a weak one before either has done anything.
+		dmg = minf(dmg * Rules.TUNE.spar_dmg, e.max_hp * Rules.TUNE.spar_cap)
 	# A Myrddraal is not where the blow lands, half the time, unless something
 	# has hold of it.
 	# Spirit is not a thing to step aside from: it is woven at what the creature is.
@@ -1000,7 +1025,7 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 		if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
 			return true
 	# A wall stops what flies below its top: cover from arrows, and from fire.
-	if Map.in_wall(fx.pos):
+	if Map.in_wall(fx.pos) or (dream and Dream.walled(self, fx.pos - stepv, fx.pos)):
 		return true
 	var gy := Terrain.height(fx.pos.x, fx.pos.z)
 	if fx.pos.y <= gy:
@@ -1079,6 +1104,8 @@ func _step_effects(dt: float) -> void:
 							e.gated = t + 2.0
 							events.append({e = "gate_pass", id = e.id, pos = e.pos})
 							break
+			"dream_bolt", "dream_chain", "dream_pit", "dream_wall":
+				alive = Dream.step_effect(self, fx, owner, dt)
 			"doom":
 				# Lightning called down on a marked circle: be out of it when it falls.
 				fx.left -= dt
@@ -1595,8 +1622,9 @@ func snapshot() -> Dictionary:
 				| (128 if e.get("bound_by", 0) != 0 else 0) | (256 if e.get("fester", 0.0) > 0.0 else 0) \
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
 				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
-				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0)
-			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st])
+				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0) \
+				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t else 0)
+			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
 	var fx := []
 	for f in effects:
 		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")), f.get("yaw", 0.0)])

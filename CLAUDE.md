@@ -82,6 +82,8 @@ working on abilities; the user's rulings there are final).
 - `tools/weave.sh <id>` (one weave side-on at six moments; `DEMO=<m>` for weaves the bot
   will not choose) and `tools/face.sh <name> [bench args]` (a face, front and three-quarter).
   Weave visuals are built from `src/game/flowfx.gd` (ribbons, fire ball, shell, rock shard).
+- Dream duels: `src/core/dream.gd`, `data/dream.json`; `--activity=dream_spar --foe=warder`,
+  `--dreamdemo[=move,..]` to stage the moves, `tests/dream_duel.gd` for bot-versus-bot numbers.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 

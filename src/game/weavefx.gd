@@ -92,6 +92,10 @@ static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
 
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
 static func live(g: Node3D, kind: String, weave := "") -> Node3D:
+	if kind.begins_with("dream_"):
+		var dn := Dreamfx.live(kind)
+		g.add_child(dn)
+		return dn
 	var n := Node3D.new()
 	g.add_child(n)
 	match kind:

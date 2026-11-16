@@ -390,6 +390,76 @@ func _playtest() -> void:
 			if fx.kind == "missile" and full.is_empty() and fx.id != half.get("id", -1): full = fx.duplicate()
 	check(not half.is_empty() and not full.is_empty() and full.vel.length() > half.vel.length() * 1.6 and full.dmg > half.dmg * 3.0, "a half-drawn longbow throws a slower, far weaker arrow")
 
+func _dream() -> void:
+	print("== Tel'aran'rhiod")
+	Map.use("open")
+	var a := Profile.create({name = "Dreamer", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var b := Profile.create({name = "Other", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var sim := Sim.new("dream_spar", 3)
+	var ia := sim.add_player(a, Vector3(0, 0, 0)); var ib := sim.add_player(b, Vector3(0, 0, 14))
+	var pa: Dictionary = sim.ents[ia]; var pb: Dictionary = sim.ents[ib]
+	pa.yaw = 0.0; pb.yaw = PI
+	check(Sim.new("camp_training", 1).request_dream(1, "shift_back", Vector3.ZERO) != "" , "no dream moves in the waking world")
+	# Shifts.
+	check(sim.request_dream(ia, "shift_behind", pb.pos) == "" and pa.pos.distance_to(pb.pos) < 3.0 and pa.pos.z > pb.pos.z, "step behind: you are at their back")
+	check(absf(angle_difference(pa.yaw, atan2(pb.pos.x - pa.pos.x, pb.pos.z - pa.pos.z))) < 0.1, "and facing them")
+	check(is_equal_approx(pa.will, 100.0 - 24.0), "it costs Will")
+	var z0: float = pa.pos.z
+	check(sim.request_dream(ia, "shift_back", Vector3.ZERO) == "" and absf(pa.pos.distance_to(Vector3(0, 0, z0)) - 7.0) < 0.2, "step away: seven paces back")
+	var there: Vector3 = pa.pos + Vector3(10, 0, 0)
+	check(sim.request_dream(ia, "shift_aim", there) == "" and pa.pos.distance_to(there) < 0.3, "step there: where you looked")
+	pa.will = 5.0
+	check(sim.request_dream(ia, "shift_aim", Vector3.ZERO) == "your will is spent", "with no Will left, nothing")
+	run(sim, 4.0)
+	check(pa.will > 40.0, "Will comes back when the mind is quiet")
+	# A thrown spear, and Deny.
+	pa.pos = Vector3(0, 0, 0); pb.pos = Vector3(0, 0, 12); pa.will = 100.0; pb.will = 100.0
+	var hp: float = pb.hp
+	sim.request_dream(ia, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	var seen := run(sim, 1.0)
+	check(seen.has("dream_hit") and pb.hp < hp, "a thrown spear lands")
+	hp = pb.hp
+	sim.request_dream(ia, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	run(sim, 0.3)
+	sim.request_dream(ib, "deny", Vector3.ZERO)
+	seen = run(sim, 0.6)
+	check(seen.has("denied") and is_equal_approx(pb.hp, hp), "Denied in the instant, it is unmade")
+	check(pa.shaken > sim.t - 0.7 and sim.request_dream(ia, "shift_back", Vector3.ZERO) in ["your will is shaken", ""], "and the one who threw it is shaken")
+	# Chains: hold unless you are gone first; a shift breaks them at a price.
+	run(sim, 2.0)
+	pa.pos = Vector3(0, 0, 0); pb.pos = Vector3(0, 0, 12); pa.will = 100.0; pb.will = 100.0
+	sim.request_dream(ia, "dream_chains", pb.pos)
+	seen = run(sim, 0.7)
+	check(seen.has("chained") and pb.chained > sim.t, "chains take hold")
+	check(sim.request_attack(ib, "light", pa.pos) == "chained" and sim.request_dodge(ib, Vector3.RIGHT) == "chained", "chained, you cannot strike or roll")
+	var w: float = pb.will
+	check(sim.request_dream(ib, "shift_back", Vector3.ZERO) == "" and pb.chained <= sim.t and is_equal_approx(w - pb.will, 18.0), "but you can be elsewhere, for half as much Will again")
+	run(sim, 2.0)
+	pb.pos = Vector3(0, 0, 12); pa.will = 100.0
+	sim.request_dream(ia, "dream_chains", pb.pos)
+	run(sim, 0.2)
+	sim.request_dream(ib, "shift_aim", Vector3(9, 0, 12))
+	seen = run(sim, 0.6)
+	check(not seen.has("chained") and pb.chained <= sim.t, "gone from the spot before they close, they hold nothing")
+	# A wall stops what is thrown.
+	run(sim, 2.0)
+	pa.pos = Vector3(0, 0, 0); pa.yaw = 0.0; pb.pos = Vector3(0, 0, 12); pb.yaw = PI; pa.will = 100.0; pb.will = 100.0
+	sim.request_dream(ib, "dream_wall", Vector3.ZERO)
+	hp = pb.hp
+	sim.request_dream(ia, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	seen = run(sim, 1.0)
+	check(not seen.has("dream_hit") and is_equal_approx(pb.hp, hp), "a wall stops a thrown spear")
+	# The ground turns.
+	run(sim, 4.0)
+	pa.will = 100.0; pb.pos = Vector3(0, 0, 12); hp = pb.hp
+	sim.request_dream(ia, "dream_pit", pb.pos)
+	seen = run(sim, 1.5)
+	check(seen.has("pit_open") and pb.hp < hp and pb.get("mired", 0.0) > sim.t - 0.2, "the ground takes hold of whoever stands on it")
+	# The duel ends when one of them wakes.
+	sim._hurt(pb, 9999.0, ia, "dream")
+	run(sim, 0.2)
+	check(sim.over and sim.success, "one of them wakes: the duel is over")
+
 func _shadowspawn() -> void:
 	print("== Darkhounds, Draghkar, Dreadlords")
 	Map.use("open")
@@ -824,6 +894,7 @@ func _init() -> void:
 	_powers()
 	_playtest()
 	_shadowspawn()
+	_dream()
 	_trolloc_blows()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

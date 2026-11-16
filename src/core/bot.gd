@@ -145,3 +145,61 @@ static func drive(sim: Sim, id: int) -> void:
 		sim.aim_cast(id, sim.aim_at(me, me.forming.weave, near), false)
 	elif pick != "":
 		sim.request_cast(id, pick, sim.aim_at(me, pick, near))
+
+## A dreamer's part of a bot, in Tel'aran'rhiod: unmake or be gone from what is
+## coming, and use the dream against whoever is nearest. It thinks a few times a
+## second and is wrong some of the time, as a person is.
+static func dream(sim: Sim, id: int) -> void:
+	var me: Dictionary = sim.ents[id]
+	if not sim.dream or not me.alive or sim.t < me.get("bot_dream_t", 0.0):
+		return
+	me.bot_dream_t = sim.t + 0.18 + sim.rng.randf() * 0.2
+	var near: Dictionary = {}
+	var best := 1e9
+	for e in sim._targets(me):
+		var d: float = e.pos.distance_to(me.pos)
+		if d < best:
+			best = d; near = e
+	if near.is_empty():
+		return
+	var r := sim.rng.randf()
+	# What is coming at me?
+	for fx in sim.effects:
+		if not sim.ents.has(fx.owner) or sim.ents[fx.owner].team == me.team:
+			continue
+		var threat := false
+		match fx.kind:
+			"dream_bolt": threat = fx.wait <= 0.0 and fx.pos.distance_to(me.pos) < 12.0 and fx.dir.dot((me.pos - fx.pos).normalized()) > 0.9
+			"dream_chain": threat = fx.on == id and fx.left < 0.3
+			"dream_pit": threat = fx.pos.distance_to(sim._feet(me)) < fx.rad + 0.5 and fx.wait < 0.3
+		if threat:
+			if r < 0.5 and fx.kind != "dream_pit" or me.will < 16.0:
+				sim.request_dream(id, "deny", me.pos)
+			elif r > 0.85 and fx.kind == "dream_bolt":
+				sim.request_dream(id, "dream_wall", fx.pos)
+			elif r < 0.85:
+				var side := Vector3(cos(me.yaw), 0, -sin(me.yaw)) * (6.0 if sim.rng.randf() < 0.5 else -6.0)
+				sim.request_dream(id, "shift_aim", me.pos + side)
+			return
+	if me.chained > sim.t:
+		if r < 0.7:
+			sim.request_dream(id, "shift_back", me.pos)
+		return
+	# Hurt and pressed: be somewhere else.
+	if me.hp < me.max_hp * 0.4 and best < 4.0 and r < 0.6:
+		sim.request_dream(id, "shift_back", me.pos)
+		return
+	if me.will < 50.0:
+		return
+	var chest: Vector3 = sim._feet(near) + Vector3(0, 1.2, 0)
+	var melee: bool = me.profile.get("cls", "channeller") != "channeller"
+	if r < 0.22 and best > (5.0 if melee else 99.0):
+		sim.request_dream(id, "shift_behind", near.pos)
+	elif r < 0.4:
+		sim.request_dream(id, "dream_spear", chest + near.move * near.speed * best / 48.0)
+	elif r < 0.5 and near.get("chained", 0.0) <= sim.t:
+		sim.request_dream(id, "dream_chains", near.pos)
+	elif r < 0.57:
+		sim.request_dream(id, "dream_pit", near.pos + near.move * near.speed * 0.4)
+	elif r < 0.62 and not melee and best < 6.0:
+		sim.request_dream(id, "shift_back", me.pos)

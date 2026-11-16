@@ -245,7 +245,7 @@ Bare hands
 - [ ] Skill pacing per family; what each level gives.
 - [ ] Renown and activities that suit fighters (hold the breastwork, guard the
       Aes Sedai, a duel in the yard).
-- [ ] Sparring between a fighter and a channeller in Tel'aran'rhiod.
+- [x] Sparring between a fighter and a channeller in Tel'aran'rhiod (dream moves and Will; blows and weaves scaled down between players).
 - [ ] Wounds that last until Healed, so a Healer matters to fighters.
 
 ## Sources for weapons and forms

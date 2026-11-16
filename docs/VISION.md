@@ -66,7 +66,7 @@ of systems. You pick what to do from the camp, for fun or for progress.
 2. **Linear missions**, Resident Evil 4-style: escorts, defend the gateway, assault a
    Darkfriend manor, Waygate runs. These carry a light plot thread.
 3. **Tel'aran'rhiod missions**, later.
-4. **Sparring in Tel'aran'rhiod:** PvP between friends with the same characters.
+4. **Sparring in Tel'aran'rhiod:** PvP between friends with the same characters. (Built 16 Nov: Will and dream moves, see ARCHITECTURE "Duelling in the dream".)
 
 **Not open world.** Small and dense beats big and hollow. A camp, a handful of
 maps, and missions that give a sense of going somewhere.

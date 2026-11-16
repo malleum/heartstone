@@ -3,7 +3,7 @@ extends RefCounted
 ## A scripted pair of hands: feeds real key and mouse events into the engine on
 ## given frames, so the path a person's input takes (not a bot's direct calls into
 ## the sim) can be exercised in a render or a test.
-##   -- --ghost=arms | weaves | camp
+##   -- --ghost=arms | weaves | camp | dream
 ## Each script is a list of [frame, what, ...]: "key" keycode down?, "mouse"
 ## button down?, "tap" keycode (down and up).
 
@@ -31,6 +31,10 @@ const SCRIPTS := {
 		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
 		[420, "tap", KEY_E], [430, "tap", KEY_Q], [436, "tap", KEY_1],
 		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE]],
+	# A duel in the dream: every dream key once, most of them before the shade
+	# arrives (4 s in), stepping behind it and chaining it after.
+	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
+		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y]],
 	# The camp: open and close everything, hide the sheet, walk at a doorway.
 	camp = [[30, "tap", KEY_T], [70, "tap", KEY_ESCAPE], [100, "tap", KEY_H], [130, "tap", KEY_H],
 		[160, "tap", KEY_ESCAPE], [200, "tap", KEY_ESCAPE],

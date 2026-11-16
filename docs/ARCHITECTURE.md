@@ -379,6 +379,46 @@ A `ShaderMaterial` parameter must be set once before a tween can find it
 The stubble paint on generated male faces is skipped for the Eyeless and for a
 Draghkar: it is laid last and washed the colour out of anything on the lower face.
 
+## Duelling in the dream (src/core/dream.gd, data/dream.json; built 16 Nov)
+An activity with `"dream": true` (only `dream_spar` so far) gives every player **Will**
+(100; back at 13/s after 1 s without spending, x1.6 standing still) and the dream moves,
+each a row in `data/dream.json` with its key, cost and numbers. Arms and weaves still
+work beside them.
+
+| Move | Key | Will | What it does |
+|---|---|---|---|
+| Step behind | Z | 24 | Behind the nearest opponent within 32 m, facing their back |
+| Step away | X | 12 | 7 m straight back |
+| Step there | V | 16 | To where you are looking, up to 24 m |
+| Deny | Shift | 7 | For 0.45 s, the next dream-thing to reach you is unmade: you get 14 Will, its maker loses 12 and is shaken (no dream moves) for 1.3 s |
+| A thrown spear | T | 11 | 15 damage, fast, straight |
+| Chains | Y | 26 | After 0.45 s they close on the nearest opponent to the aim point; held 2 s (no blows, rolls or walking) unless they left the spot or Denied |
+| The ground turns | U | 20 | A marked circle opens after 0.55 s: slow and 9 damage/s for 3 s |
+| A wall | H | 18 | Stone across your front for 3.5 s; stops spears, arrows and thrown weaves |
+
+- Any step frees you from chains, for half as much Will again. A step also drops a
+  swing or a forming weave and leaves you unhittable for 0.14 s.
+- **Sparring damage.** Arms and weaves are tuned to kill Trollocs, and bots killed each
+  other in five seconds with them. In any spar, a blow or weave on another player does
+  `TUNE.spar_dmg` (0.35) of its damage and never more than `spar_cap` (7%) of the
+  target's health. Dream-things do their full written damage. Bot duels now last
+  16 to 100 s.
+- **Opponent.** A spar entered alone conjures "Your shade" after 4 s (a bot of the same
+  kind as you); `--foe=warder|aiel|hunter|channeller|mirror` picks one. `Bot.dream`
+  plays the moves: Denies or steps from what is coming, steps out of chains, attacks
+  when its Will is above 50.
+- Snapshot rows carry Will as an eighth number; status bits 131072 (chained) and 262144
+  (shaken). The client's unpacking stride in `Session._snap` must match the row length:
+  it did not at first, which broke every joined game until the co-op test caught it.
+- View: `dreamfx.gd` (pale shell and streak for a step, a shell for Deny, chains,
+  spear), `dreampit.gd`, `dreamwall.gd`; the world is drained of colour and fogged.
+  The HUD shows Will above health and lists the keys with their costs.
+- Tools: `tests/dream_duel.gd` (two bots duel headless and the fight is counted),
+  `--dreamdemo[=move,move]` (the player works through the moves for a render),
+  `tools/ghost.sh` presses every dream key.
+- Not built: rebinding the dream keys in the camp (`profile.dream_keys` is read if
+  present), dream moves against Shadowspawn, the Dreamer Talent, shaping the place.
+
 ## Testing
 - `tools/test.sh`: rules and progression (`tests/run_tests.gd`: every weapon, every
   defence, holds, enemies, Powers, whole activities played by bots), co-op over

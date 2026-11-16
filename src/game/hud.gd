@@ -69,6 +69,18 @@ func _draw() -> void:
 	var tired := ("weaves at %d%%  ·  as strength %s" % [int(vig * 100.0), Rules.level_name(Rules.level_of(Rules.strength(p) * vig))]) if p.get("cls", "channeller") == "channeller" else "blows at %d%% strength" % int(vig * 100.0)
 	Glyph.text(self, sans, Vector2(bx - 6, by + 54), tired, 13, Color(0.75, 0.8, 0.9) if vig > 0.6 else Color(1.0, 0.7, 0.45))
 
+	if g.dreaming:
+		# Will, and what the dream will do for you, each on its key.
+		Glyph.bar(self, Vector2(bx - 6, by - 16), 330, 9, g.my_will / 100.0, Color(0.86, 0.82, 1.0), Color(0.5, 0.4, 0.9))
+		Glyph.text(self, sans, Vector2(bx + 334, by - 7), "will", 12, Color(0.75, 0.72, 0.95))
+		var dy := H - 300.0
+		for k in g.dream_keys:
+			var mv: Dictionary = Dream.moves[g.dream_keys[k]]
+			var can: bool = g.my_will >= float(mv.cost)
+			Glyph.text(self, sans, Vector2(W - 250, dy), "%s" % Keys.name(k), 14, Color(0.95, 0.9, 0.7) if can else Color(0.5, 0.5, 0.55))
+			Glyph.text(self, sans, Vector2(W - 190, dy), "%s  %d" % [mv.name, int(mv.cost)], 14, Color(0.86, 0.84, 1.0) if can else Color(0.5, 0.5, 0.55))
+			dy += 21.0
+
 	# The weaves you know.
 	var known: Array = g.known
 	var n := known.size()

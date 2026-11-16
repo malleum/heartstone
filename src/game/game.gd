@@ -37,6 +37,12 @@ var my_hp := 100.0
 var clock := 0.0
 var ready_at := {}                # weave -> clock time it can be woven again
 var my_stamina: float = Rules.TUNE.stamina
+var my_will := 100.0
+var dreaming := false        # this fight is in Tel'aran'rhiod: dream moves are on their keys
+var dream_keys := {}        # physical key -> dream move
+var _hinted := false       # the controls line has been shown
+var _foe := 0               # a bot opponent in a duel
+var _foe_profile := {}      # who it will be, if nobody real turns up
 var frame := 0
 var ammo := {}                    # weapon -> arrows, knives or spears left
 var held_since := -1.0            # clock time the attack button went down, or -1
@@ -154,6 +160,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
+			session.dream(dream_keys[ev.physical_keycode], _aim_point())
 		elif ev.physical_keycode == KEY_Q:
 			_select(posmod(selected - 1, n_known))
 		elif ev.physical_keycode == KEY_E:
@@ -315,13 +323,25 @@ func _process(dt: float) -> void:
 	if session.my_id == 0:
 		return
 	if _ally != 0 and session.sim.ents.has(_ally):
+		Bot.dream(session.sim, _ally)
 		Bot.drive(session.sim, _ally)
+	if _foe == 0 and not _foe_profile.is_empty() and session.is_host and session.sim.t > (0.5 if args.has("foe") else 4.0):
+		# Nobody else came: the dream supplies someone.
+		if session.sim.tallies.size() <= 1:
+			var mine: Dictionary = session.sim.ents[session.my_id]
+			_foe = session.sim.add_player(_foe_profile, mine.pos + Vector3(sin(mine.yaw), 0, cos(mine.yaw)) * 14.0)
+			session.sim.ents[_foe].yaw = mine.yaw + PI
+		_foe_profile = {}
+	if _foe != 0 and session.sim.ents.has(_foe):
+		Bot.dream(session.sim, _foe)
+		Bot.drive(session.sim, _foe)
 	if args.has("auto") and not session.is_host:
 		_client_bot()
 	elif args.has("auto"):
 		# --stand: the bot holds its ground and weaves only now and then, so melee,
 		# burning and knockdowns can be watched up close in a render.
 		if not args.has("stand") or frame % 150 < 45:
+			Bot.dream(session.sim, session.my_id)
 			Bot.drive(session.sim, session.my_id)
 		if args.has("stand"):
 			session.sim.set_input(session.my_id, Vector3.ZERO, session.sim.ents[session.my_id].yaw)
@@ -361,6 +381,18 @@ func _process(dt: float) -> void:
 		var parts: PackedStringArray = args.demo.split(":")
 		if Rules.weaves.has(parts[0]):
 			session.sim._cast(dp, parts[0], dp.pos + Vector3(sin(dp.yaw), 0, cos(dp.yaw)) * (float(parts[1]) if parts.size() > 1 else 13.0) + Vector3(0, 1.0, 0))
+	# --dreamdemo: the player works through the dream moves one after another at
+	# whoever is nearest, so each can be looked at in a render.
+	if args.has("dreamdemo") and frame % 75 == 40 and session.is_host and me and session.sim.dream:
+		var dp: Dictionary = session.sim.ents[session.my_id]
+		var order := ["dream_spear", "dream_wall", "dream_chains", "dream_pit", "shift_aim", "shift_behind", "shift_back", "deny"]
+		if args.dreamdemo != "":
+			order = Array(args.dreamdemo.split(","))
+		var at: Vector3 = dp.pos + Vector3(sin(dp.yaw), 0, cos(dp.yaw)) * 8.0
+		for o in session.sim._targets(dp):
+			at = o.pos
+		dp.will = 100.0; dp.shaken = 0.0
+		session.sim.request_dream(session.my_id, order[(frame / 75) % order.size()], at + Vector3(0, 1.2, 0))
 	_draw_actors(dt)
 	_draw_fx(dt)
 	if me:
@@ -464,6 +496,37 @@ func _on_started(_my_id: int, activity: String) -> void:
 	else:
 		World.build(self)
 	Scenery.scatter(self)
+	dreaming = Rules.activities[activity].get("dream", false)
+	if dreaming:
+		# Tel'aran'rhiod: the same place, with the colour gone out of it and a light
+		# that comes from nowhere.
+		for c in get_children():
+			if c is WorldEnvironment:
+				var env: Environment = c.environment
+				env.adjustment_enabled = true; env.adjustment_saturation = 0.45; env.adjustment_contrast = 1.08
+				env.ambient_light_energy *= 1.5
+				env.fog_enabled = true; env.fog_light_color = Color(0.5, 0.5, 0.62); env.fog_density = 0.012
+			elif c is DirectionalLight3D:
+				(c as DirectionalLight3D).light_energy *= 0.55
+				(c as DirectionalLight3D).light_color = Color(0.82, 0.84, 1.0)
+		Dream.load_data()
+		for mv in Dream.moves:
+			var k: String = profile.get("dream_keys", {}).get(mv, Dream.moves[mv].key)
+			dream_keys[OS.find_keycode_from_string(k)] = mv
+		# --foe=mirror|warder|aiel|hunter|channeller: someone to duel when no friend
+		# is here. Entering a duel alone meets your own shade.
+		if session.is_host and (args.has("foe") or Rules.activities[activity].kind == "spar"):
+			var kind: String = args.get("foe", "mirror")
+			var fp: Dictionary
+			if kind == "mirror":
+				fp = profile.duplicate(true); fp.name = "Your shade"
+			elif kind == "channeller":
+				fp = Profile.create({name = "A dreamwalker", potential_pts = 8, affinity_pts = {fire = 4, air = 2}})
+				for w in ["fireball", "hammer_of_air", "lightning"]:
+					fp.weaves[w] = {known = true, xp = 0.0}
+			else:
+				fp = Profile.create({name = "A dreamwalker", cls = kind, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Rules.CLASSES[kind].kit})
+			_foe_profile = fp
 	# --spawn=myrddraal:1,trolloc_archer:2 puts enemies a few paces off, to look at
 	# them in a render.
 	if args.has("spawn") and session.is_host:
@@ -497,7 +560,7 @@ var _ally := 0
 func _on_events(list: Array) -> void:
 	for e in list:
 		# --ghost: say what the sim made of the scripted hands, for a test to read.
-		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike"]:
+		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike", "dream", "shift", "deny"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
 		# --log: say when my weaves form, fly and land, so a render's frames can be picked.
 		if args.has("log") and e.e in ["form", "ready", "cast", "loose", "blast", "hold", "gate_open"] and e.get("id", session.my_id) == session.my_id:
@@ -520,10 +583,14 @@ func _on_events(list: Array) -> void:
 						banner.text = ""
 						if known.has(e.get("weapon", "")):
 							selected = known.find(e.weapon)
-						if not profile.get("kit", []).is_empty():
+						# Once, and not over a tour station's own instructions.
+						if _hinted or args.has("tour"):
+							pass
+						elif not profile.get("kit", []).is_empty():
 							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: throw   1-9: change what is in hand" % Keys.name(KEY_F), 9.0)
 						elif not known.is_empty():
 							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
+						_hinted = true
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
@@ -821,6 +888,52 @@ func _on_events(list: Array) -> void:
 				Weavefx.arc(self, e.from, e.to)
 			"gate_open":
 				fx[e.id] = Weavefx.gate(self, e.a, e.b)
+			"shift":
+				# Tel'aran'rhiod: simply somewhere else.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a: Dictionary = actors[e.id]
+					Dreamfx.shift(self, _ground(a.node.position), _ground(e.pos))
+					a.target = e.pos
+					if a.has("pred"): a.pred = e.pos; a.srv = e.pos
+					if a.node is Walker:
+						(a.node as Walker).teleport(e.pos, e.yaw)
+					else:
+						a.node.position = _ground(e.pos)
+					var ch: Node = a.node.get_node_or_null("Chains")
+					if ch: ch.queue_free()
+					if e.id == session.my_id:
+						# The eye goes with you: look the way you now face.
+						face_yaw = e.yaw; cam_yaw = e.yaw + PI
+			"deny":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Dreamfx.deny(self, actors[e.id].node, e.time)
+			"denied":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Dreamfx.deny(self, actors[e.id].node, 0.3, true)
+				if e.id == session.my_id:
+					flash_t = 1.0; flash_text = "Denied"
+				elif e.by == session.my_id:
+					flash_t = 1.2; flash_text = "Your will broke on theirs"
+					shake = maxf(shake, 0.5)
+			"dream":
+				if e.move == "dream_chains" and actors.has(e.on) and is_instance_valid(actors[e.on].node):
+					Dreamfx.chain_wind(self, _ground(actors[e.on].node.position), e.time)
+					if e.on == session.my_id:
+						flash_t = 0.8; flash_text = "Chains: be gone, or Deny"
+				elif e.move == "dream_pit":
+					Dreamfx.pit_warn(self, _ground(e.pos), e.radius, e.time)
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Sfx.play(self, "hum", actors[e.id].node.position + Vector3(0, 1.4, 0), -6.0, 2.0)
+			"chained":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Dreamfx.chains(actors[e.id].node, e.time)
+					Sfx.play(self, "thud", actors[e.id].node.position + Vector3(0, 1.2, 0), 0.0, 1.6)
+				if e.id == session.my_id:
+					flash_t = 1.2; flash_text = "Chained: step away to be free"
+			"dream_hit", "dream_end":
+				Weavefx.spit(self, e.pos, Dreamfx.PALE)
+			"pit_open":
+				Sfx.play(self, "rumble", _ground(e.pos), 0.0, 1.3)
 			"gate_pass":
 				# Through the gateway: there, not walked there.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -964,6 +1077,7 @@ func _on_snapshot(s: Dictionary) -> void:
 			if e[4] < my_hp - 0.5:
 				hurt_t = 1.0
 			my_hp = e[4]; my_stamina = e[5]
+			if e.size() > 7: my_will = e[7]
 	for f in s.fx:
 		# A gateway is drawn from its own event, which carries both its ends.
 		if f[1] == "gate":
