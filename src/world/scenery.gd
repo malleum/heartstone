@@ -96,6 +96,9 @@ static func walls(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 5
 	var wood := _mat(Color(0.2, 0.14, 0.09))
 	var dark := _mat(Color(0.1, 0.08, 0.06))
+	var stones := []
+	for k in 5:
+		stones.append(_mat(Color(0.2, 0.2, 0.215) * (0.65 + k * 0.17)))
 	for w in Map.walls():
 		if w.look == "stone":
 			# Courses of rough stones, each a little shorter than the one below.
@@ -107,7 +110,7 @@ static func walls(g: Node3D) -> void:
 					var p := _ground(sx + sw * 0.5, w.z)
 					var shade := rng.randf_range(0.8, 1.15)
 					_box(g, Vector3(sw, 0.34, rng.randf_range(0.55, 0.76)), p + Vector3(0, 0.15 + course * 0.31, rng.randf_range(-0.05, 0.05)),
-						_mat(Color(0.2, 0.19, 0.18) * shade), Vector3(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.12, 0.12), rng.randf_range(-0.05, 0.05)))
+						stones[rng.randi() % 5], Vector3(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.12, 0.12), rng.randf_range(-0.05, 0.05)))
 					sx += sw + 0.03
 		elif w.look == "wagon":
 			# A merchant's wagon, end-on to its neighbours: bed, tilt, four wheels.
@@ -334,12 +337,17 @@ static func tarwins_gap(g: Node3D, night := false) -> void:
 		_box(g, Vector3(0.1, 5.0, 0.1), p + Vector3(0, 2.5, 0), wood)
 		_box(g, Vector3(0.04, 1.6, 1.0), p + Vector3(0, 4.0, 0.55), cloth)
 	# Boulders shed by the cliffs, kept to the edges of the pass.
+	var rocks: Array = []
 	for i in 40:
 		var z := rng.randf_range(-Map.m.length, Map.m.back)
 		var side := -1.0 if rng.randf() < 0.5 else 1.0
 		var bx := side * (Map.half_width(z) + rng.randf_range(-0.5, 3.0))
 		var s := rng.randf_range(0.6, 2.4)
-		_box(g, Vector3(s, s * rng.randf_range(0.6, 1.0), s * rng.randf_range(0.7, 1.3)), _ground(bx, z) + Vector3(0, s * 0.2, 0), stone, Vector3(rng.randf(), rng.randf() * TAU, rng.randf()))
+		rocks.append(Transform3D(Basis.from_euler(Vector3(rng.randf(), rng.randf() * TAU, rng.randf())).scaled(Vector3(s, s * rng.randf_range(0.55, 0.9), s * rng.randf_range(0.7, 1.3))), _ground(bx, z) + Vector3(0, s * 0.15, 0)))
+	# Fallen rock is angular: a ball of very few faces, turned and squashed.
+	var rm := SphereMesh.new(); rm.radius = 0.6; rm.height = 1.1; rm.radial_segments = 5; rm.rings = 2
+	rm.material = _mat(Color(0.24, 0.225, 0.2))
+	_multi(g, rm, rocks, true)
 
 # --- scatter: grass, loose stone, dead trees ---------------------------------------------
 

@@ -49,13 +49,20 @@ void fragment() {
 		c = mix(c, mud, rmask * 0.9);
 	}
 
-	// Cliff rock: bedded layers that wander, rusty seams, dark crevices.
-	float bed = fract(wp.y * 0.21 + fbm(wp.xz * 0.07) * 1.8);
-	float band = smoothstep(0.3, 0.5, bed) - smoothstep(0.8, 0.95, bed);
-	vec3 rock = mix(vec3(0.19, 0.18, 0.17), vec3(0.37, 0.34, 0.3), fine);
-	rock *= mix(0.7, 1.08, band);
-	rock = mix(rock, vec3(0.3, 0.2, 0.13), smoothstep(0.55, 0.75, fbm(vec2(wp.y * 0.6, macro * 4.0))) * 0.45);
-	rock *= 0.55 + 0.7 * smoothstep(0.25, 0.6, tri(wp, n3, 1.1));
+	// Cliff rock: beds of uneven thickness that dip and wander, a dark ledge line
+	// under each, cracks running down the face, rust where water seeps.
+	float by = wp.y + fbm(wp.xz * 0.07) * 7.0 + (wp.x + wp.z) * 0.06;
+	float strata = noise(vec2(by * 0.75, 7.0)) * 0.55 + noise(vec2(by * 2.6, 1.0)) * 0.3 + noise(vec2(by * 7.0, 4.0)) * 0.15;
+	vec3 rock = mix(vec3(0.15, 0.14, 0.135), vec3(0.4, 0.365, 0.32), smoothstep(0.25, 0.75, strata));
+	rock *= 0.82 + 0.36 * fine;
+	float lf = fract(by * 0.42 + noise(vec2(by * 0.42, 9.0)) * 0.3);
+	float ledge = 1.0 - smoothstep(0.0, 0.07, lf);
+	rock *= 1.0 - 0.5 * ledge;
+	float hc = wp.x * 0.6 + wp.z;
+	float crack = smoothstep(0.6, 0.66, fbm(vec2(hc * 0.55, wp.y * 0.07 + 5.0))) * (1.0 - smoothstep(0.66, 0.74, fbm(vec2(hc * 0.55, wp.y * 0.07 + 5.0))));
+	rock *= 1.0 - 0.55 * crack;
+	rock = mix(rock, vec3(0.3, 0.19, 0.12), smoothstep(0.55, 0.75, fbm(vec2(hc * 0.3, wp.y * 0.08))) * 0.3);
+	rock *= 0.8 + 0.3 * smoothstep(0.25, 0.6, tri(wp, n3, 0.5));
 	float rmk = smoothstep(0.1, 0.27, slope + (fine - 0.5) * 0.14);
 	c = mix(c, rock, rmk);
 
@@ -65,7 +72,7 @@ void fragment() {
 
 	ALBEDO = c;
 	ROUGHNESS = mix(0.96, 0.7, snow);
-	float h = fine;
+	float h = fine - rmk * (ledge * 0.5 + crack * 0.8 - strata * 0.8);
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);
 	vec3 r1 = cross(dpy, NORMAL), r2 = cross(NORMAL, dpx);
 	float det = dot(dpx, r1);

@@ -191,6 +191,18 @@ place can be lit on purpose. Nothing in the pass blocks
 movement yet except the cliffs: the wall has gaps and no collision on purpose,
 because Trollocs still run straight at the nearest player with no pathfinding.
 
+### Scenery pass (16 Nov, after rendering every map and ranking what looked worst)
+- **Night.** An activity with `"night": true` (the long night) gets a moon instead of
+  the sun, a flat cold ambient, a star panorama generated in `World.build`, watch
+  fires up the pass and torches on the line. It had been broad daylight.
+- **Cliffs** (`shaders/ground.gdshader`): beds of uneven thickness that dip and wander,
+  a dark ledge under each, cracks down the face. The old shading read as cloud.
+- **Props** in `scenery.gd`, all unsolid and kept off the fighting ground: `barrel`,
+  `crate`, `sacks`, `bale`, `tent`, `torch`, `practice_post` (replaces the white
+  cylinder), `yard` (rail fence, archery butts, weapon rack round the training
+  ground), `camp` (tents, stores, banner). Fallen rock is angular, not cubes.
+- Camp doorways are stacks of rough stones. `--camyaw=deg` works in the camp too.
+
 ### Walls and finding a way (src/core/map.gd, sim.gd)
 - `Map.walls()` are boxes `{x, z, hx, hz, h, yaw, look}` made by `Map.use` for the
   map (the breastwork, the wagon ring). `Map.unblock` keeps bodies out of them,
