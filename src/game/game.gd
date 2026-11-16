@@ -499,6 +499,9 @@ func _on_events(list: Array) -> void:
 		# --ghost: say what the sim made of the scripted hands, for a test to read.
 		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
+		# --log: say when my weaves form, fly and land, so a render's frames can be picked.
+		if args.has("log") and e.e in ["form", "ready", "cast", "loose", "blast", "hold", "gate_open"] and e.get("id", session.my_id) == session.my_id:
+			print("EV %d %s %s" % [frame, e.e, e.get("weave", "")])
 		match e.e:
 			"spawn":
 				if not actors.has(e.id):

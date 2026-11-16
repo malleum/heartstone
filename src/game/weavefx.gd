@@ -102,24 +102,48 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			var core := _mesh(c, Color(1.0, 0.9, 0.7), 9.0)
 			core.rotation.x = PI * 0.5; core.position.z = 0.45
 			n.add_child(core)
-			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.06; tail.height = 5.0; tail.radial_segments = 6; tail.rings = 1
-			var tm := _mesh(tail, Color(1.0, 0.45, 0.1, 0.4), 3.0)
-			tm.rotation.x = -PI * 0.5; tm.position.z = 2.7
-			n.add_child(tm)
-			n.add_child(_light(TINT.fire, 1.2, 3.5))
+			n.add_child(Flowfx.Ribbon.new(Color(1.0, 0.4, 0.08), 0.2, 16, 3.5, 0.5))
+			n.add_child(_light(TINT.fire, 1.6, 4.5))
 			n.set_meta("aimed", true)
 		"projectile":
-			var s := SphereMesh.new(); s.radius = 0.28; s.height = 0.56
 			var col: Color = colour(weave) if weave != "" else TINT.fire
-			n.add_child(_mesh(s, col.lerp(Color.WHITE, 0.35), 5.0)); n.add_child(_light(col, 4.0, 9.0))
-			# Flames stay in world space, so a moving ball drags a tail behind it.
-			var trail := _particles(col, 70, 0.4, 0.34, 0.9, 1.2)
-			n.add_child(trail)
+			if weave != "" and not Rules.weaves[weave].flows.has("fire"):
+				# A blade of Spirit: a sliver of white light standing on edge, with a
+				# thin wake. The game turns it along its flight.
+				var bl := Flowfx.ball(0.5, col, 1.3, 0.05)
+				bl.scale = Vector3(0.05, 1.5, 1.0)
+				n.add_child(bl)
+				for y in [-0.55, 0.0, 0.55]:
+					var w := Node3D.new(); w.position.y = y; n.add_child(w)
+					w.add_child(Flowfx.Ribbon.new(col, 0.1, 14, 2.5, 0.2))
+				n.add_child(_light(col, 1.5, 6.0))
+				n.set_meta("aimed", true)
+			else:
+				# A ball of fire: it boils, and drags flame behind it.
+				n.add_child(Flowfx.ball(0.42, col, 1.5, 0.35))
+				var heart := Flowfx.ball(0.2, col, 2.2, 0.1); n.add_child(heart)
+				n.add_child(Flowfx.Ribbon.new(Color(1.0, 0.38, 0.06), 0.75, 18, 1.5, 0.85))
+				n.add_child(Flowfx.Ribbon.new(Color(1.0, 0.7, 0.3), 0.3, 10, 1.6, 0.5))
+				n.add_child(_light(col, 5.0, 11.0))
+				# Embers stay in world space, falling away behind it.
+				n.add_child(_particles(col, 30, 0.7, 0.09, 1.6, -3.0))
 		"mover":
-			var b := BoxMesh.new(); b.size = Vector3(2.4, 3.2, 0.08)
-			n.add_child(_mesh(b, Color(0.05, 0.02, 0.08), 0.0)); n.add_child(_light(TINT.spirit, 2.5, 8.0))
-			var rimm := BoxMesh.new(); rimm.size = Vector3(2.6, 3.4, 0.04)
-			n.add_child(_mesh(rimm, TINT.spirit, 5.0))
+			# A Deathgate: a doorway onto a darkness that folds over itself, edged in
+			# hard light, with threads torn off its corners as it sweeps along.
+			var q := QuadMesh.new(); q.size = Vector2(2.4, 3.2)
+			var door := MeshInstance3D.new(); door.mesh = q
+			var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
+			sm.set_shader_parameter("tint", Color(0.3, 0.08, 0.5)); sm.set_shader_parameter("lit", 0.45)
+			door.material_override = sm; door.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			n.add_child(door)
+			for edge in [[Vector3(-1.2, 0, 0), Vector3(0.05, 3.25, 0.05)], [Vector3(1.2, 0, 0), Vector3(0.05, 3.25, 0.05)], [Vector3(0, 1.6, 0), Vector3(2.45, 0.05, 0.05)], [Vector3(0, -1.6, 0), Vector3(2.45, 0.05, 0.05)]]:
+				var bm := BoxMesh.new(); bm.size = edge[1]
+				var em := _mesh(bm, Color(0.85, 0.75, 1.0), 4.0); em.position = edge[0]
+				n.add_child(em)
+			for c in [Vector3(-1.2, 1.6, 0), Vector3(1.2, 1.6, 0), Vector3(-1.2, -1.5, 0), Vector3(1.2, -1.5, 0)]:
+				var w := Node3D.new(); w.position = c; n.add_child(w)
+				w.add_child(Flowfx.Ribbon.new(Color(0.6, 0.35, 1.0), 0.22, 22, 2.0, 0.5))
+			n.add_child(_light(Color(0.6, 0.4, 1.0), 2.5, 8.0))
 		"ring":
 			n.free()
 			n = Wedge.new()
@@ -135,10 +159,7 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.add_child(_mesh(s, Color(1.0, 0.1, 0.03), 5.0))
 			var core := SphereMesh.new(); core.radius = 0.17; core.height = 0.34
 			n.add_child(_mesh(core, Color(0.05, 0.0, 0.0), 0.0))
-			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.22; tail.height = 2.6; tail.radial_segments = 6; tail.rings = 1
-			var tm := _mesh(tail, Color(0.8, 0.05, 0.02, 0.4), 2.5)
-			tm.rotation.x = -PI * 0.5; tm.position.z = 1.4
-			n.add_child(tm)
+			n.add_child(Flowfx.Ribbon.new(Color(0.9, 0.04, 0.02), 0.6, 18, 2.2, 0.8))
 			n.add_child(_light(Color(1.0, 0.15, 0.05), 2.5, 6.0))
 		"missile":
 			var mm := Armoury.missile(weave)
@@ -198,6 +219,7 @@ class FormFx extends Node3D:
 	var lamp: OmniLight3D
 	var halo: MeshInstance3D
 	var burst_done := false
+	var hoops: Array = []
 	const HANDS := Vector3(0, 1.25, 0.5)
 
 	func _ready() -> void:
@@ -207,21 +229,30 @@ class FormFx extends Node3D:
 			# A big weave shows more threads of each Power, so it looks like more work.
 			for i in int(fl[e]) * 2:
 				var n := Node3D.new(); add_child(n)
-				var sp := SphereMesh.new(); sp.radius = 0.05; sp.height = 0.1
-				n.add_child(Weavefx._mesh(sp, Weavefx.TINT[e].lerp(Color.WHITE, 0.35), 8.0))
-				var tr: GPUParticles3D
-				match e:
-					"fire": tr = Weavefx._particles(Weavefx.TINT.fire, 46, 0.5, 0.13, 1.4, 2.5, 50.0)
-					"earth": tr = Weavefx._particles(Color(0.85, 0.55, 0.2), 30, 0.7, 0.16, 0.5, -3.5, 70.0)
-					"air": tr = Weavefx._particles(Weavefx.TINT.air, 60, 0.35, 0.1, 0.1, 0.0)
-					"water": tr = Weavefx._particles(Weavefx.TINT.water.lerp(Color.WHITE, 0.2), 46, 0.6, 0.12, 0.3, -4.0, 40.0)
-					_: tr = Weavefx._particles(Weavefx.TINT.spirit, 30, 0.5, 0.09, 0.05, 0.0)
-				n.add_child(tr)
+				# Each flow is a thread: a bright bead drawing a ribbon of its Power's
+				# colour through the air, and all of them winding in on the hands.
+				var sp := SphereMesh.new(); sp.radius = 0.028; sp.height = 0.056
+				n.add_child(Weavefx._mesh(sp, Weavefx.TINT[e].lerp(Color.WHITE, 0.5), 3.0))
+				var look: Array = {fire = [0.14, 22, 2.6, 0.7], earth = [0.17, 30, 2.2, 0.55], air = [0.09, 34, 2.4, 0.25], water = [0.12, 30, 2.6, 0.35]}.get(e, [0.07, 26, 2.6, 0.1])
+				var rb := Flowfx.Ribbon.new(Weavefx.TINT[e] if e != "earth" else Color(0.95, 0.6, 0.2), look[0], look[1], look[2], look[3])
+				rb.taper = 0.6
+				n.add_child(rb)
+				if e in ["fire", "earth"]:
+					# Fire sheds sparks as it climbs; Earth drops grit.
+					n.add_child(Weavefx._particles(Weavefx.TINT[e], 10, 0.5, 0.05, 0.6, 2.0 if e == "fire" else -4.0, 60.0))
 				parts.append([n, e, k]); k += 1
 		var col := Weavefx.colour(weave)
-		var cs := SphereMesh.new(); cs.radius = 0.16; cs.height = 0.32
-		core = Weavefx._mesh(cs, col.lerp(Color.WHITE, 0.25), 6.0)
+		# The weave itself, taking shape between the hands: a small bright heart and
+		# hoops of each Power turning round it, one for every flow in it.
+		core = Flowfx.ball(0.13, col, 3.5, 0.3)
 		core.position = HANDS; add_child(core)
+		var hi := 0
+		for e in fl:
+			for i in int(fl[e]):
+				var t := TorusMesh.new(); t.inner_radius = 0.2 + 0.035 * hi; t.outer_radius = t.inner_radius + 0.012; t.rings = 40; t.ring_segments = 5
+				var hoop := Weavefx._mesh(t, Weavefx.TINT[e].lerp(Color.WHITE, 0.2), 5.0)
+				hoop.rotation = Vector3(hi * 1.1, hi * 2.3, hi * 0.7)
+				core.add_child(hoop); hoops.append(hoop); hi += 1
 		lamp = Weavefx._light(col, 0.5, 5.0); lamp.position = HANDS; add_child(lamp)
 		if fl.has("spirit"):
 			var t := TorusMesh.new(); t.inner_radius = 0.24; t.outer_radius = 0.27
@@ -268,6 +299,9 @@ class FormFx extends Node3D:
 				at = HANDS + Vector3(cos(a2), sin(a2 * 1.3 + i), sin(a2)) * 0.13
 			node.position = at
 		var pulse := 1.0 + (0.22 * sin(age * 16.0) if ready else 0.0)
+		for i in hoops.size():
+			var sp2 := (5.0 if ready else 1.5 + 2.5 * f) * (1.0 if i % 2 == 0 else -1.0)
+			(hoops[i] as Node3D).rotate_object_local(Vector3(0.3, 1.0, 0.2 * i).normalized(), dt * sp2)
 		core.scale = Vector3.ONE * (0.15 + 0.85 * f * f) * pulse
 		lamp.light_energy = (0.4 + 2.2 * f) * pulse * (1.6 if ready else 1.0)
 		if halo:
@@ -288,6 +322,7 @@ class Blossom extends Node3D:
 	var spin := 0.0
 	var arms: Array = []       # [emitter, arm index, fraction along the arm]
 	var pillar: GPUParticles3D
+	var column: MeshInstance3D
 	var scorch: MeshInstance3D
 	var rim: MeshInstance3D
 	var edge: Array = []
@@ -301,6 +336,9 @@ class Blossom extends Node3D:
 		pillar = Weavefx._particles(Color(1.0, 0.35, 0.06), 90, 0.45, 0.22, 4.4, 3.0, 5.0)
 		pillar.position.y = -1.0
 		add_child(pillar)
+		column = Flowfx.ball(0.5, Weavefx.TINT.fire, 1.6, 0.5)
+		column.scale = Vector3(0.9, 0.2, 0.9); column.position.y = -1.0
+		add_child(column)
 		for a in ARMS:
 			for j in PER:
 				# Small deep-orange tongues, close together: an arm of flame, not a cloud.
@@ -335,6 +373,14 @@ class Blossom extends Node3D:
 		spin += dt * 0.75
 		var open := r > 1.0
 		pillar.emitting = age < 1.0
+		if is_instance_valid(column):
+			# The pillar stands up fast, then burns out as the wheel opens.
+			var up := smoothstep(0.0, 0.25, age)
+			column.scale = Vector3(0.9, 0.2 + 6.5 * up, 0.9)
+			column.position.y = -1.0 + 1.6 * up
+			(column.material_override as ShaderMaterial).set_shader_parameter("burn", smoothstep(0.8, 1.5, age))
+			if age > 1.5:
+				column.queue_free()
 		scorch.scale = Vector3(r, 1.0, r)
 		rim.scale = Vector3(r, 1.0, r)
 		for i in RIM:
@@ -365,12 +411,10 @@ class Wedge extends Node3D:
 	const N := 17
 
 	func _ready() -> void:
-		var rock := StandardMaterial3D.new()
-		rock.albedo_color = Color(0.2, 0.15, 0.11); rock.roughness = 1.0
-		rock.emission_enabled = true; rock.emission = Color(1.0, 0.3, 0.05); rock.emission_energy_multiplier = 0.5
 		for i in N:
-			var c := CylinderMesh.new(); c.top_radius = 0.0; c.bottom_radius = 0.42 + 0.2 * randf(); c.height = 1.3 + randf() * 0.9; c.radial_segments = 5; c.rings = 1
-			var mi := MeshInstance3D.new(); mi.mesh = c; mi.material_override = rock
+			var th := 1.3 + randf() * 0.9
+			var mi := Flowfx.shard(th, 0.42 + 0.2 * randf())
+			mi.set_meta("h", th)
 			mi.rotation = Vector3(randf_range(-0.35, 0.35), randf() * TAU, randf_range(-0.35, 0.35))
 			add_child(mi); teeth.append(mi)
 			var f := Weavefx._particles(Color(1.0, 0.3, 0.05), 20, 0.5, 0.5, 1.2, 2.8, 30.0)
@@ -379,7 +423,7 @@ class Wedge extends Node3D:
 		# Dust thrown up behind the front.
 		var d := Weavefx._particles(Color(0.36, 0.28, 0.2), 60, 1.1, 1.1, 2.0, 0.8, 80.0, false)
 		d.name = "Dust"; add_child(d)
-		lamp = Weavefx._light(Weavefx.TINT.fire, 6.0, 12.0); add_child(lamp)
+		lamp = Weavefx._light(Weavefx.TINT.fire, 2.2, 9.0); add_child(lamp)
 
 	func set_r(radius: float, yaw: float) -> void:
 		r = radius
@@ -392,8 +436,8 @@ class Wedge extends Node3D:
 			var at := Vector3(sin(a) * r, 0.0, cos(a) * r)
 			# The ground rises and drops in a ripple along the front.
 			var up := absf(sin(age * 7.0 + i * 1.3))
-			var h: float = ((teeth[i] as MeshInstance3D).mesh as CylinderMesh).height
-			(teeth[i] as MeshInstance3D).position = at + Vector3(0, -1.2 - h * 0.5 + h * (0.25 + 0.75 * up), 0)
+			var h: float = (teeth[i] as MeshInstance3D).get_meta("h")
+			(teeth[i] as MeshInstance3D).position = at + Vector3(0, -1.2 - h + h * (0.25 + 0.75 * up), 0)
 			(fires[i] as GPUParticles3D).position = at + Vector3(0, -0.9 + h * 0.5 * up, 0)
 		(get_node("Dust") as GPUParticles3D).position = Vector3(0, -0.9, maxf(r - 1.2, 0.0))
 		lamp.position = Vector3(0, 0.2, r)
@@ -410,8 +454,7 @@ static func hold(g: Node3D, weave: String) -> Node3D:
 	var body := Node3D.new(); body.name = "Body"; n.add_child(body)
 	match kind:
 		"barrier":
-			var s := SphereMesh.new(); s.radius = 1.5; s.height = 3.0
-			var mi := _mesh(s, Color(col, 0.05), 0.4); mi.position.y = 1.0
+			var mi := Flowfx.shell(1.5, col, 0.4); mi.position.y = 1.0
 			body.add_child(mi)
 			var ring := TorusMesh.new(); ring.inner_radius = 1.42; ring.outer_radius = 1.5
 			var ri := _mesh(ring, Color(col, 0.5), 2.0); ri.position.y = 0.08
@@ -423,8 +466,8 @@ static func hold(g: Node3D, weave: String) -> Node3D:
 				ti.rotation = Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25))
 				body.add_child(ti)
 		"sever":
-			var s := SphereMesh.new(); s.radius = 0.2; s.height = 0.4
-			var mi := _mesh(s, Color(col, 0.8), 4.0); mi.position.y = 2.3
+			# The shield sits round them: a thin shell they cannot reach through.
+			var mi := Flowfx.shell(1.05, col, 0.5); mi.position.y = 1.2; mi.scale.y = 1.25
 			body.add_child(mi)
 			var t := TorusMesh.new(); t.inner_radius = 0.5; t.outer_radius = 0.54
 			var ti := _mesh(t, Color(col, 0.7), 3.0); ti.position.y = 1.3
@@ -533,29 +576,50 @@ static func blast(g: Node3D, at: Vector3, radius: float, weave: String) -> void:
 	if Rules.weaves.has(weave) and Rules.weaves[weave].get("dart", false):
 		spit(g, at, col)
 		return
-	var s := SphereMesh.new(); s.radius = 1.0; s.height = 2.0
-	var mi := _mesh(s, col, 2.5)
+	var fiery: bool = not Rules.weaves.has(weave) or Rules.weaves[weave].flows.has("fire")
+	# The burst itself: a ball of the stuff that swells fast and then burns through
+	# in holes, a smaller white heart that is gone at once, and a flash of light.
+	var mi := Flowfx.ball(1.0, col, 2.2, 0.3)
 	mi.position = at + Vector3(0, 0.4, 0); mi.scale = Vector3.ONE * 0.3
 	g.add_child(mi)
-	var l := _light(col, 9.0, radius * 4.0)
+	var heart := Flowfx.ball(1.0, col.lerp(Color.WHITE, 0.6), 3.0, 0.1)
+	heart.scale = Vector3.ONE * 0.2; mi.add_child(heart)
+	var l := _light(col, 10.0, radius * 4.5)
 	mi.add_child(l)
 	var tw := g.create_tween().set_parallel()
-	tw.tween_property(mi, "scale", Vector3.ONE * radius, 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.4)
-	tw.tween_property(l, "light_energy", 0.0, 0.4)
+	tw.tween_property(mi, "scale", Vector3.ONE * radius * 1.05, 0.2).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(mi.material_override, "shader_parameter/burn", 1.0, 0.55).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(heart.material_override, "shader_parameter/burn", 1.0, 0.16)
+	tw.tween_property(l, "light_energy", 0.0, 0.5)
+	tw.tween_property(mi, "position:y", mi.position.y + radius * 0.35, 0.55)
 	tw.chain().tween_callback(mi.queue_free)
-	# Shockwave hugging the ground, sparks thrown out, and fire rolling upward: three
-	# layers at three speeds read as an explosion; one sphere reads as a balloon.
-	var ring := TorusMesh.new(); ring.inner_radius = 0.82; ring.outer_radius = 1.0
-	var ri := _mesh(ring, col.lerp(Color.WHITE, 0.4), 6.0)
+	# A shockwave hugging the ground.
+	var ring := TorusMesh.new(); ring.inner_radius = 0.9; ring.outer_radius = 1.0
+	var ri := _mesh(ring, Color(col.lerp(Color.WHITE, 0.5), 0.6), 3.0)
 	ri.position = at + Vector3(0, 0.15, 0); ri.scale = Vector3(0.4, 0.25, 0.4)
 	g.add_child(ri)
 	var tr := g.create_tween().set_parallel()
-	tr.tween_property(ri, "scale", Vector3(radius * 1.7, 0.1, radius * 1.7), 0.38).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
-	tr.tween_property(ri.material_override, "albedo_color:a", 0.0, 0.38)
+	tr.tween_property(ri, "scale", Vector3(radius * 1.8, 0.08, radius * 1.8), 0.32).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+	tr.tween_property(ri.material_override, "albedo_color:a", 0.0, 0.32)
 	tr.chain().tween_callback(ri.queue_free)
-	_once(_particles(col, int(40 + radius * 30), 0.9, 0.16, 5.0 + radius * 3.0, -9.0, 80.0), g, at + Vector3(0, 0.3, 0))
-	_once(_particles(col, int(10 + radius * 6), 0.7, 0.8 + radius * 0.3, 1.5 + radius, 2.5), g, at + Vector3(0, 0.5, 0))
+	# Streamers thrown out of it in every direction, arcing over and falling.
+	for i in int(7 + radius * 3.0):
+		var d := Vector3(randf_range(-1, 1), randf_range(0.15, 1.0), randf_range(-1, 1)).normalized() * radius * randf_range(1.1, 2.0)
+		Flowfx.streak(g, at + Vector3(0, 0.3, 0), at + d * Vector3(1, 0.25, 1), randf_range(0.25, 0.45), col, 0.16, Vector3(0, d.y * 0.9, 0), 2.2, 0.6)
+	_once(_particles(col, int(30 + radius * 20), 0.9, 0.1, 5.0 + radius * 3.0, -9.0, 80.0), g, at + Vector3(0, 0.3, 0))
+	if fiery:
+		# What fire leaves: smoke rolling up after the flame is gone, and burnt ground.
+		var sm := _particles(Color(0.06, 0.05, 0.05), int(8 + radius * 5), 1.8, 1.0 + radius * 0.45, 1.2 + radius * 0.5, 1.6, 70.0, false)
+		g.get_tree().create_timer(0.12).timeout.connect(func() -> void:
+			if is_instance_valid(g): _once(sm, g, at + Vector3(0, 0.6, 0)))
+		var c := CylinderMesh.new(); c.top_radius = 1.0; c.bottom_radius = 1.0; c.height = 0.03
+		var sc := _mesh(c, Color(0.03, 0.02, 0.015, 0.55), 0.0)
+		sc.position = g._ground(at) + Vector3(0, 0.03, 0); sc.scale = Vector3(radius * 0.8, 1, radius * 0.8)
+		g.add_child(sc)
+		var ts := g.create_tween()
+		ts.tween_interval(3.0)
+		ts.tween_property(sc.material_override, "albedo_color:a", 0.0, 4.0)
+		ts.tween_callback(sc.queue_free)
 	if g.has_method("shake_at"):
 		g.shake_at(at, radius)
 	Sfx.play(g, "boom", at, -4.0 + radius * 2.0, clampf(1.5 - radius * 0.2, 0.6, 1.4))
@@ -579,23 +643,18 @@ static func smoke(g: Node3D, at: Vector3, arriving: bool) -> void:
 	tw.chain().tween_callback(mi.queue_free)
 	Sfx.play(g, "whoosh", at + Vector3(0, 1.2, 0), 0.0, 0.5)
 
-static var _rock: StandardMaterial3D
 
 ## One spike of rock driven up out of the ground: it erupts, stands a moment,
 ## and sinks back.
 static func spike(g: Node3D, at: Vector3, height: float, lean: Vector3) -> void:
-	if _rock == null:
-		_rock = StandardMaterial3D.new()
-		_rock.albedo_color = Color(0.3, 0.24, 0.18); _rock.roughness = 1.0
-	var c := CylinderMesh.new(); c.top_radius = 0.0; c.bottom_radius = 0.2 + height * 0.2; c.height = height; c.radial_segments = 5; c.rings = 1
-	var mi := MeshInstance3D.new(); mi.mesh = c; mi.material_override = _rock
+	var mi := Flowfx.shard(height, 0.16 + height * 0.15)
 	g.add_child(mi)
 	mi.rotation = lean
-	mi.position = at - Vector3(0, height * 0.6, 0)
+	mi.position = at - Vector3(0, height * 1.1, 0)
 	var tw := g.create_tween()
-	tw.tween_property(mi, "position:y", at.y + height * 0.38, 0.08).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(mi, "position:y", at.y - height * 0.12, 0.08).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	tw.tween_interval(1.1 + randf() * 0.5)
-	tw.tween_property(mi, "position:y", at.y - height * 0.7, 0.7).set_ease(Tween.EASE_IN)
+	tw.tween_property(mi, "position:y", at.y - height * 1.2, 0.7).set_ease(Tween.EASE_IN)
 	tw.tween_callback(mi.queue_free)
 
 static func _fade(g: Node3D, mi: MeshInstance3D, secs: float) -> void:
@@ -670,8 +729,15 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 		"beam":
 			# Balefire: a white-hot bar with a wider halo that lingers as an afterimage.
 			var to: Vector3 = from + e.dir * b.range
-			_fade(g, _bar(g, from, to, b.width * 0.45, Color(1, 1, 1), 18.0), 0.9)
-			_fade(g, _bar(g, from, to, b.width * 1.1, Color(1.0, 0.95, 0.8, 0.22), 2.0), 0.5)
+			# Liquid white fire: a hard white core, a wider body that boils along its
+			# length, a few loose threads round it, and a wide pale ghost of it that
+			# hangs in the air after the bar itself is gone.
+			Flowfx.beam(g, from, to, b.width * 0.5, Color(1, 1, 1), 4.0, 0.0, 0.7)
+			Flowfx.beam(g, from, to, b.width * 1.6, Color(1.0, 0.93, 0.7), 2.0, 0.8, 0.9)
+			for i in 3:
+				Flowfx.beam(g, from, to, b.width * 0.35, Color(1.0, 0.9, 0.6), 2.5, 0.3, 0.5 + 0.1 * i, b.width * 0.9)
+			Flowfx.beam(g, from, to, b.width * 3.5, Color(0.6, 0.5, 0.9), 0.35, 0.6, 1.8)
+			_once(_particles(Color(1.0, 0.95, 0.8), 40, 0.6, 0.1, 6.0, 0.0), g, from + e.dir * 1.5)
 			var l := _light(Color(1, 0.97, 0.9), 14.0, 30.0)
 			g.add_child(l); l.position = from + e.dir * 6.0
 			var tw := g.create_tween(); tw.tween_property(l, "light_energy", 0.0, 0.6); tw.tween_callback(l.queue_free)
@@ -703,26 +769,30 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 		"lash":
 			# A Lash of Water: a whip of it cracks out along the line, wraps what it
 			# reaches and is hauled back in.
-			var beads: Array[MeshInstance3D] = []
-			var count := 22
-			for i in count:
-				var sp := SphereMesh.new(); sp.radius = 0.11 - 0.07 * i / count; sp.height = sp.radius * 2.0
-				var mi := _mesh(sp, TINT.water.lerp(Color.WHITE, 0.35), 4.0)
-				g.add_child(mi); beads.append(mi)
+			# Drawn as one rope of water, thick at the hand and thin at the tip, with
+			# a brighter thread down the middle of it.
+			var count := 30
+			var rope := Flowfx.Ribbon.new(TINT.water.lerp(Color(0.4, 0.75, 1.0), 0.3), 0.55, count, 2.4, 0.5)
+			var vein := Flowfx.Ribbon.new(Color(0.7, 0.88, 1.0), 0.1, count, 1.4, 0.1)
+			for r in [rope, vein]:
+				r.fixed = true; r.taper = 0.75
+				r.pts.resize(count); g.add_child(r)
 			var side: Vector3 = e.dir.cross(Vector3.UP)
 			var reach: float = b.range
 			var tw := g.create_tween()
 			tw.tween_method(func(f: float) -> void:
+				if not is_instance_valid(rope) or not is_instance_valid(vein):
+					return
 				# Out fast (first quarter), then drawn back in.
 				var ext := smoothstep(0.0, 0.22, f) * (1.0 - smoothstep(0.35, 1.0, f) * 0.85)
 				for i in count:
-					if not is_instance_valid(beads[i]):
-						continue
-					var u := (i + 1.0) / count
+					var u := i / float(count - 1)
 					var wave := sin(u * 9.0 - f * 26.0) * 0.55 * u * (1.0 - smoothstep(0.1, 0.3, f) * 0.6)
-					beads[i].position = from + e.dir * (reach * ext * u) + side * wave + Vector3(0, -0.7 * u * ext + 0.3 * sin(u * PI) * (1.0 - f), 0), 0.0, 1.0, 0.75)
+					var p: Vector3 = from + e.dir * (0.4 + reach * ext * u) + side * wave + Vector3(0, -0.7 * u * ext + 0.3 * sin(u * PI) * (1.0 - f) + 0.25 * cos(u * 7.0 - f * 20.0) * u * (1.0 - f), 0)
+					rope.pts[i] = p; vein.pts[i] = p
+				rope.gain = 1.0 - smoothstep(0.8, 1.0, f); vein.gain = rope.gain, 0.0, 1.0, 0.75)
 			tw.tween_callback(func() -> void:
-				for m in beads:
+				for m in [rope, vein]:
 					if is_instance_valid(m): m.queue_free())
 			for i in 5:
 				var p: Vector3 = g._ground(feet + e.dir * (reach * (i + 1) / 5.0)) + Vector3(0, 0.7, 0)
@@ -746,22 +816,58 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			tw.tween_property(mi, "scale", Vector3.ONE * b.range * 0.45, 0.28)
 			tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.3)
 			tw.chain().tween_callback(mi.queue_free)
+			# The blow itself: threads of Air thrown out in a spreading fan.
+			var up := Vector3.UP
+			var sd: Vector3 = e.dir.cross(up).normalized()
+			for i in 9:
+				var ang := (i - 4) * 0.11
+				var d: Vector3 = (e.dir * cos(ang) + sd * sin(ang)).normalized()
+				var lift := Vector3(0, randf_range(-0.5, 0.9), 0)
+				Flowfx.streak(g, from + sd * (i - 4) * 0.08, from + d * b.range + lift, 0.2 + randf() * 0.1, col.lerp(Color.WHITE, 0.3), 0.3, (sd * randf_range(-1, 1) + up * randf_range(-0.4, 0.6)) * 0.8, 1.6, 0.6)
 			# Water goes out as spray; Air only lifts the dust.
 			var wet: bool = Rules.weaves[e.weave].flows.has("water")
-			_once(_particles(TINT.water.lerp(Color.WHITE, 0.3) if wet else Color(0.6, 0.56, 0.5), 70 if wet else 24, 0.7, 0.35 if wet else 0.9, 9.0 if wet else 6.0, -6.0 if wet else 0.5, 30.0, wet), g, feet + e.dir * 2.0 + Vector3(0, 0.6, 0))
+			_once(_particles(TINT.water.lerp(Color.WHITE, 0.3) if wet else Color(0.6, 0.56, 0.5), 70 if wet else 40, 0.7, 0.35 if wet else 0.4, 9.0 if wet else 8.0, -6.0 if wet else 0.5, 30.0, wet), g, feet + e.dir * 2.0 + Vector3(0, 0.6, 0))
 			Sfx.play(g, "thud", from, 4.0, 0.7)
 		"barrier":
-			var s := SphereMesh.new(); s.radius = 1.0; s.height = 2.0
-			var mi := _mesh(s, Color(0.7, 0.85, 1.0, 0.1), 0.5)
+			var mi := Flowfx.shell(1.0, Color(0.7, 0.85, 1.0), 2.5)
 			g.add_child(mi); mi.position = feet + Vector3(0, 1.0, 0); mi.scale = Vector3.ONE * 0.5
 			var tw := g.create_tween().set_parallel()
-			tw.tween_property(mi, "scale", Vector3.ONE * 1.5, 0.25).set_ease(Tween.EASE_OUT)
-			tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 1.1)
+			tw.tween_property(mi, "scale", Vector3.ONE * 1.6, 0.25).set_ease(Tween.EASE_OUT)
+			tw.tween_property(mi.material_override, "shader_parameter/fade", 0.0, 0.9)
 			tw.chain().tween_callback(mi.queue_free)
 			Sfx.play(g, "chime", from, -2.0, 0.8)
 		"heal":
-			_once(_particles(Color(0.5, 1.0, 0.7), 40, 1.2, 0.14, 1.2, 1.6, 40.0), g, g._ground(e.at) + Vector3(0, 0.4, 0))
+			# Healing: threads of Spirit, Water and Air go from the hands into the one
+			# healed, then wind up round them from the feet to over the head.
+			var who: Vector3 = g._ground(e.at)
+			var gold := Color(0.75, 1.0, 0.7)
+			for i in 3:
+				Flowfx.streak(g, from, who + Vector3(0, 1.2, 0), 0.25 + 0.06 * i, [TINT.spirit, TINT.water, TINT.air][i], 0.1, Vector3(randf_range(-0.6, 0.6), 0.5 + 0.3 * i, randf_range(-0.6, 0.6)), 2.5, 0.2)
+			for i in 3:
+				var r := Flowfx.Ribbon.new(gold, 0.12, 26, 2.2, 0.25)
+				r.follow = false; g.add_child(r)
+				var tw := g.create_tween()
+				tw.tween_interval(0.25)
+				tw.tween_method(func(f: float) -> void:
+					if is_instance_valid(r):
+						var a := f * 9.0 + i * TAU / 3.0
+						r.push(who + Vector3(cos(a) * 0.55, 0.1 + 2.1 * f, sin(a) * 0.55)), 0.0, 1.0, 1.0)
+				tw.tween_property(r, "gain", 0.0, 0.4)
+				tw.tween_callback(r.queue_free)
+			var hl := _light(gold, 0.0, 5.0); g.add_child(hl); hl.position = who + Vector3(0, 1.2, 0)
+			var tl := g.create_tween()
+			tl.tween_property(hl, "light_energy", 3.0, 0.4); tl.tween_property(hl, "light_energy", 0.0, 1.0); tl.tween_callback(hl.queue_free)
+			_once(_particles(Color(0.5, 1.0, 0.7), 24, 1.4, 0.08, 0.8, 1.2, 40.0), g, who + Vector3(0, 0.4, 0))
 			Sfx.play(g, "chime", from, -2.0)
 		"sever":
-			_fade(g, _bar(g, from, g._ground(e.at) + Vector3(0, 1.4, 0), 0.06, TINT.spirit, 6.0), 0.5)
+			# A shield: Spirit thrown across and closed round them like a hand.
+			var tgt: Vector3 = g._ground(e.at) + Vector3(0, 1.3, 0)
+			for i in 4:
+				Flowfx.streak(g, from, tgt, 0.16 + 0.03 * i, TINT.spirit, 0.09, Vector3(randf_range(-1, 1), randf_range(-0.3, 1), randf_range(-1, 1)) * 0.9, 2.5, 0.1)
+			var sh := Flowfx.shell(1.0, TINT.spirit, 2.5)
+			g.add_child(sh); sh.position = tgt; sh.scale = Vector3.ONE * 2.6
+			var ts := g.create_tween().set_parallel()
+			ts.tween_property(sh, "scale", Vector3.ONE * 1.05, 0.3).set_ease(Tween.EASE_IN).set_delay(0.15)
+			ts.tween_property(sh.material_override, "shader_parameter/fade", 0.0, 0.5).set_delay(0.45)
+			ts.chain().tween_callback(sh.queue_free)
 			Sfx.play(g, "chime", from, -4.0, 0.6)

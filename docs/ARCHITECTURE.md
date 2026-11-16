@@ -258,7 +258,7 @@ Robert Jordan's The Wheel of Time*), and what the game does about it.
 | Creature | Canon | In the game |
 |---|---|---|
 | Myrddraal | Tall, muscular, every one alike; fishbelly-white skin; a man's face with smooth skin where the eyes would be; lifeless black hair; black plate in overlapping strips over black; a black cloak with a deep cowl that hangs still in any wind; a black Thakan'dar sword whose wounds fester; moves like a serpent; black corrosive blood | Tall and muscular (was thin); strips of black plate round the trunk and in rings down the arms, pauldrons; a full cloak from cowl to heel hung from the chest bone alone, so nothing stirs it; a straight black sword; a man's hands (no claws). Not done: the hair (under the cowl), black blood |
-| Draghkar | A tall pale man; eyes far too big; a mouth like an open wound, red, with pointed teeth; talons; huge bat wings that hang about it like a dark cloak; soars like a bird of prey; a soft crooning song | Tall, thin, pale; large all-black eyes; a red mouth open on a dark inside; long talons; wings folded in a V behind it like a cloak, spread to fly face-down. Weak: the teeth are too fine for the clay and do not show; wings are flat panels and cannot wrap round the front |
+| Draghkar | A tall pale man; eyes far too big; a mouth like an open wound, red, with pointed teeth; talons; huge bat wings that hang about it like a dark cloak; soars like a bird of prey; a soft crooning song | Tall, thin, pale; a long hairless skull, no nose to speak of (a ridge and two slits), large all-black almond eyes, and a wide thin red mouth set low with points of teeth in it (Josh, 15 Nov: the first one read as a human head with a red moustache); long talons; wings folded in a V behind it like a cloak, spread to fly face-down. Weak: wings are flat panels and cannot wrap round the front |
 | Darkhound | A hound only in outline; darker than night; big as a pony; eyes that shine like silver; teeth like burnished steel; smells of sulphur; no prints on soft ground, prints in stone; cut apart, it runs to liquid shadow and re-forms; only the Power kills the newer breed | Pony-sized, near-black, hackles down the spine, silver eyes that glow, a steel-toothed open jaw; killed, it sinks into a pool of shadow instead of lying there. Not done: prints in stone |
 | Dreadlord | No set look: men and women who channel for the Shadow | A hooded man in black with blood-red slashes and sash. Not done: women |
 | Gholam, Gray Men | Look like ordinary people (boneless; unnoticeable) | Not in the game |
@@ -359,6 +359,25 @@ that chase their sim position with their own gait.
   enemy nearest the view ray, else the ground.
 - `--auto` lets the bot play, which is how the game is rendered without a human
   (`tools/render.sh renders/game 240 -- --auto`).
+
+### Weave effects (rebuilt 15 Nov after a review of every weave in renders)
+`src/game/flowfx.gd` holds the parts and `weavefx.gd` says what each weave is made of:
+- `Flowfx.Ribbon`: a camera-facing strip that trails a moving point in world space
+  (`shaders/fx_ribbon.gdshader`: bright core, body broken by scrolling noise). It is
+  the thread of the Power: the flows while a weave is made, a fireball's wake, the
+  Lash of Water (one `fixed` ribbon whose points are set each frame), balefire
+  (`Flowfx.beam`), Hammer of Air's gusts and an explosion's streamers (`Flowfx.streak`).
+- `Flowfx.ball` (`fx_fire.gdshader`): a sphere whose surface boils; `burn` 0 to 1 opens
+  holes in it, so a burst burns out instead of fading like a balloon.
+- `Flowfx.shell` (`fx_shell.gdshader`): rim-lit, with threads running round it: the
+  Dome of Air and the shield that closes on a channeller.
+- `Flowfx.shard`: a crooked flat-faced spike of rock (Heave the Ground, Rolling Ring).
+A `ShaderMaterial` parameter must be set once before a tween can find it
+(`shader_parameter/burn`): `fire_mat` and `shell` do so.
+`tools/weave.sh <id>` renders one weave side-on at six moments (woven, loosed, landing);
+`DEMO=<metres> tools/weave.sh <id>` for the ones the bot will not choose.
+The stubble paint on generated male faces is skipped for the Eyeless and for a
+Draghkar: it is laid last and washed the colour out of anything on the lower face.
 
 ## Testing
 - `tools/test.sh`: rules and progression (`tests/run_tests.gd`: every weapon, every

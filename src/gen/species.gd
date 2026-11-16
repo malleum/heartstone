@@ -90,7 +90,7 @@ static var DRAGHKAR: Dictionary:
 		var t := HUMAN.duplicate()
 		t.merge({species = "draghkar", height = Vector2(2.0, 2.05), bulk = Vector2(0.68, 0.72), limb = Vector2(0.78, 0.82), muscle = 0.12, gut = 0.0, hunch = 0.35,
 			skin = Color(0.78, 0.76, 0.74), fur = Color(0.03, 0.03, 0.03), outfit = "draghkar", fem = 0.0, hair = "bald", beard = 0,
-			f_jaw = 0.82, f_chin = 1.3, f_cheek = 0.7, f_brow = 0.8, f_lip = 1.3, f_eye = 1.5, f_eye_gap = 1.08, talons = 2.6, maw = true, eyes_black = true}, true)
+			f_jaw = 0.7, f_chin = 1.55, f_cheek = 0.45, f_brow = 0.55, f_lip = 1.3, f_eye = 1.75, f_eye_gap = 1.12, f_skull = 1.28, flat_nose = true, f_nose_len = 0.25, f_nose_w = 0.6, f_bridge = 0.55, talons = 2.6, maw = true, eyes_black = true}, true)
 		return t
 
 ## A Dreadlord: one who channels for the Shadow. A man in black and blood-red, hooded.
