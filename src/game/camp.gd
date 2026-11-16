@@ -54,6 +54,10 @@ func _ready() -> void:
 	add_child(Terrain.build_mesh(120.0, 1.0))
 	Scenery.scatter(self)
 	Scenery.fire(self, Vector3(6.0, Terrain.height(6.0, 3.0), 3.0))
+	Scenery.camp(self)
+	# --camyaw=deg: look another way in a render (and --show=none hides the sheet).
+	if Launch.cmdline().has("camyaw"):
+		cam_yaw = deg_to_rad(float(Launch.cmdline().camyaw))
 	cam = Camera3D.new(); cam.fov = 60.0; add_child(cam)
 	_ui()
 	if FileAccess.file_exists(ONLINE):

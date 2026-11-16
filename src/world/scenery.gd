@@ -41,12 +41,30 @@ static func torch(g: Node3D, at: Vector3) -> void:
 static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, title: String, sub: String, scene := 0) -> Node3D:
 	var n := Node3D.new(); g.add_child(n)
 	n.position = at; n.rotation.y = yaw
-	var stone := _mat(Color(0.2, 0.2, 0.21))
-	for sx in [-1.0, 1.0]:
-		_box(n, Vector3(0.55, 3.5, 0.6), Vector3(sx * 1.2, 1.6, 0), stone, Vector3(0, 0, sx * -0.03))
-		_box(n, Vector3(0.75, 0.3, 0.8), Vector3(sx * 1.2, 0.05, 0), stone)
-	_box(n, Vector3(3.5, 0.5, 0.75), Vector3(0, 3.5, 0), stone, Vector3(0, 0, 0.02))
-	_box(n, Vector3(1.0, 0.3, 0.8), Vector3(0, 3.85, 0), stone)
+	# Old stones set on one another without mortar: each post a stack of rough
+	# blocks, no two alike, under a lintel of three with a taller one at the middle.
+	var rng := RandomNumberGenerator.new(); rng.seed = int(absf(at.x) * 31.0 + absf(at.z) * 17.0) + 3
+	var shades := []
+	for k in 4:
+		shades.append(_mat(Color(0.2, 0.2, 0.215) * (0.75 + k * 0.14)))
+	for sx: float in [-1.0, 1.0]:
+		var y := 0.0
+		_box(n, Vector3(0.95, 0.28, 1.0), Vector3(sx * 1.25, 0.06, 0), shades[1], Vector3(0, rng.randf_range(-0.1, 0.1), 0))
+		y = 0.2
+		while y < 3.2:
+			var h := minf(rng.randf_range(0.42, 0.7), 3.3 - y)
+			var wide := lerpf(0.72, 0.56, y / 3.2)
+			_box(n, Vector3(wide * rng.randf_range(0.92, 1.08), h * 0.98, wide * rng.randf_range(0.95, 1.12)), Vector3(sx * 1.25 + rng.randf_range(-0.035, 0.035), y + h * 0.5, rng.randf_range(-0.03, 0.03)),
+				shades[rng.randi() % 4], Vector3(rng.randf_range(-0.02, 0.02), rng.randf_range(-0.09, 0.09), rng.randf_range(-0.02, 0.02)))
+			y += h
+	for k in 3:
+		var big := k == 1
+		_box(n, Vector3(1.28, 0.62 if big else 0.5, 0.86 if big else 0.78), Vector3((k - 1) * 1.24, 3.56 + (0.05 if big else 0.0), 0), shades[(k + 1) % 4],
+			Vector3(rng.randf_range(-0.02, 0.02), rng.randf_range(-0.05, 0.05), (k - 1) * -0.03))
+	# Stones that have come down, or were never raised.
+	for k in 3:
+		var sz := rng.randf_range(0.3, 0.55)
+		_box(n, Vector3(sz * 1.3, sz * 0.7, sz), Vector3((2.2 + rng.randf() * 0.9) * (1.0 if k % 2 == 0 else -1.0), sz * 0.25, rng.randf_range(-0.9, 0.4)), shades[k], Vector3(rng.randf() * 0.3, rng.randf() * TAU, rng.randf() * 0.3))
 	var q := QuadMesh.new(); q.size = Vector2(1.9, 3.3)
 	var mi := MeshInstance3D.new(); mi.mesh = q; mi.position = Vector3(0, 1.65, 0)
 	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
@@ -182,6 +200,46 @@ static func practice_post(seed: int) -> Node3D:
 	n.add_child(head)
 	_cyl(n, 0.1, 0.12, 0.05, Vector3(0, 1.84, 0), rope, Vector3.ZERO, 8)
 	return n
+
+## A ridge tent: canvas over a pole, the flap open and dark inside.
+static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
+	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = yaw
+	var k := rng.randf_range(0.9, 1.15)
+	var canvas := _mat(Color(0.6, 0.55, 0.44) * rng.randf_range(0.8, 1.05), 1.0)
+	var pr := PrismMesh.new(); pr.size = Vector3(2.6 * k, 1.9 * k, 3.4 * k)
+	var mi := MeshInstance3D.new(); mi.mesh = pr; mi.material_override = canvas; mi.position.y = 0.95 * k
+	n.add_child(mi)
+	var dark := PrismMesh.new(); dark.size = Vector3(1.0 * k, 1.5 * k, 0.05)
+	var d := MeshInstance3D.new(); d.mesh = dark; d.material_override = _mat(Color(0.04, 0.035, 0.03)); d.position = Vector3(0, 0.75 * k, 1.7 * k + 0.01)
+	n.add_child(d)
+	var wood := _mat(Color(0.22, 0.15, 0.09))
+	for sz: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.07, 2.1 * k, 0.07), Vector3(0, 1.05 * k, sz * 1.72 * k), wood)
+		# Guy ropes to pegs.
+		for sx: float in [-1.0, 1.0]:
+			_box(n, Vector3(0.02, 2.3 * k, 0.02), Vector3(sx * 0.95 * k, 0.95 * k, sz * 2.1 * k), _mat(Color(0.5, 0.44, 0.3)), Vector3(sz * -0.42, 0, sx * -0.85))
+
+## What stands about the camp behind the doorways' ground: tents, the stores by
+## the fire, logs to sit on, a banner.
+static func camp(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 29
+	for t in [[11.0, 9.0], [4.5, 13.0], [-4.0, 13.5], [-11.0, 9.5], [-15.0, 3.0], [15.5, 2.5]]:
+		var p := _ground(t[0], t[1])
+		tent(g, p, atan2(-p.x, -(p.z - 3.0)) + rng.randf_range(-0.25, 0.25), rng)
+	var wood := _mat(Color(0.2, 0.14, 0.09))
+	# Logs round the fire (it burns at 6, 3).
+	for k in 3:
+		var a := 0.6 + k * 1.5
+		_cyl(g, 0.17, 0.15, 1.7, _ground(6.0 + sin(a) * 1.9, 3.0 + cos(a) * 1.9) + Vector3(0, 0.16, 0), wood, Vector3(PI * 0.5, a, 0), 8)
+	crate(g, _ground(8.6, 5.6), rng); crate(g, _ground(9.3, 4.9), rng)
+	barrel(g, _ground(8.2, 6.6), rng); barrel(g, _ground(9.9, 5.9), rng, true)
+	sacks(g, _ground(7.2, 7.2), rng, 3)
+	bale(g, _ground(-8.0, 7.5), 0.4); bale(g, _ground(-9.0, 8.4), 1.2)
+	# A banner by the way in.
+	var bp := _ground(-3.0, 6.5)
+	_box(g, Vector3(0.1, 5.2, 0.1), bp + Vector3(0, 2.6, 0), wood)
+	_box(g, Vector3(1.3, 1.7, 0.04), bp + Vector3(0.7, 4.2, 0), _mat(Color(0.5, 0.09, 0.07), 0.9))
+	_box(g, Vector3(0.5, 0.5, 0.05), bp + Vector3(0.7, 4.3, 0), _mat(Color(0.85, 0.8, 0.7), 0.9), Vector3(0, 0, PI * 0.25))
 
 ## The training yard: a rail fence round the ground, with what a yard has at its
 ## edges. Nothing here is solid, so it is all kept out of the way of the fighting.
