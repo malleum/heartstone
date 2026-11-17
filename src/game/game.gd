@@ -888,6 +888,30 @@ func _on_events(list: Array) -> void:
 			"spawn":
 				if not actors.has(e.id):
 					_spawn_enemy(e.id, e.type, e.pos)
+			"downed":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
+					(actors[e.id].node.get_meta("anim") as AnimationPlayer).play("Death01", 0.2)
+					actors[e.id].downed = true
+				if e.id == session.my_id:
+					_banner("You are down\nA friend must stand over you within %d seconds. Half a body more and you are dead." % int(e.secs), 6.0, "warn")
+				elif actors.has(e.id):
+					_banner("%s is down\nStand over them to bring them back." % actors[e.id].get("name", "A friend"), 5.0, "warn")
+			"revived":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
+					(actors[e.id].node.get_meta("anim") as AnimationPlayer).play("Idle", 0.3)
+					actors[e.id].downed = false
+				if e.id == session.my_id:
+					_banner("Back on your feet\nHurt and winded: get healed, or rest.", 4.0, "good")
+			"returned":
+				if actors.has(e.id):
+					actors[e.id].dead = false; actors[e.id].downed = false
+					if is_instance_valid(actors[e.id].node):
+						actors[e.id].node.visible = true
+						(actors[e.id].node.get_meta("anim") as AnimationPlayer).play("Idle", 0.2)
+				if e.id == session.my_id:
+					if not mirror.is_empty() and mirror.get("cls", "channeller") == "channeller":
+						mirror.strength = Rules.strength_of(float(e.strength)); mirror.potential = mirror.strength
+					_banner("You return with the wave\nWeaker for dying: %d level%s of strength lost." % [e.lost, "" if e.lost == 1 else "s"], 6.0, "warn")
 			"level":
 				if e.id == session.my_id:
 					_round_level(e)
@@ -1508,6 +1532,8 @@ func _draw_actors(dt: float) -> void:
 				n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			a.speed = speed
+			if a.get("downed", false) or a.get("dead", false):
+				continue     # lying where they fell (Death01 holds its last frame)
 			_flourish(a, n, dt)
 			if a.get("rearm", -1.0) > 0.0 and clock >= a.rearm:
 				a.rearm = -1.0

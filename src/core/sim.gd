@@ -167,6 +167,8 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 		return "bound in Air"
 	if p.chained > t:
 		return "chained"
+	if p.get("downed", false):
+		return "you are down"
 	var row: Dictionary = Rules.weaves.get(weave, {})
 	var target := 0
 	if row.get("hold", false):
@@ -234,6 +236,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		return "bound in Air"
 	if p.chained > t:
 		return "chained"
+	if p.get("downed", false):
+		return "you are down"
 	if not p.swing.is_empty():
 		p.queued = {kind = kind, aim = aim, charge = charge}
 		return ""
@@ -341,6 +345,8 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 		return "the song has you"
 	if p.chained > t:
 		return "chained"
+	if p.get("downed", false):
+		return "you are down"
 	dir.y = 0.0
 	# With no direction given it is a step back, out of reach, still facing them.
 	var back := dir.length() <= 0.1
@@ -459,7 +465,51 @@ func _finish(ok: bool) -> void:
 	over = true; success = ok
 	events.append({e = "over", success = ok})
 
+## Down: no moving, no acting. A friend standing over you for two seconds brings
+## you back, low on health and breath; the time runs out and you die.
+func _step_downed(p: Dictionary, dt: float) -> void:
+	p.move = Vector3.ZERO
+	p.down_left -= dt
+	var helped := false
+	for id in ents:
+		var o: Dictionary = ents[id]
+		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and not o.get("downed", false) and o.pos.distance_to(p.pos) < Round.REVIVE_REACH:
+			helped = true
+	p.revive_t = p.revive_t + dt if helped else maxf(p.revive_t - dt, 0.0)
+	if p.revive_t >= Round.REVIVE_SECS:
+		p.downed = false
+		p.hp = p.max_hp * 0.25
+		p.stamina = p.get("stamina_max", Rules.TUNE.stamina) * 0.2
+		p.safe_until = t + 1.0
+		events.append({e = "revived", id = p.id})
+	elif p.down_left <= 0.0:
+		p.downed = false
+		p.down_hp = 0.0
+		p.finishing = true
+		_hurt(p, p.hp + 1.0, 0, "", true)
+		p.finishing = false
+
+## Those who died come back as a wave arrives, where the defenders stand, with
+## their potential and strength fallen by 1d6 levels.
+func _return_dead() -> void:
+	for id in ents:
+		var p: Dictionary = ents[id]
+		if p.kind != "player" or p.alive or not p.get("return_next", false):
+			continue
+		p.return_next = false
+		var lost := rng.randi_range(1, 6)
+		Round.weaken(p.profile, lost)
+		p.alive = true
+		p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
+		p.pos = Vector3(rng.randf_range(-2.0, 2.0), 0, rng.randf_range(2.0, 4.0))
+		p.safe_until = t + 2.0
+		p.burn = 0.0; p.stagger = 0.0; p.down = 0.0
+		events.append({e = "returned", id = id, lost = lost, strength = Rules.level_of(Rules.strength(p.profile))})
+		events.append(_intro(p))
+
 func _spawn_wave(w: Dictionary) -> void:
+	if round_mode:
+		_return_dead()
 	var training: bool = Rules.activities[activity_id].kind == "training"
 	var first := _next
 	for type in w.spawn:
@@ -555,6 +605,9 @@ func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
+	if p.get("downed", false):
+		_step_downed(p, dt)
+		return
 	# The bond: a Warder and a channeller near each other both recover faster.
 	var bonded := 1.0
 	for id in ents:
@@ -1001,7 +1054,28 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		e.barrier -= soak; dmg -= soak
 		if e.barrier <= 0.0:
 			release(e.id, "dome_of_air")
-	e.hp -= dmg
+	if e.get("downed", false):
+		# Already down: what lands now comes off what is left, half a body more.
+		e.down_hp -= dmg
+		if e.down_hp > 0.0:
+			return
+		e.downed = false
+		e.hp = 0.0
+	else:
+		e.hp -= dmg
+		# In a round a player goes down before they die, and a friend can bring them
+		# back. Balefire leaves nothing to bring back.
+		if e.hp <= 0.0 and e.kind == "player" and round_mode and weave != "balefire" and not e.get("finishing", false):
+			e.hp = 0.0
+			e.downed = true
+			e.down_left = Round.DOWN_SECS
+			e.down_hp = e.max_hp * 0.5
+			e.revive_t = 0.0
+			e.forming = {}; e.swing = {}; e.queued = {}; e.guard = false; e.drawing = false
+			for h in e.get("held", []).duplicate():
+				release(e.id, h.weave, h.target)
+			events.append({e = "downed", id = e.id, secs = Round.DOWN_SECS, by = by})
+			return
 	if dmg > 0.0:
 		e.hurt_t = t
 		# Pain ends the song, for the singer and for the one who hears it.
@@ -1039,6 +1113,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 					o.alive = false
 					events.append({e = "die", id = o.id, by = by, linked = true})
 		events.append({e = "die", id = e.id, by = by})
+		# Dead in a round: back at the next wave, weaker for it.
+		if round_mode and e.kind == "player":
+			e.return_next = true
 		if round_mode and e.kind == "enemy":
 			_gain(Round.xp_of(e.row))
 		if tallies.has(by) and weave != "":
@@ -1694,7 +1771,7 @@ func snapshot() -> Dictionary:
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
 				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
 				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0) \
-				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t else 0)
+				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
 	var fx := []
 	for f in effects:

@@ -27,6 +27,10 @@ const WIN_LEVEL := 12
 ## Experience for the next team level: XP_BASE * level ^ XP_EXP.
 const XP_BASE := 30.0
 const XP_EXP := 1.35
+## Going down: this long for a friend to reach you, this close, for this long.
+const DOWN_SECS := 15.0
+const REVIVE_REACH := 1.8
+const REVIVE_SECS := 2.0
 
 ## Standard normal cumulative distribution (Abramowitz and Stegun 7.1.26).
 static func _phi(z: float) -> float:
@@ -221,3 +225,14 @@ static func plan(act: Dictionary, rng: RandomNumberGenerator) -> Array:
 		out.append({t = t, spawn = spawn})
 		t += gap * lerpf(1.0, 0.7, float(i) / float(maxi(n - 1, 1)))
 	return out
+
+## A real death in a round: potential and strength both fall this many levels.
+static func weaken(p: Dictionary, levels: int) -> void:
+	var r: Dictionary = p.get("round", {})
+	if not r.has("pot_level"):
+		return
+	r.pot_level = minf(r.pot_level + levels, 72.0)
+	r.start_level = minf(r.start_level + levels, 72.0)
+	r.now_level = minf(r.now_level + levels, 72.0)
+	p.potential = Rules.strength_of(r.pot_level)
+	p.strength = Rules.strength_of(r.now_level)

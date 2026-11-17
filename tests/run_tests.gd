@@ -878,6 +878,32 @@ func _rounds() -> void:
 			check(has, "a rolled Warder stands beside her and fights by himself")
 	check(got > 4 and got < tried - 4, "Warders come to some and not others (%d of %d)" % [got, tried])
 	check(Round.share_at_or_above(1.0, false) < 0.02 and Round.share_at_or_above(30.0, false) > 0.85, "the strongest rolls rarely bring a Warder; the common ones usually do")
+	# Going down, getting up, dying and coming back.
+	var ds := Sim.new("tarwins_gap_watch", 21)
+	ds._waves = []
+	var da := ds.add_player(Profile.create({name = "Down A", power = "saidin", potential_pts = 8}), Vector3(0, 0, 0))   # a man: no Warder to help
+	var db := ds.add_player(Profile.create({name = "Down B", cls = "warder", stat_pts = {might = 3}}), Vector3(8, 0, 0))
+	ds._add_enemy("dummy", Vector3(0, 0, -90))   # something left, so the round goes on
+	var pa: Dictionary = ds.ents[da]
+	ds._hurt(pa, pa.max_hp + 5.0, 0, "")
+	check(pa.alive and pa.downed and ds.request_cast(da, pa.profile.weaves.keys()[0], Vector3(0, 1, 5)) == "you are down", "a player in a round goes down first, and cannot act")
+	ds.ents[db].pos = Vector3(1.0, 0, 0)
+	var seen := run(ds, Round.REVIVE_SECS + 0.3)
+	check(seen.has("revived") and not pa.downed and pa.hp > 0.0 and pa.hp <= pa.max_hp * 0.3, "a friend standing over you brings you back, low on health")
+	ds.ents[db].pos = Vector3(20, 0, 0)
+	ds._hurt(pa, pa.hp + 1.0, 0, "")
+	ds._hurt(pa, pa.max_hp * 0.5 + 1.0, 0, "")
+	check(not pa.alive and pa.return_next, "half a body more while down kills you")
+	var before: float = pa.profile.round.pot_level
+	ds._spawn_wave({t = 0.0, spawn = {}})
+	check(pa.alive and pa.profile.round.pot_level > before and pa.profile.round.pot_level - before <= 6.0, "the dead come back with the next wave, their potential fallen 1 to 6 levels")
+	ds._hurt(pa, pa.hp + 1.0, 0, "balefire")
+	check(not pa.alive and not pa.get("downed", false), "balefire leaves nothing to bring back")
+	ds._spawn_wave({t = 0.0, spawn = {}})
+	ds._hurt(pa, pa.hp + 1.0, 0, "")
+	run(ds, Round.DOWN_SECS + 0.5)
+	check(not pa.alive, "left down too long, you die")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)

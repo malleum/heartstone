@@ -84,6 +84,15 @@ static func drive(sim: Sim, id: int) -> void:
 	var me: Dictionary = sim.ents[id]
 	if not me.alive:
 		return
+	if me.get("downed", false):
+		return
+	# A friend down nearby comes first: stand over them until they are up.
+	for k in sim.ents:
+		var o: Dictionary = sim.ents[k]
+		if o.kind == "player" and o.alive and o.get("downed", false) and k != id and o.team == me.team and o.pos.distance_to(me.pos) < 30.0:
+			var to: Vector3 = (o.pos - me.pos) * Vector3(1, 0, 1)
+			sim.set_input(id, to.normalized() if to.length() > 1.0 else Vector3.ZERO, atan2(to.x, to.z))
+			return
 	# A bot spends its level-ups at once, on whatever its tree offers first.
 	if me.profile.get("round", {}).get("picks", 0) > 0:
 		var ch := Round.choices(me.profile)

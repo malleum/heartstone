@@ -465,6 +465,12 @@ outlasts it.
   most are Trollocs alone and grow 18-20% a wave, every fourth brings the place's
   specials, every sixth is a horde (2.5x), the last brings the boss. Surviving them
   all is the win.
+- **Going down.** At 0 health a player in a round is down (`downed`), not dead:
+  they cannot act, and a friend standing within 1.8 m for 2 s brings them back at a
+  quarter health and a fifth of their stamina. Half their max health more while
+  down, or 15 s with nobody, kills; balefire kills outright. The dead come back
+  with the next wave, potential and strength fallen 1d6 levels (`Round.weaken`).
+  Bots go to downed friends first.
 - **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
   one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
 - **Saves.** Characters carry `format = 2`; older ones are deleted when the camp
