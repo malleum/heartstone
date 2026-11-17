@@ -504,9 +504,9 @@ static func arc(g: Node3D, a: Vector3, b: Vector3) -> void:
 
 ## Both sides of a gateway: a slash of light that turns open into a doorway. The
 ## returned node holds the two, and is freed when the weave is let go.
-static func gate(g: Node3D, a: Vector3, b: Vector3) -> Node3D:
+static func gate(g: Node3D, a: Vector3, b: Vector3, flat_a := false, sky := 0.0) -> Node3D:
 	var n := Node3D.new(); g.add_child(n)
-	for side in [[a, b], [b, a]]:
+	for side in [[a, b, flat_a, 0.0], [b, a, sky > 0.0, sky]]:
 		var q := QuadMesh.new(); q.size = Vector2(1.9, 2.9)
 		var mi := MeshInstance3D.new(); mi.mesh = q
 		var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
@@ -516,6 +516,10 @@ static func gate(g: Node3D, a: Vector3, b: Vector3) -> Node3D:
 		mi.position = g._ground(side[0]) + Vector3(0, 1.5, 0)
 		var away: Vector3 = (side[1] - side[0]) * Vector3(1, 0, 1)
 		mi.rotation.y = atan2(away.x, away.z)
+		if side[2]:
+			# Laid flat: a hole in the ground, or an opening in the sky.
+			mi.rotation = Vector3(-PI * 0.5, mi.rotation.y, 0)
+			mi.position = g._ground(side[0]) + Vector3(0, 0.04 + side[3], 0)
 		# It opens from a line: narrow, then wide.
 		mi.scale = Vector3(0.02, 1.0, 1.0)
 		g.create_tween().tween_property(mi, "scale", Vector3.ONE, 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)

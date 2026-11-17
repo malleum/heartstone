@@ -1024,11 +1024,17 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 		"gate":
 			# A gateway: a hole from here to there, open while it is held (or tied).
 			# Anyone who steps into one side steps out of the other: friend or not.
-			var near_side: Vector3 = Map.clamp_pos(Map.unblock(p.pos + dir * 1.6, 0.6))
-			var far_side: Vector3 = Map.clamp_pos(Map.unblock(Vector3(at.x, 0, at.z), 0.6))
+			# Either end can lie flat: aimed at the ground close by, the near end is a
+			# hole at your feet; aimed high into the air, the far end opens in the sky
+			# and what comes through it falls.
+			var ground_at := Terrain.height(at.x, at.z)
+			var flat_a: bool = Vector2(at.x - p.pos.x, at.z - p.pos.z).length() < 4.0
+			var sky: float = clampf(at.y - ground_at, 0.0, 30.0) if at.y - ground_at > 4.0 else 0.0
+			var near_side: Vector3 = Map.clamp_pos(Map.unblock(p.pos + dir * (2.0 if flat_a else 1.6), 0.6))
+			var far_side: Vector3 = Map.clamp_pos(Map.unblock(Vector3(at.x, 0, at.z) + (dir * 6.0 if flat_a else Vector3.ZERO), 0.6))
 			var gid := _fx_id()
-			effects.append({kind = "gate", owner = p.id, weave = weave, pos = near_side, to = far_side, id = gid})
-			events.append({e = "gate_open", id = gid, a = near_side, b = far_side, by = p.id})
+			effects.append({kind = "gate", owner = p.id, weave = weave, pos = near_side, to = far_side, id = gid, flat_a = flat_a, sky = sky, age = 0.0})
+			events.append({e = "gate_open", id = gid, a = near_side, b = far_side, by = p.id, flat_a = flat_a, sky = sky})
 		"heal":
 			# Canon: you cannot Heal yourself.
 			var best := _heal_target(p, at, b.range)
@@ -1066,6 +1072,11 @@ func _struck(p: Dictionary) -> Array:
 		if e.alive and e.id != p.id and not e.get("gone", false):
 			out.append(e)
 	return out
+
+## Trollocs, Myrddraal, Darkhounds and Draghkar: made by the Shadow, and killed by a
+## gateway. A Darkfriend or a Dreadlord is only a man.
+func _is_shadowspawn(e: Dictionary) -> bool:
+	return e.kind == "enemy" and e.row.get("gen", "") in ["TROLLOC", "FADE", "HOUND", "DRAGHKAR"]
 
 func _targets(p: Dictionary) -> Array:
 	var out := []
@@ -1235,6 +1246,19 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 	fx.vel.y -= fx.gravity * dt
 	var stepv: Vector3 = fx.vel * dt
 	fx.pos += stepv; fx.left -= stepv.length()
+	# Through a gateway: what is thrown or woven goes on out of the other side.
+	if fx.get("gated", 0.0) <= t:
+		for g in effects:
+			if g.kind != "gate":
+				continue
+			for side in [[g.pos, g.to, 0.0], [g.to, g.pos, g.get("sky", 0.0)]]:
+				var mouth: Vector3 = side[0] + Vector3(0, Terrain.height(side[0].x, side[0].z) + 1.5 + side[2], 0)
+				if fx.pos.distance_to(mouth) < 1.3:
+					var out: Vector3 = side[1]
+					fx.pos = Vector3(out.x, Terrain.height(out.x, out.z) + 1.5, out.z) + fx.vel.normalized() * 1.4
+					fx.gated = t + 0.5
+					events.append({e = "fx_gate", id = fx.get("id", 0), pos = fx.pos})
+					break
 	for e in _struck(owner):
 		var f := _feet(e)
 		if not fx.get("passed", []).has(e.id) and Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + (1.3 if e.get("duck", false) else 2.4) and e.get("safe_until", 0.0) <= t:
@@ -1311,17 +1335,35 @@ func _step_effects(dt: float) -> void:
 						keep.append({kind = "drop", owner = fx.owner, weapon = fx.weapon, pos = at, left = 90.0, id = _fx_id()})
 			"gate":
 				alive = not fx.get("gone", false) and owner.alive
+				fx.age = fx.get("age", 0.0) + dt
 				for id in ents:
 					var e: Dictionary = ents[id]
 					if not alive or not e.alive or e.get("gated", 0.0) > t or e.get("row", {}).get("speed", 1.0) == 0.0:
 						continue
-					for side in [[fx.pos, fx.to], [fx.to, fx.pos]]:
+					for side in [[fx.pos, fx.to, false], [fx.to, fx.pos, true]]:
+						# A sky end cannot be walked into from below.
+						if side[2] and fx.get("sky", 0.0) > 0.0:
+							continue
 						if e.pos.distance_to(side[0]) < 1.1:
+							var spawn: bool = _is_shadowspawn(e)
+							# The Shadow's creatures will not go through: a gateway kills them.
+							# They keep off it, unless thrown into it or caught by it opening.
+							if spawn and e.vel.length() < 2.0 and fx.age > 0.6:
+								var away: Vector3 = (e.pos - side[0]) * Vector3(1, 0, 1)
+								e.pos = side[0] + (away.normalized() if away.length() > 0.01 else Vector3.FORWARD) * 1.15
+								break
 							# Out the far side, a step clear of it, the way you were going.
 							var onward := Vector3(sin(e.yaw), 0, cos(e.yaw)) * 1.3
 							e.pos = Map.clamp_pos(Map.unblock(side[1] + onward, e.radius))
 							e.gated = t + 2.0
 							events.append({e = "gate_pass", id = e.id, pos = e.pos})
+							if spawn:
+								events.append({e = "gate_kill", id = e.id})
+								_hurt(e, e.hp + 9999.0, fx.owner, "gateway", true)
+							elif not side[2] and fx.get("sky", 0.0) > 0.0:
+								# Out of the sky: a fall, and a hard landing.
+								e.down = maxf(e.down, 1.4)
+								_hurt(e, fx.sky * 3.5, 0, "", true)
 							break
 			"dream_bolt", "dream_chain", "dream_pit", "dream_wall":
 				alive = Dream.step_effect(self, fx, owner, dt)

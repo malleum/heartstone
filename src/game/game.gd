@@ -1258,8 +1258,12 @@ func _on_events(list: Array) -> void:
 						(actors[e.id].node as Walker).attack("thrust")
 			"arc":
 				Weavefx.arc(self, e.from, e.to)
+			"gate_kill":
+				if not told.has("gate_kill"):
+					told.gate_kill = true
+					_banner("A gateway kills the Shadow's creatures\nShove them through it.", 4.0, "good")
 			"gate_open":
-				fx[e.id] = Weavefx.gate(self, e.a, e.b)
+				fx[e.id] = Weavefx.gate(self, e.a, e.b, e.get("flat_a", false), e.get("sky", 0.0))
 			"shift":
 				# Tel'aran'rhiod: simply somewhere else.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):

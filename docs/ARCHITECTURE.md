@@ -509,6 +509,17 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
 - Not built: physical restraint for fighters (rope, a hold); talking happens over the
   group's own voice chat.
 
+## Gateways (17 Nov, the user's rulings)
+- The Shadow's creatures (Trollocs, Myrddraal, Darkhounds, Draghkar: `_is_shadowspawn`)
+  die passing through a gateway. They keep off one, unless shoved in (moving faster
+  than 2 m/s) or caught by it in its first 0.6 s. Darkfriends and Dreadlords are men
+  and pass.
+- Missiles and woven bolts that reach a gateway's mouth come out of the far side,
+  going on as they were (`_fly`). Blows, cones and beams do not pass yet.
+- Either end can lie flat: aimed at the ground within 4 m, the near end is a hole at
+  your feet; aimed more than 4 m up into the air, the far end opens in the sky, and
+  whoever comes through falls (knocked down, 3.5 damage a metre).
+
 ## The endless night (`endless`)
 Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
 (`endless_won`), and the fight goes on for as long as anyone lasts.

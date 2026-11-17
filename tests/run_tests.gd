@@ -975,6 +975,29 @@ func _rounds() -> void:
 	dj.step(2.0)
 	check(dj.over and not dj.won(jid[1]) and dj.won(jid[0]), "the waves outlasted with the Darkfriend free: the Darkfriend wins")
 
+	# Gateways: the Shadow's creatures die going through; arrows and weaves go through.
+	var gs := Sim.new("camp_training", 51)
+	gs._waves = []
+	var gp := gs.add_player(Profile.create({name = "Gate", power = "saidin"}), Vector3(0, 0, 8))
+	gs.effects.append({kind = "gate", owner = gp, weave = "gateway", pos = Vector3(0, 0, 0), to = Vector3(20, 0, 0), id = 900, flat_a = false, sky = 0.0, age = 5.0})
+	gs._add_enemy("trolloc", Vector3(0.5, 0, 0))
+	var tr: Dictionary = gs.ents[gs._next - 1]
+	gs.step(1.0 / 30.0); gs.events.clear()
+	check(tr.alive and tr.pos.distance_to(Vector3.ZERO) >= 1.1, "a Trolloc will not walk into a gateway")
+	tr.pos = Vector3(0.3, 0, 0); tr.vel = Vector3(6, 0, 0)
+	gs.step(1.0 / 30.0); gs.events.clear()
+	check(not tr.alive, "shoved through a gateway, a Trolloc dies")
+	gs.ents[gp].pos = Vector3(0.2, 0, 0.2)
+	gs.step(1.0 / 30.0); gs.events.clear()
+	check(gs.ents[gp].pos.distance_to(Vector3(20, 0, 0)) < 3.0, "a person steps through and out of the far side")
+	gs.ents[gp].pos = Vector3(0, 0, 30)
+	gs.effects.append({kind = "projectile", owner = gp, weave = "fireball", pos = Vector3(-1.5, Terrain.height(0, 0) + 1.5, 0), vel = Vector3(20, 0, 0), dmg = 10.0, radius = 0.3, left = 30.0, gravity = 0.0, pierce = 0, passed = [], id = 901})
+	gs.step(1.0 / 30.0); gs.step(1.0 / 30.0)
+	var moved := false
+	for fx in gs.effects:
+		if fx.get("id", 0) == 901 and fx.pos.x > 18.0: moved = true
+	check(moved, "a weave thrown into a gateway comes out of the far side")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)
