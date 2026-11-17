@@ -24,6 +24,8 @@ var round_mode := false  # a round (see Round): everyone grows during it, from f
 var team_level := 1
 var team_xp := 0.0
 var _endless_won := false
+var df_mode := false     # a Darkfriend round: one or two players may secretly serve the Shadow
+var _df_assigned := false
 
 func _init(activity: String, seed_ := 1) -> void:
 	Rules.load_data()
@@ -33,6 +35,7 @@ func _init(activity: String, seed_ := 1) -> void:
 	_waves = act.get("waves", []).duplicate(true)
 	if act.has("round"):
 		round_mode = true
+		df_mode = act.get("darkfriend", false)
 		_waves = Round.plan(act, rng)
 	_spar = act.kind == "spar"
 	dream = act.get("dream", false)
@@ -128,7 +131,8 @@ func free_slots(p: Dictionary) -> int:
 ## take (anyone not on your side; only channellers for a shield) within a few paces.
 func _aimed(p: Dictionary, w: Dictionary, aim: Vector3) -> int:
 	var best := 0; var best_d := 3.0
-	for e in _targets(p):
+	# With a Darkfriend among them, players can Shield and bind one another.
+	for e in (_struck(p) if df_mode else _targets(p)):
 		# (A Dreadlord channels, and can be cut off like anyone who does.)
 		if w.kind == "sever" and e.kind != "player" and not e.get("row", {}).get("channels", false):
 			continue
@@ -431,6 +435,8 @@ func step(dt: float) -> void:
 	for id in ents:
 		if ents[id].get("bot", false) and ents[id].alive:
 			Bot.drive(self, id)
+	if df_mode and not _df_assigned and t >= Round.DF_ASSIGN_T:
+		_assign_darkfriends()
 	while not _waves.is_empty() and _waves[0].t <= t:
 		_spawn_wave(_waves.pop_front())
 	var players: Array = []; var foes: Array = []
@@ -460,12 +466,95 @@ func step(dt: float) -> void:
 	elif players.is_empty():
 		# In the endless night, lasting long enough was already the win.
 		_finish(_endless_won)
+	elif df_mode and _df_assigned and players.all(func(q: Dictionary) -> bool: return q.get("darkfriend", false)):
+		# Every loyal player dead: the Shadow's servant has won.
+		_finish(false)
 	elif round_mode and Rules.activities[activity_id].round.get("endless", false) and t >= float(Rules.activities[activity_id].round.get("win_at", 1800.0)) and not _endless_won:
 		# Thirty minutes held: that is a win, whatever comes after. Fight on for the tale.
 		_endless_won = true
 		events.append({e = "endless_won", t = t})
 	elif _waves.is_empty() and foes.is_empty() and t > 1.0:
-		_finish(true)
+		# In a Darkfriend round the waves outlasted are only half of it: every
+		# Darkfriend must be dead or held (Shielded, or bound in Air) at the end.
+		_finish(not df_mode or not _df_free())
+
+## A few seconds in, once everyone is there: perhaps one player, perhaps two,
+## secretly serve the Shadow. Each player is told only their own part. The more
+## loyal players there are, the stronger a Darkfriend's roll (1d4 levels of mean
+## per loyal player beyond one).
+func _assign_darkfriends() -> void:
+	_df_assigned = true
+	var real := []
+	for id in ents:
+		if ents[id].kind == "player" and not ents[id].get("bot", false) and ents[id].alive:
+			real.append(id)
+	var n := real.size()
+	var count := 0
+	if n >= 3 and rng.randf() < (0.95 if n >= 4 else 0.8):
+		count = 1
+		if n >= 5 and rng.randf() < 0.6:
+			count = 2
+	var pool := real.duplicate()
+	var dfs := []
+	for i in count:
+		dfs.append(pool.pop_at(rng.randi() % pool.size()))
+	var loyal := n - count
+	for id in real:
+		var p: Dictionary = ents[id]
+		if id in dfs:
+			p.darkfriend = true
+			p.df_gate = true
+			var bonus := 0
+			for k in maxi(loyal - 1, 0):
+				bonus += rng.randi_range(1, 4)
+			Round.strengthen(p.profile, bonus)
+			events.append({e = "role", id = id, to = id, darkfriend = true, bonus = bonus, strength = Rules.level_of(Rules.strength(p.profile))})
+		else:
+			events.append({e = "role", id = id, to = id, darkfriend = false})
+
+## Is any Darkfriend alive and free at the end?
+func _df_free() -> bool:
+	for id in ents:
+		var p: Dictionary = ents[id]
+		if p.get("darkfriend", false) and p.alive and p.get("severed", 0.0) <= t and p.get("bound_by", 0) == 0:
+			return true
+	return false
+
+## Did this player win? In a Darkfriend round the two sides win and lose apart.
+func won(id: int) -> bool:
+	if not df_mode or not over:
+		return success
+	var df: bool = ents.get(id, {}).get("darkfriend", false)
+	return (not success) if df else success
+
+## The Darkfriend's one secret: a large gateway opens near them and the Shadow's own
+## come through (blades with poisoned knives, archers, perhaps a channeller or two).
+## A Darkfriend who channels must be strong enough for a gateway (19(7)); one who
+## does not has it opened by one of those coming through. Once a game.
+func request_df_gate(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or not p.get("darkfriend", false) or not p.alive:
+		return "busy"
+	if not p.get("df_gate", false):
+		return "already used"
+	if p.get("downed", false):
+		return "you are down"
+	if p.profile.get("cls", "channeller") == "channeller" and Rules.level_of(Rules.strength(p.profile)) > Rules.weaves.gateway.get("level", 19):
+		return "not yet strong enough to open a gateway"
+	p.df_gate = false
+	var side := Vector3(cos(p.yaw), 0, -sin(p.yaw))
+	var at: Vector3 = p.pos + side * 5.0 + Vector3(sin(p.yaw), 0, cos(p.yaw)) * 2.0
+	var come := {darkfriend_blade = 3, darkfriend_archer = 2}
+	if rng.randf() < 0.6:
+		come.dreadlord = 1 if rng.randf() < 0.7 else 2
+	var first := _next
+	for type in come:
+		for i in int(come[type]):
+			_add_enemy(type, at + Vector3(rng.randf_range(-1.5, 1.5), 0, rng.randf_range(-1.5, 1.5)))
+	for k in range(first, _next):
+		ents[k].df_side = true
+	events.append({e = "df_gate", pos = at, yaw = p.yaw})
+	return ""
 
 func _finish(ok: bool) -> void:
 	over = true; success = ok
@@ -1087,13 +1176,13 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		if e.hp <= 0.0 and e.kind == "player" and round_mode and weave != "balefire" and not e.get("finishing", false):
 			e.hp = 0.0
 			e.downed = true
-			e.down_left = Round.DOWN_SECS
+			e.down_left = Round.DF_DOWN_SECS if df_mode else Round.DOWN_SECS
 			e.down_hp = e.max_hp * 0.5
 			e.revive_t = 0.0
 			e.forming = {}; e.swing = {}; e.queued = {}; e.guard = false; e.drawing = false
 			for h in e.get("held", []).duplicate():
 				release(e.id, h.weave, h.target)
-			events.append({e = "downed", id = e.id, secs = Round.DOWN_SECS, by = by})
+			events.append({e = "downed", id = e.id, secs = e.down_left, by = by})
 			return
 	if dmg > 0.0:
 		e.hurt_t = t
@@ -1134,7 +1223,7 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		events.append({e = "die", id = e.id, by = by})
 		# Dead in a round: back at the next wave, weaker for it.
 		if round_mode and e.kind == "player":
-			e.return_next = true
+			e.return_next = not df_mode    # no coming back in a Darkfriend round
 		if round_mode and e.kind == "enemy":
 			_gain(Round.xp_of(e.row))
 		if tallies.has(by) and weave != "":
@@ -1327,9 +1416,12 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		var target: Dictionary = {}
 		var best := 1e9
 		for p in players:
+			if p.get("darkfriend", false) and (e.get("df_side", false) or e.row.get("darkfriend", false)):
+				continue    # they know their own
 			var d: float = p.pos.distance_squared_to(e.pos)
 			if d < best:
 				best = d; target = p
+		e.chasing = target.get("id", 0)
 		if e.get("bound_by", 0) != 0:
 			e.vel = Vector3.ZERO
 		var free: bool = not target.is_empty() and e.speed > 0.0 and e.stagger <= 0.0 and e.down <= 0.0 and e.get("bound_by", 0) == 0

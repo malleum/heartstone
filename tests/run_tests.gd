@@ -925,6 +925,56 @@ func _rounds() -> void:
 	run(en, 0.2)
 	check(en.over and en.success, "held thirty minutes, the endless night is won however it ends")
 
+	# A Darkfriend among them.
+	var assigned := 0
+	for seed_ in 30:
+		var dsim := Sim.new("darkfriend", 300 + seed_)
+		for k in 3:
+			dsim.add_player(Profile.create({name = "Ring %d" % k, power = "saidin"}), Vector3(k * 2.0, 0, 0))
+		dsim._assign_darkfriends()
+		for k in dsim.ents:
+			if dsim.ents[k].get("darkfriend", false): assigned += 1
+	check(assigned >= 18 and assigned <= 29, "with three players there is usually, not always, a Darkfriend (%d of 30)" % assigned)
+	var dg := Sim.new("darkfriend", 77)
+	var ids := []
+	for k in 4:
+		ids.append(dg.add_player(Profile.create({name = "DF %d" % k, cls = "warder", stat_pts = {might = 3}}), Vector3(k * 3.0, 0, 0)))
+	dg._waves = []; dg._add_enemy("dummy", Vector3(0, 0, -90))
+	dg._df_assigned = true
+	var traitor: int = ids[0]
+	dg.ents[traitor].darkfriend = true; dg.ents[traitor].df_gate = true
+	check(dg.request_df_gate(ids[1]) != "", "only a Darkfriend has the secret gateway")
+	var before_n := dg.ents.size()
+	check(dg.request_df_gate(traitor) == "" and dg.ents.size() >= before_n + 5 and dg.request_df_gate(traitor) == "already used", "the Darkfriend's gateway lets the Shadow's own through, once")
+	var spared := true
+	for k in 90:
+		dg.step(1.0 / 30.0); dg.events.clear()
+	for k in dg.ents:
+		var e: Dictionary = dg.ents[k]
+		if e.get("df_side", false) and e.get("chasing", 0) == traitor: spared = false
+	check(spared, "the Shadow's own never go after the one who let them in")
+	for k in ids.slice(1):
+		dg.ents[k].alive = false
+	dg.step(1.0 / 30.0)
+	check(dg.over and dg.won(traitor) and not dg.won(ids[1]), "every loyal player dead: the Darkfriend wins")
+	var dh := Sim.new("darkfriend", 78)
+	var hid := []
+	for k in 3:
+		hid.append(dh.add_player(Profile.create({name = "DH %d" % k, power = "saidin"}), Vector3(k * 3.0, 0, 0)))
+	dh._df_assigned = true; dh.ents[hid[0]].darkfriend = true
+	dh._waves = []
+	dh.ents[hid[0]].severed = 9999.0
+	dh.step(2.0)
+	check(dh.over and dh.won(hid[1]) and not dh.won(hid[0]), "the waves outlasted with the Darkfriend Shielded: the loyal win")
+	var dj := Sim.new("darkfriend", 79)
+	var jid := []
+	for k in 3:
+		jid.append(dj.add_player(Profile.create({name = "DJ %d" % k, power = "saidin"}), Vector3(k * 3.0, 0, 0)))
+	dj._df_assigned = true; dj.ents[jid[0]].darkfriend = true
+	dj._waves = []
+	dj.step(2.0)
+	check(dj.over and not dj.won(jid[1]) and dj.won(jid[0]), "the waves outlasted with the Darkfriend free: the Darkfriend wins")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)

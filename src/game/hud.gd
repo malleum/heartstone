@@ -66,6 +66,8 @@ func _draw() -> void:
 		var lv: int = g.team_meter[0]
 		Glyph.text(self, serif, Vector2(300, 46), "Level %d" % lv, 20, Glyph.GOLD)
 		Glyph.bar(self, Vector2(300, 52), 110, 5, float(g.team_meter[1]), Glyph.GOLD, Color(1.0, 0.9, 0.6))
+		if g.darkfriend:
+			Glyph.text(self, sans, Vector2(300, 70), "%s: the Shadow's gateway" % Keys.name(KEY_J), 12, Color(0.85, 0.3, 0.3, 0.8))
 		var picks: int = p.get("round", {}).get("picks", 0)
 		if picks > 0:
 			Glyph.text(self, sans, Vector2(420, 46), "%s: choose (%d)" % [Keys.name(KEY_TAB), picks], 14, Color(1.0, 0.92, 0.6, 0.6 + 0.4 * sin(t * 4.0)))

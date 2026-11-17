@@ -225,6 +225,11 @@ func dream(move: String, aim: Vector3) -> void:
 	if is_host: _do_arms(1, "dream", [move, aim])
 	else: _arms.rpc_id(1, "dream", [move, aim])
 
+## A Darkfriend's secret gateway (Sim.request_df_gate).
+func df_gate() -> void:
+	if is_host: _do_arms(1, "df_gate", [])
+	else: _arms.rpc_id(1, "df_gate", [])
+
 ## Spend a level-up on the tree: kind is weave, skill, form or weapon.
 func pick(kind: String, choice: String) -> void:
 	if is_host: _do_arms(1, "pick", [kind, choice])
@@ -273,6 +278,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 2 and a[0] is String and a[1] is Vector3: why = sim.request_dream(ent, a[0], a[1])
 		"tie":
 			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
+		"df_gate":
+			why = sim.request_df_gate(ent)
 		"pick":
 			if a.size() == 2 and a[0] is String and a[1] is String: why = sim.request_pick(ent, a[0], a[1])
 	if why != "" and why != "busy":
@@ -416,11 +423,17 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 	if not sim.events.is_empty():
 		var ev := sim.events.duplicate()
 		sim.events.clear()
+		# Some news is for one player only (`to`: a Darkfriend's role); it goes to
+		# that player's machine and no other.
 		for peer in r.peers:
+			var mine := ev.filter(func(e: Dictionary) -> bool: return not e.has("to") or e.to == r.peers[peer])
 			if peer != 1:
-				_events.rpc_id(peer, ev)
-		if not dedicated:
-			events.emit(ev)
+				if not mine.is_empty():
+					_events.rpc_id(peer, mine)
+			elif not dedicated:
+				events.emit(mine)
+		if not dedicated and not r.peers.has(1):
+			events.emit(ev.filter(func(e: Dictionary) -> bool: return not e.has("to")))
 	if r.tick % SNAP_EVERY == 0:
 		var s := sim.snapshot()
 		# Entities travel as one flat array of 32-bit floats: a fifth of the size of
@@ -437,8 +450,10 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 		r.tick = -1
 		for peer in r.peers:
 			var tl: Dictionary = sim.tallies[r.peers[peer]]
-			if peer == 1: _apply_result(tl, sim.success)
-			else: _result.rpc_id(peer, tl, sim.success)
+			# In a Darkfriend round the two sides win and lose apart.
+			var won := sim.won(r.peers[peer])
+			if peer == 1: _apply_result(tl, won)
+			else: _result.rpc_id(peer, tl, won)
 		if dedicated:
 			print("SERVER %s over, success=%s" % [r.activity, sim.success])
 			for peer in r.peers:

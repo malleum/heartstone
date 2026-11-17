@@ -31,6 +31,10 @@ const XP_EXP := 1.35
 const DOWN_SECS := 15.0
 const REVIVE_REACH := 1.8
 const REVIVE_SECS := 2.0
+## Darkfriend rounds: a shorter window to be brought back, and roles given out this
+## many seconds in (so everyone who meant to join has).
+const DF_DOWN_SECS := 10.0
+const DF_ASSIGN_T := 8.0
 
 ## Standard normal cumulative distribution (Abramowitz and Stegun 7.1.26).
 static func _phi(z: float) -> float:
@@ -234,5 +238,18 @@ static func weaken(p: Dictionary, levels: int) -> void:
 	r.pot_level = minf(r.pot_level + levels, 72.0)
 	r.start_level = minf(r.start_level + levels, 72.0)
 	r.now_level = minf(r.now_level + levels, 72.0)
+	p.potential = Rules.strength_of(r.pot_level)
+	p.strength = Rules.strength_of(r.now_level)
+
+## A Darkfriend among many: the roll moves this many levels stronger (start, potential
+## and now together), never past the top of their scale.
+static func strengthen(p: Dictionary, levels: int) -> void:
+	var r: Dictionary = p.get("round", {})
+	if not r.has("pot_level") or levels <= 0:
+		return
+	var top := -5.0 if r.man else 1.0
+	r.pot_level = maxf(r.pot_level - levels, top)
+	r.start_level = maxf(r.start_level - levels, top)
+	r.now_level = maxf(r.now_level - levels, top)
 	p.potential = Rules.strength_of(r.pot_level)
 	p.strength = Rules.strength_of(r.now_level)

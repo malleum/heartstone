@@ -183,6 +183,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == KEY_J and darkfriend:
+			session.df_gate()
 		elif ev.physical_keycode == KEY_TAB and not team_meter.is_empty():
 			_show_picks(pick_card == null or not pick_card.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
@@ -625,6 +627,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 var _ally := 0
 
 # --- the round, as this player sees it -------------------------------------------
+var darkfriend := false          # told in secret: this player serves the Shadow
 var team_meter: Array = []        # [team level, share of the way to the next]
 var mirror := {}                  # my round copy as far as I can know it (no potential)
 var pick_card: PanelContainer
@@ -920,6 +923,16 @@ func _on_events(list: Array) -> void:
 			"level":
 				if e.id == session.my_id:
 					_round_level(e)
+			"role":
+				darkfriend = e.darkfriend
+				if e.darkfriend:
+					_banner("You serve the Shadow\nNo one else knows. Let the loyal fall; do not be caught. %s: once, open a gateway for the Shadow's own (when you are strong enough to weave one)." % Keys.name(KEY_J), 12.0, "shadow")
+				else:
+					_banner("You are loyal\nThere may be a Darkfriend among you. Shield or bind a traitor, or kill them, and live to the end.", 9.0, "info")
+			"df_gate":
+				var g := Weavefx.gate(self, _ground(e.pos), _ground(e.pos) + Vector3(sin(e.yaw), 0, cos(e.yaw)))
+				get_tree().create_timer(4.0).timeout.connect(func() -> void: if is_instance_valid(g): g.queue_free())
+				_banner("A gateway opens\nDarkfriends pour through. Someone opened it for them…", 6.0, "shadow")
 			"endless_won":
 				_banner("Thirty minutes held\nThe win is yours. They keep coming: hold as long as you like.", 7.0, "good")
 			"picked":
@@ -1401,6 +1414,9 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 			actors[id].wings = wings
 			actors[id].lift = 0.0
 			_banner("A Draghkar: do not let it finish its song", 5.0)
+		elif row.get("darkfriend", false):
+			if not told.has("darkfriends"):
+				told.darkfriends = true
 		else:
 			_banner("A Dreadlord: it channels. Shield it, or stay out of the marked ground", 5.0)
 	else:

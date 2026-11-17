@@ -489,6 +489,30 @@ outlasts it.
   opens and old copies from the server are not taken back (the user asked).
 - `short_watch` is the old three-wave watch, hidden from the camp, kept for tests.
 
+## A Darkfriend among us (17 Nov; `darkfriend` activity, Sim `_assign_darkfriends`)
+A single-stage round in the wagon ring. Eight seconds in, roles are given out among
+the real players (bots never): with 3 players an 80% chance of one Darkfriend, with
+4 or more 95%, and with 5 or more a further 60% of a second. Each player is told only
+their own role: events carrying `to` go to that player's machine alone
+(`Session._step_room`). A Darkfriend's roll moves 1d4 levels stronger for each loyal
+player beyond one (`Round.strengthen`). Two Darkfriends are not told of each other.
+- The Darkfriend's secret (J, shown only to them): once a game a large gateway opens
+  beside them and three Darkfriend blades (poisoned knives), two archers and perhaps
+  a Dreadlord or two come through (`request_df_gate`). A Darkfriend who channels
+  needs gateway strength, 19(7); one who does not has it opened by one of them.
+  The Shadow's own never choose the Darkfriend as their quarry.
+- Players can Shield and bind one another here (`_aimed` takes players in this mode).
+- Down: 10 s to be revived, and no coming back after a death.
+- Ends: every loyal player dead, the Darkfriend wins. The waves outlasted, the loyal
+  win only if every Darkfriend is dead, Shielded or bound in Air at that moment;
+  otherwise the Darkfriend wins. `Sim.won(id)` gives each side its own result.
+- Not built: physical restraint for fighters (rope, a hold); talking happens over the
+  group's own voice chat.
+
+## The endless night (`endless`)
+Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
+(`endless_won`), and the fight goes on for as long as anyone lasts.
+
 ## Duelling in the dream (src/core/dream.gd, data/dream.json; built 16 Nov)
 An activity with `"dream": true` (only `dream_spar` so far) gives every player **Will**
 (100; back at 13/s after 1 s without spending, x1.6 standing still) and the dream moves,
