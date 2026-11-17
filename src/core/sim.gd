@@ -746,7 +746,7 @@ func _strike(p: Dictionary) -> void:
 		return
 	var reach: float = w.reach * m.get("reach", 1.0)
 	var found := []
-	for e in _targets(p):
+	for e in _struck(p):
 		var d: Vector3 = e.pos - p.pos
 		var dist := d.length()
 		if dist < reach + e.radius and (dist < 0.6 or absf(rad_to_deg(dir.signed_angle_to(d / dist, Vector3.UP))) < m.arc):
@@ -883,14 +883,14 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				effects.append({kind = "projectile", owner = p.id, weave = weave, pos = hand + throw * 0.6, vel = throw.rotated(Vector3.UP, a) * b.speed,
 					dmg = b.damage * k, radius = b.radius, left = b.range, gravity = b.get("gravity", 0.0), pierce = int(b.get("pierce", 0)), passed = [], id = _fx_id()})
 		"cone":
-			for e in _targets(p):
+			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				if d.length() < b.range and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc:
 					e.vel = d.normalized() * b.push
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
 					_hurt(e, b.damage * k, p.id, weave)
 		"line", "beam", "lash":
-			for e in _targets(p):
+			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				var along := d.dot(dir)
 				if along > 0.0 and along < b.range and (d - dir * along).length() < b.width + e.radius:
@@ -959,6 +959,19 @@ func _fx_id() -> int:
 	_fx += 1
 	return _fx
 
+## Who an attack by `p` can actually hurt. In a round a player's weaves, arrows and
+## blows hurt friends as fully as foes (the user's ruling: friendly fire, always);
+## aiming and the bots still choose only foes (_targets). Shadowspawn spare each other.
+func _struck(p: Dictionary) -> Array:
+	if not (round_mode and p.kind == "player"):
+		return _targets(p)
+	var out := []
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.alive and e.id != p.id and not e.get("gone", false):
+			out.append(e)
+	return out
+
 func _targets(p: Dictionary) -> Array:
 	var out := []
 	for id in ents:
@@ -994,7 +1007,7 @@ func aim_missile(from: Dictionary, weapon: String, target: Dictionary) -> Vector
 
 func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -> void:
 	events.append({e = "blast", weave = weave, pos = at, radius = radius})
-	for e in _targets(ents[owner]):
+	for e in _struck(ents[owner]):
 		if (_feet(e) + Vector3(0, 1.0, 0)).distance_to(at) < radius + e.radius + 0.5 and e.get("safe_until", 0.0) <= t:
 			_hurt(e, dmg, owner, weave)
 	# Fire does not know who wove it: stand too close to your own and you burn.
@@ -1127,7 +1140,7 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 	fx.vel.y -= fx.gravity * dt
 	var stepv: Vector3 = fx.vel * dt
 	fx.pos += stepv; fx.left -= stepv.length()
-	for e in _targets(owner):
+	for e in _struck(owner):
 		var f := _feet(e)
 		if not fx.get("passed", []).has(e.id) and Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + (1.3 if e.get("duck", false) else 2.4) and e.get("safe_until", 0.0) <= t:
 			fx.struck = e.id
@@ -1191,7 +1204,7 @@ func _step_effects(dt: float) -> void:
 					if fx.get("blast", 0.0) > 0.0:
 						# Woven fire: it bursts where it lands, and scorches who stands near.
 						events.append({e = "blast", weave = fx.weapon, pos = fx.pos, radius = fx.blast})
-						for o in _targets(owner):
+						for o in _struck(owner):
 							if o.id != fx.get("struck", 0) and _feet(o).distance_to(fx.pos) < fx.blast + o.radius and o.get("safe_until", 0.0) <= t:
 								_hurt(o, fx.dmg * 0.6, fx.owner, "")
 					events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = fx.get("struck", 0), dir = fx.vel.normalized()})
@@ -1223,7 +1236,7 @@ func _step_effects(dt: float) -> void:
 				alive = fx.left > 0.0 and owner.alive and owner.get("severed", 0.0) <= t and owner.stagger <= 0.0
 				if fx.left <= 0.0 and owner.alive and owner.get("severed", 0.0) <= t:
 					events.append({e = "doom_hit", pos = fx.pos, radius = fx.rad})
-					for o in _targets(owner):
+					for o in _struck(owner):
 						if _feet(o).distance_to(fx.pos) < fx.rad + o.radius * 0.5 and o.get("safe_until", 0.0) <= t:
 							_hurt(o, fx.dmg, fx.owner, "")
 			"drop":
@@ -1247,7 +1260,7 @@ func _step_effects(dt: float) -> void:
 				var r0: float = fx.r
 				fx.r += fx.speed * dt
 				var fwd := Vector3(sin(fx.yaw), 0, cos(fx.yaw))
-				for e in _targets(owner):
+				for e in _struck(owner):
 					var off: Vector3 = e.pos - fx.pos
 					var d: float = off.length()
 					if d > r0 - e.radius and d <= fx.r and (d < 1.0 or absf(rad_to_deg(fwd.signed_angle_to(off / d, Vector3.UP))) < fx.arc + rad_to_deg(e.radius / maxf(d, 1.0))):
@@ -1260,7 +1273,7 @@ func _step_effects(dt: float) -> void:
 				var opening: float = clampf((fx.age - fx.pillar) / fx.open, 0.0, 1.0)
 				var r1: float = lerpf(fx.r if fx.age < fx.pillar else 0.8, fx.max, opening * (2.0 - opening)) if fx.age >= fx.pillar else fx.r
 				fx.rad = r1
-				var hot: Array = _targets(owner)
+				var hot: Array = _struck(owner)
 				# Fire does not know who wove it.
 				if owner.alive:
 					hot.append(owner)
@@ -1276,7 +1289,7 @@ func _step_effects(dt: float) -> void:
 				alive = fx.left > 0.0
 			"mover":
 				fx.pos += fx.vel * dt; fx.left -= dt
-				for e in _targets(owner):
+				for e in _struck(owner):
 					if e.pos.distance_to(fx.pos) < fx.radius + e.radius:
 						_hurt(e, fx.dps * dt, fx.owner, fx.weave, true)
 				alive = fx.left > 0.0

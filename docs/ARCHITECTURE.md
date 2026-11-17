@@ -465,6 +465,8 @@ outlasts it.
   most are Trollocs alone and grow 18-20% a wave, every fourth brings the place's
   specials, every sixth is a horde (2.5x), the last brings the boss. Surviving them
   all is the win.
+- **Friendly fire.** In a round a player's blows, missiles, bursts, beams and
+  rolling fire hurt friends fully (`Sim._struck`); aiming and bots choose only foes.
 - **Going down.** At 0 health a player in a round is down (`downed`), not dead:
   they cannot act, and a friend standing within 1.8 m for 2 s brings them back at a
   quarter health and a fifth of their stamina. Half their max health more while
