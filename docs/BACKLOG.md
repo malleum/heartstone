@@ -283,3 +283,35 @@ are what the 4:44 review, or the next session, should pick up.
     It offsets men's curve sitting 6 ranks higher. (My reading: "Aes Sedai
     player" means a woman channeller, and "how common" means the share of rolls
     at or above yours, so rarer and stronger means less likely.)
+- 2026-11-17, asked by the user:
+  - **Creation trade:** a new channeller may, once and only at creation, give up all
+    5 default affinity points (to 0) to permanently unlock one Talent instead.
+  - **Horizontal gateways:** either end of a gateway can be laid flat (a hole in the
+    ground, or an opening in the air you drop out of) instead of standing upright.
+    (The request was cut off after "and that"; ask for the rest.)
+- 2026-11-17, the multiplayer direction (the user's decisions, from a long Q&A):
+  - **Done:** rounds with rolled strength and gift, team levels, choices on the tree,
+    Warders for women by rarity, 20-25 minute wave plans, wins-only rewards, old
+    saves cleared, fighters' body advantages, server-only play with offline fallback.
+  - **Not built yet:**
+    - The camp's unlock choice after a win (Talents, weaves, forms, weapons, +1
+      affinity, never strength), and loadouts: at most 3 weapons and 3 forms for
+      fighters; at most 2 Talents and 3 non-starting weaves for channellers;
+      affinity 5 points into a game plus 2 for each unused Talent slot (owning up to
+      9), with the 2-for-1 trade between games; channellers may trade affinity into
+      physical points the same way. Creation: fighters spend 6 points (weapon 1,
+      form 2, stat 1, at most 2 in stats); channellers start with 2 + 2 in their
+      sex's strong elements and 1 in Spirit, one starting weave in their best element.
+    - Going down: revive within 15 s (10 s in Darkfriend mode); half your health
+      again while down kills; balefire kills outright; a real death drops potential
+      and strength by 1d6 levels and you come back at the next wave (no coming back
+      in Darkfriend mode). Revived players come back low on health and stamina.
+    - The hidden Darkfriend mode (80% with 3 players, 95% with 4+, 60% of two with
+      5+; potential mean +1d4 per loyal player beyond 1; one secret gateway of
+      Darkfriend bots per game; loyal win by killing or holding them to the end).
+    - Endless mode (a win at 30 minutes), multi-stage runs joined by a gateway that
+      opens at the end of a stage, canon linking, friendly fire at full strength,
+      balefire undoing recent deaths.
+  - **Gateways (17 Nov):** Shadowspawn that pass through a gateway die (they will not
+    choose to, but may be shoved through or run into one as it opens). Weaves,
+    arrows and blows go through gateways.

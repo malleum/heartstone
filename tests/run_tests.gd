@@ -117,7 +117,7 @@ func _foes() -> void:
 	print("== walls, archers and the Eyeless")
 	var p := Profile.create({name = "Stander", cls = "warder", stat_pts = {endurance = 4}})
 	# The breastwork is solid, and a Trolloc finds the gap.
-	var sim := Sim.new("tarwins_gap_watch", 2)
+	var sim := Sim.new("short_watch", 2)
 	sim._waves = []
 	var wall: Dictionary = Map.walls()[Map.walls().size() / 2]
 	var id := sim.add_player(p, Vector3(wall.x, 0, wall.z + 2.5))
@@ -135,7 +135,7 @@ func _foes() -> void:
 	# Archers: standing in the open you are shot; ducked behind the wall you are not.
 	var shots := {}
 	for how in ["standing", "ducked behind the wall"]:
-		sim = Sim.new("tarwins_gap_watch", 2)
+		sim = Sim.new("short_watch", 2)
 		sim._waves = []
 		wall = Map.walls()[Map.walls().size() / 2]
 		id = sim.add_player(p, Vector3(wall.x, 0, wall.z + 0.9))
@@ -733,7 +733,7 @@ func _arms() -> void:
 
 	print("== fighters through the activities")
 	for who in [warder, aiel, hunter]:
-		for act in ["camp_training", "tarwins_gap_watch"]:
+		for act in ["camp_training", "short_watch"]:
 			var s := play(who, act)
 			var tl: Dictionary = s.tallies[1]
 			print("  %s, %s: %s in %.0fs, %d blows, health %d, stamina %d" % [who.name, act, "won" if s.success else "LOST", s.t, tl.blows.values().reduce(func(x, y): return x + y, 0), int(maxf(s.ents[1].hp, 0.0)), int(s.ents[1].stamina)])
@@ -744,7 +744,7 @@ func _arms() -> void:
 	check(warder.skills.sword > 3 * 3 * Rules.TUNE.skill_xp, "fighting raises the skill of the weapon used")
 
 	print("== a fighter and a channeller together")
-	var both := Sim.new("tarwins_gap_watch", 4)
+	var both := Sim.new("short_watch", 4)
 	var weaver := Profile.create({name = "Pair Weaver", potential_pts = 8, affinity_pts = {fire = 6}})
 	var blade := Profile.create({name = "Pair Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
 	var iw := both.add_player(weaver, Vector3(0, 0, 4)); var ib2 := both.add_player(blade, Vector3(2, 0, 0))
@@ -820,6 +820,71 @@ func _arms() -> void:
 		s2._next += i % 4
 	check(not kinds.has("club/thrust") and not kinds.has("spear/chop"), "a club never thrusts and a spear never chops: " + str(kinds.keys()))
 
+func _rounds() -> void:
+	print("== rounds")
+	var rng := RandomNumberGenerator.new(); rng.seed = 12
+	for man in [false, true]:
+		var top := 0; var sum := 0.0; var n := 8000
+		for i in n:
+			var l := Round.roll_potential(rng, man)
+			sum += l
+			if l <= (-5.0 if man else 1.0): top += 1
+		check(absf(sum / n - (14.0 if man else 20.0)) < 0.6 and top > n * 0.002 and top < n * 0.012, "potential rolls: a bell with a rare top (man=%s, mean %.1f, top %d in %d)" % [man, sum / n, top, n])
+	var her := Profile.create({name = "Round Her", potential_pts = 8, affinity_pts = {water = 4, air = 2}})
+	var saved := her.duplicate(true)
+	var c := Round.begin(her, rng)
+	var gap: float = c.round.start_level - c.round.pot_level
+	check(gap >= 1.0 and gap <= 10.0 and c.potential > c.strength, "a round begins 1 to 10 levels below its rolled potential (%d)" % int(gap))
+	check(her == saved, "the round copy leaves the saved character alone")
+	var plan := Round.plan(Rules.activities.tarwins_gap_watch, rng)
+	check(plan.size() == 16 and plan[-1].t > 1000.0 and plan[-1].t < 1800.0, "a round is about twenty to thirty minutes of waves (%d waves, last at %d s)" % [plan.size(), int(plan[-1].t)])
+	var horde: int = plan[5].spawn.trolloc
+	check(horde > plan[4].spawn.trolloc * 2 and plan[3].spawn.size() > 1 and plan[0].spawn.size() == 1, "some waves are Trollocs alone, some bring others, some are hordes")
+	# The team levels as one, and each level carries a woman's strength on.
+	var sim := Sim.new("tarwins_gap_watch", 7)
+	var id := sim.add_player(her)
+	var r: Dictionary = sim.ents[id].profile.round
+	var s0: int = Rules.level_of(Rules.strength(sim.ents[id].profile))
+	var levels := 0
+	for i in 60:
+		sim._gain(Round.xp_for(sim.team_level))
+		for e in sim.events:
+			if e.e == "level" and e.id == id: levels += 1
+		sim.events.clear()
+	check(levels == 60 and r.level == 61 and r.picks == 60, "every team level reaches every player, with a choice each")
+	var s1: int = Rules.level_of(Rules.strength(sim.ents[id].profile))
+	check(s1 < s0 and s1 >= int(r.pot_level), "levels carry strength toward potential and never past it (%d -> %d, potential %d)" % [s0, s1, int(r.pot_level)])
+	var wv: String = sim.ents[id].profile.weaves.keys()[0]
+	var w0 := Rules.mastery_level(sim.ents[id].profile, wv)
+	check(sim.request_pick(id, "weave", wv) == "" and Rules.mastery_level(sim.ents[id].profile, wv) == w0 + 1, "a choice spent on a weave is a level of mastery")
+	sim.ents[id].profile.round.picks = 0
+	check(sim.request_pick(id, "weave", wv) != "", "no choice left, none can be spent")
+	# Someone arriving late comes in at the team's level.
+	var late := sim.add_player(Profile.create({name = "Round Late", cls = "warder", stat_pts = {might = 3}}))
+	check(sim.ents[late].profile.round.level == sim.team_level, "a drop-in joins at the team's level")
+	# Fighters are built for it: tougher, faster, more breath than a channeller.
+	check(sim.ents[late].max_hp >= 1.5 * 100.0 and sim.ents[late].speed > sim.ents[id].speed * 1.1 and sim.ents[late].stamina_max >= 1.5 * sim.ents[id].stamina_max, "fighters have more health, speed and stamina than channellers")
+	# An Aes Sedai sometimes arrives with a Warder, less often the stronger her roll.
+	var got := 0; var tried := 0
+	for seed_ in 40:
+		var ws := Sim.new("tarwins_gap_watch", 100 + seed_)
+		var wid := ws.add_player(Profile.create({name = "Round W%d" % seed_, potential_pts = 8}))
+		tried += 1
+		if ws.ents[wid].profile.round.warder:
+			got += 1
+			var has := false
+			for k in ws.ents:
+				if ws.ents[k].get("warder_of", 0) == wid and ws.ents[k].bot: has = true
+			check(has, "a rolled Warder stands beside her and fights by himself")
+	check(got > 4 and got < tried - 4, "Warders come to some and not others (%d of %d)" % [got, tried])
+	check(Round.share_at_or_above(1.0, false) < 0.02 and Round.share_at_or_above(30.0, false) > 0.85, "the strongest rolls rarely bring a Warder; the common ones usually do")
+	# A round leaves only what a win pays.
+	var keep := her.duplicate(true)
+	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)
+	check(her.strength == keep.strength and her.get("unlocks_owed", 0) == 0, "a lost round pays nothing")
+	Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", true)
+	check(her.strength == keep.strength and her.unlocks_owed == 1 and her.renown > keep.renown, "a won round pays renown and one unlock, never strength")
+
 func _init() -> void:
 	Rules.load_data()
 	print("== rules")
@@ -844,7 +909,7 @@ func _init() -> void:
 
 	print("== one character through every activity")
 	var hours := 0.0
-	for act in ["camp_training", "tarwins_gap_watch"]:
+	for act in ["camp_training", "short_watch"]:
 		check(Rules.available(p).has(act), act + " is available")
 		var sim := play(p, act)
 		var tl: Dictionary = sim.tallies[1]
@@ -864,13 +929,13 @@ func _init() -> void:
 	check(q.renown == p.renown and q.weaves.size() == p.weaves.size() and is_equal_approx(q.strength, p.strength), "profile round-trips to disk")
 
 	print("== pacing: the same character over many hours (extrapolated from a measured holdout)")
-	var sim := play(p.duplicate(true), "tarwins_gap_watch")
+	var sim := play(p.duplicate(true), "short_watch")
 	var per: Dictionary = sim.tallies[1]
 	var h := hours
 	var marks := [1, 2, 5, 10, 20, 40, 80]
 	print("  hours  strength/potential  flows  renown  fireball-mastery  fire-affinity")
 	while not marks.is_empty():
-		Progression.award(p, per, "tarwins_gap_watch", true)
+		Progression.award(p, per, "short_watch", true)
 		h += per.seconds / 3600.0
 		if h >= marks[0]:
 			print("  %5d  %6.1f / %-6.0f     %d      %4d    %2d                %.2f" % [marks.pop_front(), p.strength, p.potential, Rules.flow_capacity(p), int(p.renown), Rules.mastery_level(p, "fireball"), p.affinity.fire])
@@ -896,5 +961,6 @@ func _init() -> void:
 	_shadowspawn()
 	_dream()
 	_trolloc_blows()
+	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)

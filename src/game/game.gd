@@ -183,6 +183,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == KEY_TAB and not team_meter.is_empty():
+			_show_picks(pick_card == null or not pick_card.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
 			session.dream(dream_keys[ev.physical_keycode], _aim_point())
 		elif ev.physical_keycode == KEY_Q:
@@ -622,6 +624,102 @@ func _on_started(_my_id: int, activity: String) -> void:
 
 var _ally := 0
 
+# --- the round, as this player sees it -------------------------------------------
+var team_meter: Array = []        # [team level, share of the way to the next]
+var mirror := {}                  # my round copy as far as I can know it (no potential)
+var pick_card: PanelContainer
+
+## Who the HUD and the choice panel describe: the round copy in a round. On the
+## host it is the sim's own; a client keeps a mirror from what it is told.
+func view_profile() -> Dictionary:
+	if session != null and session.is_host and session.sim != null and session.sim.ents.has(session.my_id) and session.sim.ents[session.my_id].profile.has("round"):
+		return session.sim.ents[session.my_id].profile
+	return mirror if not mirror.is_empty() else profile
+
+func _round_intro(e: Dictionary) -> void:
+	mirror = profile.duplicate(true)
+	mirror.round = e.round.duplicate()
+	if mirror.get("cls", "channeller") == "channeller":
+		for w in mirror.weaves:
+			mirror.weaves[w].xp = 0.0
+		mirror.strength = Rules.strength_of(float(e.round.strength)); mirror.potential = mirror.strength
+		mirror.channelled = float(Rules.TUNE.flow_steps[3])
+		if e.round.get("warder", false):
+			_banner("A Warder rides with you\nHe is no blademaster, but he will stand at your side.", 6.0, "good")
+	else:
+		mirror.skills = {}
+
+func _round_level(e: Dictionary) -> void:
+	if mirror.is_empty():
+		return
+	mirror.round.level = e.level; mirror.round.picks = e.picks
+	var body := ""
+	if e.has("strength"):
+		var before := Rules.level_of(Rules.strength(mirror))
+		mirror.strength = Rules.strength_of(float(e.strength)); mirror.potential = mirror.strength
+		mirror.channelled = float(Rules.TUNE.flow_steps[int(e.get("flows", 3))])
+		if e.has("leap"):
+			body = "Your strength leaps: %s. " % Rules.level_name(int(e.strength))
+		elif int(e.strength) < before:
+			body = "Your strength grows: %s. " % Rules.level_name(int(e.strength))
+		body += e.get("hint", "") + "."
+	elif e.has("stat"):
+		mirror.stats[e.stat] = int(mirror.stats.get(e.stat, 0)) + 1
+		body = "%s +1." % String(e.stat).capitalize()
+	_banner("Level %d\n%s  %s: choose what to grow." % [e.level, body, Keys.name(KEY_TAB)], 4.0, "good")
+
+func _round_picked(e: Dictionary) -> void:
+	if not mirror.is_empty() and not (session.is_host and session.sim != null):
+		mirror.round.picks += 1
+		Round.pick(mirror, e.kind, e.choice)
+	if not mirror.is_empty():
+		mirror.round.picks = e.picks
+	# New arms and forms go on the bar.
+	if e.kind in ["weapon", "form"] and not known.has(e.choice):
+		known.append(e.choice)
+		if e.kind == "weapon":
+			var row: Dictionary = Rules.weapons[e.choice]
+			ammo[e.choice] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
+	if pick_card and pick_card.visible:
+		_show_picks(true)
+
+## Tab: what this level-up can grow, from your tree (Round.choices).
+func _show_picks(on: bool) -> void:
+	if pick_card == null:
+		pick_card = Glyph.card(Color(Glyph.GOLD, 0.45)); hud_layer.add_child(pick_card)
+		pick_card.mouse_filter = Control.MOUSE_FILTER_STOP
+		pick_card.anchor_left = 0.5; pick_card.anchor_right = 0.5; pick_card.anchor_top = 0.2
+		pick_card.offset_left = -220; pick_card.offset_right = 220
+		pick_card.add_child(VBoxContainer.new())
+	var box: VBoxContainer = pick_card.get_child(0)
+	for c in box.get_children():
+		c.queue_free()
+	var vp := view_profile()
+	var left: int = vp.get("round", {}).get("picks", 0)
+	if not on or left <= 0:
+		pick_card.visible = false
+		if not args.has("auto") and DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		return
+	pick_card.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var title := Label.new(); title.text = "Grow (%d to choose)" % left; box.add_child(title)
+	title.add_theme_font_override("font", Glyph.serif()); title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
+	for ch in Round.choices(vp):
+		var b := Button.new(); box.add_child(b)
+		var now := ""
+		match ch.kind:
+			"weave": now = "mastery %d → %d" % [Rules.mastery_level(vp, ch.id), Rules.mastery_level(vp, ch.id) + 1]
+			"skill": now = "%d → %d" % [Rules.skill_level(vp, ch.id), Rules.skill_level(vp, ch.id) + 1]
+			"form": now = "new form"
+			"weapon": now = "new weapon"
+		b.text = "%s   ·   %s" % [ch.name, now]
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		var k: String = ch.kind; var id: String = ch.id
+		b.pressed.connect(func() -> void: session.pick(k, id))
+
 ## Only a game on this machine alone can stop: a shared one runs on for the others.
 func can_pause() -> bool:
 	return not previewing and session != null and session.is_host and not args.has("join") and not _done
@@ -790,7 +888,15 @@ func _on_events(list: Array) -> void:
 			"spawn":
 				if not actors.has(e.id):
 					_spawn_enemy(e.id, e.type, e.pos)
+			"level":
+				if e.id == session.my_id:
+					_round_level(e)
+			"picked":
+				if e.id == session.my_id:
+					_round_picked(e)
 			"player":
+				if e.id == session.my_id and not e.get("round", {}).is_empty() and mirror.is_empty():
+					_round_intro(e)
 				if not actors.has(e.id):
 					# Everyone appears as they chose to look, on every machine.
 					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name), e.get("style", {}))
@@ -1273,6 +1379,7 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 		actors[id] = {node = post, kind = "post", target = pos}
 
 func _on_snapshot(s: Dictionary) -> void:
+	team_meter = s.get("round", [])
 	for e in s.ents:
 		var id: int = e[0]
 		if not actors.has(id):

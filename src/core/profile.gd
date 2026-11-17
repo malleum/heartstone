@@ -7,6 +7,9 @@ extends RefCounted
 const VERSION := 1
 ## Tests point this elsewhere so they never litter the player's character list.
 static var dir := "user://profiles"
+## The save format. Characters made before rounds (format 1, no stamp) are not
+## carried over: the user asked for them to be cleared (17 Nov).
+const FORMAT := 2
 const CREATION_POINTS := 20
 const TALENTS: Array[String] = ["healing", "travelling", "cloud_dancing", "delving", "earth_singing", "illusion", "reading_residues", "reading_weaves", "unweaving", "listening_to_the_wind", "dreaming", "foretelling"]
 
@@ -125,6 +128,7 @@ static func path(name: String) -> String:
 	return "%s/%s.json" % [dir, name.to_lower().validate_filename()]
 
 static func save(p: Dictionary) -> void:
+	p.format = FORMAT
 	DirAccess.make_dir_recursive_absolute(dir)
 	var f := FileAccess.open(path(p.name), FileAccess.WRITE)
 	f.store_string(JSON.stringify(p, "  "))
@@ -187,3 +191,21 @@ static func _migrate(p: Dictionary) -> void:
 	for id in p.weaves.keys():
 		if not Rules.weaves.has(id):
 			p.weaves.erase(id)
+
+
+## Delete every saved character from before the current format. Returns how many.
+static func purge_old() -> int:
+	if not DirAccess.dir_exists_absolute(dir):
+		return 0
+	var n := 0
+	for f in DirAccess.get_files_at(dir):
+		if not f.ends_with(".json"):
+			continue
+		var d = JSON.parse_string(FileAccess.get_file_as_string(dir + "/" + f))
+		if not (d is Dictionary) or int(d.get("format", 1)) < FORMAT:
+			DirAccess.remove_absolute(dir + "/" + f)
+			n += 1
+	return n
+
+static func current(p: Dictionary) -> bool:
+	return int(p.get("format", 1)) >= FORMAT

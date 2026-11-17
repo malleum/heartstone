@@ -84,6 +84,14 @@ static func drive(sim: Sim, id: int) -> void:
 	var me: Dictionary = sim.ents[id]
 	if not me.alive:
 		return
+	# A bot spends its level-ups at once, on whatever its tree offers first.
+	if me.profile.get("round", {}).get("picks", 0) > 0:
+		var ch := Round.choices(me.profile)
+		if not ch.is_empty():
+			var c: Dictionary = ch[sim.rng.randi() % ch.size()]
+			sim.request_pick(id, c.kind, c.id)
+		else:
+			me.profile.round.picks = 0
 	var near: Dictionary = {}
 	var best := 1e9
 	var crowd := 0

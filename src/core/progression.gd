@@ -15,6 +15,8 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 	var act: Dictionary = Rules.activities[activity_id]
 	var yield_: Dictionary = act.get("yield", {})
 	var out: Array[String] = []
+	if act.has("round"):
+		return _award_round(p, tally, activity_id, success)
 	var flows_before := Rules.flow_capacity(p)
 	var draw: float = tally.get("draw", 0.0)
 	p.seconds += tally.get("seconds", 0.0)
@@ -112,4 +114,24 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 			if not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
 				p.weaves[id] = {known = true, xp = 0.0}
 				out.append("Learned %s" % Rules.weaves[id].name)
+	return out
+
+
+## A round leaves the character as it found them: strength, practice and body all
+## belonged to the round. Only a win pays, in renown and one unlock to choose (a
+## Talent, a weave, a form, a weapon, or a point of affinity; never raw strength).
+static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, success: bool) -> Array[String]:
+	var act: Dictionary = Rules.activities[activity_id]
+	var out: Array[String] = []
+	p.seconds += tally.get("seconds", 0.0)
+	if not success:
+		out.append("The round is lost. Nothing carries over but what you learned of it.")
+		return out
+	var first: bool = not p.done.has(activity_id)
+	p.done[activity_id] = p.done.get(activity_id, 0) + 1
+	var ren: float = act.renown * (1.0 if first else Rules.TUNE.repeat_renown)
+	p.renown += ren
+	out.append("Renown +%.0f (%d)" % [ren, int(p.renown)])
+	p.unlocks_owed = int(p.get("unlocks_owed", 0)) + 1
+	out.append("A win: choose something to keep in the camp")
 	return out

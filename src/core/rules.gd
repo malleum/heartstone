@@ -335,7 +335,8 @@ static func dodge(p: Dictionary, rolling: bool) -> Dictionary:
 		cost = d.cost * c.dodge_cost * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance"), 0.4)}
 
 static func run_speed(p: Dictionary) -> float:
-	return 5.2 * cls(p).speed * (1.0 + 0.01 * stat(p, "quickness"))
+	# Those who fight with their hands run faster than those who weave.
+	return 5.2 * cls(p).speed * (1.15 if p.get("cls", "channeller") != "channeller" else 1.0) * (1.0 + 0.01 * stat(p, "quickness"))
 
 ## Seconds to draw (or span) and loose, at this character's skill.
 static func draw_time(p: Dictionary, weapon_id: String) -> float:

@@ -21,9 +21,9 @@ func _draw() -> void:
 	var sc := size.y / 720.0
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sc, sc))
 	var W := size.x / sc; var H := 720.0
-	var p: Dictionary = g.profile
+	var p: Dictionary = g.view_profile()
 	var serif := Glyph.serif(); var sans := Glyph.sans()
-	var hp := clampf(g.my_hp / Rules.max_hp(g.profile), 0.0, 1.0)
+	var hp := clampf(g.my_hp / Rules.max_hp(p), 0.0, 1.0)
 	# Blood at the edges: a throb when badly hurt, a flash when struck.
 	var danger: float = clampf((0.4 - hp) / 0.4, 0.0, 1.0) * (0.5 + 0.2 * sin(t * 5.0)) + g.hurt_t * 0.5
 	if danger > 0.01:
@@ -36,7 +36,9 @@ func _draw() -> void:
 	var armed: bool = g._armed()
 	var in_hand: Dictionary = Rules.weapons[g.hand()] if g.hand() != "" else {}
 	if p.get("cls", "channeller") == "channeller":
-		Glyph.text(self, sans, Vector2(30, 78), "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))], 15, Color(0.85, 0.85, 0.9))
+		# In a round your potential is yours to find out: only where you stand now.
+		var line := "strength %s" % Rules.level_name(Rules.level_of(Rules.strength(p))) if p.has("round") else "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))]
+		Glyph.text(self, sans, Vector2(30, 78), line, 15, Color(0.85, 0.85, 0.9))
 		# Flows: gold is free, a Power's colour is a flow holding a weave.
 		var used: Array = g.used_flows()
 		for i in 5:
@@ -58,6 +60,15 @@ func _draw() -> void:
 				draw_circle(c, 4.5, Glyph.GOLD)
 			draw_arc(c, 4.5, 0, TAU, 16, Color(Glyph.GOLD, 0.8 if i < lvl else 0.25), 1.2, true)
 		Glyph.text(self, sans, Vector2(36 + 10 * 14 + 6, 101), "%s skill      renown %d" % [fam, int(p.renown)], 13, Color(0.7, 0.72, 0.78))
+
+	# The round: the team's level, how far to the next, and choices waiting.
+	if not g.team_meter.is_empty():
+		var lv: int = g.team_meter[0]
+		Glyph.text(self, serif, Vector2(300, 46), "Level %d" % lv, 20, Glyph.GOLD)
+		Glyph.bar(self, Vector2(300, 52), 110, 5, float(g.team_meter[1]), Glyph.GOLD, Color(1.0, 0.9, 0.6))
+		var picks: int = p.get("round", {}).get("picks", 0)
+		if picks > 0:
+			Glyph.text(self, sans, Vector2(420, 46), "%s: choose (%d)" % [Keys.name(KEY_TAB), picks], 14, Color(1.0, 0.92, 0.6, 0.6 + 0.4 * sin(t * 4.0)))
 
 	# Health and stamina.
 	var bx := 30.0; var by := H - 74.0

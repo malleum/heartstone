@@ -433,6 +433,44 @@ A `ShaderMaterial` parameter must be set once before a tween can find it
 The stubble paint on generated male faces is skipped for the Eyeless and for a
 Draghkar: it is laid last and washed the colour out of anything on the lower face.
 
+## Rounds (src/core/round.gd; built 17 Nov, the multiplayer direction)
+The game is moving to multiplayer rounds (the user's design, 17 Nov; their answers
+are recorded in BACKLOG). An activity with a `"round"` row (the holdouts and the Wild
+Hunt) is a round: everyone starts afresh and grows during it, and none of that
+outlasts it.
+- **Round copy.** `Sim.add_player` makes `Round.begin(profile)`: a duplicate with a
+  rolled potential and start (channellers) or a rolled gift (fighters), practice
+  zeroed, three flows. Every rule (`Rules.power` etc.) reads it as it would the
+  saved character. The saved character is never touched by a round.
+- **Strength roll.** Potential is a bell on the Companion scale: mean 20(8), sd 7.4,
+  so about 47% of women can open a gateway and 0.6% reach 1(+12); men's curve is
+  six levels stronger (77% gateway, 0.6% reach ++1). The start is potential plus a
+  bell gap (mean 6, 1 to 10). The potential is never shown: level-ups give a hint
+  ("There is more in you yet").
+- **Team levels.** Kills give the team experience (`Round.xp_of`: hp/12 times tier).
+  Each team level reaches every player: women's strength moves smoothly along a
+  path that closes 75% of the gap by level 12; men stay put and leap 2 to 5 levels
+  at random, averaging the same; a flow every three levels; a fighter gets a stat
+  point every other level. Each level also gives a choice (`Round.choices`, Tab in
+  the game): a level of mastery in a known weave, or for fighters a skill level, a
+  form, or a weapon. Bots spend theirs at random. A drop-in arrives at the team's
+  level.
+- **Fighters' bodies.** 1.5x a channeller's health (by class) and stamina
+  (`stamina_max`), 15% faster running (`Rules.run_speed`), and a gift roll (bell,
+  ±2.5) that adds to their stats.
+- **Warders.** A woman channeller has a chance of a bot Warder equal to the share
+  of rolls at or above hers (`share_at_or_above`); it is a middling warder driven by
+  the sim itself (`bot` entities are driven in `Sim.step`, so on a server too).
+- **Waves.** `Round.plan` builds 16-18 waves over about 20-25 minutes from the row:
+  most are Trollocs alone and grow 18-20% a wave, every fourth brings the place's
+  specials, every sixth is a horde (2.5x), the last brings the boss. Surviving them
+  all is the win.
+- **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
+  one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
+- **Saves.** Characters carry `format = 2`; older ones are deleted when the camp
+  opens and old copies from the server are not taken back (the user asked).
+- `short_watch` is the old three-wave watch, hidden from the camp, kept for tests.
+
 ## Duelling in the dream (src/core/dream.gd, data/dream.json; built 16 Nov)
 An activity with `"dream": true` (only `dream_spar` so far) gives every player **Will**
 (100; back at 13/s after 1 s without spending, x1.6 standing still) and the dream moves,

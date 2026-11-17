@@ -21,7 +21,7 @@ func _init() -> void:
 	await process_frame
 	if role == "host":
 		# A dedicated host with no character of its own: it only referees.
-		var err := s.host("tarwins_gap_watch", {})
+		var err := s.host("short_watch", {})
 		print("NET host listening err=%d" % err)
 		s.events.connect(func(list: Array) -> void:
 			for e in list:
@@ -47,7 +47,7 @@ func _init() -> void:
 		s.rejected.connect(func(why: String) -> void:
 			print("NET client %s rejected: %s" % [a[1], why]); quit())
 		# With an address it is a dedicated server, and perhaps a room on it.
-		s.join(a[2] if a.size() > 2 else "127.0.0.1", p, a[5] if a.size() > 5 else "tarwins_gap_watch", a[3] if a.size() > 3 else "", a[4] if a.size() > 4 else "")
+		s.join(a[2] if a.size() > 2 else "127.0.0.1", p, a[5] if a.size() > 5 else "short_watch", a[3] if a.size() > 3 else "", a[4] if a.size() > 4 else "")
 		s.events.connect(func(list: Array) -> void:
 			for e in list:
 				if e.e == "spawn": foes[e.id] = true

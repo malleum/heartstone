@@ -68,7 +68,15 @@ func _ready() -> void:
 		var o = JSON.parse_string(FileAccess.get_file_as_string(ONLINE))
 		if o is Dictionary:
 			online = o
+	# Characters from before rounds are cleared (the user asked for a clean start).
+	var gone := Profile.purge_old()
+	if gone > 0:
+		Toast.say("A fresh start", "%d old character%s cleared: make a new one for the rounds." % [gone, "" if gone == 1 else "s"], "info", 8.0)
 	var names := _saved()
+	# --who=Name for renders: make that character if it is not there (a warder).
+	if cl.has("who") and not cl.who.to_lower() in names:
+		Profile.save(Profile.create({name = cl.who, cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}}))
+		names = _saved()
 	# --who=Name picks a character, --show=tree|menu opens a panel, --stroll=N walks
 	# to doorway N: all for looking at the camp in a render.
 	if cl.has("new"):
@@ -379,7 +387,7 @@ func _doors() -> void:
 	doors = []
 	var ids := []
 	for id in Rules.activities:
-		if not str(id).begins_with("_"):
+		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false):
 			ids.append(id)
 	var open := Rules.available(profile)
 	for i in ids.size():
@@ -430,7 +438,7 @@ func _sync(name_: String, local: Dictionary) -> void:
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
 		online_note = status if status != "" else "%s is kept on the server" % kept.name
-		var newer: bool = not kept.is_empty() and (local.is_empty() or float(kept.seconds) > float(local.seconds))
+		var newer: bool = not kept.is_empty() and Profile.current(kept) and (local.is_empty() or float(kept.seconds) > float(local.seconds))
 		if newer:
 			Profile.save(kept)
 			online_note = "%s came from the server" % kept.name

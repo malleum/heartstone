@@ -20,6 +20,9 @@ var _next := 1
 var _waves: Array = []
 var _spar := false
 var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dream)
+var round_mode := false  # a round (see Round): everyone grows during it, from fresh
+var team_level := 1
+var team_xp := 0.0
 
 func _init(activity: String, seed_ := 1) -> void:
 	Rules.load_data()
@@ -27,12 +30,21 @@ func _init(activity: String, seed_ := 1) -> void:
 	rng.seed = seed_
 	var act: Dictionary = Rules.activities[activity]
 	_waves = act.get("waves", []).duplicate(true)
+	if act.has("round"):
+		round_mode = true
+		_waves = Round.plan(act, rng)
 	_spar = act.kind == "spar"
 	dream = act.get("dream", false)
 	Dream.load_data()
 	Map.use(act.get("map", "open"))
 
-func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
+func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> int:
+	if round_mode and not profile.has("round"):
+		# The round copy: rolled strength or gift, fresh practice. Someone arriving
+		# part-way through catches up to the team's level.
+		profile = Round.begin(profile, rng)
+		for lv in range(2, team_level + 1):
+			Round.level_up(profile, lv, rng)
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "player", profile = profile, pos = pos, yaw = PI, hp = 100.0, max_hp = 100.0,
 		radius = 0.45, team = id if _spar else 0, alive = true, move = Vector3.ZERO, speed = 5.2,
@@ -43,6 +55,10 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 		guard = false, guard_since = 0.0, parry_at = -9.0, parry_free = 0.0, duck = false, safe_until = 0.0, dash = {}, reel_until = 0.0,
 		will = 100.0, will_t = -99.0, chained = 0.0, shaken = 0.0, deny_until = 0.0}
 	var p: Dictionary = ents[id]
+	p.bot = as_bot
+	# Those who fight with their hands are built for it: more breath than a channeller.
+	p.stamina_max = Rules.TUNE.stamina * (1.5 if profile.get("cls", "channeller") != "channeller" else 1.0)
+	p.stamina = p.stamina_max
 	p.speed = Rules.run_speed(profile)
 	p.max_hp = Rules.max_hp(profile); p.hp = p.max_hp
 	for w in profile.get("kit", []):
@@ -53,6 +69,13 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO) -> int:
 		p.weapon = profile.kit[0]
 	tallies[id] = {casts = {}, kills = {}, blows = {}, draw = 0.0, effort = 0.0, seconds = 0.0}
 	events.append(_intro(ents[id]))
+	# An Aes Sedai whose roll gave her a Warder arrives with one: a middling
+	# swordsman, but a real help, who keeps by her.
+	if profile.get("round", {}).get("warder", false):
+		var w := Profile.create({name = "%s's Warder" % profile.name, cls = "warder", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["sword", "horse_bow"]})
+		w.round = {level = team_level, picks = 0, man = true, gift = 0.0, learn = 1.0}
+		var wid := add_player(w, pos + Vector3(1.6, 0, 0.8), true)
+		ents[wid].warder_of = id
 	return id
 
 ## What a view needs to draw someone: who they are and how they chose to look.
@@ -60,7 +83,11 @@ func _intro(e: Dictionary) -> Dictionary:
 	if e.kind == "enemy":
 		return {e = "spawn", id = e.id, type = e.type, pos = e.pos}
 	var pr: Dictionary = e.profile
-	return {e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
+	# What the player's own view needs of their round (never the rolled potential:
+	# how far they can go is theirs to find out).
+	var rd: Dictionary = pr.get("round", {})
+	var round_view := {} if rd.is_empty() else {level = rd.get("level", 1), picks = rd.get("picks", 0), strength = Rules.level_of(Rules.strength(pr)) if pr.get("cls", "channeller") == "channeller" else 0, warder = rd.get("warder", false), gift = rd.get("gift", 0.0), bot = e.get("bot", false)}
+	return {round = round_view, e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:
@@ -392,6 +419,11 @@ func step(dt: float) -> void:
 	if over:
 		return
 	t += dt
+	# Bots that belong to the fight itself (an Aes Sedai's Warder) are driven here,
+	# so they fight the same on a server as on a desk.
+	for id in ents:
+		if ents[id].get("bot", false) and ents[id].alive:
+			Bot.drive(self, id)
 	while not _waves.is_empty() and _waves[0].t <= t:
 		_spawn_wave(_waves.pop_front())
 	var players: Array = []; var foes: Array = []
@@ -530,7 +562,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and o.pos.distance_to(p.pos) < Rules.TUNE.bond_reach \
 				and [p.profile.get("cls", "channeller"), o.profile.get("cls", "channeller")] in [["warder", "channeller"], ["channeller", "warder"]]:
 			bonded = Rules.TUNE.bond_regen
-	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, Rules.TUNE.stamina)
+	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
@@ -1007,6 +1039,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 					o.alive = false
 					events.append({e = "die", id = o.id, by = by, linked = true})
 		events.append({e = "die", id = e.id, by = by})
+		if round_mode and e.kind == "enemy":
+			_gain(Round.xp_of(e.row))
 		if tallies.has(by) and weave != "":
 			var tl: Dictionary = tallies[by]
 			tl.kills[weave] = tl.kills.get(weave, 0) + 1
@@ -1610,6 +1644,43 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 		target.burn = maxf(target.burn, 2.0); target.burn_dps = 3.0; target.burn_by = e.id
 
 ## Compact state for clients: enough to draw the fight, nothing they could cheat with.
+## The team's experience: every kill counts for everyone. Each team level carries
+## every player's round copy on (Round.level_up) and gives them a choice to make.
+func _gain(xp: float) -> void:
+	team_xp += xp
+	while team_xp >= Round.xp_for(team_level):
+		team_xp -= Round.xp_for(team_level)
+		team_level += 1
+		for id in ents:
+			var p: Dictionary = ents[id]
+			if p.kind != "player" or not p.profile.has("round"):
+				continue
+			var out := Round.level_up(p.profile, team_level, rng)
+			var hp0: float = p.max_hp
+			p.max_hp = Rules.max_hp(p.profile)
+			p.hp += p.max_hp - hp0
+			p.speed = Rules.run_speed(p.profile)
+			out.e = "level"; out.id = id; out.picks = p.profile.round.picks
+			events.append(out)
+
+## The team's level and how far to the next, for the view.
+func round_meter() -> Array:
+	return [team_level, team_xp / Round.xp_for(team_level)] if round_mode else []
+
+## A player spends a level-up on their tree (Round.choices). "" or why not.
+func request_pick(id: int, kind: String, choice: String) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or not p.profile.has("round"):
+		return "not in a round"
+	var why := Round.pick(p.profile, kind, choice)
+	if why != "":
+		return why
+	if kind == "weapon":
+		var row: Dictionary = Rules.weapons[choice]
+		p.ammo[choice] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
+	events.append({e = "picked", id = id, kind = kind, choice = choice, picks = p.profile.round.picks})
+	return ""
+
 func snapshot() -> Dictionary:
 	var es := []
 	for id in ents:
@@ -1628,4 +1699,4 @@ func snapshot() -> Dictionary:
 	var fx := []
 	for f in effects:
 		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")), f.get("yaw", 0.0)])
-	return {t = t, ents = es, fx = fx}
+	return {t = t, ents = es, fx = fx, round = round_meter()}

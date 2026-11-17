@@ -225,6 +225,11 @@ func dream(move: String, aim: Vector3) -> void:
 	if is_host: _do_arms(1, "dream", [move, aim])
 	else: _arms.rpc_id(1, "dream", [move, aim])
 
+## Spend a level-up on the tree: kind is weave, skill, form or weapon.
+func pick(kind: String, choice: String) -> void:
+	if is_host: _do_arms(1, "pick", [kind, choice])
+	else: _arms.rpc_id(1, "pick", [kind, choice])
+
 func equip(weapon: String) -> void:
 	if is_host: _do_arms(1, "equip", [weapon])
 	else: _arms.rpc_id(1, "equip", [weapon])
@@ -268,6 +273,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 2 and a[0] is String and a[1] is Vector3: why = sim.request_dream(ent, a[0], a[1])
 		"tie":
 			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
+		"pick":
+			if a.size() == 2 and a[0] is String and a[1] is String: why = sim.request_pick(ent, a[0], a[1])
 	if why != "" and why != "busy":
 		if peer == 1: refused.emit(why)
 		else: _refused.rpc_id(peer, why)
@@ -423,7 +430,7 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 			flat.append_array(PackedFloat32Array(e))
 		for peer in r.peers:
 			if peer != 1:
-				_snap.rpc_id(peer, s.t, flat, s.fx)
+				_snap.rpc_id(peer, s.t, flat, s.fx, s.round)
 		if not dedicated:
 			snapshot.emit(s)
 	if sim.over:
@@ -446,11 +453,11 @@ func _welcome(ent: int, activity_id: String) -> void:
 	started.emit(my_id, activity)
 
 @rpc("authority", "unreliable_ordered")
-func _snap(t: float, flat: PackedFloat32Array, fx: Array) -> void:
+func _snap(t: float, flat: PackedFloat32Array, fx: Array, meter: Array = []) -> void:
 	var es := []
 	for i in range(0, flat.size(), 8):
 		es.append([int(flat[i]), flat[i + 1], flat[i + 2], flat[i + 3], flat[i + 4], flat[i + 5], int(flat[i + 6]), flat[i + 7]])
-	snapshot.emit({t = t, ents = es, fx = fx})
+	snapshot.emit({t = t, ents = es, fx = fx, round = meter})
 
 @rpc("authority", "reliable")
 func _events(list: Array) -> void:
