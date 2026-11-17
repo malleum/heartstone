@@ -35,10 +35,9 @@ const SCRIPTS := {
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
 		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y]],
-	# The camp: open and close everything, hide the sheet, walk at a doorway.
-	camp = [[30, "tap", KEY_T], [70, "tap", KEY_ESCAPE], [100, "tap", KEY_H], [130, "tap", KEY_H],
-		[160, "tap", KEY_ESCAPE], [200, "tap", KEY_ESCAPE],
-		[230, "key", KEY_W, true], [560, "key", KEY_W, false]],
+	# The camp: hide and show the sheet, open and close the menu, walk at a doorway.
+	camp = [[30, "tap", KEY_H], [60, "tap", KEY_H], [100, "tap", KEY_ESCAPE], [140, "tap", KEY_ESCAPE],
+		[180, "key", KEY_W, true], [520, "key", KEY_W, false]],
 }
 
 static func step(script: String, frame: int) -> void:

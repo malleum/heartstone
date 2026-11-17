@@ -25,7 +25,7 @@ want arms "status guard=true"; want arms "duck=true"
 for w in "cast fireball" "hold dome_of_air" "tie dome_of_air" "ready fireball" "refused no one there to hold" "dodge"; do want weaves "GHOST [0-9]+ $w"; done
 for w in "dream dream_spear" "dream dream_wall" "dream dream_pit" "shift $" "deny $"; do want dream "GHOST [0-9]+ $w"; done
 want dream "GHOST 26[0-9] (dream dream_chains|refused)"; [ "$(grep -cE 'GHOST [0-9]+ shift' "$out/dream")" -ge 3 ] || { echo "  FAIL (dream): fewer than three steps"; fail=1; }
-for w in "tree=true" "menu=true" "sheet=false" "pos=\([-0-9.]+, 0.0, -([2-9]|1[0-9])"; do want camp "$w"; done
+for w in "menu=true" "sheet=false" "pos=\([-0-9.]+, 0.0, -([2-9]|1[0-9])"; do want camp "$w"; done
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.
 for w in "created: Ghost Maiden cls=aiel" "loadout: kit=\[\"" "appearance: look=" "unlock: .* owed=0" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done

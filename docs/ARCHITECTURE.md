@@ -357,6 +357,12 @@ camera stands relative to the doorway (`M = gate_frame * door_frame⁻¹`).
   grass are built (about 10 m from the doorway). Going back to the camp still uses
   the doorway light (`Veil`), not a portal.
 
+### Keys and the bar (17 Nov)
+Every key can be rebound (Esc menu, Keys): `Keys.k(KEY_W)` is whatever the player
+bound to the key that sits where W does on QWERTY; the game still names defaults,
+and hints go through `Keys.name`, so they follow. Bindings live in `user://keys.json`.
+The bar's order (slots 1-9) is set in the loadout and kept as `profile.hotbar`.
+
 ### Words on screen (17 Nov)
 Nothing is written across the middle of the screen. `Toast.say(title, body, kind)`
 puts a small card at the top right that fades; it lives under the root, so a notice
@@ -516,6 +522,8 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
   and pass.
 - Missiles and woven bolts that reach a gateway's mouth come out of the far side,
   going on as they were (`_fly`). Blows, cones and beams do not pass yet.
+- A gateway's edge cuts as it opens and as it folds shut: anything standing where
+  either end forms or closes takes `TUNE.gate_cut` (120) and staggers (`_gate_cut`).
 - Either end can lie flat: aimed at the ground within 4 m, the near end is a hole at
   your feet; aimed more than 4 m up into the air, the far end opens in the sky, and
   whoever comes through falls (knocked down, 3.5 damage a metre).

@@ -104,6 +104,10 @@ func _ready() -> void:
 					profile.forms[f] = {known = true}
 	# The bar holds what you can do with your hands: weaves, then what you carry.
 	known = profile.weaves.keys() + profile.get("kit", []) + profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
+	# The order the player chose in the camp's loadout, if any.
+	var order: Array = profile.get("hotbar", [])
+	if not order.is_empty():
+		known.sort_custom(func(x: String, y: String) -> bool: return (order.find(x) if order.has(x) else 99) < (order.find(y) if order.has(y) else 99))
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
@@ -183,30 +187,30 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
-		elif ev.physical_keycode == KEY_J and darkfriend:
+		elif ev.physical_keycode == Keys.k(KEY_J) and darkfriend:
 			session.df_gate()
-		elif ev.physical_keycode == KEY_TAB and not team_meter.is_empty():
+		elif ev.physical_keycode == Keys.k(KEY_TAB) and not team_meter.is_empty():
 			_show_picks(pick_card == null or not pick_card.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
 			session.dream(dream_keys[ev.physical_keycode], _aim_point())
-		elif ev.physical_keycode == KEY_Q:
+		elif ev.physical_keycode == Keys.k(KEY_Q):
 			_select(posmod(selected - 1, n_known))
-		elif ev.physical_keycode == KEY_E:
+		elif ev.physical_keycode == Keys.k(KEY_E):
 			_select(posmod(selected + 1, n_known))
-		elif ev.physical_keycode == KEY_SPACE and me:
+		elif ev.physical_keycode == Keys.k(KEY_SPACE) and me:
 			# Roll the way you are moving; standing still, step back.
 			session.dodge(_move_dir(), false)
-		elif ev.physical_keycode in [KEY_CTRL, KEY_C]:
+		elif ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
 			session.duck(true)
-		elif ev.physical_keycode == KEY_G and selected < known.size() and Rules.weaves.has(known[selected]):
+		elif ev.physical_keycode == Keys.k(KEY_G) and selected < known.size() and Rules.weaves.has(known[selected]):
 			session.tie(known[selected])
-		elif ev.physical_keycode == KEY_F and _armed() and me:
+		elif ev.physical_keycode == Keys.k(KEY_F) and _armed() and me:
 			session.attack("throw", _aim_point())
 			_face(_aim_point())
-		var n: int = ev.physical_keycode - KEY_1
+		var n: int = Keys.slot_of(ev.physical_keycode)
 		if n >= 0 and n < known.size():
 			_select(n)
-	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode in [KEY_CTRL, KEY_C]:
+	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
 		session.duck(false)
 	elif ev is InputEventMouseButton:
 		if not ev.pressed:
@@ -293,7 +297,7 @@ func _select(i: int) -> void:
 
 func _move_dir() -> Vector3:
 	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-	v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
+	v += Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
 	return Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
 
 ## Turn to the target at once, so the blow or the weave goes the right way.
@@ -389,7 +393,7 @@ func _process(dt: float) -> void:
 			cam_pitch = deg_to_rad(float(args.campitch))
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
+		v += Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
 		# walk_in (a render walking through a camp doorway): keep walking for a
 		# moment after crossing, as a held key would.
 		if args.has("walk_in") and controlled and _walk_t < 2.0:

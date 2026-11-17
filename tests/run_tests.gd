@@ -998,6 +998,14 @@ func _rounds() -> void:
 		if fx.get("id", 0) == 901 and fx.pos.x > 18.0: moved = true
 	check(moved, "a weave thrown into a gateway comes out of the far side")
 
+	var gc := Sim.new("camp_training", 52)
+	gc._waves = []
+	var gcp := gc.add_player(Profile.create({name = "Cutter", power = "saidin"}), Vector3.ZERO)
+	gc._add_enemy("trolloc", Vector3(0, 0, 10))
+	var tc: Dictionary = gc.ents[gc._next - 1]
+	gc._gate_cut(Vector3(0, 0, 10), gcp)
+	check(tc.hp <= tc.max_hp - Rules.TUNE.gate_cut + 0.1 or not tc.alive, "a gateway opening on a Trolloc cuts it badly")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)

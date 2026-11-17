@@ -103,6 +103,12 @@ func _ready() -> void:
 	# once it has been drawn.
 	get_tree().create_timer(0.15).timeout.connect(func() -> void: Veil.lift(0.8))
 
+func _exit_tree() -> void:
+	# Quitting while the cast is still being made: let it finish rather than leave
+	# worker threads behind.
+	if get_tree().current_scene == null or get_tree().current_scene == self:
+		Cast.wait()
+
 func _saved() -> Array:
 	var out := []
 	# A first run has no characters, and no folder for them yet.
@@ -244,6 +250,14 @@ func _stand(kind: String, style := {}) -> void:
 func _unhandled_input(ev: InputEvent) -> void:
 	if cam == null:
 		return
+	# Waiting for a key to bind (the Keys panel): the next key pressed is it.
+	if _binding != -1 and ev is InputEventKey and ev.pressed and not ev.echo:
+		if ev.physical_keycode != KEY_ESCAPE:
+			Keys.bind(_binding as Key, ev.physical_keycode)
+		_binding = -1
+		get_viewport().set_input_as_handled()
+		_keys_panel()
+		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if ev is InputEventMouseMotion and captured:
 		cam_yaw -= ev.relative.x * 0.003
@@ -255,9 +269,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if tree.visible: _show_tree(false)
 			elif captured: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else: _show_menu(not menu.visible)
-		elif ev.physical_keycode == KEY_TAB:
+		elif ev.physical_keycode == Keys.k(KEY_TAB):
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		elif ev.physical_keycode == KEY_H and not creating and not tree.visible:
+		elif ev.physical_keycode == Keys.k(KEY_H) and not creating and not tree.visible:
 			# Put the sheet away to see the camp, and bring it back.
 			side.get_parent().get_parent().visible = not side.get_parent().get_parent().visible
 
@@ -301,14 +315,14 @@ func _process(dt: float) -> void:
 		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_H)], "info", 9.0)
 	var move := Vector3.ZERO
 	if not tree.visible and not menu.visible and get_viewport().gui_get_focus_owner() == null:
-		var v := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
+		var v := Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
 		v += Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		move = (Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)).limit_length(1.0)
 	if cl.has("stroll") and int(cl.stroll) < doors.size():
 		var to: Vector3 = doors[int(cl.stroll)].at * 1.4 - pos   # on through, not to the sill
 		move = to.normalized()
 		cam_yaw = lerp_angle(cam_yaw, atan2(-move.x, -move.z), 2.0 * dt)
-	var sprint := Input.is_physical_key_pressed(KEY_SHIFT)
+	var sprint := Keys.down(KEY_SHIFT)
 	if _phase == 1:
 		move = Vector3.ZERO     # the body is over there now, moved by the fight
 	if move.length() > 0.1:
@@ -516,6 +530,45 @@ func _sheet() -> void:
 	_button(side, "New character…", _creation)
 	_button(side, "Server, quit  (Esc)", func() -> void: _show_menu(true))
 
+var _binding := -1   # the default key being rebound in the Keys panel, or -1
+
+## Every key that does something, and what it is bound to; press one to change it.
+func _keys_panel() -> void:
+	_panel("Keys")
+	_text(menu_box, "Press a row, then the key you want for it (Esc keeps the old one). Keys go by where they sit on the board, so any layout works.", 13, Color(0.66, 0.67, 0.72))
+	for a in Keys.ACTIONS:
+		var dk: Key = a[0]
+		var label: String = "%s:   %s" % [a[1], "press a key…" if _binding == int(dk) else Keys.name(dk)]
+		_button(menu_box, label, func() -> void:
+			_binding = int(dk)
+			_keys_panel())
+	_button(menu_box, "Put every key back as it was", func() -> void:
+		Keys.reset()
+		_keys_panel())
+	_button(menu_box, "Back  (Esc)", func() -> void: _binding = -1; _show_menu(true))
+
+## The bar's order: what sits in slot 1, 2, 3… (saved as profile.hotbar).
+func _bar_order(v: Control) -> void:
+	_section(v, "The bar, in order")
+	var items: Array = profile.weaves.keys() + profile.get("kit", []) + profile.get("forms", {}).keys()
+	var order: Array = profile.get("hotbar", []).filter(func(x: String) -> bool: return items.has(x))
+	for x in items:
+		if not order.has(x): order.append(x)
+	profile.hotbar = order
+	for i in order.size():
+		var id: String = order[i]
+		var nm: String = Rules.weaves[id].name if Rules.weaves.has(id) else (Rules.weapons[id].name if Rules.weapons.has(id) else (Rules.forms[id].name if Rules.forms.has(id) else id))
+		var row := HBoxContainer.new(); v.add_child(row)
+		var l := Label.new(); l.text = "%s   %s" % [Keys.name(KEY_1 + i) if i < 9 else "-", nm]; row.add_child(l)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL; l.add_theme_font_size_override("font_size", 14)
+		if i > 0:
+			var up := Button.new(); up.text = "↑"; row.add_child(up); up.focus_mode = Control.FOCUS_NONE
+			up.pressed.connect(func() -> void:
+				var o: Array = profile.hotbar
+				var t: String = o[i - 1]; o[i - 1] = o[i]; o[i] = t
+				Profile.save(profile)
+				_loadout())
+
 func _panel(title: String) -> void:
 	menu.visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -587,6 +640,7 @@ func _loadout() -> void:
 			Profile.save(profile)
 			menu.visible = false
 			_select(profile.name))
+	_bar_order(menu_box)
 	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
 
 ## Between fights a channeller may move affinity they own, two points out for each
@@ -784,6 +838,7 @@ func _menu_fill() -> void:
 	if online_note != "":
 		_text(menu_box, online_note, 13, Color(0.95, 0.85, 0.55))
 	_section(menu_box, "")
+	_button(menu_box, "Keys: change what each key does", _keys_panel)
 	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
 	_button(menu_box, "Quit", get_tree().quit)
 

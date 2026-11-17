@@ -59,6 +59,7 @@ const TUNE := {
 	gang = 2,                  # how many enemies may be mid-attack on one person at once; the rest wait their turn
 	ward_reach = 3.5,          # a guarding Warder this close to a channeller takes blows meant for them
 	spar_dmg = 0.35,           # share of a blow's or weave's damage that lands on another player in a duel
+	gate_cut = 120.0,          # damage from a gateway's edge as it opens or closes on you
 	spar_cap = 0.07,           # and the most of a body one such blow can take
 	bond_reach = 15.0,         # a Warder and a channeller this close both recover stamina faster
 	bond_regen = 3.0,

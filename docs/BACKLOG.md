@@ -323,3 +323,14 @@ are what the 4:44 review, or the next session, should pick up.
     preview; clear costs and limits).
   - **Origin must matter or go:** make the origin choice change something visible
     (face, default dress) or remove it.
+- 2026-11-17, built since: key rebinding and the bar's order; the Darkfriend round;
+  the endless night; friendly fire; gateways that kill Shadowspawn and pass weaves,
+  with flat ends; releases for Linux and Windows with self-updating. Still to do from
+  the multiplayer list: multi-stage runs joined by a gateway, canon linking, team PvP
+  with levels, a fighter's physical restraint (for Darkfriends), balefire undoing
+  recent deaths, the character screen made beautiful, origin mattering, and walking
+  back to the camp through a portal.
+- 2026-11-17, asked by the user:
+  - **Gateways as live windows:** every gateway shows the far side seamlessly, and you
+    walk through with no cut, as the camp doorways now do.
+  - **Gateways cut:** done (17 Nov), 120 damage opening or closing on you.

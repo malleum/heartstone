@@ -400,8 +400,10 @@ func release(id: int, weave: String, target := -1) -> void:
 		p.barrier = 0.0
 	if kind == "gate":
 		for fx in effects:
-			if fx.kind == "gate" and fx.owner == id:
+			if fx.kind == "gate" and fx.owner == id and not fx.get("gone", false):
 				fx.gone = true
+				# Folding shut, its edge cuts whatever stands in it.
+				_gate_cut(fx.pos, id); _gate_cut(fx.to, id)
 
 ## Held weaves cost breath for as long as they are held, come undone when their
 ## knot runs out, and are lost with the one they were fastened on.
@@ -1035,6 +1037,8 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			var gid := _fx_id()
 			effects.append({kind = "gate", owner = p.id, weave = weave, pos = near_side, to = far_side, id = gid, flat_a = flat_a, sky = sky, age = 0.0})
 			events.append({e = "gate_open", id = gid, a = near_side, b = far_side, by = p.id, flat_a = flat_a, sky = sky})
+			# Opening, its edge slices through whatever is where it forms.
+			_gate_cut(near_side, p.id); _gate_cut(far_side, p.id)
 		"heal":
 			# Canon: you cannot Heal yourself.
 			var best := _heal_target(p, at, b.range)
@@ -1072,6 +1076,16 @@ func _struck(p: Dictionary) -> Array:
 		if e.alive and e.id != p.id and not e.get("gone", false):
 			out.append(e)
 	return out
+
+## A gateway's edge, as it opens or folds shut: whatever stands in it is cut, badly.
+## (The weaver is spared at their own near end.)
+func _gate_cut(at: Vector3, weaver: int) -> void:
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.alive and id != weaver and e.pos.distance_to(at) < 1.0 + e.radius * 0.5:
+			e.stagger = maxf(e.stagger, 0.8)
+			_hurt(e, Rules.TUNE.gate_cut, weaver, "gateway")
+			events.append({e = "gate_cut", id = id, pos = e.pos})
 
 ## Trollocs, Myrddraal, Darkhounds and Draghkar: made by the Shadow, and killed by a
 ## gateway. A Darkfriend or a Dreadlord is only a man.
