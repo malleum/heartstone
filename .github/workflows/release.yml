@@ -20,11 +20,12 @@ jobs:
           base=https://github.com/godotengine/godot-builds/releases/download/${GODOT}-stable
           curl -fsSL -o godot.zip "$base/Godot_v${GODOT}-stable_linux.x86_64.zip"
           curl -fsSL -o templates.tpz "$base/Godot_v${GODOT}-stable_export_templates.tpz"
-          unzip -q godot.zip && mv Godot_v${GODOT}-stable_linux.x86_64 godot && chmod +x godot
+          unzip -q godot.zip && mv "Godot_v${GODOT}-stable_linux.x86_64" godot && chmod +x godot
           dir=~/.local/share/godot/export_templates/${GODOT}.stable
           mkdir -p "$dir" && unzip -q templates.tpz && mv templates/* "$dir/"
       - name: Stamp the build
-        run: echo "{\"tag\": \"${GITHUB_REF_NAME}\", \"engine\": \"${GODOT}\"}" > build.json
+        run: |
+          printf '{"tag": "%s", "engine": "%s"}\n' "$GITHUB_REF_NAME" "$GODOT" > build.json
       - name: Export
         run: |
           ./godot --headless --import || true
