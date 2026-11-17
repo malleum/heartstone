@@ -23,6 +23,7 @@ var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dre
 var round_mode := false  # a round (see Round): everyone grows during it, from fresh
 var team_level := 1
 var team_xp := 0.0
+var _endless_won := false
 
 func _init(activity: String, seed_ := 1) -> void:
 	Rules.load_data()
@@ -457,7 +458,12 @@ func step(dt: float) -> void:
 		if players.size() <= 1 and tallies.size() > 1:
 			_finish(true)
 	elif players.is_empty():
-		_finish(false)
+		# In the endless night, lasting long enough was already the win.
+		_finish(_endless_won)
+	elif round_mode and Rules.activities[activity_id].round.get("endless", false) and t >= float(Rules.activities[activity_id].round.get("win_at", 1800.0)) and not _endless_won:
+		# Thirty minutes held: that is a win, whatever comes after. Fight on for the tale.
+		_endless_won = true
+		events.append({e = "endless_won", t = t})
 	elif _waves.is_empty() and foes.is_empty() and t > 1.0:
 		_finish(true)
 

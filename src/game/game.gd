@@ -920,6 +920,8 @@ func _on_events(list: Array) -> void:
 			"level":
 				if e.id == session.my_id:
 					_round_level(e)
+			"endless_won":
+				_banner("Thirty minutes held\nThe win is yours. They keep coming: hold as long as you like.", 7.0, "good")
 			"picked":
 				if e.id == session.my_id:
 					_round_picked(e)

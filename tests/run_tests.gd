@@ -914,6 +914,17 @@ func _rounds() -> void:
 	ff._blast(f1, "fireball", ff._feet(ff.ents[f2]) + Vector3(0, 1, 0), 2.0, 20.0)
 	check(ff.ents[f2].hp < hp2, "in a round your fire hurts your friends")
 
+	# The endless night: thirty minutes held is a win, even if they fall after.
+	var en := Sim.new("endless", 41)
+	var ep := en.add_player(Profile.create({name = "Endless", power = "saidin"}))
+	check(en._waves.size() >= 60, "the endless night has waves for hours")
+	en._waves = []; en._add_enemy("dummy", Vector3(0, 0, -90))
+	en.t = 1799.0
+	run(en, 1.5)
+	en.ents[ep].alive = false
+	run(en, 0.2)
+	check(en.over and en.success, "held thirty minutes, the endless night is won however it ends")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)
