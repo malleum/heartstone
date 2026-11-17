@@ -97,6 +97,8 @@ working on abilities; the user's rulings there are final).
 - Comments say why, not what.
 
 ## Git
+- Releases: push a `v*` tag and GitHub Actions builds Linux and Windows and publishes them
+  (`.github/workflows/release.yml`); installed games update themselves (`updater.gd`). See SERVER.md.
 - Branch is `master` (not `main`). Commit directly and push at natural finishing points.
   No pull requests unless asked. Don't commit large render outputs.
 

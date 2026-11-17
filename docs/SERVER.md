@@ -98,3 +98,23 @@ In the camp, under **Server**:
 - `flake.nix`: `packages.server`, `nixosModules.default`, `checks.module`.
 - `tools/test.sh` runs a server on localhost with two players in two rooms at
   once, the lobby query, a stranger with the wrong word, and the character store.
+
+
+## Releases and updates (17 Nov)
+Pushing a tag `v*` runs `.github/workflows/release.yml`: it builds Linux and Windows
+with Godot 4.7.2's official templates (any hardware: Vulkan, D3D12, then OpenGL) and
+publishes a GitHub release with `heartstone-linux-x86_64.zip`, `heartstone-windows.zip`
+and the game data alone, `heartstone-engine-4.7.2.pck`.
+
+Installed games update themselves (`src/game/updater.gd`): from the camp they ask the
+GitHub API for the latest release, download that pack to `user://update`, and restart
+into it with `--main-pack` (straight away if nobody has stepped through a doorway yet,
+else on the next start). A release on a different engine version cannot be swapped in:
+the game says to download the new build. The API needs the repository to be public.
+
+Online, the server refuses a client whose handshake version differs (`Session.version`:
+protocol number plus a hash of `data/*.json`); the client then says to update. So when
+a release changes the data files, update the server to the same commit: in the nixos
+repo, `nix flake update heartstone`, commit, push, then on minimus `git pull && nh os switch`.
+
+To release: `git tag v0.2.0 && git push origin v0.2.0`.

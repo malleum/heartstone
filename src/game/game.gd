@@ -869,7 +869,12 @@ func _offline(why: String) -> void:
 	if args.has("auto") or args.has("ghost"):
 		_done = true
 		return
-	Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
+	if why.contains("different version"):
+		# Out of date (or the server is): say what to do about it.
+		var newer := Updater.newest != "" and Updater.newest != Updater.tag()
+		Toast.say("Update needed to play online", ("Version %s is out: restart the game and it updates itself. " % Updater.newest if newer else "Your game and the server's differ. ") + "Playing offline for now.", "warn", 12.0)
+	else:
+		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
 	args.erase("join")
 	session.host(args.get("activity", "tarwins_gap_watch"), profile)

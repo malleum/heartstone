@@ -7,3 +7,5 @@ assets/quaternius/heroes/
 # Godot re-extracts these from the .glb files on import
 assets/quaternius/chars/*.jpg*
 assets/quaternius/chars/*.png*
+build.json
+out/

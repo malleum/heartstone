@@ -1,0 +1,45 @@
+# Every tag pushed as v* builds the game for Linux and Windows and publishes a
+# GitHub release with both, plus the game data on its own (heartstone-engine-<godot
+# version>.pck) so an installed game can update itself without a new download
+# (src/game/updater.gd). Tag with: git tag v0.4.0 && git push origin v0.4.0
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+env:
+  GODOT: "4.7.2"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Godot and its export templates
+        run: |
+          base=https://github.com/godotengine/godot-builds/releases/download/${GODOT}-stable
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT}-stable_linux.x86_64.zip"
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT}-stable_export_templates.tpz"
+          unzip -q godot.zip && mv Godot_v${GODOT}-stable_linux.x86_64 godot && chmod +x godot
+          dir=~/.local/share/godot/export_templates/${GODOT}.stable
+          mkdir -p "$dir" && unzip -q templates.tpz && mv templates/* "$dir/"
+      - name: Stamp the build
+        run: echo "{\"tag\": \"${GITHUB_REF_NAME}\", \"engine\": \"${GODOT}\"}" > build.json
+      - name: Export
+        run: |
+          ./godot --headless --import || true
+          mkdir -p out/linux out/windows
+          ./godot --headless --export-release "Linux" out/linux/heartstone.x86_64
+          ./godot --headless --export-release "Windows Desktop" out/windows/heartstone.exe
+          test -f out/linux/heartstone.pck && test -f out/windows/heartstone.exe
+      - name: Package
+        run: |
+          cp out/linux/heartstone.pck "heartstone-engine-${GODOT}.pck"
+          (cd out/linux && zip -q -r ../../heartstone-linux-x86_64.zip .)
+          (cd out/windows && zip -q -r ../../heartstone-windows.zip .)
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --generate-notes \
+            heartstone-linux-x86_64.zip heartstone-windows.zip "heartstone-engine-${GODOT}.pck"
