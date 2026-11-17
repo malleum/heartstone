@@ -15,7 +15,7 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 	var act: Dictionary = Rules.activities[activity_id]
 	var yield_: Dictionary = act.get("yield", {})
 	var out: Array[String] = []
-	if act.has("round"):
+	if act.has("round") or int(p.get("format", 1)) >= 2:
 		return _award_round(p, tally, activity_id, success)
 	var flows_before := Rules.flow_capacity(p)
 	var draw: float = tally.get("draw", 0.0)
@@ -132,6 +132,8 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 	var ren: float = act.renown * (1.0 if first else Rules.TUNE.repeat_renown)
 	p.renown += ren
 	out.append("Renown +%.0f (%d)" % [ren, int(p.renown)])
-	p.unlocks_owed = int(p.get("unlocks_owed", 0)) + 1
-	out.append("A win: choose something to keep in the camp")
+	# Only a round's win is worth keeping something for; practice and spars are not.
+	if act.has("round"):
+		p.unlocks_owed = int(p.get("unlocks_owed", 0)) + 1
+		out.append("A win: choose something to keep in the camp")
 	return out

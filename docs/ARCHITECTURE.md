@@ -473,6 +473,16 @@ outlasts it.
   Bots go to downed friends first.
 - **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
   one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
+- **Characters and loadouts** (`Profile.make`, camp `_loadout`, `_retrain`, `_unlocks`).
+  A channeller is created with 2 + 2 affinity in their half's Powers and 1 in Spirit,
+  moved two-for-one, or traded away whole for one Talent (once, at creation). They
+  own affinity (up to 9), Talents, weaves; into a game they take at most 2 Talents,
+  3 weaves besides the one they were born with, and 5 affinity points plus 2 per
+  empty Talent slot. Between games affinity moves two-for-one, also into might,
+  quickness and endurance. A fighter spends 6 points: weapon 1, form 2, stat 1 (2 at
+  most), and takes up to 3 weapons and 3 forms. A won round owes one unlock: three
+  offers (Talents, weaves, +1 affinity; weapons, forms), one kept. Practice and spars
+  no longer grow a character at all.
 - **Saves.** Characters carry `format = 2`; older ones are deleted when the camp
   opens and old copies from the server are not taken back (the user asked).
 - `short_watch` is the old three-wave watch, hidden from the camp, kept for tests.

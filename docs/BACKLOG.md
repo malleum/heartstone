@@ -315,3 +315,11 @@ are what the 4:44 review, or the next session, should pick up.
   - **Gateways (17 Nov):** Shadowspawn that pass through a gateway die (they will not
     choose to, but may be shoved through or run into one as it opens). Weaves,
     arrows and blows go through gateways.
+- 2026-11-17, asked by the user:
+  - **Character screen, done properly:** carefully and visually rework the character
+    creation and loadout screens so they look modern, not like bare-bones HTML, and
+    are friendlier to read and choose from (cards with pictures or glyphs for weapons,
+    forms, Talents and Powers instead of rows of checkboxes and spin boxes; a live
+    preview; clear costs and limits).
+  - **Origin must matter or go:** make the origin choice change something visible
+    (face, default dress) or remove it.

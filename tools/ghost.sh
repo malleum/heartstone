@@ -28,7 +28,7 @@ want dream "GHOST 26[0-9] (dream dream_chains|refused)"; [ "$(grep -cE 'GHOST [0
 for w in "tree=true" "menu=true" "sheet=false" "pos=\([-0-9.]+, 0.0, -([2-9]|1[0-9])"; do want camp "$w"; done
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.
-for w in "created: Ghost Maiden cls=aiel" "armoury: kit=\[\"sling\"" "appearance: look=novice" "study: dance_of_spears" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done
+for w in "created: Ghost Maiden cls=aiel" "loadout: kit=\[\"" "appearance: look=" "unlock: .* owed=0" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done
 want online "GHOST online sync: Ghost Net is kept on"; want online "GHOST flow entered camp_training as Ghost Net \(joined a host\)"
 want srv "SERVER keeps Ghost Net"; want srv "SERVER begins camp_training for Ghost Net"
 if grep -hE "SCRIPT ERROR|^ERROR" -A2 "$out"/arms "$out"/weaves "$out"/camp "$out"/flow "$out"/online; then fail=1; fi

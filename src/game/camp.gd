@@ -249,8 +249,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if tree.visible: _show_tree(false)
 			elif captured: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else: _show_menu(not menu.visible)
-		elif ev.physical_keycode == KEY_T and not creating and not profile.is_empty() and not menu.visible:
-			_show_tree(not tree.visible)
 		elif ev.physical_keycode == KEY_TAB:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		elif ev.physical_keycode == KEY_H and not creating and not tree.visible:
@@ -294,7 +292,7 @@ func _process(dt: float) -> void:
 		return
 	if not _hinted and not cl.has("ghost"):
 		_hinted = true
-		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s weaves and forms · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_T), Keys.name(KEY_H)], "info", 9.0)
+		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_H)], "info", 9.0)
 	var move := Vector3.ZERO
 	if not tree.visible and not menu.visible and get_viewport().gui_get_focus_owner() == null:
 		var v := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
@@ -470,7 +468,7 @@ func _select(name_: String, sync := true) -> void:
 	tree.profile = profile
 	_sheet()
 
-## The left column: who you are and how you have grown, in short sections.
+## The left column: who you are, what you own, and what you take into a fight.
 func _sheet() -> void:
 	_clear(side)
 	var channels: bool = profile.get("cls", "channeller") == "channeller"
@@ -478,44 +476,29 @@ func _sheet() -> void:
 	var who: String = Rules.cls(profile).name if not channels else ("Channels saidin" if profile.power == "saidin" else "Channels saidar")
 	_text(side, "%s  ·  %s" % [who, ORIGINS.get(profile.origin, profile.origin)], 14, Color(0.68, 0.69, 0.74))
 	_row(side, "Renown", str(int(profile.renown)), Glyph.GOLD)
+	if int(profile.get("unlocks_owed", 0)) > 0:
+		_button(side, "A win: choose something to keep  (%d)" % int(profile.unlocks_owed), _unlocks)
 	if channels:
-		_section(side, "The Power")
-		_row(side, "Strength", Rules.level_name(Rules.level_of(Rules.strength(profile))))
-		_row(side, "Potential", Rules.level_name(Rules.level_of(profile.potential)))
-		_row(side, "Flows held at once", str(Rules.flow_capacity(profile)))
+		_section(side, "Into the next fight")
 		for e in Rules.ELEMENTS:
-			_pips(side, e.capitalize(), int(round(profile.affinity[e] * 10.0)), 10, Glyph.TINT.get(e, Glyph.GOLD))
-		if profile.talents.size() > 0:
-			_row(side, "Talents", ", ".join(profile.talents.map(func(t: String) -> String: return t.capitalize())))
-		_section(side, "Weaves")
+			_pips(side, e.capitalize(), int(profile.get("aff_pts", {}).get(e, 0)), Profile.AFF_OWN_MAX, Glyph.TINT.get(e, Glyph.GOLD))
+		_row(side, "Talents", ", ".join(profile.talents.map(func(t: String) -> String: return t.capitalize())) if not profile.talents.is_empty() else "none")
 		for id in profile.weaves:
 			if Rules.weaves.has(id):
-				_row(side, Rules.weaves[id].name, "mastery %d" % Rules.mastery_level(profile, id))
-		var studying: String = profile.get("study", "")
-		if studying != "" and Rules.weaves.has(studying):
-			_row(side, "Working out " + Rules.weaves[studying].name, "%d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, studying)), Color(0.95, 0.85, 0.55))
-		elif not Rules.study_options(profile).is_empty():
-			_text(side, "Not studying a weave: choose one in the tree.", 13, Color(1.0, 0.7, 0.45))
-		_button(side, "The weaves: what you know and what to study  (T)", func() -> void: _show_tree(true))
+				_row(side, Rules.weaves[id].name, "born knowing" if id == profile.get("starter", "") else "")
+		_text(side, "Strength is rolled anew every round.", 13, Color(0.66, 0.67, 0.72))
 	else:
-		_section(side, "Body")
+		_section(side, "Into the next fight")
 		for st in ["might", "quickness", "endurance"]:
-			_pips(side, st.capitalize(), Rules.stat(profile, st), 10, Glyph.GOLD)
-		_row(side, "Health", str(int(Rules.max_hp(profile))))
-		_section(side, "Forms")
-		for id in profile.get("forms", {}):
-			if Rules.forms.has(id):
-				_row(side, Rules.forms[id].name, "")
-		var learning: String = profile.get("study", "")
-		if learning != "" and Rules.forms.has(learning):
-			_row(side, "Working out " + Rules.forms[learning].name, "%d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, learning)), Color(0.95, 0.85, 0.55))
-		_button(side, "The forms: what you know and what to study  (T)", func() -> void: _show_tree(true))
-	if not profile.get("kit", []).is_empty():
-		_section(side, "Arms")
+			_pips(side, st.capitalize(), int(Rules.stat(profile, st)), 4, Glyph.GOLD)
 		for w in profile.kit:
-			var row: Dictionary = Rules.weapons[w]
-			_row(side, row.name, "%s skill %d" % [row.family, Rules.skill_level(profile, row.family)])
-	_button(side, "The armoury: change what you carry", _armoury)
+			_row(side, Rules.weapons[w].name, Rules.weapons[w].family)
+		for f in profile.get("forms", {}):
+			if Rules.forms.has(f):
+				_row(side, Rules.forms[f].name, "form")
+	_button(side, "Loadout: choose what you take", _loadout)
+	if channels:
+		_button(side, "Retrain: move affinity (two for one)", _retrain)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
 		_section(side, "Last time out")
@@ -525,7 +508,121 @@ func _sheet() -> void:
 		if n != profile.name.to_lower():
 			_button(side, n.capitalize(), func() -> void: Launch.report = []; _select(n))
 	_button(side, "New character…", _creation)
-	_button(side, "Server, friends, quit  (Esc)", func() -> void: _show_menu(true))
+	_button(side, "Server, quit  (Esc)", func() -> void: _show_menu(true))
+
+func _panel(title: String) -> void:
+	menu.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_clear(menu_box)
+	_text(menu_box, title, 26)
+
+func _check(v: Control, text: String, on: bool) -> CheckBox:
+	var c := CheckBox.new(); c.text = text; c.button_pressed = on; v.add_child(c)
+	c.add_theme_font_size_override("font_size", 14)
+	return c
+
+## Before a fight: what of what you own you take in. Channellers: at most two
+## Talents and three weaves beyond the one they were born with, and five affinity
+## points plus two for each Talent slot left empty. Fighters: three weapons, three forms.
+func _loadout() -> void:
+	_panel("Loadout")
+	var note := _text(menu_box, "", 14, Color(1.0, 0.7, 0.45))
+	if profile.get("cls", "channeller") == "channeller":
+		_section(menu_box, "Talents (up to %d)" % Profile.TALENT_SLOTS)
+		var tal := {}
+		for t in profile.get("talents_owned", []):
+			tal[t] = _check(menu_box, t.capitalize(), profile.talents.has(t))
+		if tal.is_empty():
+			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
+		_section(menu_box, "Weaves (up to %d besides %s)" % [Profile.WEAVE_SLOTS, Rules.weaves[profile.starter].name])
+		var wv := {}
+		for w in profile.get("weaves_owned", []):
+			wv[w] = _check(menu_box, Rules.weaves[w].name, profile.weaves.has(w))
+		if wv.is_empty():
+			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
+		_section(menu_box, "Affinity taken in")
+		var aff := {}
+		for e in Rules.ELEMENTS:
+			aff[e] = _spin(menu_box, "%s (own %d)" % [e.capitalize(), int(profile.aff_owned.get(e, 0))], int(profile.aff_owned.get(e, 0)), int(profile.aff_pts.get(e, 0)))
+		_button(menu_box, "Take these", func() -> void:
+			var t := tal.keys().filter(func(k: String) -> bool: return tal[k].button_pressed)
+			var w := wv.keys().filter(func(k: String) -> bool: return wv[k].button_pressed)
+			var total := 0
+			for e in aff: total += int(aff[e].value)
+			var cap := Profile.AFF_BASE + 2 * (Profile.TALENT_SLOTS - t.size())
+			if t.size() > Profile.TALENT_SLOTS: note.text = "At most %d Talents." % Profile.TALENT_SLOTS; return
+			if w.size() > Profile.WEAVE_SLOTS: note.text = "At most %d weaves besides your own." % Profile.WEAVE_SLOTS; return
+			if total > cap: note.text = "With %d Talent%s you can take %d affinity points (you chose %d)." % [t.size(), "" if t.size() == 1 else "s", cap, total]; return
+			profile.talents = t
+			profile.weaves = {profile.starter: {known = true, xp = 0.0}}
+			for k in w: profile.weaves[k] = {known = true, xp = 0.0}
+			for e in aff: profile.aff_pts[e] = int(aff[e].value)
+			Profile.apply_affinity(profile)
+			Profile.save(profile)
+			menu.visible = false
+			_select(profile.name))
+	else:
+		_section(menu_box, "Weapons (1 to %d)" % Profile.WEAPON_SLOTS)
+		var wp := {}
+		for w in profile.get("weapons_owned", profile.kit):
+			wp[w] = _check(menu_box, Rules.weapons[w].name, profile.kit.has(w))
+		_section(menu_box, "Forms (up to %d)" % Profile.FORM_SLOTS)
+		var fm := {}
+		for f in profile.get("forms_owned", []):
+			fm[f] = _check(menu_box, Rules.forms[f].name, profile.forms.has(f))
+		_button(menu_box, "Take these", func() -> void:
+			var k := wp.keys().filter(func(x: String) -> bool: return wp[x].button_pressed)
+			var f := fm.keys().filter(func(x: String) -> bool: return fm[x].button_pressed)
+			if k.is_empty() or k.size() > Profile.WEAPON_SLOTS: note.text = "Take one to %d weapons." % Profile.WEAPON_SLOTS; return
+			if f.size() > Profile.FORM_SLOTS: note.text = "At most %d forms." % Profile.FORM_SLOTS; return
+			profile.kit = k
+			profile.forms = {}
+			for x in f: profile.forms[x] = {known = true}
+			Profile.save(profile)
+			menu.visible = false
+			_select(profile.name))
+	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
+
+## Between fights a channeller may move affinity they own, two points out for each
+## one in, into another Power or into their body (might, quickness, endurance).
+func _retrain() -> void:
+	_panel("Retrain")
+	_text(menu_box, "Every point moved costs two taken from elsewhere. You can own at most %d points in all." % Profile.AFF_OWN_MAX, 13, Color(0.66, 0.67, 0.72))
+	var before := {}
+	for e in Rules.ELEMENTS: before[e] = int(profile.aff_owned.get(e, 0))
+	for st in ["might", "quickness", "endurance"]: before[st] = int(Rules.stat(profile, st))
+	var spins := {}
+	for k in before:
+		spins[k] = _spin(menu_box, k.capitalize(), Profile.AFF_OWN_MAX, before[k])
+	var note := _text(menu_box, "", 14, Color(1.0, 0.7, 0.45))
+	_button(menu_box, "Keep these", func() -> void:
+		var after := {}
+		for k in spins: after[k] = int(spins[k].value)
+		if Profile.trade_left(before, after) < 0: note.text = "Too many points added: every point costs two taken elsewhere."; return
+		for e in Rules.ELEMENTS:
+			profile.aff_owned[e] = after[e]
+			profile.aff_pts[e] = mini(int(profile.aff_pts.get(e, 0)), after[e])
+		for st in ["might", "quickness", "endurance"]:
+			profile.stats[st] = after[st]
+		Profile.apply_affinity(profile)
+		Profile.save(profile)
+		menu.visible = false
+		_select(profile.name))
+	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
+
+## After a win: three things to choose from, one to keep for good.
+func _unlocks() -> void:
+	_panel("Something to keep")
+	var rng := RandomNumberGenerator.new(); rng.seed = hash(profile.name) + int(profile.renown) + int(profile.get("unlocks_owed", 0))
+	for u in Profile.unlock_offers(profile, 3, rng):
+		var o: Dictionary = u
+		_button(menu_box, o.name, func() -> void:
+			Profile.take_unlock(profile, o)
+			Profile.save(profile)
+			Toast.say("Kept: %s" % o.name, "Take it into a fight from the loadout.", "good")
+			menu.visible = false
+			_select(profile.name))
+	_button(menu_box, "Later  (Esc)", func() -> void: _show_menu(false))
 
 ## --ghost=flow: go through the camp's screens as a person would, pressing the
 ## real buttons (found by their text), and say what happened. For tools/ghost.sh.
@@ -571,13 +668,11 @@ func _ghost_flow() -> void:
 			_press(side, "Begin")
 		40:
 			print("GHOST flow created: %s cls=%s kit=%s style=%s doors=%d" % [profile.get("name", "-"), profile.get("cls", "-"), profile.get("kit", []), profile.get("style", {}), doors.size()])
-			_press(side, "The armoury")
+			_press(side, "Loadout")
 		50:
-			var first: OptionButton = menu_box.find_children("*", "OptionButton", true, false)[0]
-			first.select(first.item_count - 1); first.item_selected.emit(first.item_count - 1)
 			_press(menu_box, "Take these")
 		60:
-			print("GHOST flow armoury: kit=%s menu=%s" % [profile.get("kit", []), menu.visible])
+			print("GHOST flow loadout: kit=%s menu=%s" % [profile.get("kit", []), menu.visible])
 			_press(side, "Appearance")
 		70:
 			var dress: OptionButton = menu_box.find_children("*", "OptionButton", true, false)[0]
@@ -586,15 +681,15 @@ func _ghost_flow() -> void:
 			_press(menu_box, "Keep this")
 		90:
 			print("GHOST flow appearance: look=%s style=%s" % [profile.get("look", "-"), profile.get("style", {})])
-			_press(side, "The forms")
+			profile.unlocks_owed = 1
+			_sheet()
+			_press(side, "A win")
 		100:
-			var opts := Rules.study_options(profile)
-			print("GHOST flow tree: visible=%s options=%s" % [tree.visible, opts])
-			if not opts.is_empty():
-				tree.chosen.emit(opts[0])
+			var offers := menu_box.find_children("*", "Button", true, false)
+			if offers.size() > 1:
+				(offers[1] as Button).pressed.emit()
 		110:
-			print("GHOST flow study: %s" % profile.get("study", "-"))
-			_show_tree(false)
+			print("GHOST flow unlock: weapons=%s forms=%s owed=%d" % [profile.get("weapons_owned", []), profile.get("forms_owned", []), int(profile.get("unlocks_owed", 0))])
 			_show_menu(true)
 		120:
 			_press(menu_box, "Back to the camp")
@@ -745,37 +840,44 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "") -> void:
 	make.power.item_selected.connect(func(_i: int) -> void: _creation.call_deferred(make.cls_id, make.name.text, make.power.get_selected_metadata()))
 	_fill_looks()
 	make.style = _style_options(side, {}, make.power.get_selected_metadata() == "saidin")
-	make.aff = {}; make.talents = {}; make.stats = {}; make.skills = {}; make.kit = []
+	make.aff = {}; make.talents = {}; make.stats = {}; make.skills = {}; make.kit = []; make.weapons = {}; make.forms = {}
 	if not fighter:
-		_text(side, "Twenty points, spent once. Potential is how strong you can ever become, on the Aes Sedai scale: 72 is the weakest, 1 the strongest woman, and ++6 to ++1 the men beyond her. Affinity is how readily each Power answers you. The two Powers of your half of the Source (Air and Water for saidar, Earth and Fire for saidin) cost half for their first three points. You begin with the simplest weave of your strongest Power. A Talent costs four; it does not unlock a weave, it makes you far better at it.", 14, Color(0.7, 0.72, 0.78))
-		make.potential = _spin(side, "Potential", Profile.max_potential_pts(make.power.get_selected_metadata()), 8)
+		var power: String = make.power.get_selected_metadata()
+		_section(side, "Affinity")
+		_text(side, "How readily each Power answers you. You begin with two points in each Power of your half of the Source and one in Spirit. Moving a point costs two taken from elsewhere. Your strength is not chosen: it is rolled anew every round.", 13, Color(0.66, 0.67, 0.72))
+		var base := Profile.default_aff(power)
 		for e in Rules.ELEMENTS:
-			make.aff[e] = _spin(side, e.capitalize(), 6, 2 if e in ["air", "water"] else 0)
-		_text(side, "Talents", 20)
-		for t in TALENT_PICKS:
-			var c := CheckBox.new(); c.text = t.capitalize(); side.add_child(c)
-			c.toggled.connect(func(_on: bool) -> void: _creation_changed())
-			make.talents[t] = c
-		_text(side, "A channeller may carry one weapon and train it a little.", 14, Color(0.7, 0.72, 0.78))
-		make.kit = [_weapon_option("Carries", "", true)]
+			make.aff[e] = _spin(side, e.capitalize(), 9, int(base[e]))
+		make.trade = CheckBox.new(); make.trade.text = "Give up all five points to be born with a Talent (once, now only)"; side.add_child(make.trade)
+		make.trade.add_theme_font_size_override("font_size", 14)
+		make.talent = _option(side, "Talent", {})
+		for t in Profile.TALENTS:
+			make.talent.add_item(t.capitalize()); make.talent.set_item_metadata(make.talent.item_count - 1, t)
+		make.trade.toggled.connect(func(_on: bool) -> void: _creation_changed())
 	else:
-		_text(side, "Twenty points, spent once. Might is how hard you hit, and what a longbow asks of you. Quickness shortens every blow and lengthens every roll. Endurance makes everything cost less breath and lets you take more. A point in a weapon is a level of skill with that family to begin with; the rest comes by using it.", 14, Color(0.7, 0.72, 0.78))
+		_section(side, "Six points")
+		_text(side, "A weapon costs one, a form two, a point of might, quickness or endurance one (two at most). Fighters are tougher and faster than channellers from the start, and grow in the round.", 13, Color(0.66, 0.67, 0.72))
 		for st in ["might", "quickness", "endurance"]:
-			make.stats[st] = _spin(side, st.capitalize(), 8, 3)
-		_text(side, "Skill at arms", 20)
-		var first: String = Rules.weapons[Rules.CLASSES[cls_].kit[0]].family
-		for f in Rules.FAMILIES:
-			if f == "sword" and cls_ == "aiel":
-				continue
-			make.skills[f] = _spin(side, f.capitalize(), 6, 3 if f == first else 0)
-		_text(side, "What you carry", 20)
-		for i in int(Rules.CLASSES[cls_].carry):
-			make.kit.append(_weapon_option(["In hand", "Second", "Third"][i], Rules.CLASSES[cls_].kit[i], false))
-	make.left = _text(side, "", 18)
+			make.stats[st] = _spin(side, st.capitalize(), 2, 0)
+		_section(side, "Weapons")
+		var probe := {cls = cls_}
+		for w in Rules.weapons:
+			if Rules.wield_block(probe, w) == "":
+				var c := CheckBox.new(); c.text = Rules.weapons[w].name; side.add_child(c)
+				c.add_theme_font_size_override("font_size", 14)
+				c.button_pressed = Rules.CLASSES[cls_].kit.slice(0, 2).has(w)
+				c.toggled.connect(func(_on: bool) -> void: _creation_changed())
+				make.weapons[w] = c
+		_section(side, "Forms")
+		for f in Rules.forms:
+			var c := CheckBox.new(); c.text = "%s  (%s)" % [Rules.forms[f].name, Rules.forms[f].family]; side.add_child(c)
+			c.add_theme_font_size_override("font_size", 14)
+			c.toggled.connect(func(_on: bool) -> void: _creation_changed())
+			make.forms[f] = c
+	make.left = _text(side, "", 16)
 	make.go = _button(side, "Begin", _create)
 	if _saved().size() > 0:
 		_button(side, "Back", func() -> void: _select(_saved()[0]))
-	_text(side, "Nothing resets: every watch, mission and spar pays into this one character. A character kept on a server can be fetched instead (Esc).", 14, Color(0.7, 0.72, 0.78))
 	_creation_changed()
 
 ## The body's choices, as option rows: hair, its colour, skin, eyes, height, build,
@@ -918,36 +1020,60 @@ func _fill_looks() -> void:
 			make.look.add_item(all[id].label); make.look.set_item_metadata(make.look.item_count - 1, id)
 	make.look.select(0)
 
+## What is left to place: for a channeller, trade points (removed less twice added);
+## for a fighter, of the six points.
 func _points_left() -> float:
+	if make.cls_id == "channeller":
+		if make.has("trade") and make.trade.button_pressed:
+			return 0.0
+		var now := {}
+		for e in make.aff:
+			now[e] = int(make.aff[e].value)
+		return float(Profile.trade_left(Profile.default_aff(make.power.get_selected_metadata()), now))
 	var spent := 0.0
-	if make.has("potential"):
-		spent += make.potential.value
-	for e in make.aff:
-		spent += Profile.affinity_cost(make.power.get_selected_metadata(), e, int(make.aff[e].value))
-	for t in make.talents:
-		if make.talents[t].button_pressed:
-			spent += 4.0
-	for st in make.stats:
-		spent += make.stats[st].value
-	for f in make.skills:
-		spent += make.skills[f].value
-	return Profile.CREATION_POINTS - spent
+	var fams := {}
+	for w in make.weapons:
+		if make.weapons[w].button_pressed:
+			spent += 1.0; fams[Rules.weapons[w].family] = true
+	for f in make.forms:
+		make.forms[f].disabled = not fams.has(Rules.forms[f].family)
+		if make.forms[f].disabled: make.forms[f].button_pressed = false
+		if make.forms[f].button_pressed:
+			spent += 2.0
+	var st := 0.0
+	for k in make.stats:
+		st += make.stats[k].value
+	if st > 2.0:
+		return -1.0
+	return float(Profile.FIGHTER_POINTS) - spent - st
 
 func _creation_changed() -> void:
 	if not make.has("go"):
 		return
 	var left := _points_left()
-	make.left.text = ("Potential %s   ·   " % Rules.level_name(Profile.potential_level(make.power.get_selected_metadata(), int(make.potential.value))) if make.has("potential") else "") + "points left: %s" % String.num(left, 1)
-	# A longbow needs might: say so before the character is made without it.
-	var might: float = make.stats.might.value if make.stats.has("might") else 0.0
-	for o in make.kit:
-		var w: String = o.get_selected_metadata()
-		if w != "" and might < Rules.weapons[w].get("might", 0):
-			make.left.text += "\n%s needs might %d" % [Rules.weapons[w].name, Rules.weapons[w].might]
+	var nweap := 0
+	for w in make.weapons:
+		if make.weapons[w].button_pressed: nweap += 1
+	if make.cls_id == "channeller":
+		for e in make.aff:
+			make.aff[e].editable = not make.trade.button_pressed
+		make.talent.disabled = not make.trade.button_pressed
+		make.left.text = "Born with the Talent; no affinity" if make.trade.button_pressed else ("Points to place: %d" % int(left) if left >= 0 else "Too many points added: every point costs two taken elsewhere")
+	else:
+		make.left.text = "Points left: %d" % int(left) if left >= 0 else "Too many points spent (and at most two in might, quickness and endurance)"
+		if nweap == 0:
+			make.left.text += "\nChoose at least one weapon"
+		elif nweap > Profile.WEAPON_SLOTS:
+			make.left.text += "\nAt most %d weapons" % Profile.WEAPON_SLOTS
+	if make.cls_id != "channeller" and (nweap == 0 or nweap > Profile.WEAPON_SLOTS):
+		left = -1.0
 	make.left.add_theme_color_override("font_color", Color(1, 0.4, 0.3) if left < 0 else Color(0.9, 0.9, 0.92))
 	make.go.disabled = left < 0
 	var kind: String = make.look.get_selected_metadata()
-	var held: String = make.kit[0].get_selected_metadata() if not make.kit.is_empty() else ""
+	var held := ""
+	for w in make.weapons:
+		if make.weapons[w].button_pressed:
+			held = w; break
 	var st := _style_of(make.style) if make.has("style") else {}
 	if model == null or model.get_meta("kind", "") != kind or model.get_meta("style", "") != str(st):
 		_stand(kind, st)
@@ -959,32 +1085,29 @@ func _creation_changed() -> void:
 
 func _create() -> void:
 	var name_: String = make.name.text.strip_edges()
-	if name_ == "" or _points_left() < 0:
+	if name_ == "" or _points_left() < 0 or make.go.disabled:
 		make.left.text = "A name is needed." if name_ == "" else make.left.text
 		return
-	var aff := {}
-	for e in make.aff:
-		aff[e] = int(make.aff[e].value)
-	var talents := []
-	for t in make.talents:
-		if make.talents[t].button_pressed:
-			talents.append(t)
-	var stats := {}
-	for st in make.stats:
-		stats[st] = int(make.stats[st].value)
-	var skills := {}
-	for f in make.skills:
-		skills[f] = int(make.skills[f].value)
-	var kit := []
-	for o in make.kit:
-		if o.get_selected_metadata() != "" and not kit.has(o.get_selected_metadata()):
-			kit.append(o.get_selected_metadata())
 	var power: String = make.power.get_selected_metadata()
 	var opts := {name = name_, cls = make.cls_id, power = power, sex = "f" if power == "saidar" else "m", origin = make.origin.get_selected_metadata(),
-		look = make.look.get_selected_metadata(), affinity_pts = aff, talents = talents, stat_pts = stats, skill_pts = skills, kit = kit, style = _style_of(make.style)}
-	if make.has("potential"):
-		opts.potential_pts = int(make.potential.value)
-	var p := Profile.create(opts)
+		look = make.look.get_selected_metadata(), style = _style_of(make.style)}
+	if make.cls_id == "channeller":
+		var aff := {}
+		for e in make.aff:
+			aff[e] = int(make.aff[e].value)
+		opts.aff_pts = aff
+		if make.trade.button_pressed:
+			opts.talent = make.talent.get_selected_metadata()
+	else:
+		var kit := []; var forms := []; var stats := {}
+		for w in make.weapons:
+			if make.weapons[w].button_pressed: kit.append(w)
+		for f in make.forms:
+			if make.forms[f].button_pressed: forms.append(f)
+		for st in make.stats:
+			stats[st] = int(make.stats[st].value)
+		opts.kit = kit; opts.forms = forms; opts.stats = stats
+	var p := Profile.make(opts)
 	Profile.save(p)
 	Launch.report = []
 	_select(name_)

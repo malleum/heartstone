@@ -128,10 +128,12 @@ static func path(name: String) -> String:
 	return "%s/%s.json" % [dir, name.to_lower().validate_filename()]
 
 static func save(p: Dictionary) -> void:
-	p.format = FORMAT
+	# The file says what format it is; characters made by make() say so themselves.
+	var out := p.duplicate()
+	out.format = p.get("format", FORMAT)
 	DirAccess.make_dir_recursive_absolute(dir)
 	var f := FileAccess.open(path(p.name), FileAccess.WRITE)
-	f.store_string(JSON.stringify(p, "  "))
+	f.store_string(JSON.stringify(out, "  "))
 
 static func load_profile(name: String) -> Dictionary:
 	if not FileAccess.file_exists(path(name)):
@@ -209,3 +211,139 @@ static func purge_old() -> int:
 
 static func current(p: Dictionary) -> bool:
 	return int(p.get("format", 1)) >= FORMAT
+
+# --- characters for rounds (format 2; the user's rules of 17 Nov) -------------------
+# Strength is rolled each round, so a character is what they can take into one:
+# affinity points, Talents, weaves and arms they own, and the loadout chosen from
+# them before each game. Nothing here is raw strength or a fighter's body beyond
+# the couple of creation points.
+
+const AFF_OWN_MAX := 9       # affinity points a character can own
+const AFF_BASE := 5          # taken into a game, plus 2 per unused Talent slot
+const TALENT_SLOTS := 2
+const WEAVE_SLOTS := 3       # weaves beyond the starting one, per game
+const WEAPON_SLOTS := 3
+const FORM_SLOTS := 3
+const FIGHTER_POINTS := 6    # weapon 1, form 2, stat 1 (at most 2 in stats)
+
+## The starting spread: two points in each of your half's Powers, one in Spirit.
+static func default_aff(power: String) -> Dictionary:
+	var out := {fire = 0, earth = 0, water = 0, air = 0, spirit = 1}
+	for e in (["earth", "fire"] if power == "saidin" else ["air", "water"]):
+		out[e] = 2
+	return out
+
+## Moving points: every point added somewhere costs two taken from elsewhere.
+## Points left over after a trade are what remains to place (negative: too many added).
+static func trade_left(before: Dictionary, after: Dictionary) -> int:
+	var removed := 0; var added := 0
+	for k in after:
+		var d := int(after[k]) - int(before.get(k, 0))
+		if d > 0: added += d
+		else: removed -= d
+	for k in before:
+		if not after.has(k): removed += int(before[k])
+	return removed - 2 * added
+
+## Affinity points a character may take into a game, by Talents taken.
+static func aff_cap(p: Dictionary) -> int:
+	return AFF_BASE + 2 * (TALENT_SLOTS - p.get("talents", []).size())
+
+## The rules read p.affinity (0..1 per Power); work it out from the points taken.
+static func apply_affinity(p: Dictionary) -> void:
+	var lean := {fire = 0.3, earth = 0.3, water = 0.3, air = 0.3, spirit = 0.35}
+	for e in (["earth", "fire"] if p.power == "saidin" else ["air", "water"]):
+		lean[e] = 0.45
+	for e in Rules.ELEMENTS:
+		var a: float = lean[e] + 0.06 * int(p.get("aff_pts", {}).get(e, 0))
+		p.affinity[e] = minf(a, 0.95)
+		p.aptitude[e] = p.affinity[e]
+
+## The weave you were born knowing: the simplest of the Power that answers you
+## best, a tie settled by the name so it is the same on every machine.
+static func pick_starter(p: Dictionary) -> String:
+	var best: Array = []
+	for e in Rules.ELEMENTS:
+		var v := int(p.aff_pts.get(e, 0))
+		if best.is_empty() or v > int(p.aff_pts.get(best[0], 0)):
+			best = [e]
+		elif v == int(p.aff_pts.get(best[0], 0)):
+			best.append(e)
+	return STARTERS[best[hash(p.name) % best.size()]]
+
+## A new character for rounds. Channellers: aff_pts {element: n} (a trade from the
+## default spread), or talent: "<id>" to give up all five points for that Talent.
+## Fighters: kit [weapons], forms [forms], stats {might, quickness, endurance}.
+static func make(opts: Dictionary) -> Dictionary:
+	Rules.load_data()
+	var p: Dictionary
+	if opts.get("cls", "channeller") == "channeller":
+		var power: String = opts.get("power", "saidar")
+		p = create({name = opts.name, power = power, potential_pts = 6, affinity_pts = {}, origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {})})
+		var aff: Dictionary = opts.get("aff_pts", default_aff(power)).duplicate()
+		p.talents = []
+		if opts.get("talent", "") != "":
+			# The one-time trade: no affinity at all, one Talent kept for good.
+			for e in aff: aff[e] = 0
+			p.talents = [opts.talent]
+		p.aff_owned = aff.duplicate()
+		p.aff_pts = aff.duplicate()
+		p.talents_owned = p.talents.duplicate()
+		apply_affinity(p)
+		p.weaves = {}
+		p.starter = pick_starter(p)
+		p.weaves[p.starter] = {known = true, xp = 0.0}
+		p.weaves_owned = []
+	else:
+		var stats: Dictionary = opts.get("stats", {})
+		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {})})
+		p.forms = {}
+		for f in opts.get("forms", []):
+			p.forms[f] = {known = true}
+		p.weapons_owned = p.kit.duplicate()
+		p.forms_owned = p.forms.keys()
+	p.unlocks_owed = 0
+	p.format = FORMAT
+	return p
+
+## What a win can give this character: up to n choices, never strength.
+static func unlock_offers(p: Dictionary, n: int, rng: RandomNumberGenerator) -> Array:
+	var pool := []
+	if p.get("cls", "channeller") == "channeller":
+		for t in TALENTS:
+			if not p.get("talents_owned", []).has(t):
+				pool.append({kind = "talent", id = t, name = "The Talent for %s" % t.capitalize().to_lower()})
+		for w in Rules.weaves:
+			if not p.weaves.has(w) and not p.get("weaves_owned", []).has(w) and Rules.weaves[w].get("book", 1) <= p.book_limit and Rules.weaves[w].get("learnable", true):
+				pool.append({kind = "weave", id = w, name = Rules.weaves[w].name})
+		var owned := 0
+		for e in p.get("aff_owned", {}):
+			owned += int(p.aff_owned[e])
+		if owned < AFF_OWN_MAX:
+			for e in Rules.ELEMENTS:
+				pool.append({kind = "affinity", id = e, name = "+1 affinity in %s" % e.capitalize()})
+	else:
+		var fams := {}
+		for w in p.get("weapons_owned", p.kit):
+			fams[Rules.weapons[w].family] = true
+		for w in Rules.weapons:
+			if not p.get("weapons_owned", p.kit).has(w) and Rules.wield_block(p, w) == "":
+				pool.append({kind = "weapon", id = w, name = Rules.weapons[w].name})
+		for f in Rules.forms:
+			if fams.has(Rules.forms[f].family) and not p.get("forms_owned", []).has(f):
+				pool.append({kind = "form", id = f, name = Rules.forms[f].name})
+	var out := []
+	while not pool.is_empty() and out.size() < n:
+		out.append(pool.pop_at(rng.randi() % pool.size()))
+	return out
+
+## Keep an unlock: it joins what the character owns (taken into games by loadout).
+static func take_unlock(p: Dictionary, u: Dictionary) -> void:
+	match u.kind:
+		"talent": p.talents_owned.append(u.id)
+		"weave": p.weaves_owned.append(u.id)
+		"affinity":
+			p.aff_owned[u.id] = int(p.aff_owned.get(u.id, 0)) + 1
+		"weapon": p.weapons_owned.append(u.id)
+		"form": p.forms_owned.append(u.id)
+	p.unlocks_owed = maxi(int(p.get("unlocks_owed", 0)) - 1, 0)
