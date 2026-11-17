@@ -130,6 +130,19 @@ static func _weapon(s: Dictionary, J: PackedVector3Array, rng: RandomNumberGener
 			var hc := g + a * 1.15 * u
 			p.cone(hc, hc + a * 0.36 * u, 0.05 * u, 0.004 * u, Vector2(0.35, 1))
 			p.chain([hc + a * 0.05 * u, hc + a * 0.1 * u + up * 0.12 * u, hc - a * 0.02 * u + up * 0.2 * u, hc - a * 0.12 * u + up * 0.17 * u], 0.024 * u, 0.006 * u)
+		5:  # a Trolloc's bow: a thick crude stave of horn and wood, held upright by the
+			# limbs run through the fist as a blade would (upright with the arm held
+			# out), the tips drawn back toward the archer on the string
+			var horn := Color(0.08, 0.06, 0.045, LEATHER)
+			p.use(C.HAND + o, horn, 0.01 * u)
+			for sy: float in [-1.0, 1.0]:
+				var pts := []
+				for i in 6:
+					var t := i / 5.0
+					pts.append(g + a * sy * t * 0.62 * u - d * (0.2 * t * t - 0.02) * u)
+				p.chain(pts, 0.032 * u, 0.012 * u)
+			p.use(C.HAND + o, Color(0.3, 0.27, 0.2, LEATHER), 0.002 * u)
+			p.cone(g + a * 0.62 * u - d * 0.18 * u, g - a * 0.62 * u - d * 0.18 * u, 0.006 * u, 0.006 * u)
 		4:  # a Myrddraal's sword: straight, long, and black as the forge it came from
 			var black := Color(0.006, 0.006, 0.008, LEATHER)
 			p.use(C.HAND + o, black, 0.006 * u)

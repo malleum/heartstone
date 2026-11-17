@@ -24,6 +24,7 @@ var me: Node3D                 # my HumanRig
 var actors := {}               # sim id -> {node, kind, target: Vector3, yaw}
 var fx := {}                   # sim fx id -> Node3D
 var variants: Array = []       # generated Trolloc data, shared between enemies
+var archers: Array = []        # the same, carrying bows
 var fade := {}                 # generated Myrddraal data
 var made := {}                 # other generated creatures, by gen name, built when first met
 var told := {}                 # warnings given once
@@ -104,10 +105,14 @@ func _ready() -> void:
 		# Sim.ARMS[id % 4] says what each Trolloc carries; with eight variants picked
 		# by id % 8, variant i must carry kind i % 4 for the two to agree.
 		specs.append(Species.roll(Species.TROLLOC, 20 + i, {lod = 1.7, head = ["boar", "wolf", "ram", "hawk", "bear"][i % 5], weapon_kind = i % 4}))
+	# Archers carry a bow (and club with it up close: the sim gives them "club").
+	for i in 2:
+		specs.append(Species.roll(Species.TROLLOC, 40 + i, {lod = 1.7, head = ["wolf", "hawk"][i], weapon_kind = 5}))
 	var out := []; out.resize(specs.size())
 	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
 	WorkerThreadPool.wait_for_group_task_completion(id)
-	variants = out
+	variants = out.slice(0, 8)
+	archers = out.slice(8)
 	# The Eyeless is one shape: they are all alike.
 	fade = Creature.build(Species.roll(Species.MYRDDRAAL, 7, {lod = 1.2}))
 	# The Session lives at /root/Session on every machine (RPCs go by node path).
@@ -1010,7 +1015,7 @@ func _play(a: Dictionary, clip: String, once := false) -> void:
 func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 	var row: Dictionary = Rules.enemies[type]
 	if row.gen == "TROLLOC":
-		var w := Creature.instantiate(variants[id % variants.size()])
+		var w := Creature.instantiate(archers[id % archers.size()] if row.has("ranged") else variants[id % variants.size()])
 		add_child(w)
 		w.teleport(pos, 0.0)
 		if row.tier > 1:

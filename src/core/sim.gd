@@ -79,7 +79,7 @@ func _add_enemy(type: String, pos: Vector3) -> void:
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "enemy", type = type, row = row, pos = pos, yaw = 0.0, hp = float(row.hp), max_hp = float(row.hp),
 		radius = float(row.radius), team = -1, alive = true, atk = 0.0, stagger = 0.0, vel = Vector3.ZERO,
-		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false, blow = {}, aim_yaw = 0.0, arm = ARMS[id % 4],
+		burn = 0.0, burn_dps = 0.0, burn_by = 0, down = 0.0, swung = false, blow = {}, aim_yaw = 0.0, arm = "club" if row.has("ranged") else ARMS[id % 4],
 		speed = row.speed * rng.randf_range(0.85, 1.15)}
 	events.append(_intro(ents[id]))
 
