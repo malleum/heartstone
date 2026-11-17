@@ -273,3 +273,13 @@ are what the 4:44 review, or the next session, should pick up.
     mirror image), and dream moves against Shadowspawn in a dream mission.
   - A duel of real players over the server has passed the co-op test path only as
     far as snapshots; nobody has fought one.
+- 2026-11-17, asked by the user:
+  - **Key rebinding** for everything, and **choosing what sits in each hotbar slot**
+    (1–9, or whatever those keys are remapped to): weaves, weapons, forms.
+  - **A bot Warder for Aes Sedai players**, decided per round with the strength roll:
+    the chance of having one equals how common your rolled potential is. A
+    potential reached 40% of the time gives a 40% chance of a Warder; a top roll
+    reached 1% of the time gives 1%. The Warder is middling but definitely useful.
+    It offsets men's curve sitting 6 ranks higher. (My reading: "Aes Sedai
+    player" means a woman channeller, and "how common" means the share of rolls
+    at or above yours, so rarer and stronger means less likely.)

@@ -171,3 +171,12 @@ static func spawn(rng: RandomNumberGenerator) -> Vector3:
 ## The line the defenders stand on, just behind the chokepoint.
 static func line_z() -> float:
 	return 0.0 if m.is_empty() else m.choke_z + m.choke_len * 0.9
+
+## Everything `use` sets up (and the terrain's height scale), to be put back later.
+## A camp doorway builds its fight's world while the camp is still walked in: the
+## camp keeps its own copy and asks its heights and walls through it.
+static func state() -> Dictionary:
+	return {id = id, m = m, trees = _trees, walls = _walls, grid = _grid, amp = Terrain.amp}
+
+static func set_state(s: Dictionary) -> void:
+	id = s.id; m = s.m; _trees = s.trees; _walls = s.walls; _grid = s.grid; Terrain.amp = s.amp

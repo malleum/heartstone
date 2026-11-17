@@ -7,6 +7,12 @@ static var report: Array = []
 static var last_name := ""
 ## The doorway last walked through, so you come back out of it.
 static var last_activity := ""
+static var left_camp := 0   # ticks when a doorway was walked through (for --timing)
+## Every game goes through the one server (docs/SERVER.md). `--server=host:port`
+## points elsewhere (the tests run their own on this machine).
+const SERVER := "joshammer.com:24690"
+static func server() -> String:
+	return cmdline().get("server", SERVER)
 
 static func cmdline() -> Dictionary:
 	var out := {}

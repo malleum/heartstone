@@ -16,7 +16,7 @@ KEEP_EVERY=900 tools/render.sh renders/ghost_flow 520 -- --ghost=flow >"$out/flo
 HEARTSTONE_WORD=tinker timeout 120 godot --headless --path . -s src/net/server.gd -- --port=24699 >"$out/srv" 2>&1 &
 srv=$!
 sleep 2
-KEEP_EVERY=900 tools/render.sh renders/ghost_online 420 -- --ghost=online >"$out/online" 2>&1
+KEEP_EVERY=900 tools/render.sh renders/ghost_online 420 -- --ghost=online --server=127.0.0.1:24699 >"$out/online" 2>&1
 kill $srv 2>/dev/null
 fail=0
 want() { grep -qE "$2" "$out/$1" || { echo "  FAIL ($1): no '$2'"; fail=1; }; }
@@ -25,12 +25,12 @@ want arms "status guard=true"; want arms "duck=true"
 for w in "cast fireball" "hold dome_of_air" "tie dome_of_air" "ready fireball" "refused no one there to hold" "dodge"; do want weaves "GHOST [0-9]+ $w"; done
 for w in "dream dream_spear" "dream dream_wall" "dream dream_pit" "shift $" "deny $"; do want dream "GHOST [0-9]+ $w"; done
 want dream "GHOST 26[0-9] (dream dream_chains|refused)"; [ "$(grep -cE 'GHOST [0-9]+ shift' "$out/dream")" -ge 3 ] || { echo "  FAIL (dream): fewer than three steps"; fail=1; }
-for w in "tree=true" "menu=true" "sheet=false" "pos=\([0-9.]+, 0.0, -2"; do want camp "$w"; done
+for w in "tree=true" "menu=true" "sheet=false" "pos=\([-0-9.]+, 0.0, -([2-9]|1[0-9])"; do want camp "$w"; done
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.
 for w in "created: Ghost Maiden cls=aiel" "armoury: kit=\[\"sling\"" "appearance: look=novice" "study: dance_of_spears" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done
 want online "GHOST online sync: Ghost Net is kept on"; want online "GHOST flow entered camp_training as Ghost Net \(joined a host\)"
-want srv "SERVER keeps Ghost Net"; want srv "SERVER begins camp_training for Ghost Net in room 'ghosts'"
+want srv "SERVER keeps Ghost Net"; want srv "SERVER begins camp_training for Ghost Net"
 if grep -hE "SCRIPT ERROR|^ERROR" -A2 "$out"/arms "$out"/weaves "$out"/camp "$out"/flow "$out"/online; then fail=1; fi
 [[ $fail -eq 0 ]] && echo "GHOST RESULT: ok" || echo "GHOST RESULT: FAILED"
 rm -rf "$out"

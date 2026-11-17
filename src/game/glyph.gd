@@ -108,3 +108,14 @@ static func bar(ci: CanvasItem, at: Vector2, w: float, h: float, fill: float, co
 	if fw > 1.0:
 		ci.draw_polygon(PackedVector2Array([at + Vector2(sk, 0), at + Vector2(fw + sk, 0), at + Vector2(fw, h), at + Vector2(0, h)]), PackedColorArray([col2, col, col.darkened(0.25), col2.darkened(0.25)]))
 	ci.draw_polyline(PackedVector2Array([at + Vector2(sk, 0), at + Vector2(w + sk, 0), at + Vector2(w, h), at + Vector2(0, h), at + Vector2(sk, 0)]), Color(GOLD, 0.55), 1.2, true)
+
+## The one card every panel and notice is drawn on: near-black glass, a thin rule
+## of colour, small corners. Content goes in as the card's single child.
+static func card(edge := Color(GOLD, 0.35), alpha := 0.86) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new(); sb.bg_color = Color(0.055, 0.055, 0.07, alpha)
+	sb.border_color = edge; sb.set_border_width_all(1); sb.set_corner_radius_all(5)
+	sb.set_content_margin_all(18)
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return p

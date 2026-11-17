@@ -15,7 +15,7 @@ func _process(dt: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	if g == null or g.profile.is_empty():
+	if g == null or g.profile.is_empty() or g.session == null:
 		return
 	# Laid out for a 720-line screen and scaled to whatever it is shown on.
 	var sc := size.y / 720.0

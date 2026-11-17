@@ -14,6 +14,9 @@ var cam: Camera3D
 var cam_yaw := PI
 var cam_pitch := -0.18
 var cam_dist := 3.6
+var cam_off := Vector3(0.6, 0.15, 0.0)   # the shoulder offset (cam_dist is added to z)
+var fov_base := 70.0
+var cam_swing := 0.0          # arriving: the camera starts out in front of you, looking back at the gateway
 var face_yaw := 0.0            # my character faces its travel direction, or the aim while weaving
 var aim_t := 0.0               # seconds left facing the aim after a cast
 var selected := 0
@@ -54,10 +57,15 @@ var holds := {}                   # "caster/weave/target" -> {node, id, weave, t
 
 func _ready() -> void:
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
+	_t0 = Time.get_ticks_msec()
+	previewing = args.has("preview")
+	controlled = not previewing
+	_stamp("scene ready begins")
 	Rules.load_data()
 	Terrain.amp = 0.45
 	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
 	_hud()
+	var pz := preload("res://src/game/pauser.gd").new(); pz.g = self; add_child(pz)
 	var name_: String = args.get("name", "Novice")
 	profile = {} if args.has("tour") else Profile.load_profile(name_)
 	if profile.is_empty():
@@ -99,22 +107,26 @@ func _ready() -> void:
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
-	# Generate the cast before the fight so nothing hitches mid-wave.
-	var specs := []
-	for i in 8:
-		# Sim.ARMS[id % 4] says what each Trolloc carries; with eight variants picked
-		# by id % 8, variant i must carry kind i % 4 for the two to agree.
-		specs.append(Species.roll(Species.TROLLOC, 20 + i, {lod = 1.7, head = ["boar", "wolf", "ram", "hawk", "bear"][i % 5], weapon_kind = i % 4}))
-	# Archers carry a bow (and club with it up close: the sim gives them "club").
-	for i in 2:
-		specs.append(Species.roll(Species.TROLLOC, 40 + i, {lod = 1.7, head = ["wolf", "hawk"][i], weapon_kind = 5}))
-	var out := []; out.resize(specs.size())
-	var id := WorkerThreadPool.add_group_task(func(i: int) -> void: out[i] = Creature.build(specs[i]), specs.size())
-	WorkerThreadPool.wait_for_group_task_completion(id)
-	variants = out.slice(0, 8)
-	archers = out.slice(8)
-	# The Eyeless is one shape: they are all alike.
-	fade = Creature.build(Species.roll(Species.MYRDDRAAL, 7, {lod = 1.2}))
+	# The cast is made in the background from the camp (Cast). Straight in from the
+	# command line it was never started: make it now. Through a doorway, wait for
+	# it without stopping the frame, so the doorway's light keeps moving.
+	# Never leave anyone staring into a doorway's light if the fight fails to appear.
+	get_tree().create_timer(15.0).timeout.connect(func() -> void: Veil.lift(0.5))
+	if Cast.ready_now() or not (Veil.up() or previewing):
+		_begin()
+	else:
+		_awaiting_cast = true
+
+var _awaiting_cast := false
+
+## Everything that needs the cast: the session, and through it the world.
+func _begin() -> void:
+	Cast.wait()
+	_stamp("cast in hand")
+	variants = Cast.trollocs
+	archers = Cast.archers
+	fade = Cast.by_gen.FADE
+	made = Cast.by_gen
 	# The Session lives at /root/Session on every machine (RPCs go by node path).
 	var old := get_tree().root.get_node_or_null("Session")
 	if old:
@@ -128,16 +140,16 @@ func _ready() -> void:
 	session.refused.connect(func(why: String) -> void:
 		last_refusal = why.capitalize(); refusal_t = 1.5
 		if args.has("ghost"): print("GHOST %d refused %s" % [frame, why]))
-	session.rejected.connect(func(why: String) -> void:
-		_done = true
-		banner.text = "Could not join: %s\n\nEnter: back to camp" % why
-		print("GAME rejected: ", why))
+	session.rejected.connect(_offline)
 	if args.has("join"):
-		banner.text = "Reaching %s…" % args.join
 		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""))
+		# ENet can take half a minute to give up on a server that is not there.
+		get_tree().create_timer(6.0).timeout.connect(func() -> void:
+			if not _started and not _done:
+				_offline("no answer from the server"))
 	else:
 		session.host(args.get("activity", "tarwins_gap_watch"), profile)
-	if not args.has("auto") and DisplayServer.get_name() != "headless":
+	if not args.has("auto") and not previewing and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 var weaving := false              # the mouse is held on a weave being made
@@ -145,6 +157,10 @@ var my_form := {}                 # {weave, since, time, ready}: my weave in the
 var spanned := {}                 # crossbow -> clock time it will be spanned again
 
 func _exit_tree() -> void:
+	# Carried out of a camp doorway's world into the main one: not an ending.
+	if moving_worlds:
+		return
+	get_tree().paused = false
 	if is_instance_valid(session):
 		session.queue_free()
 
@@ -154,6 +170,8 @@ func _ground(p: Vector3) -> Vector3:
 # --- input ------------------------------------------------------------------------
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if session == null:
+		return
 	var n_known := maxi(known.size(), 1)
 	if ev is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		cam_yaw -= ev.relative.x * 0.003
@@ -320,6 +338,15 @@ func _aim_point() -> Vector3:
 	return from + dir * 60.0
 
 func _process(dt: float) -> void:
+	if _awaiting_cast:
+		if Cast.ready_now():
+			_awaiting_cast = false
+			_begin()
+		return
+	if session == null:
+		return
+	if frame < 4 or (frame < 400 and dt > 0.1):
+		_stamp("frame %d drawn (dt %.2f s)" % [frame, dt])
 	frame += 1
 	if args.has("ghost"):
 		Ghost.step(args.ghost, frame)
@@ -359,6 +386,10 @@ func _process(dt: float) -> void:
 	else:
 		var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		v += Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
+		# walk_in (a render walking through a camp doorway): keep walking for a
+		# moment after crossing, as a held key would.
+		if args.has("walk_in") and controlled and _walk_t < 2.0:
+			_walk_t += dt; v = Vector2(0, -1)
 		var move := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
 		aim_t -= dt
 		if aim_t <= 0.0 and move.length() > 0.1:
@@ -370,6 +401,8 @@ func _process(dt: float) -> void:
 			aim_t = 0.3
 			if frame % 4 == 0:
 				session.aim(at, weaving)
+		if not controlled:
+			move = Vector3.ZERO
 		session.send_input(move, face_yaw)
 		_predict(move, dt)
 	if args.has("fxdemo"):
@@ -399,20 +432,34 @@ func _process(dt: float) -> void:
 		dp.will = 100.0; dp.shaken = 0.0
 		session.sim.request_dream(session.my_id, order[(frame / 75) % order.size()], at + Vector3(0, 1.2, 0))
 	_draw_actors(dt)
+	if not stand_in.is_empty() and me:
+		# Before the hand-over, the body over here stands exactly where the camp's
+		# is, mapped through the doorway, in the same step of the same stride.
+		me.global_transform = stand_in.xf
+		var ap: AnimationPlayer = me.get_meta("anim") if me.has_meta("anim") else null
+		if ap and ap.has_animation(stand_in.clip):
+			if ap.current_animation != stand_in.clip:
+				ap.play(stand_in.clip)
+			ap.seek(stand_in.at, true)
 	_draw_fx(dt)
-	if me:
+	if me and not previewing:
 		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
 		# looking down the ground at your feet. The shoulder offset keeps the character
 		# off the crosshair.
 		var pivot := me.position + Vector3(0, 1.55, 0)
-		var view := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch)
-		var want := pivot + view * Vector3(0.6, 0.15, cam_dist)
+		var view := Basis(Vector3.UP, cam_yaw + cam_swing) * Basis(Vector3.RIGHT, cam_pitch)
+		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist + cam_swing * 0.6))
 		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
 		# Trauma-squared shake: small hits barely register, big ones kick.
 		shake = maxf(shake - dt * 1.8, 0.0)
 		var k := shake * shake
 		punch = maxf(punch - dt * 5.0, 0.0)
-		cam.fov = 70.0 - 5.0 * punch
+		cam.fov = fov_base - 5.0 * punch
+		if smooth_cam > 0.0:
+			# Just through a camp doorway: keep the camp camera's easing (it trails a
+			# running body a little) and let it go, so there is no jump.
+			smooth_cam -= dt
+			want = cam.position.lerp(want, minf((14.0 if smooth_cam > 0.5 else 30.0) * dt, 1.0))
 		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
@@ -472,9 +519,16 @@ func _tour_go(step: int) -> void:
 
 ## Leaving mid-activity (F10) abandons it: nothing is awarded, nothing is lost.
 func _to_camp() -> void:
+	if _leaving:
+		return
+	_leaving = true
 	multiplayer.multiplayer_peer = null
 	Launch.args = {}
-	get_tree().change_scene_to_file("res://src/game/camp.tscn")
+	# Back the way you came: a gateway's light closes over the fight, and the camp
+	# is made behind it (the camp lifts it).
+	Veil.cover(Color(1.0, 0.85, 0.6), 0.5, func() -> void: get_tree().change_scene_to_file("res://src/game/camp.tscn"))
+
+var _leaving := false
 
 ## Blasts shake the camera by size and nearness.
 func shake_at(at: Vector3, radius: float) -> void:
@@ -484,6 +538,8 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## The ground can only be built once we know which activity (and so which map) this
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
+	_started = true
+	_stamp("session started")
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
 		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
 	Map.use(Rules.activities[activity].get("map", "open"))
@@ -503,7 +559,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 		World.build(self)
 		if activity == "camp_training":
 			Scenery.yard(self)
+	_stamp("terrain, sky, map scenery")
 	Scenery.scatter(self)
+	_stamp("grass and stones")
 	dreaming = Rules.activities[activity].get("dream", false)
 	if dreaming:
 		# Tel'aran'rhiod: the same place, with the colour gone out of it and a light
@@ -559,9 +617,164 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if args.has("tour"):
 		var st: Dictionary = Launch.TOUR[Launch.tour]
 		print("TOUR station %d %s" % [Launch.tour + 1, st.title])
-		tour_label.text = "%d / %d   %s\n%s\n%s: next    %s: back    %s: again    F10: camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title, st.feel, Keys.name(KEY_N), Keys.name(KEY_B), Keys.name(KEY_R)]
+		tour_label.text = "%d / %d   %s\n\n%s\n\n%s next   ·   %s back   ·   %s again   ·   F10 camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title.to_upper(), st.feel, Keys.name(KEY_N), Keys.name(KEY_B), Keys.name(KEY_R)]
+		tour_card.visible = true
 
 var _ally := 0
+
+## Only a game on this machine alone can stop: a shared one runs on for the others.
+func can_pause() -> bool:
+	return not previewing and session != null and session.is_host and not args.has("join") and not _done
+
+# --- the far side of a camp doorway ------------------------------------------------
+# Built in a world of its own while you walk up to the doorway (the camp shows it
+# through the doorway, from where your camera would be on this side), then made
+# the world you are in when your camera passes through: no load, no cut.
+var _walk_t := 0.0
+var smooth_cam := 0.0              # seconds left of the camp's camera easing, carried through a doorway
+var moving_worlds := false        # being taken from the doorway's world into the main one
+var stand_in := {}                 # {xf, clip, at}: the camp's body, shown here until the hand-over
+var previewing := false            # the camp is looking at this world through a doorway
+var controlled := true             # the player's keys move them here
+var hud_layer: CanvasLayer
+var gate_frame := Transform3D()    # this side's doorway: at the ground, -Z the way out
+var _gate: Node3D
+var _env: Environment
+var _look := {}                    # the environment's own tone and glow, put back on arrival
+
+func portal_ready() -> bool:
+	return me != null and _gate != null
+
+## Stand an open gateway at the player's back, clear the ground behind it (the
+## camp's camera looks through from there), and render untoned so the camp's
+## own tone mapping is the only one applied to the view.
+func _portal_side(rig: Node3D) -> void:
+	var fwd := Vector3(sin(rig.rotation.y), 0, cos(rig.rotation.y))
+	var at := rig.position - fwd * 0.6
+	gate_frame = Transform3D(Basis.looking_at(fwd, Vector3.UP), Vector3(at.x, Terrain.height(at.x, at.z), at.z))
+	_gate = Node3D.new(); add_child(_gate); _gate.transform = gate_frame
+	var light := StandardMaterial3D.new(); light.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	light.albedo_color = Color(1.0, 0.95, 0.85)
+	# A gateway is a slit in the air turned open: only its edges show, a line of light.
+	for bar in [[Vector3(-0.95, 1.65, 0), Vector3(0.03, 3.3, 0.03)], [Vector3(0.95, 1.65, 0), Vector3(0.03, 3.3, 0.03)], [Vector3(0, 3.3, 0), Vector3(1.93, 0.03, 0.03)], [Vector3(0, 0.0, 0), Vector3(1.93, 0.03, 0.03)]]:
+		var b := BoxMesh.new(); b.size = bar[1]
+		var mi := MeshInstance3D.new(); mi.mesh = b; mi.material_override = light; mi.position = bar[0]
+		_gate.add_child(mi)
+	var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.9, 0.75); l.light_energy = 1.5; l.omni_range = 6.0; l.position = Vector3(0, 1.6, -0.5)
+	_gate.add_child(l)
+	# Grass and stones behind the gateway would stand between the camp's camera and
+	# the doorway's view: put them away.
+	var inv := gate_frame.affine_inverse()
+	for c in get_children():
+		if c is MultiMeshInstance3D:
+			var mm: MultiMesh = c.multimesh
+			for i in mm.instance_count:
+				var lp: Vector3 = inv * mm.get_instance_transform(i).origin
+				if absf(lp.x) < 3.0 and lp.z > -0.2 and lp.z < 7.0:
+					mm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ONE * 0.001), Vector3(0, -50, 0)))
+	for c in get_children():
+		if c is WorldEnvironment:
+			_env = c.environment
+			_look = {tone = _env.tonemap_mode, glow = _env.glow_enabled}
+			_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+			_env.glow_enabled = false
+
+## The camp's camera, carried through: placed here as it stands relative to the
+## camp's doorway. The near plane is pushed up to just short of the doorway so
+## nothing on the near side of it gets in the picture.
+func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
+	cam.global_transform = xf
+	cam.fov = fov
+	cam.near = maxf(0.05, to_door * 0.6)
+
+## The player's feet have crossed: their keys move them here now, looking the way
+## the camp's camera looks.
+func take_control(yaw: float, pitch: float) -> void:
+	controlled = true
+	stand_in = {}
+	cam_yaw = yaw; cam_pitch = pitch
+	face_yaw = yaw + PI
+
+## The camera has crossed: this is the world now. The camera starts exactly where
+## the camp left it and eases to this game's own framing.
+func enter_world(yaw: float, pitch: float, off: Vector3, fov: float) -> void:
+	smooth_cam = 1.5
+	previewing = false; controlled = true
+	cam_yaw = yaw; cam_pitch = pitch
+	cam.near = 0.05; cam.current = true
+	cam_off = Vector3(off.x, off.y, off.z - cam_dist)
+	fov_base = fov
+	var tw := create_tween().set_parallel()
+	tw.tween_property(self, "cam_off", Vector3(0.6, 0.15, 0.0), 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "fov_base", 70.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if _env:
+		_env.tonemap_mode = _look.tone
+		_env.glow_enabled = _look.glow
+	if hud_layer:
+		hud_layer.visible = true
+		hud.modulate.a = 0.0
+		create_tween().tween_property(hud, "modulate:a", 1.0, 0.8)
+	if not args.has("auto") and DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# The gateway draws shut behind you once you are clear of it.
+	get_tree().create_timer(2.5).timeout.connect(func() -> void:
+		if not is_instance_valid(_gate):
+			return
+		var t2 := create_tween()
+		t2.tween_property(_gate, "scale", Vector3(0.02, 1.0, 1.0), 0.45).set_ease(Tween.EASE_IN)
+		t2.tween_callback(_gate.queue_free))
+
+## Stepping out into the fight: a gateway stands open at your back, the doorway's
+## light lifts off the screen, and the gateway draws shut behind you.
+func _arrive(rig: Node3D) -> void:
+	_stamp("stepping out (preview %s, veil %s)" % [previewing, Veil.up()])
+	if previewing:
+		if _gate == null:
+			_portal_side(rig)
+		return
+	if not Veil.up():
+		return
+	var back := Vector3(-sin(rig.rotation.y), 0, -cos(rig.rotation.y))
+	var g := Weavefx.gate(self, rig.position + back * 0.9, rig.position + back * 0.9 + back)
+	# Seen from the front first, you with the gateway at your back, then the
+	# camera comes round behind you as it closes.
+	cam_swing = PI * 0.9
+	var sw := create_tween()
+	sw.tween_interval(0.9)
+	sw.tween_property(self, "cam_swing", 0.0, 1.6).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	# Only the side facing the player matters; the light fades a moment after.
+	get_tree().create_timer(0.25).timeout.connect(func() -> void: Veil.lift(0.9))
+	get_tree().create_timer(1.6).timeout.connect(func() -> void:
+		if not is_instance_valid(g):
+			return
+		var tw := create_tween().set_parallel()
+		for c in g.get_children():
+			if c is MeshInstance3D:
+				tw.tween_property(c, "scale", Vector3(0.02, 1.0, 1.0), 0.4).set_ease(Tween.EASE_IN)
+			elif c is OmniLight3D:
+				tw.tween_property(c, "light_energy", 0.0, 0.4)
+		tw.chain().tween_callback(g.queue_free))
+var _started := false
+var _t0 := 0
+## --timing: when each part of opening a fight happens, to hunt pauses.
+func _stamp(what: String) -> void:
+	if Launch.cmdline().has("timing"):
+		print("TIMING %6d ms  %s  (since camp: %d)" % [Time.get_ticks_msec() - _t0, what, Time.get_ticks_msec() - Launch.left_camp])
+
+## The server could not be reached, or turned us away: say so, and play the same
+## thing here alone instead of leaving the player at a dead end. Bots and tests
+## (which join on purpose) stop, so a broken server shows up as a failure.
+func _offline(why: String) -> void:
+	if _started or _done:
+		return
+	print("GAME rejected: ", why)
+	if args.has("auto") or args.has("ghost"):
+		_done = true
+		return
+	Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
+	multiplayer.multiplayer_peer = null
+	args.erase("join")
+	session.host(args.get("activity", "tarwins_gap_watch"), profile)
 
 # --- mirroring the sim ----------------------------------------------------------------
 
@@ -589,6 +802,7 @@ func _on_events(list: Array) -> void:
 					if e.id == session.my_id:
 						me = rig
 						banner.text = ""
+						_arrive(rig)
 						if known.has(e.get("weapon", "")):
 							selected = known.find(e.weapon)
 						# Once, and not over a tour station's own instructions.
@@ -1036,9 +1250,6 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 			told.hound = true
 			_banner("Darkhounds: steel barely slows them. Burn them", 5.0)
 	elif row.gen in ["DRAGHKAR", "DREADLORD"]:
-		# Made the first time one is seen (a few seconds of clay), then kept.
-		if not made.has(row.gen):
-			made[row.gen] = Creature.build(Species.roll(Species.DRAGHKAR if row.gen == "DRAGHKAR" else Species.DREADLORD, 11, {lod = 1.3}))
 		var w := Creature.instantiate(made[row.gen])
 		add_child(w)
 		w.teleport(pos, 0.0)
@@ -1396,43 +1607,48 @@ func _draw_fx(_dt: float) -> void:
 
 func _hud() -> void:
 	var layer := CanvasLayer.new(); add_child(layer)
+	hud_layer = layer
+	layer.visible = not previewing
 	hud = Hud.new(); hud.g = self; layer.add_child(hud)
-	banner = Label.new(); layer.add_child(banner)
-	banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	banner.offset_top = 110; banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# The end of a fight: a card in the middle, shown only then.
+	result_card = Glyph.card(Color(Glyph.GOLD, 0.5)); layer.add_child(result_card)
+	result_card.anchor_left = 0.5; result_card.anchor_right = 0.5; result_card.anchor_top = 0.42
+	result_card.offset_left = -300; result_card.offset_right = 300
+	result_card.visible = false
+	banner = Label.new(); result_card.add_child(banner)
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner.add_theme_font_override("font", Glyph.serif())
-	banner.add_theme_font_size_override("font_size", 32)
+	banner.add_theme_font_size_override("font_size", 22)
 	banner.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
-	banner.add_theme_color_override("font_outline_color", Color.BLACK); banner.add_theme_constant_override("outline_size", 8)
-	# --tour: what this station is for, kept on screen.
-	tour_label = Label.new(); layer.add_child(tour_label)
-	tour_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	# Under the name and strength at the top left, in a column narrow enough to
-	# leave the middle of the screen (and the banner) clear.
-	tour_label.offset_left = 30; tour_label.offset_top = 122
-	tour_label.custom_minimum_size = Vector2(470, 0)
+	# --tour: what this station is for, on a card under the name at the top left.
+	tour_card = Glyph.card(Color(Glyph.GOLD, 0.35)); layer.add_child(tour_card)
+	tour_card.offset_left = 24; tour_card.offset_top = 118; tour_card.offset_right = 24 + 460
+	tour_card.visible = false
+	tour_label = Label.new(); tour_card.add_child(tour_label)
 	tour_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tour_label.add_theme_font_override("font", Glyph.serif())
-	tour_label.add_theme_font_size_override("font_size", 17)
-	tour_label.add_theme_color_override("font_color", Color(0.98, 0.9, 0.62))
-	tour_label.add_theme_color_override("font_outline_color", Color.BLACK); tour_label.add_theme_constant_override("outline_size", 7)
+	tour_label.custom_minimum_size = Vector2(430, 0)
+	tour_label.add_theme_font_size_override("font_size", 14)
+	tour_label.add_theme_color_override("font_color", Color(0.86, 0.85, 0.82))
 
+var result_card: PanelContainer
+var tour_card: PanelContainer
 var tour_label: Label
-var _banner_t := 0.0
-func _banner(text: String, secs: float) -> void:
-	banner.text = text; _banner_t = secs
+## A notice at the top right: the first line is its title, the rest its detail.
+func _banner(text: String, secs: float, kind := "info") -> void:
+	var lines := text.split("\n", false, 1)
+	Toast.say(lines[0], lines[1] if lines.size() > 1 else "", kind, maxf(secs, 2.5))
 
 func _draw_hud() -> void:
 	var dt := get_process_delta_time()
 	hurt_t = maxf(hurt_t - dt * 2.5, 0.0)
 	flash_t = maxf(flash_t - dt * 1.4, 0.0)
-	_banner_t -= dt
-	if _banner_t <= 0.0 and not _done:
-		banner.text = ""
 
 var _done := false
 func _on_finished(success: bool, report: Array) -> void:
 	_done = true
+	Toast.clear()
+	result_card.visible = true
 	banner.text = ("The line held.\n\n" if success else "You fell. In the camp you wake, and remember.\n\n") + "\n".join(report)
 	Launch.report = report
 	Launch.last_name = profile.name

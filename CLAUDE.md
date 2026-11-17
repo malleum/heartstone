@@ -84,6 +84,9 @@ working on abilities; the user's rulings there are final).
   Weave visuals are built from `src/game/flowfx.gd` (ribbons, fire ball, shell, rock shard).
 - Dream duels: `src/core/dream.gd`, `data/dream.json`; `--activity=dream_spar --foe=warder`,
   `--dreamdemo[=move,..]` to stage the moves, `tests/dream_duel.gd` for bot-versus-bot numbers.
+- Camp doorways are live portals into a preloaded fight (`camp.gd` `_portal`; see ARCHITECTURE
+  "Doorways you walk through"). `--offline` skips the server; `--timing` prints where opening
+  a fight spends its time. Notices go through `Toast.say`, never text across the screen.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 

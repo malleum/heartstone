@@ -79,15 +79,6 @@ static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, 
 		n.add_child(motes); motes.position = Vector3(0, 1.6, 0.2)
 		(motes.process_material as ParticleProcessMaterial).emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 		(motes.process_material as ParticleProcessMaterial).emission_box_extents = Vector3(0.9, 1.5, 0.1)
-	# The name is cut on two lines above the lintel so neighbouring doorways do
-	# not run into each other; `sub` (why it is closed) sits small beneath it.
-	var t := Label3D.new(); t.text = title.replace(": ", "\n") + ("\n" + sub if sub != "" else ""); t.font = Glyph.serif()
-	t.font_size = 72; t.pixel_size = 0.0075; t.outline_size = 14; t.line_spacing = -8.0
-	t.modulate = Color(0.97, 0.94, 0.88) if lit else Color(0.6, 0.6, 0.66)
-	t.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	t.position = Vector3(0, 4.15, 0.1)
-	t.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	n.add_child(t)
 	return n
 
 ## Build every wall the map says is there (Map.walls), each by its look, so that

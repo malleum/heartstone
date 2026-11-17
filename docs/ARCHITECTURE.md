@@ -139,6 +139,11 @@ any activity ends. Measured pacing with a bot (`tools/test.sh`): 3 flows at ~5 h
 Host-authoritative. Clients send intent (movement, cast requests); the host steps
 the one `Sim` and broadcasts snapshots (unreliable) and events (reliable).
 Single-player is the same path with the host as sole player.
+- **Server only (17 Nov).** Every doorway joins the one game running on the server
+  (`Launch.SERVER`, `--server=` to override); one game at a time, everyone in it,
+  no rooms in the interface. If the server does not answer (camp polls it; a join
+  gives up after 6 s), the fight is played on this machine alone and a notice says
+  so. The old "host and let friends join by address" path is gone from the menus.
 - Profiles live on their owner's machine. The host borrows them to run the rules and
   returns each player's tally; each client awards and saves locally.
 - No anti-cheat by design: friends only.
@@ -322,6 +327,43 @@ peasant/ranger) and drives it with the Universal Animation Library.
   test bench and crowds of background people. Do not use it for players.
 
 ## View (src/game)
+
+### Doorways you walk through (17 Nov; camp.gd `_portal`, game.gd "far side")
+No loading screen and no flash between the camp and a fight. Coming within 10 m of
+an open doorway, the camp instantiates the fight scene inside a `SubViewport` with
+its own `World3D` (`preview` in its args) and shows that viewport on the doorway's
+face, sampled at `SCREEN_UV`, from a camera placed in the fight exactly as the camp's
+camera stands relative to the doorway (`M = gate_frame * door_frame⁻¹`).
+- Until your feet are 0.6 m through, the fight's body for you copies the camp
+  body's transform and animation frame (`stand_in`), so the half of you past the
+  threshold is seen through the doorway in step.
+- Feet through: keys move that body (`take_control`); the camp camera follows it,
+  mapped back.
+- Camera 0.3 m short of the threshold: the fight node is moved out of the
+  SubViewport into the root (`moving_worlds` stops `_exit_tree` ending the session),
+  the camp is removed, the fight's camera is made current where it already is, and
+  it eases from the camp's framing to its own (`enter_world`).
+- In preview the fight renders with linear tone mapping and no glow, so the camp's
+  own tone mapping is applied once; both are restored on arrival.
+- The far side's gateway is only an outline of light (a gateway is a slit in the
+  air); grass and stones behind it are removed, and the far camera's near plane sits
+  just short of the doorway, so nothing on the near side gets in the view.
+- `Map` and `Terrain.amp` are global and the fight sets them while the camp is still
+  walked in, so the camp keeps its own copy (`Map.state()`) and asks its heights and
+  walls through it.
+- Shadowspawn are generated once per run on worker threads (`Cast`), started on
+  arrival in the camp; Draghkar and Dreadlords no longer hitch on first sight.
+- Still costs a ~0.4 s stutter on the camp side when the far world's terrain and
+  grass are built (about 10 m from the doorway). Going back to the camp still uses
+  the doorway light (`Veil`), not a portal.
+
+### Words on screen (17 Nov)
+Nothing is written across the middle of the screen. `Toast.say(title, body, kind)`
+puts a small card at the top right that fades; it lives under the root, so a notice
+raised before a scene change survives it. The camp sheet is built from `_section`,
+`_row`, `_pips` and quiet `_button`s on `Glyph.card`. Doorways have no floating
+names: coming up to one raises a notice. The round's result and the tour notes sit
+on cards. Offline, Escape pauses with nothing on screen (`pauser.gd`).
 `camp.tscn` is the main scene: the hub, and you walk it (same controls as a fight:
 WASD, click to look around, Esc frees the mouse).
 - **Activities are doorways.** `camp.gd` `_doors` stands one stone doorway per row

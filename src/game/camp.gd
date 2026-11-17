@@ -16,8 +16,8 @@ var side: VBoxContainer       # left column: who you are
 var menu: PanelContainer      # Esc: server, friends, quit
 var menu_box: VBoxContainer
 var tree: WeaveTree
-var prompt: Label             # what the doorway in front of you is
-var hint: Label               # the controls, along the bottom
+var _near_id := ""            # the doorway last announced, so it is said once per approach
+static var _hinted := false   # the walking keys have been shown this run
 var make := {}                # creation form widgets
 var creating := false
 var online := {}              # the server this machine uses, if any (user://online.json)
@@ -47,11 +47,15 @@ func _ready() -> void:
 		Launch.args = cl
 		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
 		return
+	# Start making the fight's Shadowspawn now, on other threads, so walking
+	# through a doorway does not wait for them.
+	Cast.begin()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Map.use("open")
 	World.build(self, -32.0, -26.0)
 	Terrain.amp = 0.25
 	add_child(Terrain.build_mesh(120.0, 1.0))
+	_ctx = Map.state()
 	Scenery.scatter(self)
 	Scenery.fire(self, Vector3(6.0, Terrain.height(6.0, 3.0), 3.0))
 	Scenery.camp(self)
@@ -81,6 +85,9 @@ func _ready() -> void:
 		_show_tree(true)
 	elif cl.get("show", "") == "menu":
 		_show_menu(true)
+	# Home from a fight: the doorway's light is still up; let the camp through
+	# once it has been drawn.
+	get_tree().create_timer(0.15).timeout.connect(func() -> void: Veil.lift(0.8))
 
 func _saved() -> Array:
 	var out := []
@@ -92,60 +99,62 @@ func _saved() -> Array:
 			out.append(f.trim_suffix(".json"))
 	return out
 
+var _ctx := {}   # the camp's own ground and walls (Map.state), kept while a doorway's world is built
+
+## The camp's ground and walls, whatever world a doorway is building meanwhile.
+func _height(x: float, z: float) -> float:
+	if _ctx.is_empty() or _pre.is_empty():
+		return Terrain.height(x, z)
+	var other := Map.state()
+	Map.set_state(_ctx)
+	var h := Terrain.height(x, z)
+	Map.set_state(other)
+	return h
+
+func _unblock(p: Vector3) -> Vector3:
+	if _ctx.is_empty() or _pre.is_empty():
+		return Map.unblock(p, 0.45)
+	var other := Map.state()
+	Map.set_state(_ctx)
+	var out := Map.unblock(p, 0.45)
+	Map.set_state(other)
+	return out
+
 func _ground(p: Vector3) -> Vector3:
-	return Vector3(p.x, Terrain.height(p.x, p.z), p.z)
+	return Vector3(p.x, _height(p.x, p.z), p.z)
 
 # --- layout ---------------------------------------------------------------------------
 
 func _ui() -> void:
 	var layer := CanvasLayer.new(); add_child(layer)
-	var theme := Theme.new(); theme.default_font_size = 17
+	var theme := Theme.new(); theme.default_font_size = 16
 	var root := Control.new(); root.theme = theme; layer.add_child(root)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := Label.new(); title.text = "HEARTSTONE"; root.add_child(title)
-	title.add_theme_font_override("font", Glyph.serif())
-	title.add_theme_font_size_override("font_size", 44); title.position = Vector2(36, 16)
-	title.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
-	title.add_theme_color_override("font_outline_color", Color.BLACK); title.add_theme_constant_override("outline_size", 8)
-	side = _column(root, 0.0, 36, 430).get_meta("box")
-	# What the nearest doorway is, low in the middle of the screen.
-	prompt = Label.new(); root.add_child(prompt)
-	prompt.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	prompt.offset_top = -150; prompt.offset_bottom = -70
-	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prompt.add_theme_font_override("font", Glyph.serif()); prompt.add_theme_font_size_override("font_size", 26)
-	prompt.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
-	prompt.add_theme_color_override("font_outline_color", Color.BLACK); prompt.add_theme_constant_override("outline_size", 8)
-	hint = Label.new(); root.add_child(hint)
-	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	hint.offset_top = -44; hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.text = "%s walk   ·   click the world to look around   ·   walk through a doorway to begin   ·   %s weaves or forms   ·   %s hide the sheet   ·   Esc menu" % [Keys.move(), Keys.name(KEY_T), Keys.name(KEY_H)]
-	hint.add_theme_font_size_override("font_size", 15); hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	hint.add_theme_color_override("font_outline_color", Color.BLACK); hint.add_theme_constant_override("outline_size", 5)
+	# Nothing is written across the world itself: who you are is on the left, and
+	# anything else arrives as a notice at the top right (Toast).
+	side = _column(root, 0.0, 24, 384).get_meta("box")
 	tree = WeaveTree.new(); root.add_child(tree); tree.visible = false
 	tree.chosen.connect(func(id: String) -> void:
 		# Changing your mind loses what was worked out so far.
 		profile.study = id; profile.study_done = 0.0
 		Profile.save(profile)
 		_sheet())
-	menu = _column(root, 0.5, -260, 260)
+	menu = _column(root, 0.5, -240, 240)
 	menu_box = menu.get_meta("box")
 	menu.offset_top = 70; menu.offset_bottom = -70
 	menu.visible = false
 
 func _column(root: Control, anchor: float, left: float, right: float) -> PanelContainer:
-	var panel := PanelContainer.new(); root.add_child(panel)
+	var panel := Glyph.card(Color(Glyph.GOLD, 0.28), 0.84); root.add_child(panel)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel.anchor_left = anchor; panel.anchor_right = anchor; panel.anchor_top = 0.0; panel.anchor_bottom = 1.0
-	panel.offset_left = left; panel.offset_right = right; panel.offset_top = 90; panel.offset_bottom = -60
-	var sb := StyleBoxFlat.new(); sb.bg_color = Color(0.05, 0.05, 0.08, 0.8); sb.set_corner_radius_all(6); sb.set_content_margin_all(16)
-	sb.border_color = Color(Glyph.GOLD, 0.35); sb.set_border_width_all(1)
-	panel.add_theme_stylebox_override("panel", sb)
+	panel.offset_left = left; panel.offset_right = right; panel.offset_top = 24; panel.offset_bottom = -24
 	var scroll := ScrollContainer.new(); panel.add_child(scroll)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var v := VBoxContainer.new(); scroll.add_child(v)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 8)
+	v.add_theme_constant_override("separation", 6)
 	panel.set_meta("box", v)
 	return panel
 
@@ -161,11 +170,49 @@ func _text(v: Control, text: String, size := 17, col := Color(0.9, 0.9, 0.92)) -
 		l.add_theme_font_override("font", Glyph.serif())
 	return l
 
+## A row you press: quiet text with a gold edge that lights on hover.
 func _button(v: Control, text: String, on: Callable) -> Button:
 	var b := Button.new(); b.text = text; v.add_child(b)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 15)
+	for st in ["normal", "hover", "pressed"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(1, 1, 1, 0.03) if st == "normal" else (Color(Glyph.GOLD, 0.12) if st == "hover" else Color(Glyph.GOLD, 0.2))
+		sb.border_color = Color(Glyph.GOLD, 0.25 if st == "normal" else 0.7); sb.border_width_left = 2
+		sb.content_margin_left = 10; sb.content_margin_right = 8; sb.content_margin_top = 5; sb.content_margin_bottom = 6
+		sb.set_corner_radius_all(3)
+		b.add_theme_stylebox_override(st, sb)
+	b.add_theme_color_override("font_color", Color(0.88, 0.87, 0.84))
+	b.add_theme_color_override("font_hover_color", Color(0.98, 0.94, 0.85))
 	b.pressed.connect(on)
 	return b
+
+## A heading for a part of the sheet: small gold capitals over a hairline.
+func _section(v: Control, title: String) -> void:
+	var gap := Control.new(); gap.custom_minimum_size.y = 8; v.add_child(gap)
+	var l := Label.new(); l.text = title.to_upper(); v.add_child(l)
+	l.add_theme_font_size_override("font_size", 12); l.add_theme_color_override("font_color", Color(Glyph.GOLD, 0.85))
+	l.add_theme_constant_override("line_spacing", 0)
+	var rule := ColorRect.new(); rule.color = Color(Glyph.GOLD, 0.22); rule.custom_minimum_size.y = 1; v.add_child(rule)
+
+## A name and its value on one line, the value to the right.
+func _row(v: Control, label: String, value: String, col := Color(0.9, 0.89, 0.86)) -> void:
+	var h := HBoxContainer.new(); v.add_child(h)
+	var a := Label.new(); a.text = label; h.add_child(a); a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	a.add_theme_font_size_override("font_size", 15); a.add_theme_color_override("font_color", Color(0.72, 0.72, 0.76))
+	var b := Label.new(); b.text = value; h.add_child(b)
+	b.add_theme_font_size_override("font_size", 15); b.add_theme_color_override("font_color", col)
+
+## A row of pips: how many of `of` are filled, in a colour.
+func _pips(v: Control, label: String, n: int, of: int, col: Color) -> void:
+	var h := HBoxContainer.new(); v.add_child(h)
+	var a := Label.new(); a.text = label; h.add_child(a); a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	a.add_theme_font_size_override("font_size", 15); a.add_theme_color_override("font_color", Color(0.72, 0.72, 0.76))
+	for k in of:
+		var pip := ColorRect.new(); pip.custom_minimum_size = Vector2(14, 8); h.add_child(pip)
+		pip.color = col if k < n else Color(1, 1, 1, 0.08)
+		pip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 func _stand(kind: String, style := {}) -> void:
 	if model:
@@ -232,26 +279,28 @@ func _process(dt: float) -> void:
 		# Making a character: they stand and are looked at.
 		cam.position = cam.position.lerp(_ground(Vector3.ZERO) + Vector3(0.0, 1.35, 3.6), minf(6.0 * dt, 1.0))
 		cam.look_at(_ground(Vector3.ZERO) + Vector3(0.0, 1.0, 0))
-		prompt.text = ""
-		hint.visible = false
 		model.position = _ground(Vector3.ZERO); model.rotation.y = 0.35
 		var idle: AnimationPlayer = model.get_meta("anim")
 		if idle.current_animation != "Idle":
 			idle.play("Idle", 0.15)
 		return
-	hint.visible = true
+	if not _hinted and not cl.has("ghost"):
+		_hinted = true
+		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s weaves and forms · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_T), Keys.name(KEY_H)], "info", 9.0)
 	var move := Vector3.ZERO
 	if not tree.visible and not menu.visible and get_viewport().gui_get_focus_owner() == null:
 		var v := Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
 		v += Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 		move = (Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)).limit_length(1.0)
 	if cl.has("stroll") and int(cl.stroll) < doors.size():
-		var to: Vector3 = doors[int(cl.stroll)].at - pos
+		var to: Vector3 = doors[int(cl.stroll)].at * 1.4 - pos   # on through, not to the sill
 		move = to.normalized()
 		cam_yaw = lerp_angle(cam_yaw, atan2(-move.x, -move.z), 2.0 * dt)
 	var sprint := Input.is_physical_key_pressed(KEY_SHIFT)
+	if _phase == 1:
+		move = Vector3.ZERO     # the body is over there now, moved by the fight
 	if move.length() > 0.1:
-		pos = Map.unblock(pos + move * (7.5 if sprint else 5.0) * dt, 0.45).limit_length(30.0)
+		pos = _unblock(pos + move * (7.5 if sprint else 5.0) * dt).limit_length(30.0)
 		# The doorways' posts are stone: you go between them, not through them.
 		for d in doors:
 			var across := Vector3(d.at.z, 0, -d.at.x).normalized()
@@ -261,6 +310,18 @@ func _process(dt: float) -> void:
 				if off.length() < 0.8 and off.length() > 0.001:
 					pos = post + off.normalized() * 0.8
 		face = atan2(move.x, move.z)
+		if not _pre.is_empty():
+			var A: Transform3D = _pre.A
+			var fwd := -A.basis.z
+			var right := A.basis.x
+			var depth := (pos - A.origin).dot(fwd)
+			# Walking into a doorway draws you to its middle, so you come out of
+			# the far side where the body over there stands.
+			if depth > -3.0 and depth < 0.6 and move.dot(fwd) > 0.2:
+				pos -= right * (pos - A.origin).dot(right) * minf(5.0 * dt, 1.0)
+			# Its far side not made yet: wait on the sill.
+			if not _pre.game.portal_ready() and depth > -0.3:
+				pos -= fwd * (depth + 0.3)
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
 	var ap: AnimationPlayer = model.get_meta("anim")
@@ -270,29 +331,45 @@ func _process(dt: float) -> void:
 	# The same orbit camera as in a fight, a little further back to take in the doorways.
 	var pivot := model.position + Vector3(0, 1.55, 0)
 	var view := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch)
-	var want := pivot + view * Vector3(-1.1, 0.2, 4.6)   # camera to the left: the character stands clear of the sheet
-	want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
+	# Camera to the left, so the character stands clear of the sheet; centred
+	# behind them near a doorway, so it goes through the opening and not the stone.
+	var cx := -1.1
+	if not _pre.is_empty():
+		var depth := (pos - (_pre.A as Transform3D).origin).dot(-(_pre.A as Transform3D).basis.z)
+		cx = lerpf(-1.1, 0.0, clampf((depth + 6.0) / 3.0, 0.0, 1.0))
+	cam_x = move_toward(cam_x, cx, dt * 1.5)
+	var want := pivot + view * Vector3(cam_x, 0.2, 4.6)
+	want.y = maxf(want.y, _height(want.x, want.z) + 0.35)
 	cam.position = cam.position.lerp(want, minf(14.0 * dt, 1.0))
 	cam.basis = view
+	_portal(dt)
 	# Doorways: say what the nearest one is; step into an open one to go.
 	var near := {}
 	for d in doors:
 		if pos.distance_to(d.at) < 5.5 and (near.is_empty() or pos.distance_to(d.at) < pos.distance_to(near.at)):
 			near = d
-	prompt.text = "" if near.is_empty() or tree.visible or menu.visible else "%s\n%s" % [near.name, near.sub]
-	# On the server, a doorway joins whoever is already fighting in your room.
-	if prompt.text != "" and online.get("play", false):
-		for f in fights:
-			if f.room == online.get("room", "").strip_edges().to_lower():
-				prompt.text += "\n%s %s there now: any doorway joins them" % [", ".join(f.players), "is" if f.players.size() == 1 else "are"]
-	if not near.is_empty() and near.open and pos.distance_to(near.at) < 0.9:
-		_enter(near.id)
+	# Coming up to a doorway, say once what it is (and who is fighting there).
+	var nid: String = "" if near.is_empty() or tree.visible or menu.visible else near.id
+	if nid != _near_id:
+		_near_id = nid
+		if nid != "":
+			var body: String = near.sub
+			for f in fights:
+				body += "\n%s %s fighting now: any doorway joins them." % [", ".join(f.players), "is" if f.players.size() == 1 else "are"]
+			Toast.say(near.name, body, "info" if near.open else "warn", 5.0)
 
 func _enter(id: String) -> void:
 	set_process(false)
-	prompt.text = Rules.activities[id].name + "…"
-	# On the server, the first to arrive starts it and friends join the same fight.
-	_go({activity = id, join = online.server, word = online.get("word", ""), room = online.get("room", "")} if online.get("play", false) and online.get("server", "") != "" else {activity = id})
+	# Every fight is on the server: the first to arrive starts it and friends join
+	# the same one. If the server cannot be reached the game says so and plays offline.
+	if reachable or cl.has("ghost"):
+		Toast.say("Joining the server…", "", "info", 3.0)
+		# One game at a time on the server, everyone in it: whichever doorway you
+		# take, you join the fight already running, if there is one.
+		_go({activity = id, join = Launch.server(), word = online.get("word", "")})
+	else:
+		Toast.say("Playing offline", "The server isn't answering, so this fight is on your machine alone.", "warn", 7.0)
+		_go({activity = id})
 
 ## One doorway for every activity, in an arc ahead of where you arrive. Rebuilt
 ## whenever the character changes, since what is open depends on who you are.
@@ -321,8 +398,6 @@ func _doors() -> void:
 		var name_: String = a.name + ("  ✓" if profile.done.has(ids[i]) else "")
 		var node := Scenery.doorway(self, _ground(at), -ang, DOOR_TINT.get(a.kind, Color.WHITE), ids[i] in open, name_, "" if ids[i] in open else "(closed)",
 			{tarwins_gap = 1, wagon_ring = 2}.get(a.get("map", ""), 4 if a.kind == "spar" else 3))
-		# Every other name sits higher, so long names do not run together.
-		(node.get_child(node.get_child_count() - 1) as Node3D).position.y += 1.5 * (i % 2)
 		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub})
 		# Home from an activity: you step back out of its doorway, facing the camp.
 		if not _placed and Launch.last_activity == ids[i]:
@@ -338,7 +413,7 @@ func _doors() -> void:
 ## channelled longer and sends that back, so one character follows you between
 ## machines. Needs a server address and a passphrase; silent when neither is set.
 func _sync(name_: String, local: Dictionary) -> void:
-	if online.get("server", "") == "" or online.get("key", "") == "":
+	if online.get("key", "") == "":
 		return
 	var old := get_tree().root.get_node_or_null("Session")
 	if old:
@@ -354,17 +429,17 @@ func _sync(name_: String, local: Dictionary) -> void:
 			return
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
-		online_note = status if status != "" else "%s is kept on %s" % [kept.name, online.server]
+		online_note = status if status != "" else "%s is kept on the server" % kept.name
 		var newer: bool = not kept.is_empty() and (local.is_empty() or float(kept.seconds) > float(local.seconds))
 		if newer:
 			Profile.save(kept)
-			online_note = "%s came from %s" % [kept.name, online.server]
+			online_note = "%s came from the server" % kept.name
 		if newer or name_.to_lower() == profile.get("name", "").to_lower() or profile.is_empty():
 			_select(kept.name if newer else profile.get("name", ""), false)
 		_menu_fill()
 	s.vaulted.connect(finish)
-	get_tree().create_timer(6.0).timeout.connect(func() -> void: finish.call("no answer from " + online.server, {}))
-	s.vault_sync(online.server, name_, online.key, local, online.get("word", ""))
+	get_tree().create_timer(6.0).timeout.connect(func() -> void: finish.call("no answer from the server", {}))
+	s.vault_sync(Launch.server(), name_, online.key, local, online.get("word", ""))
 
 func _select(name_: String, sync := true) -> void:
 	if name_ == "" or Profile.load_profile(name_).is_empty():
@@ -387,51 +462,57 @@ func _select(name_: String, sync := true) -> void:
 	tree.profile = profile
 	_sheet()
 
-## The left column: who you are and how you have grown.
+## The left column: who you are and how you have grown, in short sections.
 func _sheet() -> void:
 	_clear(side)
-	_text(side, profile.name, 30)
-	_text(side, "%s  ·  %s  ·  %s" % [profile.power.capitalize(), ORIGINS.get(profile.origin, profile.origin), "%d h %02d m channelling" % [int(profile.seconds / 3600.0), int(profile.seconds / 60.0) % 60]], 15, Color(0.7, 0.72, 0.78))
 	var channels: bool = profile.get("cls", "channeller") == "channeller"
+	_text(side, profile.name, 30)
+	var who: String = Rules.cls(profile).name if not channels else ("Channels saidin" if profile.power == "saidin" else "Channels saidar")
+	_text(side, "%s  ·  %s" % [who, ORIGINS.get(profile.origin, profile.origin)], 14, Color(0.68, 0.69, 0.74))
+	_row(side, "Renown", str(int(profile.renown)), Glyph.GOLD)
 	if channels:
-		_text(side, "Strength %s, potential %s\nFlows held at once: %d\nRenown %d" % [Rules.level_name(Rules.level_of(Rules.strength(profile))), Rules.level_name(Rules.level_of(profile.potential)), Rules.flow_capacity(profile), int(profile.renown)])
-		var aff := ""
+		_section(side, "The Power")
+		_row(side, "Strength", Rules.level_name(Rules.level_of(Rules.strength(profile))))
+		_row(side, "Potential", Rules.level_name(Rules.level_of(profile.potential)))
+		_row(side, "Flows held at once", str(Rules.flow_capacity(profile)))
 		for e in Rules.ELEMENTS:
-			aff += "%s %d%%   " % [e.capitalize(), int(profile.affinity[e] * 100.0)]
-		_text(side, aff, 15)
+			_pips(side, e.capitalize(), int(round(profile.affinity[e] * 10.0)), 10, Glyph.TINT.get(e, Glyph.GOLD))
 		if profile.talents.size() > 0:
-			_text(side, "Talents: " + ", ".join(profile.talents.map(func(t: String) -> String: return t.capitalize())), 15)
-		_text(side, "Weaves", 22)
+			_row(side, "Talents", ", ".join(profile.talents.map(func(t: String) -> String: return t.capitalize())))
+		_section(side, "Weaves")
 		for id in profile.weaves:
 			if Rules.weaves.has(id):
-				_text(side, "%s   mastery %d" % [Rules.weaves[id].name, Rules.mastery_level(profile, id)], 15)
+				_row(side, Rules.weaves[id].name, "mastery %d" % Rules.mastery_level(profile, id))
 		var studying: String = profile.get("study", "")
 		if studying != "" and Rules.weaves.has(studying):
-			_text(side, "Working out %s: %d%%" % [Rules.weaves[studying].name, int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, studying))], 15, Color(0.95, 0.85, 0.55))
+			_row(side, "Working out " + Rules.weaves[studying].name, "%d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, studying)), Color(0.95, 0.85, 0.55))
 		elif not Rules.study_options(profile).is_empty():
-			_text(side, "You are not studying a weave. Choose one in the weave tree.", 15, Color(1.0, 0.7, 0.45))
+			_text(side, "Not studying a weave: choose one in the tree.", 13, Color(1.0, 0.7, 0.45))
 		_button(side, "The weaves: what you know and what to study  (T)", func() -> void: _show_tree(true))
 	else:
-		_text(side, "%s\nMight %d   Quickness %d   Endurance %d\nHealth %d   Renown %d" % [Rules.cls(profile).name, Rules.stat(profile, "might"), Rules.stat(profile, "quickness"), Rules.stat(profile, "endurance"), int(Rules.max_hp(profile)), int(profile.renown)])
+		_section(side, "Body")
+		for st in ["might", "quickness", "endurance"]:
+			_pips(side, st.capitalize(), Rules.stat(profile, st), 10, Glyph.GOLD)
+		_row(side, "Health", str(int(Rules.max_hp(profile))))
+		_section(side, "Forms")
 		for id in profile.get("forms", {}):
 			if Rules.forms.has(id):
-				_text(side, Rules.forms[id].name, 15)
+				_row(side, Rules.forms[id].name, "")
 		var learning: String = profile.get("study", "")
 		if learning != "" and Rules.forms.has(learning):
-			_text(side, "Working out %s: %d%%" % [Rules.forms[learning].name, int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, learning))], 15, Color(0.95, 0.85, 0.55))
+			_row(side, "Working out " + Rules.forms[learning].name, "%d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, learning)), Color(0.95, 0.85, 0.55))
 		_button(side, "The forms: what you know and what to study  (T)", func() -> void: _show_tree(true))
-	# What is carried, and the skill of the hand that carries it.
 	if not profile.get("kit", []).is_empty():
-		_text(side, "Arms", 22)
+		_section(side, "Arms")
 		for w in profile.kit:
 			var row: Dictionary = Rules.weapons[w]
-			_text(side, "%s   %s skill %d" % [row.name, row.family, Rules.skill_level(profile, row.family)], 15)
+			_row(side, row.name, "%s skill %d" % [row.family, Rules.skill_level(profile, row.family)])
 	_button(side, "The armoury: change what you carry", _armoury)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
-		_text(side, "Last time out", 22)
-		_text(side, "\n".join(Launch.report), 15, Color(0.95, 0.85, 0.55))
-	_text(side, "Characters", 22)
+		_section(side, "Last time out")
+		_text(side, "\n".join(Launch.report), 14, Color(0.95, 0.85, 0.55))
+	_section(side, "Characters")
 	for n in _saved():
 		if n != profile.name.to_lower():
 			_button(side, n.capitalize(), func() -> void: Launch.report = []; _select(n))
@@ -458,7 +539,7 @@ func _ghost_online() -> void:
 			var p := Profile.create({name = "Ghost Net", potential_pts = 8, affinity_pts = {fire = 4}})
 			p.seconds = 77.0
 			Profile.save(p)
-			online = {server = "127.0.0.1:24699", word = "tinker", key = "ghostpass", room = "ghosts", play = true}
+			online = {word = "tinker", key = "ghostpass"}
 			_select("Ghost Net")
 		90:
 			print("GHOST online sync: %s" % online_note)
@@ -521,59 +602,66 @@ func _ghost_flow() -> void:
 ## Who is on the server now, asked every so often while the camp is open. One
 ## connection at a time: it waits if a character is being exchanged.
 var fights: Array = []
+static var reachable := true   # the server answered the last time it was asked
 var _lobby_t := 0.0
 func _poll_lobby(dt: float) -> void:
 	_lobby_t -= dt
-	if _lobby_t > 0.0 or online.get("server", "") == "" or get_tree().root.get_node_or_null("Session") != null:
+	if _lobby_t > 0.0 or get_tree().root.get_node_or_null("Session") != null:
 		return
 	_lobby_t = 12.0
 	var s := Session.new()
 	get_tree().root.add_child(s)
 	var sid := s.get_instance_id()
-	var done := func(list: Array) -> void:
+	var done := func(list: Array, answered: bool) -> void:
 		var live := instance_from_id(sid) as Session
 		if live == null:
 			return
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
 		fights = list
-		if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Server":
+		# Say once when the server stops (or starts) answering.
+		if answered != reachable and not cl.has("ghost"):
+			if answered:
+				Toast.say("Connected", "The server is answering. Friends can join your fights.", "good")
+			else:
+				Toast.say("Can't reach the server", "Fights will be played offline until it answers.", "warn", 8.0)
+		reachable = answered
+		if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
 			_menu_fill()
-	s.lobby.connect(done)
-	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights))
-	s.ask_lobby(online.server, online.get("word", ""))
+	s.lobby.connect(func(list: Array) -> void: done.call(list, true))
+	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights, false))
+	s.ask_lobby(Launch.server(), online.get("word", ""))
 
 func _lobby_text() -> String:
-	if online.get("server", "") == "":
-		return ""
+	if not reachable:
+		return "The server isn't answering. Fights are played offline."
 	if fights.is_empty():
-		return "Nobody is fighting on %s just now." % online.server
+		return "Nobody is fighting just now."
 	var lines := []
 	for f in fights:
-		lines.append("%s: %s, %d:%02d in%s" % [", ".join(f.players), Rules.activities.get(f.activity, {}).get("name", f.activity), int(f.t) / 60, int(f.t) % 60, "  (room '%s')" % f.room if f.room != "" else ""])
-	return "On %s now:\n%s" % [online.server, "\n".join(lines)]
+		lines.append("%s: %s, %d:%02d in" % [", ".join(f.players), Rules.activities.get(f.activity, {}).get("name", f.activity), int(f.t) / 60, int(f.t) % 60])
+	return "\n".join(lines)
 
 ## Esc: the things that are not places. The server (where friends on different
 ## networks meet, and where characters are kept), joining a friend directly, quitting.
 func _menu_fill() -> void:
 	_clear(menu_box)
-	_text(menu_box, "Server", 24)
-	_text(menu_box, "A server lets friends on different networks play together with no VPN, and keeps your character so it follows you to any machine. The passphrase is yours alone and guards your character; the word is the one the server's owner gave everyone.", 14, Color(0.7, 0.72, 0.78))
+	_text(menu_box, "Heartstone", 28)
+	_section(menu_box, "Playing now")
+	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8) if reachable else Color(1.0, 0.7, 0.45))
+	_section(menu_box, "Your place on the server")
+	_text(menu_box, "Every fight is held on the server, so friends anywhere can join. Your character is kept there too, guarded by your passphrase.", 13, Color(0.66, 0.67, 0.72))
 	var fields := {}
-	for f in [["server", "server address, e.g. joshammer.com"], ["word", "the server's word (if it has one)"], ["key", "your passphrase (four letters or more)"], ["room", "room: a name your group agrees on (blank: with everyone)"]]:
+	for f in [["word", "the server's word"], ["key", "your passphrase (four letters or more)"]]:
 		var e := LineEdit.new(); e.placeholder_text = f[1]; e.text = online.get(f[0], ""); menu_box.add_child(e)
 		e.secret = f[0] in ["word", "key"]
 		fields[f[0]] = e
-	var play := CheckBox.new(); play.text = "Doorways lead to the server (friends join the same fight)"; menu_box.add_child(play)
-	play.button_pressed = online.get("play", false)
 	var keep := func() -> void:
 		for f in fields:
 			online[f] = fields[f].text.strip_edges()
-		online.play = play.button_pressed
 		FileAccess.open(ONLINE, FileAccess.WRITE).store_string(JSON.stringify(online))
-	play.toggled.connect(func(_on: bool) -> void: keep.call())
-	_button(menu_box, "Save, and send this character to the server", func() -> void:
-		keep.call(); online_note = "asking %s…" % online.server
+	_button(menu_box, "Save, and keep this character on the server", func() -> void:
+		keep.call(); online_note = "asking the server…"
 		_sync(profile.get("name", ""), profile)
 		_menu_fill())
 	var want := LineEdit.new(); want.placeholder_text = "name of a character kept on the server"; menu_box.add_child(want)
@@ -581,23 +669,17 @@ func _menu_fill() -> void:
 		keep.call()
 		var who: String = want.text.strip_edges()
 		if who != "":
-			online_note = "asking %s…" % online.server
+			online_note = "asking the server…"
 			_sync(who, Profile.load_profile(who))
 			_menu_fill())
 	if online_note != "":
-		_text(menu_box, online_note, 14, Color(0.95, 0.85, 0.55))
-	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8))
-	_text(menu_box, "Friends, without a server", 24)
-	_text(menu_box, "With the box above unticked, walking through a doorway hosts that activity on this machine: friends join you by address (UDP port 24690, or a VPN such as Tailscale).", 14, Color(0.7, 0.72, 0.78))
-	var addr := LineEdit.new(); addr.placeholder_text = "friend's address"; menu_box.add_child(addr)
-	_button(menu_box, "Join a friend", func() -> void:
-		if addr.text.strip_edges() != "" and not profile.is_empty():
-			_go({join = addr.text.strip_edges()}))
-	_text(menu_box, "", 8)
+		_text(menu_box, online_note, 13, Color(0.95, 0.85, 0.55))
+	_section(menu_box, "")
 	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
 	_button(menu_box, "Quit", get_tree().quit)
 
 func _go(extra: Dictionary) -> void:
+	Launch.left_camp = Time.get_ticks_msec()
 	var s := get_tree().root.get_node_or_null("Session")
 	if s:
 		multiplayer.multiplayer_peer = null
@@ -898,3 +980,133 @@ func _create() -> void:
 	Profile.save(p)
 	Launch.report = []
 	_select(name_)
+
+# --- doorways you can see through --------------------------------------------------
+# Coming up to an open doorway, its fight is built in a world of its own (a
+# SubViewport) and shown on the doorway from where the camera would stand over
+# there. Your feet crossing hands your body to that fight; your camera crossing
+# makes that world the one you are in. Nothing loads at the threshold.
+var _pre := {}       # {door, vp, game, A (this side's frame), mat, live}
+var _phase := 0      # 0 looking through, 1 your feet are through
+var cam_x := -1.1    # the camera's sideways offset (eases to 0 near a doorway)
+
+## This side of a doorway: at its sill, -Z the way through (away from the camp).
+func _door_frame(d: Dictionary) -> Transform3D:
+	var f: Vector3 = (d.at as Vector3).normalized()
+	return Transform3D(Basis.looking_at(f, Vector3.UP), _ground(d.at))
+
+func _door_mat(d: Dictionary) -> ShaderMaterial:
+	for c in (d.node as Node).find_children("*", "MeshInstance3D", true, false):
+		if (c as MeshInstance3D).material_override is ShaderMaterial:
+			return (c as MeshInstance3D).material_override
+	return null
+
+func _open_way(d: Dictionary) -> void:
+	_close_way()
+	var vp := SubViewport.new(); vp.own_world_3d = true; vp.use_hdr_2d = true
+	vp.size = get_viewport().get_visible_rect().size
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	# One game at a time on the server, everyone in it: whichever doorway you take
+	# joins the fight already running, if there is one. Offline if it won't answer.
+	var a := {activity = d.id, name = profile.name, preview = "1"}
+	if (reachable or cl.has("ghost")) and not cl.has("offline"):
+		a.join = Launch.server(); a.word = online.get("word", "")
+	if cl.has("stroll"):
+		a.walk_in = "1"
+	Launch.args = a
+	Launch.last_activity = d.id
+	Launch.report = []
+	Launch.left_camp = Time.get_ticks_msec()
+	var g: Node3D = load("res://src/game/game.tscn").instantiate()
+	vp.add_child(g)
+	_pre = {door = d, vp = vp, game = g, A = _door_frame(d), mat = _door_mat(d), live = 0.0}
+	if _pre.mat:
+		_pre.mat.set_shader_parameter("view", vp.get_texture())
+		_pre.mat.set_shader_parameter("live", 0.0)
+
+func _close_way() -> void:
+	if _pre.is_empty():
+		return
+	if _pre.mat:
+		_pre.mat.set_shader_parameter("live", 0.0)
+	multiplayer.multiplayer_peer = null
+	_pre.vp.queue_free()
+	_pre = {}
+	# Its world set the shared ground and walls to its own: put the camp's back.
+	Map.set_state(_ctx)
+
+func _dyaw() -> float:
+	return (_pre.game.gate_frame as Transform3D).basis.get_euler().y - (_pre.A as Transform3D).basis.get_euler().y
+
+## Each frame, after the camp's camera has moved.
+func _portal(dt: float) -> void:
+	if _phase == 0:
+		var best := {}
+		for d in doors:
+			if d.open and pos.distance_to(d.at) < 10.0 and (best.is_empty() or pos.distance_to(d.at) < pos.distance_to(best.at)):
+				best = d
+		if not _pre.is_empty() and pos.distance_to(_pre.door.at) > 13.0:
+			_close_way()
+		if _pre.is_empty() and not best.is_empty():
+			_open_way(best)
+	if _pre.is_empty():
+		return
+	var g: Node3D = _pre.game
+	_pre.vp.size = get_viewport().get_visible_rect().size
+	if not g.portal_ready():
+		return
+	_pre.live = move_toward(_pre.live, 1.0, dt * 2.5)
+	if _pre.mat:
+		_pre.mat.set_shader_parameter("live", _pre.live)
+	var A: Transform3D = _pre.A
+	var M: Transform3D = g.gate_frame * A.affine_inverse()
+	var fwd := -A.basis.z
+	var cam_in := (cam.global_position - A.origin).dot(fwd)
+	g.drive_camera(M * cam.global_transform, cam.fov, absf(cam_in))
+	var feet_in := (pos - A.origin).dot(fwd)
+	if _phase == 0:
+		# The body over there is the camp's, mapped through: the half of you past
+		# the threshold is seen through the doorway, in step.
+		var ap: AnimationPlayer = model.get_meta("anim")
+		g.stand_in = {xf = M * model.global_transform, clip = ap.current_animation, at = ap.current_animation_position}
+		# Only once you reach the threshold: further back it would stand between the
+		# far camera and the doorway's view.
+		g.me.visible = feet_in > -0.6
+		if feet_in > 0.6:
+			# Your feet are through: the body over there is yours now.
+			_phase = 1
+			g.me.visible = true
+			model.visible = false
+			side.get_parent().get_parent().visible = false
+			g.take_control(cam_yaw + _dyaw(), cam_pitch)
+	else:
+		# The camera follows the body over there, mapped back to this side; mouse
+		# look stays here until the camera is through too.
+		var back: Vector3 = M.affine_inverse() * (g.me.position as Vector3)
+		pos = Vector3(back.x, 0, back.z)
+		g.cam_yaw = cam_yaw + _dyaw(); g.cam_pitch = cam_pitch
+		# Swapped a hair before the camera reaches the threshold: one frame drawn past
+		# it would show the camp's own far side.
+		if cam_in > -0.3:
+			set_process(false)
+			_swap.call_deferred()
+
+## The camera is through: the far world becomes the one you are in, the camera
+## exactly where it was, and the camp goes.
+func _swap() -> void:
+	var g: Node3D = _pre.game
+	var A: Transform3D = _pre.A
+	var M: Transform3D = g.gate_frame * A.affine_inverse()
+	g.drive_camera(M * cam.global_transform, cam.fov, 0.1)
+	var yaw := cam_yaw + _dyaw()
+	g.moving_worlds = true
+	_pre.vp.remove_child(g)
+	var tree := get_tree()
+	var root := tree.root
+	root.remove_child(self)    # the camp's sky and sun leave with it
+	root.add_child(g)
+	tree.current_scene = g
+	g.moving_worlds = false
+	g.enter_world(yaw, cam_pitch, Vector3(cam_x, 0.2, 4.6), cam.fov)
+	queue_free()
