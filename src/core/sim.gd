@@ -898,7 +898,8 @@ func _step_battle() -> void:
 			p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
 			p.pos = _base(p.team) + Vector3(rng.randf_range(-2.0, 2.0), 0, 0)
 			p.safe_until = t + 2.0
-			p.burn = 0.0; p.stagger = 0.0; p.down = 0.0
+			p.burn = 0.0; p.stagger = 0.0; p.down = 0.0; p.wound = 0.0
+			events.append({e = "wound", id = id, to = id, w = 0.0})
 			events.append({e = "returned", id = id, lost = 0, strength = Rules.level_of(Rules.strength(p.profile))})
 			events.append(_intro(p))
 	var goal := int(battle.get("kills", 10))
@@ -957,7 +958,8 @@ func _return_dead() -> void:
 		p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
 		p.pos = Vector3(rng.randf_range(-2.0, 2.0), 0, rng.randf_range(2.0, 4.0))
 		p.safe_until = t + 2.0
-		p.burn = 0.0; p.stagger = 0.0; p.down = 0.0
+		p.burn = 0.0; p.stagger = 0.0; p.down = 0.0; p.wound = 0.0
+		events.append({e = "wound", id = id, to = id, w = 0.0})
 		events.append({e = "returned", id = id, lost = lost, strength = Rules.level_of(Rules.strength(p.profile))})
 		events.append(_intro(p))
 
@@ -1098,7 +1100,8 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	_gaze(p)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
-		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, p.max_hp)
+		# Rest mends bruises, not wounds: those wait for a Healer.
+		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, maxf(p.max_hp - p.get("wound", 0.0), p.hp))
 	# Forming a weave takes concentration: you move at half speed while doing it.
 	p.guard = t - p.parry_at <= Rules.TUNE.parry_window
 	var slow: float = Rules.TUNE.form_slow if not p.forming.is_empty() else 1.0
@@ -1483,6 +1486,9 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					events.append({e = "revived", id = best.id, healed = true})
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
 				best.fester = 0.0
+				# Healing closes wounds, as rest cannot.
+				best.wound = maxf(best.get("wound", 0.0) - b.heal * k * 1.5, 0.0)
+				events.append({e = "wound", id = best.id, to = best.id, w = best.wound / best.max_hp})
 				events.append({e = "heal", id = best.id})
 		"sever":
 			# Held between them and the Source for as long as you hold it, or until
@@ -1703,6 +1709,13 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		e.hp = 0.0
 	else:
 		e.hp -= dmg
+		# A share of every real hurt is a wound: it stays until Healed, and rest
+		# cannot mend past it (bruises mend; cuts and burns wait for a Healer).
+		if e.kind == "player" and dmg > 0.0 and weave != "dream":
+			var w0: float = e.get("wound", 0.0)
+			e.wound = minf(w0 + dmg * 0.3, e.max_hp * 0.6)
+			if int(e.wound * 50.0 / e.max_hp) != int(w0 * 50.0 / e.max_hp):
+				events.append({e = "wound", id = e.id, to = e.id, w = e.wound / e.max_hp})
 		# In a round a player goes down before they die, and a friend can bring them
 		# back. Balefire leaves nothing to bring back.
 		if e.hp <= 0.0 and e.kind == "player" and round_mode and weave != "balefire" and not e.get("finishing", false):

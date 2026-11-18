@@ -122,3 +122,10 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    look away (0.75 s for fighters). Too harsh against a Fade that circles you?
 7. (18 Nov) Healing a friend who is down brings them back up at once with the
    Healing's amount of health.
+8. (18 Nov) Arms: a blow struck running toward them lands 20% harder; a blow asked for
+   while rolling toward where you aim comes out of the roll 30% harder. Swords,
+   knives, axes and spears leave Trollocs bleeding (a fifth of the blow again over
+   4 s). Throwing axes: three, heavy, short range, a hit staggers.
+9. (18 Nov) Wounds: 30% of every hurt stays as a wound (up to 60% of your health),
+   shown as the dark end of the health bar; rest only mends up to it; Healing closes
+   it; dying clears it. Too punishing without a Healer in the party?

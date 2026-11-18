@@ -90,6 +90,13 @@ func _draw() -> void:
 	# Health and stamina.
 	var bx := 30.0; var by := H - 74.0
 	Glyph.bar(self, Vector2(bx, by), 330, 16, hp, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
+	# Wounds: the end of the bar rest cannot refill, until someone Heals you.
+	if g.my_wound > 0.01:
+		var ww := 330.0 * clampf(g.my_wound, 0.0, 1.0)
+		draw_rect(Rect2(bx + 330.0 - ww, by, ww, 16), Color(0.12, 0.02, 0.02, 0.85))
+		for i in int(ww / 8.0):
+			draw_line(Vector2(bx + 330.0 - ww + i * 8.0, by + 16), Vector2(bx + 330.0 - ww + i * 8.0 + 6.0, by), Color(0.45, 0.08, 0.06, 0.8), 1.0)
+		Glyph.text(self, sans, Vector2(bx + 352, by - 2), "wounded", 11, Color(0.85, 0.45, 0.4))
 	Glyph.text(self, sans, Vector2(bx + 352, by + 14), "%d" % int(maxf(g.my_hp, 0.0)), 15, Color(1, 0.9, 0.88))
 	var st: float = g.my_stamina / Rules.TUNE.stamina
 	Glyph.bar(self, Vector2(bx - 6, by + 24), 330, 9, st, Color(0.85, 0.9, 1.0), Color(0.35, 0.5, 0.85))

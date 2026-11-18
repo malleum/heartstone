@@ -248,7 +248,8 @@ Bare hands
 - [ ] Renown and activities that suit fighters (hold the breastwork, guard the
       Aes Sedai, a duel in the yard).
 - [x] Sparring between a fighter and a channeller in Tel'aran'rhiod (dream moves and Will; blows and weaves scaled down between players).
-- [ ] Wounds that last until Healed, so a Healer matters to fighters.
+- [x] Wounds that last until Healed (18 Nov: 30% of each hurt is a wound, up to 60%
+      of health; rest cannot mend past it; Healing closes it), so a Healer matters.
 
 ## Sources for weapons and forms
 The names above are from the books (the sword forms from Rand's and Lan's fights,

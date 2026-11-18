@@ -1710,6 +1710,9 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id and frame - _gaze_said > 900:
 					_gaze_said = frame
 					_banner("The Eyeless gaze\nFear grips you while you meet its stare: weaving comes slowly. Look away.", 4.0, "shadow")
+			"wound":
+				if e.id == session.my_id:
+					my_wound = float(e.w)
 			"prop_out":
 				if not session.is_host and e.index < Map.trees().size():
 					Map.trees()[e.index].out = true
@@ -1756,6 +1759,7 @@ func _on_events(list: Array) -> void:
 				_banner(("They come from every side" if Map.m.get("around", false) else "A wave comes down the pass") if e.left > 0 else "The last of them", 3.0)
 
 var my_team := 0
+var my_wound := 0.0            # share of my health held back by wounds until Healed
 var _gaze_said := -9999
 var in_battle := false
 

@@ -1175,6 +1175,17 @@ func _rounds() -> void:
 	run(rn, 0.6)
 	check(not rp2.swing.is_empty() or rn.tallies[rnp].blows.get("sword", 0) >= 2, "and comes out of it")
 
+	# Wounds: rest cannot mend them; Healing does.
+	var wds := Sim.new("practice", 101)
+	wds._waves = [{t = 999.0, spawn = {}}]
+	var wd1 := wds.add_player(Profile.create({name = "Wounded", power = "saidin"}))
+	var wde: Dictionary = wds.ents[wd1]
+	wds._hurt(wde, 60.0, 0, "")
+	var cap: float = wde.max_hp - wde.wound
+	check(wde.wound > 10.0, "a hurt leaves a wound")
+	run(wds, 120.0)
+	check(wde.hp <= cap + 0.01 and wde.hp > cap - 5.0, "rest mends up to the wound and no further (%.0f of %.0f)" % [wde.hp, wde.max_hp])
+
 	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
 	var gzs := Sim.new("practice", 98)
 	gzs._waves = []
