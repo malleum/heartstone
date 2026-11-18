@@ -1324,6 +1324,11 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 				dmg *= 1.0 - float(e.row.guards)
 				on = {}
 				events.append({e = "blocked", id = e.id, pos = _feet(e) + Vector3(0, 1.3, 0) + from.normalized() * 0.5})
+	# Mail and lacquered scale turn a cut; a point finds the gaps.
+	if in_hand and e.kind == "enemy" and e.row.has("armour"):
+		var mv: String = ents[by].get("swing", {}).get("move", "")
+		if Rules.moves.get(mv, {}).get("trail", "") != "lance":
+			dmg *= 1.0 - float(e.row.armour)
 	if on.has("stagger"):
 		e.stagger = maxf(e.stagger, on.stagger)
 		if e.kind == "player":

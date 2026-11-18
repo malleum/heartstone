@@ -182,7 +182,7 @@ Bare hands
 - [~] Staff spin (the quarterstaff's heavy, built); spear held to keep them off (set against a charge): not yet
 - [~] Bleeding from cuts (18 Nov: an edged blow leaves a fifth of its damage again
       over four seconds); staggers from blunt blows (weapon impact, built); armour
-      that turns cuts but not thrusts: not yet
+      that turns cuts but not thrusts (18 Nov: the bandleader 30%, the Myrddraal 35%)
 - [x] **Sword forms** as learned special moves on the bar with cooldowns, in a
       tree like the weave tree: Parting the Silk, The Boar Rushes Down the
       Mountain, Heron Wading in the Rushes, Apple Blossoms in the Wind, The

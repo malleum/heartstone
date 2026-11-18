@@ -1200,6 +1200,21 @@ func _rounds() -> void:
 	var fa_ev := run(fas, 3.0)
 	check(fas.patches.any(func(q: Dictionary) -> bool: return q.kind == "fire"), "a fire arrow sets the grass it falls in alight (%s / %s / %s)" % [eq_why, sh_why, fa_ev.slice(0, 10)])
 
+	# Armour turns a cut but not a thrust.
+	var ars := Sim.new("practice", 103)
+	ars._waves = []
+	var arp := ars.add_player(Profile.create({name = "Pointer", cls = "warder", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["sword"]}), Vector3.ZERO)
+	ars._add_enemy("myrddraal", Vector3(0, 0, 1.5))
+	var are: Dictionary = ars.ents[arp + 1]
+	are.hp = 9999.0; are.max_hp = 9999.0; are.row = are.row.duplicate(); are.row.erase("evades")
+	ars.ents[arp].swing = {move = "cut"}
+	ars._wound(are, 100.0, arp, "sword", {}, Vector3(0, 0, 1))
+	var after_cut: float = 9999.0 - are.hp
+	ars.ents[arp].swing = {move = "thrust"}
+	ars._wound(are, 100.0, arp, "sword", {}, Vector3(0, 0, 1))
+	var after_thrust: float = 9999.0 - are.hp - after_cut
+	check(after_cut < 80.0 and after_thrust > 95.0, "armour turns a cut (%.0f) but not a thrust (%.0f)" % [after_cut, after_thrust])
+
 	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
 	var gzs := Sim.new("practice", 98)
 	gzs._waves = []

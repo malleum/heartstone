@@ -197,7 +197,8 @@ are what the 4:44 review, or the next session, should pick up.
 - [x] Darkhounds, Draghkar and Dreadlords (15 Nov): see ARCHITECTURE "More
   Shadowspawn" and PLAYTEST 62 to 64. Not made: Gholam, Grey Men, Forsaken.
 - [x] Trolloc archers carry bows (done earlier). The Myrddraal's gaze grips with
-  fear (18 Nov: weaving slows while you meet it). Still no separate hanging cloak. The wagon ring was lost by a two-bot party.
+  fear (18 Nov: weaving slows while you meet it). Its cloak hangs from the chest
+  and stays still in any wind, as canon has it. The wagon ring was lost by a two-bot party.
 - [x] Stamina starts full each activity: kept, since every fight is a fresh round now.
 
 - 2026-11-18, asked by the user:

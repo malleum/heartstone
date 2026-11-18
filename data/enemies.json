@@ -9,7 +9,7 @@
       {"kind": "sweep", "arms": ["spear"], "height": "high", "arc": 70, "time": 1.0, "dmg": 0.5, "reach": 1.2, "on": {"push": 6}},
       {"kind": "chop", "arms": ["club"], "height": "over", "arc": 26, "time": 1.25, "dmg": 1.1, "reach": 0.95, "on": {"stagger": 0.5}},
       {"kind": "thrust", "arms": ["club"], "height": "mid", "arc": 30, "time": 0.8, "dmg": 0.45, "reach": 0.9, "on": {"push": 7}}], "radius": 0.75, "tier": 1, "gen": "TROLLOC"},
-  "trolloc_brute": {"name": "Trolloc bandleader", "hp": 320, "guards": 0.65, "speed": 3.22, "damage": 34, "reach": 2.7, "attack_time": 1.5, "attacks": [
+  "trolloc_brute": {"name": "Trolloc bandleader", "hp": 320, "guards": 0.65, "armour": 0.3, "speed": 3.22, "damage": 34, "reach": 2.7, "attack_time": 1.5, "attacks": [
       {"kind": "sweep", "arms": ["scythe"], "height": "high", "arc": 75, "time": 1.15, "dmg": 0.85, "reach": 1.0, "on": {"push": 3}},
       {"kind": "chop", "arms": ["scythe"], "height": "over", "arc": 30, "time": 1.0, "dmg": 1.0, "reach": 1.0, "on": {"stagger": 0.2}},
       {"kind": "chop", "arms": ["axe"], "height": "over", "arc": 28, "time": 1.15, "dmg": 1.05, "reach": 1.0, "on": {"stagger": 0.35}},
@@ -28,7 +28,7 @@
       {"kind": "chop", "arms": ["club"], "height": "over", "arc": 26, "time": 1.25, "dmg": 1.1, "reach": 0.95, "on": {"stagger": 0.5}},
       {"kind": "thrust", "arms": ["club"], "height": "mid", "arc": 30, "time": 0.8, "dmg": 0.45, "reach": 0.9, "on": {"push": 7}}], "radius": 0.75, "tier": 1, "gen": "TROLLOC",
     "ranged": {"range": 34, "keep": 18, "time": 2.6, "dmg": 16, "speed": 36, "gravity": 7}},
-  "myrddraal": {"name": "Myrddraal", "hp": 280, "speed": 6.2, "damage": 30, "reach": 2.5, "attack_time": 0.8, "radius": 0.5, "tier": 3, "gen": "FADE",
+  "myrddraal": {"name": "Myrddraal", "hp": 280, "armour": 0.35, "speed": 6.2, "damage": 30, "reach": 2.5, "attack_time": 0.8, "radius": 0.5, "tier": 3, "gen": "FADE",
     "attacks": [{"kind": "thrust", "height": "mid", "arc": 18, "time": 1.0, "dmg": 1.0, "reach": 1.2}, {"kind": "sweep", "height": "high", "arc": 60, "time": 0.9, "dmg": 0.9, "reach": 1.0}],
     "evades": 0.5, "steady": true, "links": true, "fester": {"secs": 10, "dps": 3},
     "stalk": 6.0, "lunge": {"min": 4.0, "max": 11.0, "wind": 0.7, "speed": 22, "dist": 12.0, "dmg": 1.5, "open": 1.3},
