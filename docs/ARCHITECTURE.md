@@ -479,6 +479,9 @@ outlasts it.
   down, or 15 s with nobody, kills; balefire kills outright. The dead come back
   with the next wave, potential and strength fallen 1d6 levels (`Round.weaken`).
   Bots go to downed friends first.
+- **Balefire** burns its victim's last moments out of the Pattern (`Sim._unmake`):
+  whatever it harmed in the last 5 s (times the weaver's reach) stands again as it
+  was, the dead included. Harm is kept for 20 s in `Sim.ledger` for this.
 - **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
   one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
 - **Characters and loadouts** (`Profile.make`, camp `_loadout`, `_retrain`, `_unlocks`).

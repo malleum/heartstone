@@ -24,6 +24,7 @@ var round_mode := false  # a round (see Round): everyone grows during it, from f
 var team_level := 1
 var team_xp := 0.0
 var _endless_won := false
+var ledger: Array = []   # recent harm: {t, by, on, dmg, hp, downed}; balefire undoes it
 var df_mode := false     # a Darkfriend round: one or two players may secretly serve the Shadow
 var _df_assigned := false
 
@@ -479,6 +480,8 @@ func step(dt: float) -> void:
 	for id in ents:
 		if ents[id].get("bot", false) and ents[id].alive:
 			Bot.drive(self, id)
+	if not ledger.is_empty() and ledger[0].t < t - 20.0:
+		ledger = ledger.filter(func(h: Dictionary) -> bool: return h.t >= t - 20.0)
 	if df_mode and not _df_assigned and t >= Round.DF_ASSIGN_T:
 		_assign_darkfriends()
 	while not _waves.is_empty() and _waves[0].t <= t:
@@ -599,6 +602,36 @@ func request_df_gate(id: int) -> String:
 		ents[k].df_side = true
 	events.append({e = "df_gate", pos = at, yaw = p.yaw})
 	return ""
+
+## Balefire burns a thread out of the Pattern backwards: what it did in the last few
+## seconds (longer from a stronger weaver) never happened. Those it killed stand
+## again; what it did to the living is undone.
+func _unmake(e: Dictionary, by: int) -> void:
+	var src: Dictionary = ents.get(by, {})
+	var back: float = Rules.TUNE.balefire_back * (Rules.reach(src.profile, "balefire", src.stamina) if src.get("kind", "") == "player" else 1.0)
+	var undone := {}
+	for h in ledger:
+		if h.by != e.id or h.t < t - back:
+			continue
+		var o: Dictionary = ents.get(h.on, {})
+		if o.is_empty():
+			continue
+		if not undone.has(o.id):
+			undone[o.id] = h    # the earliest harm in the window: how they stood before it
+	for oid in undone:
+		var o: Dictionary = ents[oid]
+		var h: Dictionary = undone[oid]
+		var was_dead: bool = not o.alive
+		o.alive = true
+		o.hp = maxf(h.hp, 1.0)
+		o.downed = h.downed and o.get("downed", false)
+		o.return_next = false
+		o.burn = 0.0; o.fester = 0.0
+		events.append({e = "unmade", id = oid, dead = was_dead})
+		if was_dead:
+			events.append(_intro(o))
+	ledger = ledger.filter(func(h: Dictionary) -> bool: return h.by != e.id)
+	events.append({e = "balefire_unmade", id = e.id, n = undone.size()})
 
 func _finish(ok: bool) -> void:
 	over = true; success = ok
@@ -1240,6 +1273,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		e.barrier -= soak; dmg -= soak
 		if e.barrier <= 0.0:
 			release(e.id, "dome_of_air")
+	# What each did, a few seconds back: balefire can burn it out of the Pattern.
+	if by != 0 and dmg > 0.0:
+		ledger.append({t = t, by = by, on = e.id, dmg = minf(dmg, maxf(e.hp, 0.0) + (e.get("down_hp", 0.0) if e.get("downed", false) else 0.0)), hp = e.hp, downed = e.get("downed", false)})
 	if e.get("downed", false):
 		# Already down: what lands now comes off what is left, half a body more.
 		e.down_hp -= dmg
@@ -1299,6 +1335,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 					o.alive = false
 					events.append({e = "die", id = o.id, by = by, linked = true})
 		events.append({e = "die", id = e.id, by = by})
+		if weave == "balefire":
+			_unmake(e, by)
 		# Dead in a round: back at the next wave, weaker for it.
 		if round_mode and e.kind == "player":
 			e.return_next = not df_mode    # no coming back in a Darkfriend round

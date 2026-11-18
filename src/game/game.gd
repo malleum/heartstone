@@ -941,6 +941,18 @@ func _on_events(list: Array) -> void:
 				var g := Weavefx.gate(self, _ground(e.pos), _ground(e.pos) + Vector3(sin(e.yaw), 0, cos(e.yaw)))
 				get_tree().create_timer(4.0).timeout.connect(func() -> void: if is_instance_valid(g): g.queue_free())
 				_banner("A gateway opens\nDarkfriends pour through. Someone opened it for them…", 6.0, "shadow")
+			"unmade":
+				# Burnt out of the Pattern: what it did never happened. The dead are
+				# drawn afresh by the introduction that follows.
+				if e.dead and actors.has(e.id):
+					if is_instance_valid(actors[e.id].node):
+						actors[e.id].node.queue_free()
+					actors.erase(e.id)
+				elif actors.has(e.id):
+					actors[e.id].downed = false
+			"balefire_unmade":
+				if e.n > 0:
+					_banner("Balefire\nWhat it did these last moments never happened: %d stand%s again." % [e.n, "s" if e.n == 1 else ""], 5.0, "good")
 			"tied", "untied":
 				var who: String = "You are" if e.id == session.my_id else "%s is" % (actors[e.id].get("name", "Someone") if actors.has(e.id) else "Someone")
 				if e.e == "tied":

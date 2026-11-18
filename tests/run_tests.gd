@@ -1025,6 +1025,28 @@ func _rounds() -> void:
 	run(rs, Rules.TUNE.rope_secs + 0.2)
 	check(not rs.ents[rv].get("tied", false), "untied after a few seconds")
 
+	# Balefire: what the balefired thing did a moment ago is undone.
+	var bs := Sim.new("tarwins_gap_watch", 71)
+	bs._waves = []; bs._add_enemy("dummy", Vector3(0, 0, -90))
+	var bv := bs.add_player(Profile.create({name = "Bale Victim", power = "saidin"}), Vector3(0, 0, 0))
+	var bw := bs.add_player(Profile.create({name = "Bale Weaver", power = "saidin"}), Vector3(4, 0, 0))
+	bs._add_enemy("trolloc", Vector3(0, 0, 2))
+	var killer: Dictionary = bs.ents[bs._next - 1]
+	bs._hurt(bs.ents[bv], 40.0, killer.id, "")
+	bs.t += 1.0
+	bs._hurt(killer, killer.hp + 5.0, bw, "balefire")
+	check(bs.ents[bv].hp >= bs.ents[bv].max_hp - 0.5, "balefire on a Trolloc undoes the wound it just dealt")
+	var bk := Sim.new("tarwins_gap_watch", 72)
+	bk._waves = []; bk._add_enemy("dummy", Vector3(0, 0, -90))
+	var bp := bk.add_player(Profile.create({name = "Bale Slayer", power = "saidin"}), Vector3(0, 0, 0))
+	var bo := bk.add_player(Profile.create({name = "Bale Other", power = "saidin"}), Vector3(4, 0, 0))
+	bk._add_enemy("trolloc", Vector3(0, 0, 5))
+	var slain: Dictionary = bk.ents[bk._next - 1]
+	bk._hurt(slain, slain.hp + 5.0, bp, "fireball")
+	bk.t += 1.0
+	bk._hurt(bk.ents[bp], 9999.0, bo, "balefire")
+	check(slain.alive and not bk.ents[bp].alive, "balefire on a player brings back what they just killed")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)
