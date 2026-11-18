@@ -36,16 +36,18 @@ var _frame := 0
 func _ready() -> void:
 	Rules.load_data()
 	cl = Launch.cmdline()
+	returning = Launch.return_preview
+	Launch.return_preview = false
 	# A newer release already downloaded: start that instead.
-	if Updater.boot(get_tree()):
+	if not returning and Updater.boot(get_tree()):
 		return
-	if cl.has("tour"):
+	if cl.has("tour") and not returning:
 		# --tour[=N]: straight into the stations (N starts at that one, counting from 1).
 		Launch.tour = clampi(int(cl.tour) - 1, 0, Launch.TOUR.size() - 1)
 		Launch.args = Launch.station()
 		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
 		return
-	if (cl.has("auto") or cl.has("activity") or cl.has("join")) and cl.get("ghost", "") != "camp":
+	if (cl.has("auto") or cl.has("activity") or cl.has("join")) and cl.get("ghost", "") != "camp" and not returning:
 		# Bots, renders and scripted sessions skip the camp.
 		Launch.args = cl
 		get_tree().change_scene_to_file.call_deferred("res://src/game/game.tscn")
@@ -70,6 +72,8 @@ func _ready() -> void:
 		cam_yaw = deg_to_rad(float(Launch.cmdline().camyaw))
 	cam = Camera3D.new(); cam.fov = 60.0; add_child(cam)
 	_ui()
+	if returning:
+		side.get_parent().get_parent().visible = false
 	if FileAccess.file_exists(ONLINE):
 		var o = JSON.parse_string(FileAccess.get_file_as_string(ONLINE))
 		if o is Dictionary:
@@ -289,7 +293,7 @@ func _show_menu(on: bool) -> void:
 		_menu_fill()
 
 func _process(dt: float) -> void:
-	if cam == null or model == null:
+	if cam == null or model == null or returning:
 		return
 	_frame += 1
 	if cl.get("ghost", "") == "flow":
@@ -310,7 +314,7 @@ func _process(dt: float) -> void:
 		if idle.current_animation != "Idle":
 			idle.play("Idle", 0.15)
 		return
-	if not _hinted and not cl.has("ghost"):
+	if not _hinted and not cl.has("ghost") and not returning:
 		_hinted = true
 		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_H)], "info", 9.0)
 	var move := Vector3.ZERO
@@ -364,7 +368,8 @@ func _process(dt: float) -> void:
 		var depth := (pos - (_pre.A as Transform3D).origin).dot(-(_pre.A as Transform3D).basis.z)
 		cx = lerpf(-1.1, 0.0, clampf((depth + 6.0) / 3.0, 0.0, 1.0))
 	cam_x = move_toward(cam_x, cx, dt * 1.5)
-	var want := pivot + view * Vector3(cam_x, 0.2, 4.6)
+	cam_back = move_toward(cam_back, 4.6, dt * 1.2)
+	var want := pivot + view * Vector3(cam_x, 0.2, cam_back)
 	want.y = maxf(want.y, _height(want.x, want.z) + 0.35)
 	cam.position = cam.position.lerp(want, minf(14.0 * dt, 1.0))
 	cam.basis = view
@@ -1181,6 +1186,50 @@ func _create() -> void:
 var _pre := {}       # {door, vp, game, A (this side's frame), mat, live}
 var _phase := 0      # 0 looking through, 1 your feet are through
 var cam_x := -1.1    # the camera's sideways offset (eases to 0 near a doorway)
+var cam_back := 4.6  # and how far behind (eases back after coming home through a gateway)
+var returning := false   # built as the far side of a fight's gateway home (driven from there)
+var _came_from := ""     # the doorway just come home through: not opened again till you walk off
+
+func _door_by_id(id: String) -> Dictionary:
+	for d in doors:
+		if d.id == id:
+			return d
+	return {}
+
+## The far side of a gateway home: the doorway you left by, facing into the camp.
+func home_frame() -> Transform3D:
+	var d := _door_by_id(Launch.last_activity)
+	if d.is_empty():
+		return Transform3D(Basis.looking_at(Vector3.BACK, Vector3.UP), _ground(Vector3(0, 0, -14)))
+	var f: Vector3 = -(d.at as Vector3).normalized()
+	return Transform3D(Basis.looking_at(f, Vector3.UP), _ground(d.at))
+
+func drive_camera(xf: Transform3D, fov: float, near: float) -> void:
+	cam.global_transform = xf
+	cam.fov = fov
+	cam.near = near
+
+## The body coming home, as the fight sees it, mapped through.
+func place_body(xf: Transform3D, clip: String, at: float) -> void:
+	model.global_transform = xf
+	var ap: AnimationPlayer = model.get_meta("anim")
+	if ap.has_animation(clip):
+		if ap.current_animation != clip:
+			ap.play(clip)
+		ap.seek(at, true)
+
+## The camera is through: the camp is the world now, the camera where it was.
+func enter_from_fight(yaw: float, pitch: float, body: Transform3D, offset_x: float, back: float) -> void:
+	returning = false
+	side.get_parent().get_parent().visible = true
+	cam_yaw = yaw; cam_pitch = pitch
+	cam_x = offset_x; cam_back = back
+	pos = Vector3(body.origin.x, 0, body.origin.z)
+	face = body.basis.get_euler().y
+	cam.near = 0.05; cam.current = true
+	_came_from = Launch.last_activity
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	set_process(true)
 
 ## This side of a doorway: at its sill, -Z the way through (away from the camp).
 func _door_frame(d: Dictionary) -> Transform3D:
@@ -1236,8 +1285,12 @@ func _portal(dt: float) -> void:
 	if _phase == 0:
 		var best := {}
 		for d in doors:
+			if d.id == _came_from and pos.distance_to(d.at) < 11.0:
+				continue
 			if d.open and pos.distance_to(d.at) < 10.0 and (best.is_empty() or pos.distance_to(d.at) < pos.distance_to(best.at)):
 				best = d
+		if _came_from != "" and pos.distance_to(_door_by_id(_came_from).get("at", Vector3(999, 0, 999))) >= 11.0:
+			_came_from = ""
 		if not _pre.is_empty() and pos.distance_to(_pre.door.at) > 13.0:
 			_close_way()
 		if _pre.is_empty() and not best.is_empty():

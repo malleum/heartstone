@@ -353,9 +353,14 @@ camera stands relative to the doorway (`M = gate_frame * door_frame⁻¹`).
   walls through it.
 - Shadowspawn are generated once per run on worker threads (`Cast`), started on
   arrival in the camp; Draghkar and Dreadlords no longer hitch on first sight.
+- **Home the same way** (`game.gd` `_open_home`): when a round ends, a gateway opens
+  ahead with the camp built behind it in its own world (`Launch.return_preview`; the
+  camp keeps still and hidden, `returning`), arriving at the doorway you left by
+  (`home_frame`). The round is over, so the body walks in the view alone; as the
+  camera crosses, the camp takes over (`enter_from_fight`). Enter still goes straight
+  back. The dead are carried home (Enter).
 - Still costs a ~0.4 s stutter on the camp side when the far world's terrain and
-  grass are built (about 10 m from the doorway). Going back to the camp still uses
-  the doorway light (`Veil`), not a portal.
+  grass are built (about 10 m from the doorway).
 
 ### Keys and the bar (17 Nov)
 Every key can be rebound (Esc menu, Keys): `Keys.k(KEY_W)` is whatever the player

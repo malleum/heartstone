@@ -491,6 +491,7 @@ func _process(dt: float) -> void:
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
 	_update_windows()
+	_step_home(dt)
 
 ## `--auto --join=...`: a bot that knows only what a client is told, for trying a
 ## server without hands.
@@ -649,6 +650,92 @@ func _on_started(_my_id: int, activity: String) -> void:
 		tour_card.visible = true
 
 var _ally := 0
+
+# --- the gateway home ------------------------------------------------------------
+# When a round ends, a gateway opens ahead with the camp behind it (built in a world
+# of its own, from the doorway you left by). Walk through and, as the camera crosses,
+# the camp is simply the world you are in: no load, no cut.
+var _home := {}
+
+func _open_home() -> void:
+	if me == null or not is_instance_valid(me) or _leaving or DisplayServer.get_name() == "headless":
+		return
+	if actors.get(session.my_id, {}).get("dead", false):
+		return     # the dead are carried home (Enter)
+	var vp := SubViewport.new(); vp.own_world_3d = true; vp.use_hdr_2d = true
+	vp.size = get_viewport().get_visible_rect().size
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	Launch.return_preview = true
+	var camp: Node3D = load("res://src/game/camp.tscn").instantiate()
+	vp.add_child(camp)
+	var fwd := Vector3(sin(me.rotation.y), 0, cos(me.rotation.y))
+	var at := me.position + fwd * 3.5
+	var G := Transform3D(Basis.looking_at(fwd, Vector3.UP), _ground(at))
+	var n := Node3D.new(); add_child(n); n.transform = G
+	var q := QuadMesh.new(); q.size = Vector2(1.9, 3.3)
+	var mi := MeshInstance3D.new(); mi.mesh = q; mi.position = Vector3(0, 1.65, 0)
+	# The quad's front faces +Z; turn it to face back toward the player.
+	mi.rotation.y = PI
+	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
+	sm.set_shader_parameter("tint", Color(1.0, 0.85, 0.6)); sm.set_shader_parameter("lit", 1.0)
+	sm.set_shader_parameter("view", vp.get_texture()); sm.set_shader_parameter("live", 1.0)
+	mi.material_override = sm; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	n.add_child(mi)
+	mi.scale = Vector3(0.02, 1, 1)
+	create_tween().tween_property(mi, "scale", Vector3.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	Sfx.play(self, "chime", n.position + Vector3(0, 1.5, 0), 0.0, 0.6)
+	_home = {vp = vp, camp = camp, G = G, node = n}
+	result_card.visible = false
+	Toast.say("A gateway home", "Walk through it to the camp.", "good", 6.0)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _step_home(dt: float) -> void:
+	if _home.is_empty() or me == null:
+		return
+	var camp: Node3D = _home.camp
+	var G: Transform3D = _home.G
+	var M: Transform3D = camp.home_frame() * G.affine_inverse()
+	# The round is over and the sim stopped: the body walks here, in the view.
+	var v := Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
+	if args.has("homewalk"):
+		# A render walking home: straight at the gateway.
+		var to: Vector3 = (G.origin - me.position) * Vector3(1, 0, 1)
+		cam_yaw = lerp_angle(cam_yaw, atan2(-G.basis.z.x, -G.basis.z.z) + PI, 0.1)
+		v = Vector2(0, -1)
+	var move := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
+	var ap: AnimationPlayer = me.get_meta("anim") if me.has_meta("anim") else null
+	if move.length() > 0.1:
+		me.position = _ground(me.position + move.normalized() * 5.0 * dt)
+		me.rotation.y = lerp_angle(me.rotation.y, atan2(move.x, move.z), minf(10.0 * dt, 1.0))
+		if ap and ap.has_animation("Jog_Fwd") and ap.current_animation != "Jog_Fwd": ap.play("Jog_Fwd", 0.15)
+	elif ap and ap.current_animation != "Idle":
+		ap.play("Idle", 0.2)
+	camp.place_body(M * me.global_transform, ap.current_animation if ap else "Idle", ap.current_animation_position if ap else 0.0)
+	var fwd := -G.basis.z
+	var cam_in := (cam.global_position - G.origin).dot(fwd)
+	camp.drive_camera(M * cam.global_transform, cam.fov, maxf(0.05, absf(cam_in) * 0.6))
+	if cam_in > -0.3:
+		_go_home.call_deferred(M)
+
+func _go_home(M: Transform3D) -> void:
+	if _home.is_empty():
+		return
+	var camp: Node3D = _home.camp
+	var dyaw: float = camp.home_frame().basis.get_euler().y - (_home.G as Transform3D).basis.get_euler().y
+	camp.drive_camera(M * cam.global_transform, cam.fov, 0.05)
+	var body: Transform3D = M * me.global_transform
+	_home.vp.remove_child(camp)
+	_home = {}
+	var tree := get_tree()
+	moving_worlds = false
+	multiplayer.multiplayer_peer = null
+	Launch.args = {}
+	tree.root.remove_child(self)
+	tree.root.add_child(camp)
+	tree.current_scene = camp
+	camp.enter_from_fight(cam_yaw + dyaw, cam_pitch, body, cam_off.x, cam_dist + cam_off.z)
+	queue_free()
 
 # --- gateways as windows -----------------------------------------------------------
 # Each face of a gateway shows the world from where the camera would be at the other
@@ -1667,6 +1754,8 @@ func _draw_actors(dt: float) -> void:
 						h.heading = lerp_angle(h.heading, a.yaw, minf(8.0 * dt, 1.0))
 		elif a.kind == "player":
 			var n: Node3D = a.node
+			if id == session.my_id and not _home.is_empty():
+				continue     # walking home: the view moves this body now
 			var tgt := _ground(a.target)
 			var speed := n.position.distance_to(tgt) / maxf(dt, 0.001)
 			n.position = n.position.lerp(tgt, minf(12.0 * dt, 1.0))
@@ -1931,7 +2020,8 @@ func _on_finished(success: bool, report: Array) -> void:
 	Launch.last_name = profile.name
 	if args.has("tour"):
 		banner.text = ("Done." if success else "You fell.") + "\n\n%s: next    %s: again" % [Keys.name(KEY_N), Keys.name(KEY_R)]
-	elif not args.has("auto"):
-		banner.text += "\n\nEnter: back to camp"
+	if not args.has("auto") or args.has("homewalk"):
+		banner.text += "\n\nA gateway home opens ahead: walk through it.  (Enter: straight back)"
+		get_tree().create_timer(1.5).timeout.connect(_open_home)
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])
