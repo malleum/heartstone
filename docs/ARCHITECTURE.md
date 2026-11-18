@@ -142,6 +142,12 @@ Everything that is not channelling. The plan and to-do list are in `MELEE.md`.
 - Fire arrows: a bow (not a crossbow) drawn within 3 m of a burning watch-fire or
   burning grass looses a lit arrow (`lit`): it sets what it hits burning, and the
   grass where it falls. The view gets `weapon:lit` in the effect row.
+- Armour (`armour` in enemies.json: bandleader 0.3, Myrddraal 0.35) turns that share
+  of a blow in hand unless the move is a thrust (`trail: lance`).
+- A spear held still (no move, no swing) is set: an enemy entering its reach from
+  the front meets the point (120% of a jab, staggered, stopped), once each per 2 s.
+- The Eyeless gaze: facing a Myrddraal within 14 m slows weaving to 60% and feet to
+  80% for 1.5 s after (0.75 s for fighters).
 - Fighter bots flee only when badly hurt and pressed by three or more, and turn back
   at half health or when one or two are left (natural healing is slow).
 
