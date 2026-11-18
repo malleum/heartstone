@@ -613,9 +613,15 @@ func step(dt: float) -> void:
 	while not _waves.is_empty() and _waves[0].t <= t:
 		_spawn_wave(_waves.pop_front())
 	var players: Array = []; var foes: Array = []
+	var away := 0
 	for id in ents:
 		var e: Dictionary = ents[id]
 		if e.alive:
+			# Someone whose connection dropped stands out of it (Session keeps the
+			# place): not stepped, not hunted, but the fight is not over for them.
+			if e.get("away", false):
+				away += 1
+				continue
 			(players if e.kind == "player" else foes).append(e)
 	for p in players:
 		_step_player(p, dt)
@@ -642,7 +648,7 @@ func step(dt: float) -> void:
 	elif _spar:
 		if players.size() <= 1 and tallies.size() > 1:
 			_finish(true)
-	elif players.is_empty():
+	elif players.is_empty() and away == 0:
 		# In the endless night, lasting long enough was already the win.
 		_finish(_endless_won)
 	elif df_mode and _df_assigned and players.all(func(q: Dictionary) -> bool: return q.get("darkfriend", false)):
@@ -1705,7 +1711,7 @@ func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -
 
 ## quiet: damage over time, which should not flinch, re-ignite or flash every tick.
 func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) -> void:
-	if not e.alive:
+	if not e.alive or e.get("away", false):
 		return
 	# Arms and weaves are made to kill Trollocs. Between two people sparring they
 	# would end it in a few blows, so they do a share of their work (dream-things

@@ -4,6 +4,7 @@ extends SceneTree
 ##   godot --headless -s tests/net_test.gd -- client <name> [address] [word] [room] [activity]
 ##   godot --headless -s tests/net_test.gd -- lobby <address> <word>   (prints who is playing)
 ##   godot --headless -s tests/net_test.gd -- vault <address> <word>   (a dedicated server's store)
+##   godot --headless -s tests/net_test.gd -- dropper <address> <word> (drops mid-fight, comes back)
 ## Each prints one "NET ..." line that tools/test.sh checks.
 
 var s: Session
@@ -36,6 +37,8 @@ func _init() -> void:
 		s.set_physics_process(true)
 	elif role == "vault":
 		_vault(a[1], a[2])
+	elif role == "dropper":
+		_dropper(a[1], a[2])
 	elif role == "lobby":
 		s.lobby.connect(func(fights: Array) -> void:
 			var real := fights.filter(func(f: Dictionary) -> bool: return not f.get("room", "") in ["_server", "_camp"])
@@ -107,3 +110,27 @@ func _vault(address: String, word: String) -> void:
 	ok = ok and r2[0] == "wrong word"
 	print("NET vault ok=%s" % ok)
 	quit()
+
+## Join a fight, lose the connection mid-fight, and knock again as a rejoin: the
+## server must hand back the same body, not a fresh one or a fresh fight.
+func _dropper(address: String, word: String) -> void:
+	Profile.dir = "user://test_profiles"
+	var p := Profile.create({name = "Net dropper", potential_pts = 8, affinity_pts = {fire = 6}})
+	var first := [0]
+	s.started.connect(func(id: int, _act: String) -> void: first[0] = id, CONNECT_ONE_SHOT)
+	s.join(address, p, "short_watch", word, "greens")
+	while first[0] == 0:
+		await process_frame
+	await create_timer(3.0).timeout
+	s.multiplayer.multiplayer_peer.close()
+	s.queue_free()
+	await create_timer(2.0).timeout
+	s = Session.new()
+	root.add_child(s)
+	await process_frame
+	s.rejected.connect(func(why: String) -> void:
+		print("NET dropper rejected: %s" % why); quit())
+	s.started.connect(func(id: int, _act: String) -> void:
+		print("NET dropper back first=%d now=%d same=%s" % [first[0], id, id == first[0]])
+		quit())
+	s.join(address, p, "_rejoin", word, "greens")

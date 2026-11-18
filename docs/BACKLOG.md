@@ -182,8 +182,10 @@ are what the 4:44 review, or the next session, should pick up.
 - [x] **Deploy the server on minimus.** (Live since 17 Nov.) It is built and tested on localhost (see
   Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24690 is
   Josh's step, because it changes his server.
-- [ ] Server follow-ups: reconnecting after a dropped connection (18 Nov: losing the
-  server mid-fight now says so and Enter goes home; no rejoin yet); proof that the
+- [ ] Server follow-ups: (done 18 Nov: reconnecting after a dropped connection. The
+  server keeps a dropped player's body, out of reach, for 90 s, and a room whose
+  players have all dropped waits; the game keeps knocking every few seconds and is
+  let back into the same body); proof that the
   server is the real one; friends seen walking in the camp (18 Nov: the camp's
   menu names who else is in their camp, and a notice says when one arrives; not
   seen walking).

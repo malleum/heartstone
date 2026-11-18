@@ -123,3 +123,14 @@ To release: `git tag v0.2.0 && git push origin v0.2.0`.
 A camp's lobby question now carries its character's name; the server remembers
 names heard in the last 40 s and answers with the others in a `_camp` entry. The
 camp lists them under Playing now and says when one arrives.
+
+## Dropped connections (18 Nov)
+- When a player's connection drops mid-fight, the server keeps their body for 90 s
+  (`Session.AWAY_SECS`). It stands where it was, out of the fight: not stepped,
+  not hunted, not hurt, and it still counts, so the fight does not end on its
+  account. A room whose players have all dropped waits, unstepped.
+- The game keeps knocking every 4 s with `want = "_rejoin"`. The server answers
+  only by giving back the same body (by the character's name, after the word is
+  proved) or with "that fight is over"; a rejoin never starts a new fight.
+- Others in the fight are told "X lost the connection" and "X is back".
+- Tested in `tools/test.sh` (the `dropper` client).

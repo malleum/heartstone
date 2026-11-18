@@ -158,12 +158,7 @@ func _begin() -> void:
 		last_refusal = why.capitalize(); refusal_t = 1.5
 		if args.has("ghost"): print("GHOST %d refused %s" % [frame, why]))
 	session.rejected.connect(_offline)
-	session.lost.connect(func() -> void:
-		# The server went away: the fight cannot go on here. Say so, and let Enter
-		# take you home instead of leaving a frozen field.
-		if _started and not _done:
-			_done = true
-			Toast.say("Lost the server", "The fight cannot go on without it. Enter: back to the camp.", "warn", 15.0))
+	session.lost.connect(_on_lost)
 	# --activity=holdout (a mode's doorway): pick its setup here, as the camp does.
 	if args.has("activity") and Rules.activities.get(args.activity, {}).has("pool"):
 		args.activity = Rules.pick_setup(args.activity)
@@ -177,6 +172,30 @@ func _begin() -> void:
 		session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing, false)
 	if not args.has("auto") and not previewing and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+## The server went away mid-fight. It keeps our place for a while (Session
+## AWAY_SECS), so keep knocking: the same join, every few seconds. If it never
+## answers, say so and let Enter take us home instead of leaving a frozen field.
+var _rejoin_until := 0.0
+func _on_lost() -> void:
+	if not _started or _done:
+		return
+	if not args.has("join"):
+		_done = true
+		Toast.say("Lost the server", "The fight cannot go on without it. Enter: back to the camp.", "warn", 15.0)
+		return
+	if _rejoin_until <= 0.0:
+		_rejoin_until = clock + Session.AWAY_SECS - 5.0
+		Toast.say("Lost the server", "Trying to get back in: your place is kept for a minute and a half.", "warn", 8.0)
+	if clock > _rejoin_until:
+		_done = true; _rejoin_until = 0.0
+		Toast.say("Could not get back in", "The fight went on without you. Enter: back to the camp.", "warn", 15.0)
+		return
+	get_tree().create_timer(4.0).timeout.connect(func() -> void:
+		if _done or not is_instance_valid(session):
+			return
+		session.rejoin_failed = _on_lost
+		session.join(args.join, profile, "_rejoin", args.get("word", ""), args.get("room", ""), false))
 
 var weaving := false              # the mouse is held on a weave being made
 var my_form := {}                 # {weave, since, time, ready}: my weave in the making, for the HUD
@@ -613,6 +632,12 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## The ground can only be built once we know which activity (and so which map) this
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
+	if _started:
+		# Taken back in after a dropped connection: the world is already built.
+		_rejoin_until = 0.0
+		session.rejoin_failed = Callable()
+		Toast.say("Back in the fight", "", "good", 4.0)
+		return
 	_started = true
 	in_battle = Rules.activities[activity].has("battle")
 	_stamp("session started")
@@ -1142,6 +1167,11 @@ func _stamp(what: String) -> void:
 ## thing here alone instead of leaving the player at a dead end. Bots and tests
 ## (which join on purpose) stop, so a broken server shows up as a failure.
 func _offline(why: String) -> void:
+	if _rejoin_until > 0.0 and not _done:
+		# Knocking to be let back in, and the server said no.
+		_done = true; _rejoin_until = 0.0
+		Toast.say("Could not get back in", "%s. Enter: back to the camp." % why.capitalize(), "warn", 15.0)
+		return
 	if _started or _done:
 		return
 	print("GAME rejected: ", why)
@@ -1212,6 +1242,12 @@ func _on_events(list: Array) -> void:
 					if not mirror.is_empty() and mirror.get("cls", "channeller") == "channeller":
 						mirror.strength = Rules.strength_of(float(e.strength)); mirror.potential = mirror.strength
 					_banner("You return with the wave\nWeaker for dying: %d level%s of strength lost." % [e.lost, "" if e.lost == 1 else "s"], 6.0, "warn")
+			"away":
+				if e.id != session.my_id:
+					Toast.say("%s lost the connection" % e.name, "Their place is kept for %d seconds." % int(e.secs), "info", 6.0)
+			"back":
+				if e.id != session.my_id:
+					Toast.say("%s is back" % e.name, "", "good", 4.0)
 			"level":
 				if e.id == session.my_id:
 					_round_level(e)

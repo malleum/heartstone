@@ -150,7 +150,13 @@ func host(activity_id: String, my_profile: Dictionary, port := PORT, hold := fal
 func join(address: String, my_profile: Dictionary, want := "", their_word := "", room := "", hold := false) -> Error:
 	Rules.load_data()
 	profile = my_profile
-	return _connect(address, func() -> void: _hello.rpc_id(1, profile, want, _proof(their_word, _nonce), version(), room, hold), func() -> void: rejected.emit("could not reach " + address))
+	return _connect(address, func() -> void: _hello.rpc_id(1, profile, want, _proof(their_word, _nonce), version(), room, hold), func() -> void:
+		if rejoin_failed.is_valid(): rejoin_failed.call()
+		else: rejected.emit("could not reach " + address))
+
+## Set while knocking to be let back in (game.gd _on_lost): a knock nobody answers
+## goes back there to try again, instead of turning into "could not reach".
+var rejoin_failed: Callable
 
 ## Connect, and act once the host has greeted us with its number (see secrets).
 func _connect(address: String, on_up: Callable, on_fail: Callable) -> Error:
@@ -346,6 +352,24 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 	if proof != _proof(word, _nonces.get(peer, "")) or not Profile.valid(their_profile):
 		_rejected.rpc_id(peer, "the host turned you away (wrong word, or a character it cannot read)")
 		return
+	# Back after a dropped connection (want "_rejoin"): the same body, where it was
+	# left, or word that the fight is gone; never a fresh fight in its place.
+	if want == "_rejoin":
+		var key := String(their_profile.name).to_lower()
+		var back: Dictionary = _away.get(key, {})
+		if back.is_empty() or not _rooms.has(back.room) or not _rooms[back.room].sim.ents.has(back.ent):
+			_rejected.rpc_id(peer, "that fight is over")
+			return
+		_away.erase(key)
+		var rb: Dictionary = _rooms[back.room]
+		rb.sim.ents[back.ent].away = false
+		rb.peers[peer] = back.ent
+		_room_of[peer] = back.room
+		print("SERVER takes %s back into %s" % [their_profile.name, rb.activity])
+		rb.sim.events.append({e = "back", id = back.ent, name = their_profile.name})
+		_welcome.rpc_id(peer, back.ent, rb.activity)
+		_events.rpc_id(peer, rb.sim.roster())
+		return
 	# Someone hosting from the camp has the one fight; a server keeps rooms.
 	room = room.strip_edges().to_lower().left(24) if dedicated else ""
 	if not _rooms.has(room):
@@ -457,6 +481,36 @@ func _do_cast(peer: int, weave: String, at: Vector3, hold := false) -> void:
 		if peer == 1: refused.emit(why)
 		else: _refused.rpc_id(peer, why)
 
+## Bodies kept for those whose connection dropped mid-fight: name (lower case) ->
+## {room, ent, until}. A room with nobody in it but such bodies waits, unstepped.
+const AWAY_SECS := 90.0
+var _away := {}
+
+func _awaited(room: String) -> bool:
+	for n in _away:
+		if _away[n].room == room:
+			return true
+	return false
+
+## Places kept too long are given up: the body leaves the fight, and a room with
+## nobody left in it goes.
+func _expire_away() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	for n in _away.keys():
+		var a: Dictionary = _away[n]
+		if now < float(a.until):
+			continue
+		_away.erase(n)
+		if not _rooms.has(a.room):
+			continue
+		var r: Dictionary = _rooms[a.room]
+		if r.sim.ents.has(a.ent):
+			r.sim.ents[a.ent].away = false
+			r.sim.ents[a.ent].alive = false
+		if dedicated and r.peers.is_empty() and not _awaited(a.room):
+			print("SERVER empty, %s abandoned" % r.activity)
+			_rooms.erase(a.room)
+
 func _on_left(peer: int) -> void:
 	_nonces.erase(peer)
 	var room: String = _room_of.get(peer, "?")
@@ -465,9 +519,18 @@ func _on_left(peer: int) -> void:
 		return
 	var r: Dictionary = _rooms[room]
 	if r.peers.has(peer):
-		r.sim.ents[r.peers[peer]].alive = false
+		var ent: Dictionary = r.sim.ents[r.peers[peer]]
+		if not r.sim.over and ent.alive:
+			# A dropped connection is not leaving: the body stands, out of reach,
+			# for AWAY_SECS, and the same name coming back takes it up again.
+			ent.away = true; ent.move = Vector3.ZERO
+			_away[String(ent.profile.name).to_lower()] = {room = room, ent = ent.id, until = Time.get_ticks_msec() / 1000.0 + AWAY_SECS}
+			print("SERVER keeps %s's place for %d s" % [ent.profile.name, int(AWAY_SECS)])
+			r.sim.events.append({e = "away", id = ent.id, name = ent.profile.name, secs = AWAY_SECS})
+		else:
+			ent.alive = false
 		r.peers.erase(peer)
-	if dedicated and r.peers.is_empty():
+	if dedicated and r.peers.is_empty() and not _awaited(room):
 		# Nobody is left in it: the next to ask for that room starts something fresh.
 		print("SERVER empty, %s abandoned" % r.activity)
 		_rooms.erase(room)
@@ -475,7 +538,12 @@ func _on_left(peer: int) -> void:
 func _physics_process(dt: float) -> void:
 	if not is_host:
 		return
+	if not _away.is_empty():
+		_expire_away()
 	for room in _rooms.keys():
+		# Everyone in it dropped and may come back: it waits for them.
+		if _rooms[room].peers.is_empty() and _awaited(room):
+			continue
 		_step_room(room, _rooms[room], dt)
 
 func _step_room(room: String, r: Dictionary, dt: float) -> void:
