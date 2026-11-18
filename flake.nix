@@ -31,6 +31,9 @@
           state="''${STATE_DIRECTORY:-''${XDG_STATE_HOME:-$HOME/.local/state}/heartstone}"
           mkdir -p "$state/project" "$state/data"
           rsync -a --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$state/project/"
+          # Which commit this server is, so a player turned away for a version
+          # mismatch can be told which side is out of date.
+          printf '{"tag": "", "commit": "%s", "date": %s}\n' "${self.shortRev or self.dirtyShortRev or "dirty"}" "${toString (self.lastModified or 0)}" > "$state/project/build.json"
           # Characters are kept under $state/data and survive updates of the game.
           export XDG_DATA_HOME="$state/data" XDG_CONFIG_HOME="$state/data" XDG_CACHE_HOME="$state/data"
           godot --headless --path "$state/project" --import >/dev/null 2>&1 || true

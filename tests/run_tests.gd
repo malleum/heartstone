@@ -1075,19 +1075,22 @@ func _rounds() -> void:
 	check(not opts.is_empty(), "a level-up can teach a new weave from the chart")
 	lr.ents[lp].profile.round.picks = 1
 	check(lr.request_pick(lp, "learn", opts[0].id) == "" and lr.ents[lp].profile.weaves.has(opts[0].id), "and it is learned there and then")
-	# Vaulting: Space by a wagon goes over it.
-	var vs := Sim.new("wagon_ring", 92)
+	# Vaulting: Space by the breastwork goes over it (wagons are not vaulted).
+	var vs := Sim.new("short_watch", 92)
 	vs._waves = []
 	var wg: Dictionary = Map.walls()[0]
 	var vp := vs.add_player(Profile.create({name = "Vaulter", power = "saidin"}))
-	var toward := Vector3(sin(float(wg.rot)), 0, cos(float(wg.rot)))
-	var across := Vector3(toward.z, 0, -toward.x)   # the wagon's short way
-	vs.ents[vp].pos = Vector3(wg.x, 0, wg.z) - across * 1.9
+	vs.ents[vp].pos = Vector3(wg.x, 0, wg.z + 1.3)
 	vs.ents[vp].stamina = 999.0
-	check(vs.request_dodge(vp, across, true) == "" and vs.ents[vp].dash.get("vault", false), "Space by a wagon is a vault")
+	check(vs.request_dodge(vp, Vector3(0, 0, -1), true) == "" and vs.ents[vp].dash.get("vault", false), "Space by the breastwork is a vault")
 	run(vs, 1.0)
-	check(Map._local(wg, vs.ents[vp].pos.x, vs.ents[vp].pos.z).dot(Map._local(wg, wg.x + across.x, wg.z + across.z)) > 0.0, "and lands on the far side")
-	check(not Map.in_wall(Vector3(wg.x, 0, wg.z) + across * 1.3 + Vector3(0, 0.5, 0)), "a wagon's solid is the wagon, not a box round it")
+	check(vs.ents[vp].pos.z < wg.z - 0.3, "and lands on the far side")
+	var ws := Sim.new("wagon_ring", 94)
+	ws._waves = []
+	var wagon: Dictionary = Map.walls()[0]
+	var across := Vector3(cos(float(wagon.rot)), 0, -sin(float(wagon.rot)))
+	check(not Map.in_wall(Vector3(wagon.x, 0, wagon.z) + across * 1.3 + Vector3(0, 0.5, 0)) and Map.in_wall(Vector3(wagon.x, 0.5, wagon.z)), "a wagon's solid is the wagon, not a box round it")
+
 	# A weave left going by itself.
 	var au := Sim.new("practice", 93)
 	au._waves = []

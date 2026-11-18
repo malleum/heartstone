@@ -1111,9 +1111,23 @@ func _offline(why: String) -> void:
 		_done = true
 		return
 	if why.contains("different version"):
-		# Out of date (or the server is): say what to do about it.
+		# Out of date, or the server is: say which, with both builds, and what to do.
+		var theirs := {}
+		var i := why.find("[build ")
+		if i >= 0:
+			var d = JSON.parse_string(why.substr(i + 7, why.length() - i - 8))
+			if d is Dictionary: theirs = d
+		# A server too old to send its build at all is the one behind.
+		var who := Updater.behind(Updater.stamp(), theirs) if not theirs.is_empty() else "the server"
 		var newer := Updater.newest != "" and Updater.newest != Updater.tag()
-		Toast.say("Update needed to play online", ("Version %s is out: restart the game and it updates itself. " % Updater.newest if newer else "Your game and the server's differ. ") + "Playing offline for now.", "warn", 12.0)
+		var body := "This game: %s\nThe server: %s\n" % [Updater.label(Updater.stamp()), Updater.label(theirs) if not theirs.is_empty() else "an older build"]
+		if who == "your game":
+			body += "Your game is out of date: %s" % ("restart and it updates itself." if newer else "get the latest build.")
+		elif who == "the server":
+			body += "The server is out of date: it needs updating."
+		else:
+			body += "They differ: update whichever is older."
+		Toast.say("Versions differ: playing offline", body, "warn", 14.0)
 	else:
 		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
@@ -1859,7 +1873,7 @@ func _draw_actors(dt: float) -> void:
 				# Up and over: an arc on top of the ground.
 				a.vault.t += dt
 				var k: float = clampf(a.vault.t / maxf(a.vault.time, 0.01), 0.0, 1.0)
-				n.position.y += sin(k * PI) * 1.6
+				n.position.y += sin(k * PI) * 0.6
 				if k >= 1.0:
 					a.erase("vault")
 			if a.get("roll_until", 0.0) > clock:

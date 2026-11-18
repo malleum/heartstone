@@ -802,6 +802,8 @@ func _ghost_flow() -> void:
 ## connection at a time: it waits if a character is being exchanged.
 var fights: Array = []
 static var reachable := true   # the server answered the last time it was asked
+static var server_stamp := {}  # the server's build stamp (commit, date), from its lobby answer
+static var server_version := ""
 var _lobby_t := 0.0
 func _poll_lobby(dt: float) -> void:
 	_lobby_t -= dt
@@ -817,7 +819,13 @@ func _poll_lobby(dt: float) -> void:
 			return
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
-		fights = list
+		# The server says who it is in an entry of its own; the rest are fights.
+		fights = []
+		for f in list:
+			if f.get("room", "") == "_server":
+				server_stamp = f.get("stamp", {}); server_version = f.get("version", "")
+			else:
+				fights.append(f)
 		# Say once when the server stops (or starts) answering.
 		if answered != reachable and not cl.has("ghost"):
 			if answered:
@@ -854,6 +862,14 @@ func _menu_fill() -> void:
 		_button(menu_box, "New character…", func() -> void: menu.visible = false; _creation())
 	_section(menu_box, "Playing now")
 	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8) if reachable else Color(1.0, 0.7, 0.45))
+	# Which build each side is, and whether they can play together.
+	var mine := Updater.label(Updater.stamp())
+	_row(menu_box, "This game", mine)
+	if server_version != "":
+		_row(menu_box, "The server", Updater.label(server_stamp))
+		if server_version != Session.version():
+			var who := Updater.behind(Updater.stamp(), server_stamp) if not server_stamp.is_empty() else "the server"
+			_text(menu_box, "They do not match, so fights are played offline. %s" % ("%s is out of date." % who.capitalize() if who != "" else "Update both."), 13, Color(1.0, 0.6, 0.45))
 	_section(menu_box, "Your place on the server")
 	_text(menu_box, "Every fight is held on the server, so friends anywhere can join. Your character is kept there too, guarded by your passphrase.", 13, Color(0.66, 0.67, 0.72))
 	var fields := {}

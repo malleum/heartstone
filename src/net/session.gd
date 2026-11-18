@@ -334,7 +334,8 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 	if not is_host or _room_of.has(peer):
 		return
 	if their_version != version():
-		_rejected.rpc_id(peer, "the host runs a different version of the game (%s, yours is %s): update both" % [version(), their_version])
+		# The stamp at the end lets a newer client say which side is behind.
+		_rejected.rpc_id(peer, "the host runs a different version of the game (%s, yours is %s): update both [build %s]" % [version(), their_version, JSON.stringify(Updater.stamp())])
 		return
 	if proof != _proof(word, _nonces.get(peer, "")) or not Profile.valid(their_profile):
 		_rejected.rpc_id(peer, "the host turned you away (wrong word, or a character it cannot read)")
@@ -373,6 +374,9 @@ func _who(proof: String) -> void:
 			for p in r.peers:
 				names.append(r.sim.ents[r.peers[p]].profile.name)
 			out.append({room = room, activity = r.activity, players = names, t = int(r.sim.t)})
+	# Who this server is, for anyone asking (even without the word): its build stamp
+	# and its handshake version, so a camp can show whether the two match.
+	out.append({room = "_server", stamp = Updater.stamp(), version = version()})
 	_who_reply.rpc_id(peer, out)
 
 const VAULT := "user://vault"

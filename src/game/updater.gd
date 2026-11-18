@@ -20,6 +20,33 @@ static func tag() -> String:
 	var d = JSON.parse_string(FileAccess.get_file_as_string("res://build.json"))
 	return String(d.get("tag", "")) if d is Dictionary else ""
 
+## This build's stamp: {tag, commit, date (unix)}; empty when run from source.
+static func stamp() -> Dictionary:
+	if not FileAccess.file_exists("res://build.json"):
+		return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string("res://build.json"))
+	return d if d is Dictionary else {}
+
+## "v0.2.0 · b141541 · 17 Nov 2026 23:25", or "run from source".
+static func label(st: Dictionary) -> String:
+	if st.is_empty():
+		return "run from source"
+	var parts := []
+	if String(st.get("tag", "")) != "": parts.append(st.tag)
+	if String(st.get("commit", "")) != "": parts.append(st.commit)
+	if int(st.get("date", 0)) > 0:
+		var dt := Time.get_datetime_dict_from_unix_time(int(st.date))
+		parts.append("%d %s %d %02d:%02d" % [dt.day, ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][dt.month], dt.year, dt.hour, dt.minute])
+	return " · ".join(parts)
+
+## Which of two builds is behind, by their commit times: "the server", "your game",
+## or "" if it cannot be told.
+static func behind(mine: Dictionary, theirs: Dictionary) -> String:
+	var a := int(mine.get("date", 0)); var b := int(theirs.get("date", 0))
+	if a <= 0 or b <= 0 or a == b:
+		return ""
+	return "your game" if a < b else "the server"
+
 static func engine() -> String:
 	var v := Engine.get_version_info()
 	return "%d.%d.%d" % [v.major, v.minor, v.patch] if v.patch > 0 else "%d.%d" % [v.major, v.minor]

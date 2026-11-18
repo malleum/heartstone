@@ -341,3 +341,8 @@ are what the 4:44 review, or the next session, should pick up.
   - **Wind:** capes stir a little when running; some maps have a steady wind that
     always blows capes, flags and grass one way, with a little wind sound; Air weaves
     blow capes, grass and flags as they pass.
+- 2026-11-17, from the user's play (to do with the changeable-map work above):
+  - **Vaulting and hitboxes:** vaulting felt like too much (it now only crosses
+    waist-high walls, with a small hop, as a stopgap). Many solids need adding or
+    resizing: the breastwork boxes stand too tall; tents, poles and banners have
+    none; check every prop against what it looks like.

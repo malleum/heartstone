@@ -142,7 +142,9 @@ static func grid() -> Dictionary:
 static func vault_over(p: Vector3, dir: Vector3, reach: float, radius: float) -> float:
 	var best := 0.0
 	for w in _walls:
-		if float(w.h) > 2.3:
+		# Only what a person can step over with a hand on it: a waist-high wall, not
+		# a wagon (the user found vaulting those too much; hitboxes are to be reworked).
+		if float(w.h) > 1.2:
 			continue
 		var la := _local(w, p.x, p.z); var lb := _local(w, p.x + dir.x * (reach + 6.0), p.z + dir.z * (reach + 6.0))
 		var t0 := 0.0; var t1 := 1.0; var hit := true

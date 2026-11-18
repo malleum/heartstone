@@ -15,6 +15,9 @@ fi
 data=$(mktemp -d)
 mkdir -p "$data/godot" dist
 ln -s "$GODOT_EXPORT_TEMPLATES" "$data/godot/export_templates"
+# Stamp the build (its commit and that commit's time), so the game can say which
+# side of a version mismatch is out of date. No tag: only releases update themselves.
+printf '{"tag": "", "commit": "%s", "date": %s}\n' "$(git rev-parse --short HEAD)" "$(git log -1 --format=%ct)" > build.json
 godot --headless --import >/dev/null 2>&1 || true
 XDG_DATA_HOME=$data godot --headless --export-release Linux dist/heartstone.x86_64 2>&1 | grep -E "ERROR|WARNING|savepack|Export" | grep -v "X11 Display" || true
 git rev-parse --short HEAD > dist/BUILD 2>/dev/null || true

@@ -25,7 +25,7 @@ jobs:
           mkdir -p "$dir" && unzip -q templates.tpz && mv templates/* "$dir/"
       - name: Stamp the build
         run: |
-          printf '{"tag": "%s", "engine": "%s"}\n' "$GITHUB_REF_NAME" "$GODOT" > build.json
+          printf '{"tag": "%s", "engine": "%s", "commit": "%s", "date": %s}\n' "$GITHUB_REF_NAME" "$GODOT" "$(git rev-parse --short HEAD)" "$(git log -1 --format=%ct)" > build.json
       - name: Export
         run: |
           ./godot --headless --import || true
