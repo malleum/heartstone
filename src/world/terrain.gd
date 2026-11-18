@@ -23,10 +23,14 @@ static func normal(x: float, z: float) -> Vector3:
 	var e := 0.15
 	return Vector3(height(x - e, z) - height(x + e, z), 2.0 * e, height(x, z - e) - height(x, z + e)).normalized()
 
-static func build_mesh(size: float, step: float) -> MeshInstance3D:
+## tree: given, the work is spread over frames (a few rows each), so building a
+## world beside one being played (a camp doorway's far side) never stalls a frame.
+static func build_mesh(size: float, step: float, tree: SceneTree = null) -> MeshInstance3D:
 	var n := int(size / step)
 	var verts := PackedVector3Array(); var norms := PackedVector3Array(); var idx := PackedInt32Array()
 	for j in n + 1:
+		if tree and j % 12 == 0:
+			await tree.process_frame
 		for i in n + 1:
 			var x := -size * 0.5 + i * step; var z := -size * 0.5 + j * step
 			verts.append(Vector3(x, height(x, z), z))

@@ -359,8 +359,11 @@ camera stands relative to the doorway (`M = gate_frame * door_frame⁻¹`).
   (`home_frame`). The round is over, so the body walks in the view alone; as the
   camera crosses, the camp takes over (`enter_from_fight`). Enter still goes straight
   back. The dead are carried home (Enter).
-- Still costs a ~0.4 s stutter on the camp side when the far world's terrain and
-  grass are built (about 10 m from the doorway).
+- No stalls (17 Nov): the camp loads the fight scene on a thread when it opens
+  (`load_threaded_request`), and the far world builds its terrain and grass a few
+  rows a frame (`Terrain.build_mesh`/`Scenery.scatter` take a tree to spread over).
+- The far fight is held still (`Session` room `hold`, PROTO 8) until your feet are
+  through (`take_control` sends `begin`): waves do not start while you look.
 
 ### Making a character (17 Nov)
 Two panels with the character standing between them: who you are and how you look on
@@ -377,6 +380,14 @@ Every key can be rebound (Esc menu, Keys): `Keys.k(KEY_W)` is whatever the playe
 bound to the key that sits where W does on QWERTY; the game still names defaults,
 and hints go through `Keys.name`, so they follow. Bindings live in `user://keys.json`.
 The bar's order (slots 1-9) is set in the loadout and kept as `profile.hotbar`.
+
+### Pause menu (17 Nov; `pauser.gd`)
+Escape opens a menu: resume, hide everything (a screenshot of the paused game; Escape
+brings it back), keys, sound (`Settings`, `user://settings.json`), back to the camp,
+quit. Offline the world stops while it is open; online it goes on. The end of a round
+is a notice, never text across the screen, and the world keeps moving after it.
+Renders, tests and bots keep their characters in `user://dev_profiles`
+(`Launch.use_profile_dir`), never the player's folder.
 
 ### Words on screen (17 Nov)
 Nothing is written across the middle of the screen. `Toast.say(title, body, kind)`

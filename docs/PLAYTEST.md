@@ -87,3 +87,5 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 81 | Tab at a level-up: choose a weave to master (or skill, form, weapon for fighters). Is that enough to choose between? | Not tried by hand | `Round.choices`, `game.gd` `_show_picks` |
 | 82 | The new character screen: cards for callings, origins, weapons, forms and Talents, affinity with + and −. Easy to read and choose from? Anything still clumsy? | Seen in renders | `camp.gd` `_creation`, `_card`, `_stepper` |
 | 83 | Gateways as windows, and walking home through one at the end of a round: seamless in real time? | Rendered frame by frame | `game.gd` `_open_window`, `_open_home` |
+| 84 | Bows: the arrow should leave the moment you let go of a full draw, and you turn to your aim while drawing. Arrows have a trail now. Better? | Rules tested; seen in renders | `Sim.set_draw`, `request_attack`; `game.gd` draw facing |
+| 85 | The pause menu (Esc), smaller notices, no frozen world at the end of a round. | Seen in code and renders, not clicked | `pauser.gd`, `toast.gd` |

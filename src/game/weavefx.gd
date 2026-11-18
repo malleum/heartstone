@@ -172,11 +172,9 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			if small:
 				mm.scale = Vector3.ONE * 2.2
 			n.add_child(mm)
-			# A pale streak behind it, so the eye can follow where it went.
-			var tail := CylinderMesh.new(); tail.top_radius = 0.0; tail.bottom_radius = 0.035 if small else 0.022; tail.height = 2.4; tail.radial_segments = 5; tail.rings = 1
-			var tm := _mesh(tail, Color(1.0, 0.97, 0.9, 0.45), 2.5)
-			tm.rotation.x = -PI * 0.5; tm.position.z = 1.3
-			n.add_child(tm)
+			# A trail behind it, like a blade's streak, so the eye can follow its whole
+			# flight and see where it went.
+			n.add_child(Flowfx.Ribbon.new(Color(1.0, 0.95, 0.82), 0.1 if small else 0.075, 22, 4.0, 0.5))
 			if small:
 				n.add_child(_light(Color(1.0, 0.95, 0.85), 0.8, 2.5))
 		"drop":

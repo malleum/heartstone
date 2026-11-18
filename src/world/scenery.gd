@@ -394,12 +394,14 @@ static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator, hgt :=
 
 ## Dress whatever map is loaded: grass where the ground is flat and off the road,
 ## stones everywhere, dead trees at the margins.
-static func scatter(g: Node3D) -> void:
+static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 23
 	var patch := FastNoiseLite.new(); patch.seed = 5; patch.frequency = 0.05
 	var gap := not Map.m.is_empty()
 	var grass: Array = []; var stones: Array = []
 	for i in 60000:
+		if tree and i % 4000 == 0:
+			await tree.process_frame
 		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0) if gap else rng.randf_range(-70.0, 40.0)
 		if gap and (absf(x) > Map.half_width(z) + 1.5 or absf(x) < 3.5):
 			continue
@@ -427,4 +429,6 @@ static func scatter(g: Node3D) -> void:
 	_multi(g, stone, stones, true)
 	# Trees stand where the map says, because the sim collides with them there.
 	for t in Map.trees():
+		if tree:
+			await tree.process_frame
 		dead_tree(g, _ground(t.x, t.z) - Vector3(0, 0.2, 0), rng, t.h)

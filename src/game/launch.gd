@@ -15,6 +15,20 @@ const SERVER := "joshammer.com:24690"
 static func server() -> String:
 	return cmdline().get("server", SERVER)
 
+## Started by a render, a test or a bot (any of these flags): characters it makes or
+## changes go to a folder of their own, never the player's.
+const DEV_FLAGS := ["auto", "ghost", "who", "name", "activity", "new", "show", "stroll", "timing", "offline", "tour", "join", "class", "weaves", "only", "spawn", "homewalk", "walkgate"]
+static func dev() -> bool:
+	var c := cmdline()
+	for f in DEV_FLAGS:
+		if c.has(f):
+			return true
+	return false
+
+static func use_profile_dir() -> void:
+	if dev() and Profile.dir == "user://profiles":
+		Profile.dir = "user://dev_profiles"
+
 static func cmdline() -> Dictionary:
 	var out := {}
 	# In the standalone, flags work with or without the `--` separator Godot wants

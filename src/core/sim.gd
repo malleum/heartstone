@@ -287,7 +287,9 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	if p.get("tied", false):
 		return "tied with rope"
 	if not p.swing.is_empty():
-		p.queued = {kind = kind, aim = aim, charge = charge}
+		# Asked for during the last one: it goes when that is done (an arrow keeps the
+		# draw it had when the string was let go).
+		p.queued = {kind = kind, aim = aim, charge = charge, draw_since = p.get("draw_since", t) if p.get("draw_held", false) else -1.0}
 		return ""
 	if p.reel_until > t or not p.forming.is_empty() or not p.dash.is_empty():
 		return "busy"
@@ -329,10 +331,12 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 			# The host counts the draw itself: an arrow has as much behind it as the
 			# string was actually held for, and one asked for undrawn is drawn now.
 			charge = clampf(charge, 0.2, 1.0)
-			var drawn: float = t - p.get("draw_since", t) if p.get("drawing", false) else 0.0
-			wind = maxf(wind, Rules.draw_time(p.profile, p.weapon) * charge - drawn)
-			if wind > 0.15 and not p.get("drawing", false):
+			var drawn: float = t - p.get("draw_since", t) if p.get("draw_held", false) else 0.0
+			# Drawn as far as it is going: it leaves now, not after a wind-up as well.
+			wind = maxf(0.03, Rules.draw_time(p.profile, p.weapon) * charge - drawn)
+			if wind > 0.15 and not p.get("draw_held", false):
 				p.draw_since = t
+			p.draw_held = false
 	var cost := Rules.move_cost(p.profile, p.weapon, move_id, p.stamina)
 	p.stamina = maxf(p.stamina - cost, 0.0)
 	var to := aim - _feet(p); to.y = 0.0
@@ -376,10 +380,13 @@ func set_guard(id: int, on: bool) -> void:
 ## nobody runs at full speed with a bow at full draw.
 func set_draw(id: int, on: bool) -> void:
 	var p: Dictionary = ents[id]
-	var was: bool = p.get("drawing", false)
-	p.drawing = on and p.alive and p.swing.is_empty() and Rules.weapons.has(p.weapon) and Rules.weapons[p.weapon].has("shot")
-	if p.drawing and not was:
+	var bow: bool = p.alive and Rules.weapons.has(p.weapon) and Rules.weapons[p.weapon].has("shot")
+	# The draw counts from the press, even if the last arrow's follow-through is
+	# not quite over: pressing again at once must not cost a second, hidden draw.
+	if on and bow and not p.get("draw_held", false):
 		p.draw_since = t
+	p.draw_held = on and bow
+	p.drawing = p.draw_held and p.swing.is_empty()
 
 func set_duck(id: int, on: bool) -> void:
 	ents[id].duck = on and ents[id].alive
@@ -475,6 +482,11 @@ func _step_holds(p: Dictionary, dt: float) -> void:
 
 func step(dt: float) -> void:
 	if over:
+		# The fight is done but the world is not frozen: the living still walk.
+		for id in ents:
+			var p: Dictionary = ents[id]
+			if p.kind == "player" and p.alive and not p.get("downed", false):
+				p.pos = Map.clamp_pos(Map.unblock(p.pos + p.move * p.speed * dt, p.radius))
 		return
 	t += dt
 	# Bots that belong to the fight itself (an Aes Sedai's Warder) are driven here,
@@ -978,6 +990,8 @@ func _step_swing(p: Dictionary, dt: float) -> void:
 	if not p.queued.is_empty():
 		var q: Dictionary = p.queued
 		p.queued = {}
+		if float(q.get("draw_since", -1.0)) >= 0.0:
+			p.draw_held = true; p.draw_since = q.draw_since
 		request_attack(p.id, q.kind, q.aim, q.charge)
 
 func _strike(p: Dictionary) -> void:

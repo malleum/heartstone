@@ -57,6 +57,7 @@ var holds := {}                   # "caster/weave/target" -> {node, id, weave, t
 
 func _ready() -> void:
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
+	Launch.use_profile_dir()
 	_t0 = Time.get_ticks_msec()
 	previewing = args.has("preview")
 	controlled = not previewing
@@ -64,8 +65,11 @@ func _ready() -> void:
 	Rules.load_data()
 	Terrain.amp = 0.45
 	cam = Camera3D.new(); cam.fov = 70.0; add_child(cam)
+	_stamp("before hud")
 	_hud()
-	var pz := preload("res://src/game/pauser.gd").new(); pz.g = self; add_child(pz)
+	_stamp("hud made")
+	pause_menu = preload("res://src/game/pauser.gd").new(); pause_menu.g = self; add_child(pause_menu)
+	Settings.load_and_apply()
 	var name_: String = args.get("name", "Novice")
 	profile = {} if args.has("tour") else Profile.load_profile(name_)
 	if profile.is_empty():
@@ -135,6 +139,7 @@ func _begin() -> void:
 	var old := get_tree().root.get_node_or_null("Session")
 	if old:
 		old.free()
+	_stamp("before session")
 	session = Session.new()
 	get_tree().root.add_child(session)
 	session.started.connect(_on_started)
@@ -146,13 +151,13 @@ func _begin() -> void:
 		if args.has("ghost"): print("GHOST %d refused %s" % [frame, why]))
 	session.rejected.connect(_offline)
 	if args.has("join"):
-		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""))
+		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""), previewing)
 		# ENet can take half a minute to give up on a server that is not there.
 		get_tree().create_timer(6.0).timeout.connect(func() -> void:
 			if not _started and not _done:
 				_offline("no answer from the server"))
 	else:
-		session.host(args.get("activity", "tarwins_gap_watch"), profile)
+		session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing)
 	if not args.has("auto") and not previewing and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -182,7 +187,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.2, 0.7)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.physical_keycode == KEY_ESCAPE:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			pass    # the pause menu (pauser.gd) has it
 		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
@@ -416,6 +421,11 @@ func _process(dt: float) -> void:
 		aim_t -= dt
 		if aim_t <= 0.0 and move.length() > 0.1:
 			face_yaw = atan2(move.x, move.z)
+		if held_since >= 0.0 and me and _armed() and Rules.weapons[hand()].has("shot"):
+			# Drawing a bow: turn to where the arrow will go, the bow along the aim.
+			var bat := _aim_point()
+			face_yaw = atan2(bat.x - me.position.x, bat.z - me.position.z)
+			aim_t = 0.3
 		if not my_form.is_empty() and me:
 			# Face where the weave will go, and keep the host told (a few times a second).
 			var at := _aim_point()
@@ -572,7 +582,10 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
 		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
 	Map.use(Rules.activities[activity].get("map", "open"))
-	var ground := Terrain.build_mesh(240.0, 0.75)
+	# Behind a camp doorway the world is built a little each frame, so walking up to
+	# it never stalls the camp.
+	var spread: SceneTree = get_tree() if previewing else null
+	var ground: MeshInstance3D = await Terrain.build_mesh(240.0, 0.75, spread)
 	add_child(ground)
 	if Map.id == "tarwins_gap":
 		# A low sun behind the defenders: it lights the floor of the pass and the
@@ -589,8 +602,11 @@ func _on_started(_my_id: int, activity: String) -> void:
 		if activity == "camp_training":
 			Scenery.yard(self)
 	_stamp("terrain, sky, map scenery")
-	Scenery.scatter(self)
+	await Scenery.scatter(self, spread)
 	_stamp("grass and stones")
+	_world_ready = true
+	if _pending_gate != null and is_instance_valid(_pending_gate):
+		_portal_side(_pending_gate)
 	dreaming = Rules.activities[activity].get("dream", false)
 	if dreaming:
 		# Tel'aran'rhiod: the same place, with the colour gone out of it and a light
@@ -686,8 +702,7 @@ func _open_home() -> void:
 	create_tween().tween_property(mi, "scale", Vector3.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	Sfx.play(self, "chime", n.position + Vector3(0, 1.5, 0), 0.0, 0.6)
 	_home = {vp = vp, camp = camp, G = G, node = n}
-	result_card.visible = false
-	Toast.say("A gateway home", "Walk through it to the camp.", "good", 6.0)
+	Toast.say("A gateway home", "Walk through it to the camp (Enter: straight back).", "good", 8.0)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _step_home(dt: float) -> void:
@@ -901,6 +916,8 @@ func can_pause() -> bool:
 # the world you are in when your camera passes through: no load, no cut.
 var _walk_t := 0.0
 var smooth_cam := 0.0              # seconds left of the camp's camera easing, carried through a doorway
+var _world_ready := false
+var _pending_gate: Node3D = null
 var moving_worlds := false        # being taken from the doorway's world into the main one
 var stand_in := {}                 # {xf, clip, at}: the camp's body, shown here until the hand-over
 var previewing := false            # the camp is looking at this world through a doorway
@@ -961,6 +978,7 @@ func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
 func take_control(yaw: float, pitch: float) -> void:
 	controlled = true
 	stand_in = {}
+	session.begin()     # the fight starts now, not when the doorway was first looked through
 	cam_yaw = yaw; cam_pitch = pitch
 	face_yaw = yaw + PI
 
@@ -999,7 +1017,10 @@ func _arrive(rig: Node3D) -> void:
 	_stamp("stepping out (preview %s, veil %s)" % [previewing, Veil.up()])
 	if previewing:
 		if _gate == null:
-			_portal_side(rig)
+			if _world_ready:
+				_portal_side(rig)
+			else:
+				_pending_gate = rig   # its grass is not down yet: wait for it
 		return
 	if not Veil.up():
 		return
@@ -1048,7 +1069,7 @@ func _offline(why: String) -> void:
 		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
 	args.erase("join")
-	session.host(args.get("activity", "tarwins_gap_watch"), profile)
+	session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing)
 
 # --- mirroring the sim ----------------------------------------------------------------
 
@@ -1139,7 +1160,9 @@ func _on_events(list: Array) -> void:
 					_round_intro(e)
 				if not actors.has(e.id):
 					# Everyone appears as they chose to look, on every machine.
+					_stamp("hero model begins")
 					var rig := Hero.instantiate(Hero.kind_for(e), hash(e.name), e.get("style", {}))
+					_stamp("hero model made")
 					add_child(rig)
 					rig.position = _ground(e.pos)
 					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI}
@@ -1998,10 +2021,13 @@ func _hud() -> void:
 	tour_label.add_theme_color_override("font_color", Color(0.86, 0.85, 0.82))
 
 var result_card: PanelContainer
+var pause_menu: Node
 var tour_card: PanelContainer
 var tour_label: Label
 ## A notice at the top right: the first line is its title, the rest its detail.
 func _banner(text: String, secs: float, kind := "info") -> void:
+	if previewing:
+		return     # nothing to say about a fight not yet stepped into
 	var lines := text.split("\n", false, 1)
 	Toast.say(lines[0], lines[1] if lines.size() > 1 else "", kind, maxf(secs, 2.5))
 
@@ -2013,15 +2039,14 @@ func _draw_hud() -> void:
 var _done := false
 func _on_finished(success: bool, report: Array) -> void:
 	_done = true
-	Toast.clear()
-	result_card.visible = true
-	banner.text = ("The line held.\n\n" if success else "You fell. In the camp you wake, and remember.\n\n") + "\n".join(report)
 	Launch.report = report
 	Launch.last_name = profile.name
+	# A notice, not words across the screen; and the world does not stop: you walk on.
 	if args.has("tour"):
-		banner.text = ("Done." if success else "You fell.") + "\n\n%s: next    %s: again" % [Keys.name(KEY_N), Keys.name(KEY_R)]
+		Toast.say("Done" if success else "You fell", "%s next   ·   %s again" % [Keys.name(KEY_N), Keys.name(KEY_R)], "good" if success else "warn", 12.0)
+	else:
+		Toast.say("The line held" if success else "You fell", "\n".join(report), "good" if success else "warn", 12.0)
 	if not args.has("auto") or args.has("homewalk"):
-		banner.text += "\n\nA gateway home opens ahead: walk through it.  (Enter: straight back)"
 		get_tree().create_timer(1.5).timeout.connect(_open_home)
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])

@@ -8,6 +8,7 @@ const ORIGINS := {two_rivers = "Two Rivers", aiel = "Aiel", cairhien = "Cairhien
 const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing", "delving", "illusion", "dreaming"]
 ## Doorway light by kind of activity: the yard is daylight, a holdout is fire,
 ## the World of Dreams is its own colour.
+const GAME_SCENE := "res://src/game/game.tscn"
 const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38, 0.12), spar = Color(0.5, 0.45, 1.0)}
 
 var profile := {}
@@ -36,6 +37,7 @@ var _frame := 0
 func _ready() -> void:
 	Rules.load_data()
 	cl = Launch.cmdline()
+	Launch.use_profile_dir()
 	returning = Launch.return_preview
 	Launch.return_preview = false
 	# A newer release already downloaded: start that instead.
@@ -55,6 +57,10 @@ func _ready() -> void:
 	# Start making the fight's Shadowspawn now, on other threads, so walking
 	# through a doorway does not wait for them.
 	Cast.begin()
+	Settings.load_and_apply()
+	# And the fight scene itself, read from disk on another thread.
+	if not returning:
+		ResourceLoader.load_threaded_request(GAME_SCENE)
 	# Look for a newer release; if one downloads while nobody has gone through a
 	# doorway yet, restart into it straight away.
 	Updater.check(self, func() -> bool: return _pre.is_empty() and get_tree().current_scene == self)
@@ -62,9 +68,9 @@ func _ready() -> void:
 	Map.use("open")
 	World.build(self, -32.0, -26.0)
 	Terrain.amp = 0.25
-	add_child(Terrain.build_mesh(120.0, 1.0))
+	add_child(await Terrain.build_mesh(120.0, 1.0))
 	_ctx = Map.state()
-	Scenery.scatter(self)
+	await Scenery.scatter(self)
 	Scenery.fire(self, Vector3(6.0, Terrain.height(6.0, 3.0), 3.0))
 	Scenery.camp(self)
 	# --camyaw=deg: look another way in a render (and --show=none hides the sheet).
@@ -295,6 +301,8 @@ func _show_menu(on: bool) -> void:
 func _process(dt: float) -> void:
 	if cam == null or model == null or returning:
 		return
+	if cl.has("timing") and dt > 0.05:
+		print("TIMING camp frame %d took %d ms (preloading: %s)" % [_frame, int(dt * 1000.0), not _pre.is_empty()])
 	_frame += 1
 	if cl.get("ghost", "") == "flow":
 		_ghost_flow()
@@ -529,12 +537,7 @@ func _sheet() -> void:
 	if Launch.report.size() > 0:
 		_section(side, "Last time out")
 		_text(side, "\n".join(Launch.report), 14, Color(0.95, 0.85, 0.55))
-	_section(side, "Characters")
-	for n in _saved():
-		if n != profile.name.to_lower():
-			_button(side, n.capitalize(), func() -> void: Launch.report = []; _select(n))
-	_button(side, "New character…", _creation)
-	_button(side, "Server, quit  (Esc)", func() -> void: _show_menu(true))
+	_button(side, "Menu: characters, keys, server, quit  (Esc)", func() -> void: _show_menu(true))
 
 var _binding := -1   # the default key being rebound in the Keys panel, or -1
 
@@ -816,6 +819,12 @@ func _lobby_text() -> String:
 func _menu_fill() -> void:
 	_clear(menu_box)
 	_text(menu_box, "Heartstone", 28)
+	if not profile.is_empty():
+		_section(menu_box, "Characters")
+		for n in _saved():
+			if n != profile.name.to_lower():
+				_button(menu_box, n.capitalize(), func() -> void: Launch.report = []; menu.visible = false; _select(n))
+		_button(menu_box, "New character…", func() -> void: menu.visible = false; _creation())
 	_section(menu_box, "Playing now")
 	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8) if reachable else Color(1.0, 0.7, 0.45))
 	_section(menu_box, "Your place on the server")
@@ -1419,8 +1428,12 @@ func _open_way(d: Dictionary) -> void:
 	Launch.last_activity = d.id
 	Launch.report = []
 	Launch.left_camp = Time.get_ticks_msec()
-	var g: Node3D = load("res://src/game/game.tscn").instantiate()
+	var t0 := Time.get_ticks_msec()
+	var scene: PackedScene = ResourceLoader.load_threaded_get(GAME_SCENE) if ResourceLoader.load_threaded_get_status(GAME_SCENE) != ResourceLoader.THREAD_LOAD_INVALID_RESOURCE else load(GAME_SCENE)
+	var g: Node3D = scene.instantiate()
+	if cl.has("timing"): print("TIMING camp: game scene instantiated in %d ms" % (Time.get_ticks_msec() - t0))
 	vp.add_child(g)
+	if cl.has("timing"): print("TIMING camp: game scene ready in %d ms" % (Time.get_ticks_msec() - t0))
 	_pre = {door = d, vp = vp, game = g, A = _door_frame(d), mat = _door_mat(d), live = 0.0}
 	if _pre.mat:
 		_pre.mat.set_shader_parameter("view", vp.get_texture())

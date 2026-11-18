@@ -37,7 +37,7 @@ func _world() -> void:
 	rim.light_color = Color(0.6, 0.72, 1.0); rim.light_energy = 0.55
 	add_child(rim)
 	Terrain.amp = float(args.get("amp", "1"))
-	add_child(Terrain.build_mesh(160.0, 0.5))
+	add_child(await Terrain.build_mesh(160.0, 0.5))
 	cam = Camera3D.new(); cam.fov = 50.0; add_child(cam)
 
 func _look(from: Vector3, at: Vector3) -> void:

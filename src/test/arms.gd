@@ -8,7 +8,7 @@ func _ready() -> void:
 	var args := Launch.cmdline()
 	World.build(self, 20.0, -32.0)
 	Terrain.amp = 0.0
-	add_child(Terrain.build_mesh(60.0, 2.0))
+	add_child(await Terrain.build_mesh(60.0, 2.0))
 	var ids := Rules.weapons.keys()
 	var row := int(args.get("row", 0))
 	var per := 7

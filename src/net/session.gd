@@ -19,7 +19,7 @@ signal vaulted(status: String, kept: Dictionary)  # the server's character store
 signal lobby(fights: Array)                     # the server said who is playing what
 
 const PORT := 24690
-const PROTO := 7               # bump when an RPC or the snapshot format changes
+const PROTO := 8               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 const MAX_ROOMS := 8
@@ -119,7 +119,9 @@ static func _seal(text: String, secret: String, nonce: String, open := false) ->
 	var sealed := aes.update(data); aes.finish()
 	return sealed.hex_encode()
 
-func host(activity_id: String, my_profile: Dictionary, port := PORT) -> Error:
+## hold: build the fight but keep it still until begin() (a camp doorway's far side,
+## looked at before anyone has stepped through).
+func host(activity_id: String, my_profile: Dictionary, port := PORT, hold := false) -> Error:
 	Rules.load_data()
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, 5)
@@ -129,7 +131,7 @@ func host(activity_id: String, my_profile: Dictionary, port := PORT) -> Error:
 	multiplayer.peer_disconnected.connect(_on_left)
 	multiplayer.peer_connected.connect(_greet)
 	is_host = true; profile = my_profile; activity = activity_id
-	_rooms[""] = {sim = Sim.new(activity_id, randi()), activity = activity_id, peers = {}, tick = 0}
+	_rooms[""] = {sim = Sim.new(activity_id, randi()), activity = activity_id, peers = {}, tick = 0, hold = hold}
 	if not my_profile.is_empty():
 		my_id = _rooms[""].sim.add_player(my_profile)
 		_rooms[""].peers[1] = my_id
@@ -139,10 +141,10 @@ func host(activity_id: String, my_profile: Dictionary, port := PORT) -> Error:
 
 ## want: the activity to start if the host is a server with nothing running.
 ## room: on a server, the name of the group to play with ("" is the common room).
-func join(address: String, my_profile: Dictionary, want := "", their_word := "", room := "") -> Error:
+func join(address: String, my_profile: Dictionary, want := "", their_word := "", room := "", hold := false) -> Error:
 	Rules.load_data()
 	profile = my_profile
-	return _connect(address, func() -> void: _hello.rpc_id(1, profile, want, _proof(their_word, _nonce), version(), room), func() -> void: rejected.emit("could not reach " + address))
+	return _connect(address, func() -> void: _hello.rpc_id(1, profile, want, _proof(their_word, _nonce), version(), room, hold), func() -> void: rejected.emit("could not reach " + address))
 
 ## Connect, and act once the host has greeted us with its number (see secrets).
 func _connect(address: String, on_up: Callable, on_fail: Callable) -> Error:
@@ -240,6 +242,20 @@ func df_gate() -> void:
 	if is_host: _do_arms(1, "df_gate", [])
 	else: _arms.rpc_id(1, "df_gate", [])
 
+## Stepped through the doorway: let a held fight begin.
+func begin() -> void:
+	if is_host: _go_from(1)
+	else: _go.rpc_id(1)
+
+@rpc("any_peer", "reliable")
+func _go() -> void:
+	_go_from(multiplayer.get_remote_sender_id())
+
+func _go_from(peer: int) -> void:
+	var r: Dictionary = _rooms.get(_room_of.get(peer, ""), {})
+	if not r.is_empty():
+		r.hold = false
+
 ## Spend a level-up on the tree: kind is weave, skill, form or weapon.
 func pick(kind: String, choice: String) -> void:
 	if is_host: _do_arms(1, "pick", [kind, choice])
@@ -301,7 +317,7 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 		else: _refused.rpc_id(peer, why)
 
 @rpc("any_peer", "reliable")
-func _hello(their_profile: Dictionary, want: String, proof: String, their_version: String, room: String) -> void:
+func _hello(their_profile: Dictionary, want: String, proof: String, their_version: String, room: String, hold := false) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	if not is_host or _room_of.has(peer):
 		return
@@ -320,7 +336,8 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 			_rejected.rpc_id(peer, "the server is full of fights already")
 			return
 		var act: String = want if Rules.activities.has(want) and not want.begins_with("_") else "tarwins_gap_watch"
-		_rooms[room] = {sim = Sim.new(act, randi()), activity = act, peers = {}, tick = 0}
+		# A fight started from a camp doorway waits until someone steps through it.
+		_rooms[room] = {sim = Sim.new(act, randi()), activity = act, peers = {}, tick = 0, hold = hold}
 		print("SERVER begins %s for %s%s" % [act, their_profile.name, " in room '%s'" % room if room != "" else ""])
 	var r: Dictionary = _rooms[room]
 	if r.peers.size() >= ROOM_SIZE:
@@ -429,8 +446,15 @@ func _physics_process(dt: float) -> void:
 func _step_room(room: String, r: Dictionary, dt: float) -> void:
 	var sim: Sim = r.sim
 	if sim.over and r.tick < 0:
+		# Done and paid: keep the world moving (and drawn) for whoever is still in it.
+		sim.step(dt)
+		r.tick -= 1
+		if r.tick % SNAP_EVERY == 0 and not dedicated:
+			snapshot.emit(sim.snapshot())
 		return
-	sim.step(dt)
+	# Held: drawn (snapshots go out) but not run, until someone steps through.
+	if not r.get("hold", false):
+		sim.step(dt)
 	r.tick += 1
 	# Each room's news goes only to those in it. The machine hosting hears its own
 	# room directly (and a referee with no character still hears it, for tests).

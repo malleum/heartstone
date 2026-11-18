@@ -15,7 +15,7 @@ static func _stack() -> VBoxContainer:
 		tree.root.add_child(layer)
 		var v := VBoxContainer.new(); v.name = "Stack"; layer.add_child(v)
 		v.anchor_left = 1.0; v.anchor_right = 1.0
-		v.offset_left = -380; v.offset_right = -24; v.offset_top = 24
+		v.offset_left = -320; v.offset_right = -20; v.offset_top = 20
 		v.add_theme_constant_override("separation", 8)
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return layer.get_node("Stack")
@@ -38,16 +38,16 @@ static func say(title: String, body := "", kind := "info", secs := 4.5) -> void:
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new(); sb.bg_color = Color(0.06, 0.06, 0.08, 0.88)
 	sb.border_color = col; sb.border_width_left = 3; sb.set_corner_radius_all(4)
-	sb.content_margin_left = 14; sb.content_margin_right = 14; sb.content_margin_top = 9; sb.content_margin_bottom = 10
+	sb.content_margin_left = 11; sb.content_margin_right = 11; sb.content_margin_top = 6; sb.content_margin_bottom = 7
 	card.add_theme_stylebox_override("panel", sb)
 	var box := VBoxContainer.new(); box.add_theme_constant_override("separation", 2); card.add_child(box)
 	var t := Label.new(); t.text = title; box.add_child(t)
-	t.add_theme_font_override("font", Glyph.serif()); t.add_theme_font_size_override("font_size", 19)
+	t.add_theme_font_override("font", Glyph.serif()); t.add_theme_font_size_override("font_size", 16)
 	t.add_theme_color_override("font_color", Color(0.97, 0.94, 0.88))
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if body != "":
 		var b := Label.new(); b.text = body; box.add_child(b)
-		b.add_theme_font_size_override("font_size", 14); b.add_theme_color_override("font_color", Color(0.74, 0.74, 0.78))
+		b.add_theme_font_size_override("font_size", 12); b.add_theme_color_override("font_color", Color(0.74, 0.74, 0.78))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(card)
 	card.modulate.a = 0.0
