@@ -207,7 +207,9 @@ are what the 4:44 review, or the next session, should pick up.
   nonexistent connection from Session ... tree_exited" a few times while playing in
   the camp. Harmless, and not reproduced in renders (movie mode, online or offline);
   likely Godot's multiplayer cache tidying a Session that is freed or moved between
-  worlds. Find the step that does it and stop it.
+  worlds. Find the step that does it and stop it. (18 Nov: the lobby and store
+  replies cleared the peer a second time after the camp did; removed. Unconfirmed
+  as the cause: watch the terminal.)
 
 - 2026-11-18, found running the controls test: about one run in four the scripted
   G press (tie off the dome) reaches the game but no tie happens, and the presses

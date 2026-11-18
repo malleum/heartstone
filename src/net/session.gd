@@ -548,12 +548,12 @@ func _rejected(why: String) -> void:
 
 @rpc("authority", "reliable")
 func _vault_reply(status: String, kept: Dictionary) -> void:
-	multiplayer.multiplayer_peer = null
+	# (Whoever asked hangs up and frees this Session; clearing the peer here as
+	# well cleared it twice, which Godot complains of.)
 	vaulted.emit(status, kept)
 
 @rpc("authority", "reliable")
 func _who_reply(fights: Array) -> void:
-	multiplayer.multiplayer_peer = null
 	lobby.emit(fights)
 
 @rpc("authority", "reliable")
