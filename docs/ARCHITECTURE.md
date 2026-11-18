@@ -482,6 +482,12 @@ outlasts it.
 - **Balefire** burns its victim's last moments out of the Pattern (`Sim._unmake`):
   whatever it harmed in the last 5 s (times the weaver's reach) stands again as it
   was, the dead included. Harm is kept for 20 s in `Sim.ledger` for this.
+- **Linking** (L; `Sim.request_link`, canon): a woman leads and takes in every
+  channeller within 4 m who has offered (L); men join only a woman's circle, never
+  each other. The leader weaves with 1 + 0.6 x each member's strength over hers
+  (`_circle_mult`) and two more flows per member; members cannot channel and cannot
+  leave unless she lets them go (L again). A blow of a quarter of their health, or
+  going down, knocks someone out.
 - **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
   one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
 - **Characters and loadouts** (`Profile.make`, camp `_loadout`, `_retrain`, `_unlocks`).

@@ -1047,6 +1047,24 @@ func _rounds() -> void:
 	bk._hurt(bk.ents[bp], 9999.0, bo, "balefire")
 	check(slain.alive and not bk.ents[bp].alive, "balefire on a player brings back what they just killed")
 
+	# Linking: a woman leads; men join only her circle; members cannot channel or leave.
+	var ls := Sim.new("camp_training", 81)
+	ls._waves = []; ls._add_enemy("dummy", Vector3(0, 0, -90))
+	var w1 := ls.add_player(Profile.create({name = "Link W1", power = "saidar", potential_pts = 8}), Vector3(0, 0, 0))
+	var m1 := ls.add_player(Profile.create({name = "Link M1", power = "saidin", potential_pts = 8}), Vector3(1.5, 0, 0))
+	var m2 := ls.add_player(Profile.create({name = "Link M2", power = "saidin", potential_pts = 8}), Vector3(-1.5, 0, 0))
+	ls.request_link(m1); ls.request_link(m2)
+	check(ls.ents[m1].get("circle", []).is_empty() and ls.ents[m1].get("circle_of", 0) == 0, "two men cannot link with each other")
+	var k0 := ls._circle_mult(ls.ents[w1])
+	ls.request_link(w1)
+	check(ls.ents[w1].circle.size() == 2 and ls.ents[m1].circle_of == w1, "a woman leading takes in those who offered, men too")
+	check(ls._circle_mult(ls.ents[w1]) > k0 * 1.5, "the leader weaves with the circle's strength")
+	check(ls.request_cast(m1, ls.ents[m1].profile.weaves.keys()[0], Vector3(0, 1, 9)).begins_with("linked") and ls.request_link(m1) != "", "a member cannot channel, or leave of themselves")
+	ls._hurt(ls.ents[m2], ls.ents[m2].max_hp * 0.3, 0, "")
+	check(ls.ents[m2].get("circle_of", 0) == 0 and ls.ents[w1].circle.size() == 1, "a heavy blow knocks a member out of the circle")
+	ls.request_link(w1)
+	check(ls.ents[w1].circle.is_empty() and ls.ents[m1].circle_of == 0, "the leader lets them go")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)

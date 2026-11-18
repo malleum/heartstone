@@ -164,7 +164,7 @@ func free_slots(p: Dictionary) -> int:
 	for h in p.held:
 		if h.tied == 0.0:
 			used += Rules.slots_of(Rules.weaves[h.weave], p.profile)
-	return Rules.flow_capacity(p.profile) - used
+	return Rules.flow_capacity(p.profile) + 2 * p.get("circle", []).size() - used
 
 ## Who a held weave aimed at `aim` would fasten on: the nearest body the weave can
 ## take (anyone not on your side; only channellers for a shield) within a few paces.
@@ -205,6 +205,8 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 		return "busy"
 	if p.get("entranced", 0.0) > t:
 		return "the song has you"
+	if p.get("circle_of", 0) != 0:
+		return "linked: your circle's leader weaves"
 	if p.severed > t:
 		return "shielded from the Source"
 	if p.get("bound_by", 0) != 0:
@@ -633,6 +635,87 @@ func _unmake(e: Dictionary, by: int) -> void:
 	ledger = ledger.filter(func(h: Dictionary) -> bool: return h.by != e.id)
 	events.append({e = "balefire_unmade", id = e.id, n = undone.size()})
 
+# --- linking (canon) -----------------------------------------------------------
+## A woman leads a circle; those within reach who have offered to link join it. Men
+## can link only into a woman's circle, never with each other. The leader weaves
+## with the circle's strength; the others cannot channel, and none leave unless the
+## leader lets them go (or a heavy blow, or going down, knocks them out of it).
+
+func _woman_channeller(p: Dictionary) -> bool:
+	return p.profile.get("cls", "channeller") == "channeller" and p.profile.get("power", "") == "saidar"
+
+## L: offer to link; if you are a woman, lead those near you who have offered; if
+## you lead, let everyone go.
+func request_link(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or not p.alive or p.get("downed", false):
+		return "busy"
+	if p.profile.get("cls", "channeller") != "channeller":
+		return "only those who channel can link"
+	if p.get("circle_of", 0) != 0:
+		return "only the circle's leader can let you go"
+	if not p.get("circle", []).is_empty():
+		_dissolve(p)
+		return ""
+	p.link_open = t + 8.0
+	var leader := p if _woman_channeller(p) else {}
+	if leader.is_empty():
+		# A man can be brought into a circle only by a woman: one leading near him.
+		for k in ents:
+			var o: Dictionary = ents[k]
+			if o.kind == "player" and o.alive and not o.get("circle", []).is_empty() and o.pos.distance_to(p.pos) < Rules.TUNE.link_reach:
+				leader = o
+		if leader.is_empty():
+			events.append({e = "link_open", id = id})
+			return ""
+	_gather(leader)
+	return ""
+
+func _gather(leader: Dictionary) -> void:
+	if not leader.has("circle"):
+		leader.circle = []
+	for k in ents:
+		var o: Dictionary = ents[k]
+		if o.kind == "player" and o.alive and k != leader.id and o.get("link_open", 0.0) > t and o.get("circle_of", 0) == 0 \
+				and o.get("circle", []).is_empty() and o.pos.distance_to(leader.pos) < Rules.TUNE.link_reach and leader.circle.size() < 12:
+			leader.circle.append(k)
+			o.circle_of = leader.id
+			o.forming = {}
+			for h in o.get("held", []).duplicate():
+				release(o.id, h.weave, h.target)
+	if not leader.circle.is_empty():
+		events.append({e = "linked", id = leader.id, members = leader.circle.duplicate()})
+
+func _dissolve(leader: Dictionary) -> void:
+	for k in leader.get("circle", []):
+		if ents.has(k):
+			ents[k].circle_of = 0; ents[k].link_open = 0.0
+	events.append({e = "unlinked", id = leader.id, members = leader.get("circle", []).duplicate()})
+	leader.circle = []
+
+## Knocked out of the circle: a heavy blow, going down, dying.
+func _drop_from_circle(o: Dictionary) -> void:
+	var lid: int = o.get("circle_of", 0)
+	if lid != 0 and ents.has(lid):
+		ents[lid].circle.erase(o.id)
+		events.append({e = "link_lost", id = o.id, leader = lid})
+	o.circle_of = 0; o.link_open = 0.0
+	if not o.get("circle", []).is_empty():
+		_dissolve(o)
+
+## How much stronger the leader weaves: each member adds 60% of their own strength
+## (measured against the leader's).
+func _circle_mult(p: Dictionary) -> float:
+	var c: Array = p.get("circle", [])
+	if c.is_empty():
+		return 1.0
+	var mine := maxf(Rules.strength(p.profile), 0.01)
+	var add := 0.0
+	for k in c:
+		if ents.has(k) and ents[k].alive:
+			add += Rules.TUNE.link_share * Rules.strength(ents[k].profile) / mine
+	return 1.0 + add
+
 func _finish(ok: bool) -> void:
 	over = true; success = ok
 	events.append({e = "over", success = ok})
@@ -1017,7 +1100,7 @@ func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3
 func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	var w: Dictionary = Rules.weaves[weave]
 	var b: Dictionary = w.base
-	var k := Rules.scale(p.profile, weave, p.stamina)
+	var k := Rules.scale(p.profile, weave, p.stamina) * _circle_mult(p)
 	# The fight is decided on the ground plane, but weaves fly in three dimensions:
 	# they leave the hand, can be aimed up or down, and land on real ground.
 	var from: Vector3 = _feet(p)
@@ -1276,6 +1359,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 	# What each did, a few seconds back: balefire can burn it out of the Pattern.
 	if by != 0 and dmg > 0.0:
 		ledger.append({t = t, by = by, on = e.id, dmg = minf(dmg, maxf(e.hp, 0.0) + (e.get("down_hp", 0.0) if e.get("downed", false) else 0.0)), hp = e.hp, downed = e.get("downed", false)})
+	if e.kind == "player" and (e.get("circle_of", 0) != 0 or not e.get("circle", []).is_empty()) and dmg >= e.max_hp * 0.25:
+		_drop_from_circle(e)
 	if e.get("downed", false):
 		# Already down: what lands now comes off what is left, half a body more.
 		e.down_hp -= dmg
@@ -1297,6 +1382,7 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			for h in e.get("held", []).duplicate():
 				release(e.id, h.weave, h.target)
 			events.append({e = "downed", id = e.id, secs = e.down_left, by = by})
+			_drop_from_circle(e)
 			return
 	if dmg > 0.0:
 		e.hurt_t = t
@@ -1335,6 +1421,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 					o.alive = false
 					events.append({e = "die", id = o.id, by = by, linked = true})
 		events.append({e = "die", id = e.id, by = by})
+		if e.kind == "player":
+			_drop_from_circle(e)
 		if weave == "balefire":
 			_unmake(e, by)
 		# Dead in a round: back at the next wave, weaker for it.

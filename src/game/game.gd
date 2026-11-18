@@ -187,6 +187,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == Keys.k(KEY_L):
+			session.link()
 		elif ev.physical_keycode == Keys.k(KEY_K):
 			session.tie_rope(true)
 		elif ev.physical_keycode == Keys.k(KEY_J) and darkfriend:
@@ -941,6 +943,16 @@ func _on_events(list: Array) -> void:
 				var g := Weavefx.gate(self, _ground(e.pos), _ground(e.pos) + Vector3(sin(e.yaw), 0, cos(e.yaw)))
 				get_tree().create_timer(4.0).timeout.connect(func() -> void: if is_instance_valid(g): g.queue_free())
 				_banner("A gateway opens\nDarkfriends pour through. Someone opened it for them…", 6.0, "shadow")
+			"link_open":
+				if e.id == session.my_id:
+					_banner("You offer to link\nA woman who channels must lead: when she links (%s) near you, you join her circle." % Keys.name(KEY_L), 5.0)
+			"linked":
+				var mine: bool = e.id == session.my_id or (e.members as Array).has(session.my_id)
+				if mine:
+					_banner("Linked: a circle of %d\n%s" % [(e.members as Array).size() + 1, "You lead: you weave with all of it. %s lets them go." % Keys.name(KEY_L) if e.id == session.my_id else "Your leader weaves with your strength. You cannot channel, or leave, unless she lets you go."], 6.0, "good")
+			"unlinked", "link_lost":
+				if e.id == session.my_id or (e.get("members", []) as Array).has(session.my_id):
+					_banner("Out of the circle", 3.0)
 			"unmade":
 				# Burnt out of the Pattern: what it did never happened. The dead are
 				# drawn afresh by the introduction that follows.

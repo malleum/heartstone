@@ -225,6 +225,11 @@ func dream(move: String, aim: Vector3) -> void:
 	if is_host: _do_arms(1, "dream", [move, aim])
 	else: _arms.rpc_id(1, "dream", [move, aim])
 
+## Link (offer, lead, or let go: Sim.request_link).
+func link() -> void:
+	if is_host: _do_arms(1, "link", [])
+	else: _arms.rpc_id(1, "link", [])
+
 ## Tie or untie someone with rope (held down; Sim.set_tying).
 func tie_rope(on: bool) -> void:
 	if is_host: _do_arms(1, "rope", [on])
@@ -283,6 +288,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 2 and a[0] is String and a[1] is Vector3: why = sim.request_dream(ent, a[0], a[1])
 		"tie":
 			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
+		"link":
+			why = sim.request_link(ent)
 		"rope":
 			if a.size() == 1 and a[0] is bool: why = sim.set_tying(ent, a[0])
 		"df_gate":
