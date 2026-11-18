@@ -479,6 +479,17 @@ func set_duck(id: int, on: bool) -> void:
 ## Sidestep (or roll) along dir: for a moment nothing can touch you.
 func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	var p: Dictionary = ents[id]
+	# Seized by a Trolloc: Space twists free (at a cost in breath), and that is all.
+	if p.get("grabbed_by", 0) != 0 and p.chained > t:
+		p.chained = 0.0
+		var g: Dictionary = ents.get(p.grabbed_by, {})
+		p.grabbed_by = 0
+		p.stamina = maxf(p.stamina - 15.0, 0.0)
+		if not g.is_empty():
+			g.stagger = maxf(g.stagger, 0.5)
+			p.shove = (p.pos - g.pos).normalized() * 4.0
+		events.append({e = "broke_free", id = id})
+		return ""
 	if not p.alive or (not p.dash.is_empty() and not p.dash.has("lunge")) or p.reel_until > t:
 		return "busy"
 	if p.get("entranced", 0.0) > t:
@@ -1097,6 +1108,11 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	p.down = maxf(p.down - dt, 0.0)
+	if p.get("grabbed_by", 0) != 0:
+		var gb: Dictionary = ents.get(p.grabbed_by, {})
+		if gb.is_empty() or not gb.alive or gb.stagger > 0.0 or p.chained <= t:
+			# Let go: it died, reeled, or you were held as long as it could.
+			p.grabbed_by = 0; p.chained = minf(p.chained, t)
 	_gaze(p)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
@@ -2542,6 +2558,15 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 	# A burning Trolloc sets alight what it reaches.
 	if e.burn > 0.0 and target.hp < hp0:
 		target.burn = maxf(target.burn, 2.0); target.burn_dps = 3.0; target.burn_by = e.id
+	# Sometimes a Trolloc that gets a blow in unguarded seizes you as well: held
+	# until you twist free (a roll, Space), and its next blow comes quickly.
+	if target.hp < hp0 and target.hp > 0.0 and target.kind == "player" and e.get("type", "").begins_with("trolloc") and not e.row.has("ranged") \
+			and target.hp < hp0 - b.dmg * 0.5 and rng.randf() < 0.12 and target.get("grabbed_by", 0) == 0:
+		target.grabbed_by = e.id
+		target.chained = t + 2.0
+		target.forming = {}; target.swing = {}
+		e.atk = maxf(e.atk, e.blow.get("time", 1.0) * 0.6) if not e.blow.is_empty() else e.atk
+		events.append({e = "grabbed", id = target.id, by = e.id})
 
 ## Compact state for clients: enough to draw the fight, nothing they could cheat with.
 ## The team's experience: every kill counts for everyone. Each team level carries

@@ -105,7 +105,8 @@ of it. Notes on what a tick does not cover:
 - [x] Trolloc archers and javelin throwers, so a shield and a roll matter at range.
 - [x] Myrddraal: fast, parries, black blade that festers (damage over time);
       linked Trollocs die with it.
-- [ ] Grabs and shoves that must be broken with a dodge.
+- [x] Grabs that must be broken with a dodge (18 Nov: 12% of unguarded Trolloc hits
+      seize you for up to 2 s; Space twists free for 15 breath and staggers it).
 - [ ] Hit reactions on the player that match the blow (stagger, knocked back,
       knocked down) and a get-up.
 
@@ -166,7 +167,7 @@ Shields and the off hand
 
 Bare hands
 - [x] Aiel hand-and-foot fighting: strikes, kick, throw
-- [ ] Shove and grapple break for everyone
+- [~] Grapple break for everyone (Space, 18 Nov); shoving them: not yet
 
 ### 4. Moves
 - [x] Light chain per family (cut, back-cut, finishing cut; jab, jab, thrust; and
@@ -211,7 +212,7 @@ Bare hands
       footfall of a roll.
 - [ ] Stand-ins to replace with real animation: spear thrust, staff work, bow
       draw, low sweep, two-handed grips, Aiel hand fighting.
-- [ ] Camera: a slight pull-in when guarding; lock-on to one enemy (optional).
+- [~] Camera: a slight pull-in when guarding (18 Nov, 0.8 m); lock-on to one enemy (optional, not done).
 
 ### 7. HUD and camp
 - [x] Weapons on the bar beside weaves, with a drawn silhouette per family,

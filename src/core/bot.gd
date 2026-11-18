@@ -101,6 +101,10 @@ static func drive(sim: Sim, id: int) -> void:
 		return
 	if me.get("downed", false):
 		return
+	# Seized: twist free at once.
+	if me.get("grabbed_by", 0) != 0:
+		sim.request_dodge(id, Vector3.ZERO, true)
+		return
 	# A friend down nearby comes first: stand over them until they are up.
 	for k in sim.ents:
 		var o: Dictionary = sim.ents[k]

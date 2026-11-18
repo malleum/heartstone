@@ -16,6 +16,7 @@ var cam_pitch := -0.18
 var cam_dist := 3.6
 var cam_off := Vector3(0.6, 0.15, 0.0)   # the shoulder offset (cam_dist is added to z)
 var fov_base := 70.0
+var _guard_pull := 0.0
 var cam_swing := 0.0          # arriving: the camera starts out in front of you, looking back at the gateway
 var face_yaw := 0.0            # my character faces its travel direction, or the aim while weaving
 var aim_t := 0.0               # seconds left facing the aim after a cast
@@ -502,7 +503,10 @@ func _process(dt: float) -> void:
 		# off the crosshair.
 		var pivot := me.position - cam_shift + Vector3(0, 1.55, 0)
 		var view := Basis(Vector3.UP, cam_yaw + cam_swing) * Basis(Vector3.RIGHT, cam_pitch)
-		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist + cam_swing * 0.6))
+		# Guarding, the camera draws in a little: the fight narrows to the blade.
+		var guarding: bool = actors.has(session.my_id) and int(actors[session.my_id].get("status", 0)) & 16 != 0
+		_guard_pull = lerpf(_guard_pull, 0.8 if guarding else 0.0, minf(6.0 * dt, 1.0))
+		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist - _guard_pull + cam_swing * 0.6))
 		if cam_shift != Vector3.ZERO and not cam_gate.is_empty():
 			# The camera reaching the gateway's plane: now it goes through as well.
 			if signf((want - (cam_gate.origin as Vector3)).dot(cam_gate.n)) != float(cam_gate.s):
@@ -1710,6 +1714,12 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id and frame - _gaze_said > 900:
 					_gaze_said = frame
 					_banner("The Eyeless gaze\nFear grips you while you meet its stare: weaving comes slowly. Look away.", 4.0, "shadow")
+			"grabbed":
+				if e.id == session.my_id:
+					_banner("Seized!\n%s: twist free." % Keys.name(KEY_SPACE), 2.0, "warn")
+			"broke_free":
+				if e.id == session.my_id:
+					banner.text = ""
 			"blocked":
 				# Steel on steel: the bandleader's guard turned it.
 				Weavefx._once(Weavefx._particles(Color(1.0, 0.85, 0.5), 14, 0.3, 0.12, 4.0, 2.0, 70.0), self, e.pos)
