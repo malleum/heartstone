@@ -135,14 +135,20 @@ camp lists them under Playing now and says when one arrives.
 - Others in the fight are told "X lost the connection" and "X is back".
 - Tested in `tools/test.sh` (the `dropper` client).
 
-## Friends in the camp (18 Nov, PROTO 10)
-- Each camp's question to the server (`_who`) carries where it stands: position,
-  facing and look (`{x, z, yaw, kind, style}`, checked for shape). The answer's
-  `_camp` entry lists the others as `walkers`, leaving out anyone fighting (a held
-  doorway preview does not count) or not heard from in 15 s.
-- A camp asks every 4 s, or every 1.5 s while a friend is about, and walks each
-  friend's figure to their newest spot instead of jumping it there. While a
-  doorway's fight is loaded and joined to the server, the camp asks over that
-  connection (`Session.ask_here`), since only one can be open at a time.
-- Not shown: names over their heads (nothing is written on the world), what they
-  hold, or their cloaks moving with their walk beyond the usual sway.
+## Friends in the camp (18 Nov, PROTO 11)
+- While the camp is open it keeps a connection of its own to the server (the camp
+  link), in a branch of the scene with its own multiplayer, so a doorway's fight
+  can be joined beside it. Its node is named `Session` so calls find the server's
+  Session (paths are relative to each side's multiplayer root).
+- The camp says where its character stands ten times a second (`_camp_at`,
+  unreliable); the server sends every camp everyone else's spot as often
+  (`_camp_walkers_to`), leaving out anyone who has gone into a fight (a held
+  doorway preview does not count). What they look like (`kind`, `style`) goes once,
+  reliably, whenever someone arrives or leaves (`_camp_looks_to`).
+- Each friend's figure walks to their newest spot, about a tenth of a second
+  behind. (The first version rode on the 1.5 s lobby question and ran seconds
+  behind; the user rightly called that unacceptable.)
+- The slow lobby question still runs, for who is fighting what and the server's
+  build; it only places figures when the link is down.
+- Not shown: names over their heads (nothing is written on the world) or what
+  they hold.

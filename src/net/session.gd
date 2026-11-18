@@ -18,9 +18,11 @@ signal rejected(why: String)                    # could not join at all
 signal vaulted(status: String, kept: Dictionary)  # the server's character store answered
 signal lobby(fights: Array)                     # the server said who is playing what
 signal lost                                    # the server went away mid-fight
+signal camp_walkers(list: Array)               # camp link: [[name, x, z, yaw], ...] ten times a second
+signal camp_looks(looks: Dictionary)           # camp link: name -> {kind, style}, when someone arrives
 
 const PORT := 24690
-const PROTO := 10              # bump when an RPC or the snapshot format changes
+const PROTO := 11              # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 const MAX_ROOMS := 8
@@ -557,6 +559,9 @@ func _expire_away() -> void:
 
 func _on_left(peer: int) -> void:
 	_nonces.erase(peer)
+	if _camp_peers.has(peer):
+		_camp_peers.erase(peer)
+		_send_looks()
 	var room: String = _room_of.get(peer, "?")
 	_room_of.erase(peer)
 	if not _rooms.has(room):
@@ -584,6 +589,11 @@ func _physics_process(dt: float) -> void:
 		return
 	if not _away.is_empty():
 		_expire_away()
+	if dedicated and not _camp_peers.is_empty():
+		_camp_t -= dt
+		if _camp_t <= 0.0:
+			_camp_t = CAMP_EVERY
+			_send_walkers()
 	for room in _rooms.keys():
 		# Everyone in it dropped and may come back: it waits for them.
 		if _rooms[room].peers.is_empty() and _awaited(room):
@@ -652,6 +662,79 @@ func _send_events(r: Dictionary, sim: Sim) -> void:
 				events.emit(mine)
 		if not dedicated and not r.peers.has(1):
 			events.emit(ev.filter(func(e: Dictionary) -> bool: return not e.has("to")))
+
+# --- the camp link ---------------------------------------------------------------
+# A camp keeps a connection of its own to the server while it is open (camp.gd,
+# beside any doorway's fight), and says where its character stands ten times a
+# second; the server tells every camp where all the others are, as often. What
+# they look like goes once, when someone arrives.
+
+const CAMP_EVERY := 0.1
+var _camp_peers := {}   # server: peer -> {name, at: {x, z, yaw}, look: {kind, style}}
+var _camp_t := 0.0
+
+## Open the link (client): `where` as Session._camp_spot reads it.
+func camp_join(address: String, their_word: String, me: String, where: Dictionary) -> Error:
+	return _connect(address, func() -> void: _camp_hello.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: rejected.emit("could not reach " + address))
+
+## Where this camp's character is now (client, ten times a second).
+func camp_at(x: float, z: float, yaw: float) -> void:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_camp_at.rpc_id(1, x, z, yaw)
+
+@rpc("any_peer", "reliable")
+func _camp_hello(proof: String, me: String, where: Dictionary) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if not dedicated or proof != _proof(word, _nonces.get(peer, "")) or me.strip_edges() == "":
+		return
+	var spot := _camp_spot(where)
+	_camp_peers[peer] = {name = me.strip_edges(), at = spot, look = {kind = spot.get("kind", ""), style = spot.get("style", {})}}
+	_in_camp[me.strip_edges()] = {t = Time.get_ticks_msec() / 1000.0, at = spot}
+	_send_looks()
+
+@rpc("any_peer", "unreliable_ordered")
+func _camp_at(x: float, z: float, yaw: float) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if not _camp_peers.has(peer):
+		return
+	var c: Dictionary = _camp_peers[peer]
+	c.at = {x = clampf(x, -60.0, 60.0), z = clampf(z, -60.0, 60.0), yaw = yaw}
+	_in_camp[c.name] = {t = Time.get_ticks_msec() / 1000.0, at = c.at}
+
+## Everyone's spot to every camp, leaving out each camp's own and anyone who has
+## gone through a doorway into a fight (a held preview does not count).
+func _send_walkers() -> void:
+	var fighting := {}
+	for room in _rooms:
+		if _rooms[room].get("hold", false):
+			continue
+		for p in _rooms[room].peers:
+			fighting[_rooms[room].sim.ents[_rooms[room].peers[p]].profile.name] = true
+	var all := []
+	for peer in _camp_peers:
+		var c: Dictionary = _camp_peers[peer]
+		if not fighting.has(c.name) and c.at.has("x"):
+			all.append([c.name, snappedf(c.at.x, 0.01), snappedf(c.at.z, 0.01), snappedf(c.at.yaw, 0.01)])
+	for peer in _camp_peers:
+		var mine: String = _camp_peers[peer].name
+		_camp_walkers_to.rpc_id(peer, all.filter(func(w: Array) -> bool: return w[0] != mine))
+
+func _send_looks() -> void:
+	var looks := {}
+	for peer in _camp_peers:
+		looks[_camp_peers[peer].name] = _camp_peers[peer].look
+	for peer in _camp_peers:
+		_camp_looks_to.rpc_id(peer, looks)
+
+@rpc("authority", "unreliable_ordered")
+func _camp_walkers_to(list: Array) -> void:
+	camp_walkers.emit(list)
+
+@rpc("authority", "reliable")
+func _camp_looks_to(looks: Dictionary) -> void:
+	camp_looks.emit(looks)
 
 # --- client side ------------------------------------------------------------------
 

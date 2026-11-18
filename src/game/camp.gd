@@ -124,6 +124,7 @@ func _ready() -> void:
 	get_tree().create_timer(0.15).timeout.connect(func() -> void: Veil.lift(0.8))
 
 func _exit_tree() -> void:
+	_close_link()
 	# Quitting while the cast is still being made: let it finish rather than leave
 	# worker threads behind.
 	if get_tree().current_scene == null or get_tree().current_scene == self:
@@ -339,6 +340,7 @@ func _process(dt: float) -> void:
 		if _frame % 30 == 0:
 			print("GHOST %d camp tree=%s menu=%s sheet=%s pos=%s" % [_frame, tree.visible, menu.visible, side.get_parent().get_parent().visible, pos.snapped(Vector3.ONE * 0.1)])
 	_poll_lobby(dt)
+	_camp_link(dt)
 	_walk_others(dt)
 	if creating or profile.is_empty():
 		# Making a character: they stand and are looked at.
@@ -861,7 +863,8 @@ func _heard(list: Array, answered: bool) -> void:
 				if not in_camp.has(n) and not cl.has("ghost"):
 					Toast.say("%s is in their camp" % n, "A doorway you both walk through puts you in the same fight.", "good", 6.0)
 			in_camp = f.get("players", [])
-			_place_others(f.get("walkers", []))
+			if not _linked():
+				_place_others(f.get("walkers", []))
 			# Someone to watch walk: ask again soon (the wait was chosen before
 			# this answer came).
 			if not others.is_empty():
@@ -878,11 +881,69 @@ func _heard(list: Array, answered: bool) -> void:
 	if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
 		_menu_fill()
 
+## The camp link: a connection of its own to the server for as long as the camp is
+## open, in a branch with its own multiplayer (so a doorway's fight can be joined
+## beside it). It says where we stand ten times a second and hears the same of
+## everyone else (Session "the camp link").
+var _link: Session
+var _link_branch: Node
+var _link_retry := 0.0
+var _link_send := 0.0
+var _looks := {}         # name -> {kind, style}, from the link
+
+func _linked() -> bool:
+	if _link == null or not is_instance_valid(_link):
+		return false
+	var peer := _link.multiplayer.multiplayer_peer
+	return peer != null and not peer is OfflineMultiplayerPeer and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+func _camp_link(dt: float) -> void:
+	if cl.has("offline") or creating or model == null or Launch.server() == "":
+		return
+	if _link == null or not is_instance_valid(_link):
+		_link_retry -= dt
+		if _link_retry > 0.0:
+			return
+		_link_retry = 6.0
+		_link_branch = Node.new(); _link_branch.name = "CampLink"; add_child(_link_branch)
+		get_tree().set_multiplayer(SceneMultiplayer.new(), _link_branch.get_path())
+		# Named Session, so its calls find the server's Session (paths are relative
+		# to each side's multiplayer root).
+		_link = Session.new(); _link.name = "Session"; _link_branch.add_child(_link)
+		_link.camp_walkers.connect(_heard_walkers)
+		_link.camp_looks.connect(func(looks: Dictionary) -> void: _looks = looks)
+		var drop := func(_why := "") -> void:
+			# Gone (or never there): close it and try again in a while.
+			_close_link()
+		_link.rejected.connect(drop)
+		_link.multiplayer.server_disconnected.connect(drop)
+		_link.camp_join(Launch.server(), online.get("word", ""), profile.get("name", ""),
+			{x = pos.x, z = pos.z, yaw = face, kind = String(model.get_meta("kind", "")), style = profile.get("style", {})})
+		return
+	_link_send -= dt
+	if _link_send <= 0.0 and _linked():
+		_link_send = Session.CAMP_EVERY
+		_link.camp_at(pos.x, pos.z, face)
+
+func _close_link() -> void:
+	if is_instance_valid(_link_branch):
+		get_tree().set_multiplayer(null, _link_branch.get_path())
+		_link_branch.queue_free()
+	_link = null; _link_branch = null
+
+## Ten times a second from the link: where everyone else is.
+func _heard_walkers(list: Array) -> void:
+	var walkers := []
+	for w in list:
+		var look: Dictionary = _looks.get(w[0], {})
+		walkers.append({name = w[0], x = w[1], z = w[2], yaw = w[3], kind = look.get("kind", ""), style = look.get("style", {})})
+	_place_others(walkers, true)
+
 ## Friends in their own camps, drawn walking about in this one: name ->
 ## {node, to (where the server last said), yaw}. They walk to each new spot rather
 ## than jump, since the answers come a second and a half apart.
 var others := {}
-func _place_others(walkers: Array) -> void:
+func _place_others(walkers: Array, quick := false) -> void:
 	var seen := {}
 	for w in walkers:
 		var n: String = w.get("name", "")
@@ -907,7 +968,8 @@ func _place_others(walkers: Array) -> void:
 			others[n].miss = 0
 			continue
 		others[n].miss = int(others[n].get("miss", 0)) + 1
-		if others[n].miss >= 2:
+		# (Over the link the lists come ten a second: half a second's absence.)
+		if others[n].miss >= (5 if quick else 2):
 			if is_instance_valid(others[n].node):
 				others[n].node.queue_free()
 			others.erase(n)
@@ -920,9 +982,10 @@ func _walk_others(dt: float) -> void:
 			continue
 		var off: Vector3 = o.to - node.position
 		off.y = 0.0
-		var moving := off.length() > 0.15
-		# Far behind (they ran, or an answer was missed): catch up quicker.
-		var speed := clampf(off.length() / 1.5, 1.4, 7.0)
+		var moving := off.length() > 0.06
+		# Close behind where they were last heard of: at whatever pace closes the
+		# gap by the next word (a tenth of a second over the link, longer without).
+		var speed := clampf(off.length() / (0.15 if _linked() else 1.5), 1.0, 12.0)
 		if moving:
 			node.position = _ground(node.position + off.limit_length(speed * dt))
 			node.rotation.y = lerp_angle(node.rotation.y, atan2(off.x, off.z), minf(dt * 8.0, 1.0))
