@@ -658,6 +658,13 @@ Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
   `Map.remove_wall`, and `wall_up` / `wall_gone` events that clients apply to their
   own Map. A player joining late misses earlier changes (not sent in the roster).
 
+## Debris (18 Nov)
+`src/game/debris.gd`: 300 loose pieces (twigs, pebbles, dead tufts) scattered over
+the field when a fight is set up. `Wind.gust` (any blast, any weave mostly of Air)
+throws those near it outward and up; they tumble, bounce and settle. Seen only, like
+Wind and Scorch: each machine scatters its own, and nothing in the sim depends on
+it, so nothing is sent. Only moving pieces cost anything per frame.
+
 ## Solid props and wind (18 Nov)
 - Every prop that stands on a fighting ground is placed by `Map._props` (by map and
   activity) as a circle in `Map.trees()` with a `prop` name, or as a wall: the sim

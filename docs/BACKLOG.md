@@ -426,8 +426,10 @@ are what the 4:44 review, or the next session, should pick up.
     (9 s; it burns whoever stands in it); Lash of Water leaves puddles along its line
     (45 s) that put fires out, douse the burning and soak; a Hammer of Air or any
     Air blast blows fires out; Heave the Ground and the Rolling Ring throw down stone
-    walls they cross, and Heave leaves a ridge of rubble (cover, 30 s). Not done:
-    sticks and debris pushed about, grass actually burnt away, map fires put out.)
+    walls they cross, and Heave leaves a ridge of rubble (cover, 30 s). Also done:
+    burnt grass shrinks and blackens (Scorch), water puts the map's fires out, and
+    (18 Nov) twigs, pebbles and dead tufts scattered on the field fly from any
+    blast or weave of Air and settle again (`Debris`, seen only).)
     **Weaves change the map for the round:** Water leaves puddles and puts out fires;
     Earth tears down barricades and raises new ones; Air pushes sticks and debris
     about and blows out fires; Fire sets grass and wood alight for a while.

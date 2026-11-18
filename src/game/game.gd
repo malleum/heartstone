@@ -410,6 +410,7 @@ func _aim_point() -> Vector3:
 func _process(dt: float) -> void:
 	if controlled:
 		Wind.step(dt)
+		Debris.step(dt)
 	# --clean: nothing over the picture (tools/poses.sh).
 	if args.has("clean"):
 		if hud_layer: hud_layer.visible = false
@@ -654,6 +655,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 		Wind.setup(Map.id, self)
 		RenderingServer.global_shader_parameter_set("near_fade", 1.5)
 		Scorch.setup(100.0)
+		Debris.setup(self, hash(Map.id))
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
 	var spread: SceneTree = get_tree() if previewing else null
@@ -1095,6 +1097,7 @@ func take_control(yaw: float, pitch: float) -> void:
 	Wind.setup(Map.id, self)
 	RenderingServer.global_shader_parameter_set("near_fade", 1.5)
 	Scorch.setup(100.0)
+	Debris.setup(self, hash(Map.id))
 	stand_in = {}
 	session.begin()     # the fight starts now, not when the doorway was first looked through
 	cam_yaw = yaw; cam_pitch = pitch

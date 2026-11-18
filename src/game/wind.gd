@@ -42,6 +42,7 @@ static func gust(at: Vector3, power := 1.0) -> void:
 	gust_at = at
 	gust_amt = maxf(gust_amt, power)
 	_push()
+	Debris.push(at, power)   # and what lies on the ground goes flying
 
 static func step(dt: float) -> void:
 	if gust_amt > 0.0:
