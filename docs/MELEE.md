@@ -100,7 +100,8 @@ of it. Notes on what a tick does not cover:
 - [x] `Walker`: a different visible motion for each attack kind.
 - [x] The sim must know which weapon each Trolloc carries (today only the view
       does): choose it in the sim and tell the view.
-- [ ] Trollocs that guard against blades and must be broken or flanked.
+- [x] Trollocs that guard against blades and must be broken or flanked (18 Nov: the
+      bandleader turns 65% of a blade from the front; a heavy blow or a form breaks it).
 - [x] Trolloc archers and javelin throwers, so a shield and a roll matter at range.
 - [x] Myrddraal: fast, parries, black blade that festers (damage over time);
       linked Trollocs die with it.

@@ -1710,6 +1710,13 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id and frame - _gaze_said > 900:
 					_gaze_said = frame
 					_banner("The Eyeless gaze\nFear grips you while you meet its stare: weaving comes slowly. Look away.", 4.0, "shadow")
+			"blocked":
+				# Steel on steel: the bandleader's guard turned it.
+				Weavefx._once(Weavefx._particles(Color(1.0, 0.85, 0.5), 14, 0.3, 0.12, 4.0, 2.0, 70.0), self, e.pos)
+				Sfx.play(self, "clang", e.pos, -6.0, 0.9)
+			"guard_broken":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Sfx.play(self, "clang", actors[e.id].node.position + Vector3(0, 1.3, 0), 0.0, 0.7)
 			"wound":
 				if e.id == session.my_id:
 					my_wound = float(e.w)

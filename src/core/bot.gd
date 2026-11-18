@@ -88,6 +88,9 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 					return
 		if close >= 3 and me.swing.is_empty():
 			kind = "heavy" if Rules.moves[row.heavy].arc >= 100 else ("low" if Rules.moves[row.low].get("hits", 1) >= 3 else "light")
+		# A bandleader standing guard: break it with a heavy blow.
+		if near.get("row", {}).has("guards") and near.stagger <= 0.0:
+			kind = "heavy"
 		sim.request_attack(id, kind, near.pos + Vector3(0, 1.0, 0))
 ## A stand-in player for tests and soak runs: kites and casts the hardest-hitting
 ## weave it can. Not an AI opponent, just enough to exercise the rules.

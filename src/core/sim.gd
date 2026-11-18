@@ -425,7 +425,7 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	p.chain = chain + 1 if kind == "light" else 0
 	# The wait before a bow looses is the draw, and is seen as one.
 	p.drawing = m.get("missile", false) and w.has("shot") and not w.shot.get("crank", false) and wind > 0.15
-	p.swing = {move = move_id, weapon = p.weapon, left = wind, struck = false, recover = times[1], dir = dir, aim = aim, charge = charge}
+	p.swing = {move = move_id, weapon = p.weapon, left = wind, struck = false, recover = times[1], dir = dir, aim = aim, charge = charge, heavy = kind == "heavy" or kind.begins_with("form:")}
 	# A blow struck at a run carries the run into it; one out of a roll, the roll.
 	if not m.get("missile", false):
 		if t - p.get("rolled_at", -9.0) < 0.15:
@@ -1293,6 +1293,21 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 		if dmg < whole:
 			on = {}
 		dmg *= 1.0 - Rules.cls(e.profile).armour
+	# A bandleader turns blades that come at it from the front: flank it, or break
+	# its guard with a heavy blow, a form, or while it reels.
+	var in_hand: bool = Rules.weapons.has(weapon) and not ents.get(by, {}).get("swing", {}).is_empty()
+	if in_hand and e.kind == "enemy" and e.row.has("guards") and e.stagger <= 0.0 and e.down <= 0.0 and ents.has(by):
+		var from: Vector3 = (ents[by].pos - e.pos) * Vector3(1, 0, 1)
+		var facing := Vector3(sin(e.yaw), 0, cos(e.yaw))
+		var heavy: bool = ents[by].get("swing", {}).get("heavy", false)
+		if from.length() > 0.01 and facing.dot(from.normalized()) > 0.5:
+			if heavy:
+				e.stagger = maxf(e.stagger, 0.9)
+				events.append({e = "guard_broken", id = e.id})
+			else:
+				dmg *= 1.0 - float(e.row.guards)
+				on = {}
+				events.append({e = "blocked", id = e.id, pos = _feet(e) + Vector3(0, 1.3, 0) + from.normalized() * 0.5})
 	if on.has("stagger"):
 		e.stagger = maxf(e.stagger, on.stagger)
 		if e.kind == "player":
