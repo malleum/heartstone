@@ -96,7 +96,23 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> in
 		w.round = {level = team_level, picks = 0, man = true, gift = 0.0, learn = 1.0}
 		var wid := add_player(w, pos + Vector3(1.6, 0, 0.8), true)
 		ents[wid].warder_of = id
+	_share_story()
 	return id
+
+## Spoilers: in one fight the player who has read least decides for everyone.
+## Weaves and Talents from later books cannot be used, are not offered, and are not
+## drawn on anyone's chart (each machine is told the limit).
+var story := 99
+func _share_story() -> void:
+	var lim := 99
+	for k in ents:
+		if ents[k].kind == "player" and not ents[k].get("bot", false):
+			lim = mini(lim, int(ents[k].profile.get("book_limit", 14)))
+	story = lim
+	for k in ents:
+		if ents[k].kind == "player":
+			ents[k].profile.book_limit = mini(int(ents[k].profile.get("book_limit", 14)), lim)
+	events.append({e = "story", limit = lim})
 
 ## What a view needs to draw someone: who they are and how they chose to look.
 func _intro(e: Dictionary) -> Dictionary:
@@ -111,7 +127,7 @@ func _intro(e: Dictionary) -> Dictionary:
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:
-	var out := []
+	var out: Array = [{e = "story", limit = story}]
 	for id in ents:
 		if ents[id].alive:
 			out.append(_intro(ents[id]))

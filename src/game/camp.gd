@@ -527,6 +527,8 @@ func _select(name_: String, sync := true) -> void:
 	make = {}
 	_close_gifts()
 	profile = Profile.load_profile(name_)
+	if not Launch.dev() and not profile.is_empty():
+		profile.book_limit = Settings.book_limit()   # how far this player has read
 	Launch.last_name = profile.name
 	if sync:
 		_sync(profile.name, profile)
@@ -647,12 +649,14 @@ func _loadout() -> void:
 		_section(menu_box, "Talents (up to %d)" % Profile.TALENT_SLOTS)
 		var tal := {}
 		for t in profile.get("talents_owned", []):
+			if Rules.talent_book(t) > int(profile.get("book_limit", 14)):
+				continue   # from a later book than this player has read
 			tal[t] = _check(menu_box, t.capitalize(), profile.talents.has(t))
 		if tal.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
 		_section(menu_box, "Weaves (up to %d besides %s)" % [Profile.WEAVE_SLOTS, Rules.weaves[profile.starter].name])
 		var wv := {}
-		for w in profile.get("weaves_owned", []):
+		for w in profile.get("weaves_owned", []).filter(func(x: String) -> bool: return Rules.weaves.has(x) and Rules.weaves[x].book <= int(profile.get("book_limit", 14))):
 			wv[w] = _check(menu_box, Rules.weaves[w].name, profile.weaves.has(w))
 		if wv.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
@@ -1009,9 +1013,27 @@ func _lobby_text() -> String:
 
 ## Esc: the things that are not places. The server (where friends on different
 ## networks meet, and where characters are kept), joining a friend directly, quitting.
+var _title_clicks := 0
 func _menu_fill() -> void:
 	_clear(menu_box)
-	_text(menu_box, "Heartstone", 28)
+	var title := _text(menu_box, "Heartstone", 28)
+	# Ten clicks on the title open the choice of reading past book 6 (so nobody
+	# who has not read further even learns it is there).
+	title.mouse_filter = Control.MOUSE_FILTER_STOP
+	title.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and not Settings.story_open:
+			_title_clicks += 1
+			if _title_clicks >= 10:
+				Settings.story_open = true; Settings.save()
+				Toast.say("Later books opened", "Story so far can now be set past book 6, below.", "info", 5.0)
+				_menu_fill())
+	if Settings.story_open:
+		_button(menu_box, "Story so far: %s" % ("all books" if Settings.story >= 14 else "through book 6"), func() -> void:
+			Settings.story = 6 if Settings.story >= 14 else 99
+			Settings.save()
+			if not Launch.dev() and not profile.is_empty():
+				profile.book_limit = Settings.book_limit(); Profile.save(profile)
+			_menu_fill())
 	if not profile.is_empty():
 		_section(menu_box, "Characters")
 		for n in _saved():
@@ -1305,6 +1327,8 @@ func _refresh_gifts() -> void:
 				_refresh_gifts(); _creation_changed())
 		_clear(make.talent_box)
 		for t in Profile.TALENTS:
+			if Rules.talent_book(t) > Settings.book_limit():
+				continue   # from a later book than this player has read
 			var tt: String = t
 			_card(make.talent_box, t.capitalize(), "", null, make.trade and make.talent == t, func() -> void:
 				if make.trade and make.talent == tt:

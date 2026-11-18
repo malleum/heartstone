@@ -63,7 +63,9 @@ func _shown() -> Array:
 	if _forms():
 		return Rules.forms.keys()
 	for id in Rules.weaves:
-		if not str(id).begins_with("_") and (Rules.weaves[id].book <= profile.book_limit or profile.weaves.has(id)):
+		# Past the reading limit a weave is not drawn at all, even one owned (only
+		# the weave a channeller was born knowing is never hidden).
+		if not str(id).begins_with("_") and (Rules.weaves[id].book <= profile.book_limit or profile.get("starter", "") == id):
 			out.append(id)
 	return out
 
@@ -221,10 +223,12 @@ func _draw() -> void:
 	if not _forms():
 		var hidden := 0
 		for id in Rules.weaves:
-			if not str(id).begins_with("_") and Rules.weaves[id].book > profile.book_limit and not profile.weaves.has(id):
+			if not str(id).begins_with("_") and Rules.weaves[id].book > profile.book_limit and profile.get("starter", "") != id:
 				hidden += 1
-		if hidden > 0:
-			Glyph.text(self, sans, Vector2(42, 126), "%d more in later books (past your spoiler setting)" % hidden, 13, Color(0.55, 0.57, 0.65))
+		# Said only to someone who has opened the later books themselves: to anyone
+		# else even the count is a hint.
+		if hidden > 0 and Settings.story_open:
+			Glyph.text(self, sans, Vector2(42, 126), "%d more from later books, hidden in this fight" % hidden, 13, Color(0.55, 0.57, 0.65))
 	_card(hover if hover != "" else profile.get("study", ""))
 
 ## The panel on the right: what the weave under the pointer is and what it asks.

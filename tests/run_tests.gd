@@ -1149,6 +1149,25 @@ func _rounds() -> void:
 	ks._enemy_blow(tk, [ke])
 	check(not ke.get("lying", false) and ks.events.any(func(e: Dictionary) -> bool: return e.e == "evade"), "and the trip passes under it")
 
+	# Spoilers: in one fight the player who has read least decides for everyone.
+	var rd_sim := Sim.new("practice", 98)
+	rd_sim._waves = []
+	var reader := Profile.create({name = "Reader", potential_pts = 8, affinity_pts = {fire = 6}})
+	reader.book_limit = 99
+	reader.weaves.arrows_of_fire = {known = true, xp = 0.0}
+	reader.talents = ["travelling"]
+	reader.channelled = Rules.TUNE.flow_steps[10]
+	var rd_id := rd_sim.add_player(reader)
+	rd_sim.ents[rd_id].stamina = 999.0
+	check(rd_sim.request_cast(rd_id, "arrows_of_fire", Vector3(0, 0, -10)) == "", "alone, someone who has read all the books can weave Arrows of Fire")
+	rd_sim.ents[rd_id].forming = {}
+	var novice := Profile.create({name = "Novice reader", potential_pts = 8, affinity_pts = {water = 6}})
+	novice.book_limit = 6
+	rd_sim.add_player(novice, Vector3(2, 0, 0))
+	check(rd_sim.request_cast(rd_id, "arrows_of_fire", Vector3(0, 0, -10)) == "beyond your reading", "with someone who has read only to book 6 in the fight, nobody can")
+	check(not Rules.has_talent(rd_sim.ents[rd_id].profile, Rules.weaves.gateway), "and a later book's Talent (Travelling) does nothing")
+	check(rd_sim.roster()[0].e == "story" and rd_sim.roster()[0].limit == 6, "and a latecomer is told the limit")
+
 	# A round shield: held up, it turns arrows from the front (not from behind),
 	# and its heavy blow is a bash that shoves.
 	var shs := Sim.new("practice", 97)

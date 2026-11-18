@@ -177,8 +177,14 @@ static func slots_of(w: Dictionary, p: Dictionary) -> int:
 
 ## A Talent no longer unlocks a weave: anyone can learn it, and the Talent makes
 ## it much stronger and waives any strength gate.
+## The book a Talent is first shown in, for the spoiler limit (1 unless listed). By
+## the user's ruling: books 1 to 6 are open to all; these come later.
+const TALENT_BOOK := {travelling = 12, unweaving = 7, reading_residues = 8, cloud_dancing = 8}
+static func talent_book(t: String) -> int:
+	return int(TALENT_BOOK.get(t, 1))
+
 static func has_talent(p: Dictionary, w: Dictionary) -> bool:
-	return w.has("talent") and p.talents.has(w.talent)
+	return w.has("talent") and p.talents.has(w.talent) and talent_book(w.talent) <= int(p.get("book_limit", 14))
 
 ## Techniques are ways of handling weaves, learned once and used with any of them.
 static func has_technique(p: Dictionary, name: String) -> bool:
@@ -263,7 +269,7 @@ static func power(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 	var talent := 1.0
 	if has_talent(p, w):
 		talent = TUNE.talent_power
-	elif fl.has("earth") and p.talents.has("earth_singing"):
+	elif fl.has("earth") and p.talents.has("earth_singing") and talent_book("earth_singing") <= int(p.get("book_limit", 14)):
 		talent = TUNE.earth_singing
 	# Affinity 0.5 is "ordinary": it neither helps nor hurts.
 	return strength(p) * vigor(stamina) * (0.5 + aff) * (1.0 + TUNE.mastery_power * mastery_level(p, weave_id)) * talent

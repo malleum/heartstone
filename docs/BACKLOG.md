@@ -283,6 +283,16 @@ are what the 4:44 review, or the next session, should pick up.
     Darkfriend, endless, the dream duel, plus Two banners), each picking a random
     place and enemy mix as you walk up; Darkfriend and endless use the same setups.
 
+- 2026-11-18, asked by the user (done the same day): **spoilers shared in a fight.**
+  Each player's "Story so far" (Settings, per machine) is through book 6 unless
+  they open the hidden choice (ten clicks on the camp menu's title) and pick all
+  books. In a fight the least-read player's limit applies to everyone (Sim
+  `_share_story`): later weaves and Talents cannot be used or picked, and vanish
+  from every chart and bar; only a channeller's starter weave is kept. Hidden past
+  book 6: Arrows of Fire, Blossoms of Fire, the Deathgate (11), Heave the Ground
+  (14, kept as Earth's starter); Talents Unweaving, Reading Residues, Cloud
+  Dancing, Travelling (Androl's). `Rules.TALENT_BOOK` holds the Talents' books.
+
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
 - Drawing to weave: tracing a weave's shape to make it.

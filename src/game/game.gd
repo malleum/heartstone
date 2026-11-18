@@ -76,6 +76,10 @@ func _ready() -> void:
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
 		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
+	# How far this player has read (Settings): a real player's own choice; a test
+	# or a render keeps the character's (all books for throwaways).
+	if not Launch.dev():
+		profile.book_limit = Settings.book_limit()
 	# --cloak=<id> (Hero.CLOAKS): put a cloak on for this run, for pictures.
 	if args.has("cloak"):
 		profile.style = profile.get("style", {}).duplicate()
@@ -114,7 +118,7 @@ func _ready() -> void:
 				if profile.kit.any(func(w: String) -> bool: return Rules.weapons[w].family == Rules.forms[f].family):
 					profile.forms[f] = {known = true}
 	# The bar holds what you can do with your hands: weaves, then what you carry.
-	known = profile.weaves.keys() + profile.get("kit", []) + profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
+	known = profile.weaves.keys().filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= int(profile.get("book_limit", 14)) or profile.get("starter", "") == w) + profile.get("kit", []) + profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
 	# The order the player chose in the camp's loadout, if any.
 	var order: Array = profile.get("hotbar", [])
 	if not order.is_empty():
@@ -1274,6 +1278,17 @@ func _on_events(list: Array) -> void:
 					if jap.has_animation("Jump"):
 						jap.play("Jump", 0.08, 1.7)
 						ja.busy = 0.55
+			"story":
+				# The fight's reading limit (the least-read player's): what is past it
+				# is neither usable nor drawn.
+				profile.book_limit = mini(int(profile.get("book_limit", 14)), int(e.limit))
+				# Off the bar too: a weave past the limit is not there to choose.
+				known = known.filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= profile.book_limit or profile.get("starter", "") == w)
+				selected = mini(selected, maxi(known.size() - 1, 0))
+				if not mirror.is_empty():
+					mirror.book_limit = mini(int(mirror.get("book_limit", 14)), int(e.limit))
+				if tree_view != null and tree_view.visible:
+					tree_view.profile = view_profile(); tree_view.queue_redraw()
 			"away":
 				if e.id != session.my_id:
 					Toast.say("%s lost the connection" % e.name, "Their place is kept for %d seconds." % int(e.secs), "info", 6.0)
