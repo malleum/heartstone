@@ -1215,6 +1215,11 @@ func _offline(why: String) -> void:
 		else:
 			body += "They differ: update whichever is older."
 		Toast.say("Versions differ: playing offline", body, "warn", 14.0)
+	elif why.contains("turned you away") and String(args.get("word", "")) == "":
+		# The usual reason: this machine has never been given the server's word.
+		Toast.say("Playing offline: no server word", "The server wants its word. Esc, then type it into \"the server's word\" (asked once; kept on this machine). Friends can't join until then.", "warn", 14.0)
+	elif why.contains("turned you away"):
+		Toast.say("Playing offline: wrong word?", "The server turned you away. Check the server's word under Esc (it must match the one on the server exactly).", "warn", 12.0)
 	else:
 		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
