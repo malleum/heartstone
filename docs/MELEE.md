@@ -179,7 +179,7 @@ Bare hands
       toward where you aim: it comes out of the roll 30% harder) (18 Nov)
 - [x] Thrusts that pass through one body into the next
 - [x] Haft and pommel strikes that stagger
-- [ ] Staff spin; spear held to keep them off (set against a charge)
+- [~] Staff spin (the quarterstaff's heavy, built); spear held to keep them off (set against a charge): not yet
 - [~] Bleeding from cuts (18 Nov: an edged blow leaves a fifth of its damage again
       over four seconds); staggers from blunt blows (weapon impact, built); armour
       that turns cuts but not thrusts: not yet

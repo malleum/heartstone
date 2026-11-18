@@ -128,6 +128,23 @@ Everything that is not channelling. The plan and to-do list are in `MELEE.md`.
   the hand using the rest pose to find the grip (no per-model numbers). The
   `blow` event plays the move's clip at the speed that makes it land on time.
 
+### Arms added 18 Nov
+- A blow struck running toward its aim does 20% more; one asked for while rolling
+  toward the aim waits for the roll's end and comes out of it 30% harder
+  (`queued.from_roll`, `rolled_at`). Rolling away and attacking is still "busy".
+- Swords, knives, axes and spears leave enemies bleeding (a fifth of the blow over
+  4 s, `bleed`). The bandleader (`guards` in enemies.json) turns 65% of a blade from
+  its front unless the blow is heavy or a form, which breaks the guard (staggers it).
+- Wounds: 30% of each hurt a player takes is a `wound` (to 60% of health), sent to
+  that player only; rest mends up to it, Healing closes it, death clears it.
+- Trollocs sometimes seize a player they hit unguarded (`grabbed_by`, `chained`);
+  Space twists free for 15 breath. Bots twist free at once.
+- Fire arrows: a bow (not a crossbow) drawn within 3 m of a burning watch-fire or
+  burning grass looses a lit arrow (`lit`): it sets what it hits burning, and the
+  grass where it falls. The view gets `weapon:lit` in the effect row.
+- Fighter bots flee only when badly hurt and pressed by three or more, and turn back
+  at half health or when one or two are left (natural healing is slow).
+
 ## Progression (src/core/progression.gd)
 One function, `Progression.award(profile, tally, activity, success)`, called when
 any activity ends. Measured pacing with a bot (`tools/test.sh`): 3 flows at ~5 h,
