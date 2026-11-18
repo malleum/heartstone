@@ -85,3 +85,5 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 79 | Rounds: about 20-25 minutes, 16 waves, team levels from kills. Too long, too short? Do levels come fast enough to feel (about one a minute early on)? | Rules tested; one 35 s render | `data/activities.json` `round` rows, `Round.XP_BASE/XP_EXP` |
 | 80 | Strength rolls: you see your strength, never your potential, only hints. Does a lucky roll feel exciting, or is it too hidden? Men leap 2-5 levels; women creep. | Numbers checked over 20,000 rolls | `Round.POT_MEAN/POT_SD/GAP_*` |
 | 81 | Tab at a level-up: choose a weave to master (or skill, form, weapon for fighters). Is that enough to choose between? | Not tried by hand | `Round.choices`, `game.gd` `_show_picks` |
+| 82 | The new character screen: cards for callings, origins, weapons, forms and Talents, affinity with + and −. Easy to read and choose from? Anything still clumsy? | Seen in renders | `camp.gd` `_creation`, `_card`, `_stepper` |
+| 83 | Gateways as windows, and walking home through one at the end of a round: seamless in real time? | Rendered frame by frame | `game.gd` `_open_window`, `_open_home` |

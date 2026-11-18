@@ -362,6 +362,16 @@ camera stands relative to the doorway (`M = gate_frame * door_frame⁻¹`).
 - Still costs a ~0.4 s stutter on the camp side when the far world's terrain and
   grass are built (about 10 m from the doorway).
 
+### Making a character (17 Nov)
+Two panels with the character standing between them: who you are and how you look on
+the left (calling, half of the Source or sex, origin as cards; appearance below), your
+gifts on the right (affinity as coloured bars with steppers and the Talent trade as
+cards for a channeller; weapons, forms and body for a fighter, with costs and points
+left shown). Cards draw their own icons (`Icon`: a weave's threads, a weapon, a
+Power's colour). **Origin** sets the dress and looks a character starts with
+(`ORIGIN_LOOKS`: Aiel tall and red-haired in cadin'sor, Cairhienin short and pale,
+Domani copper-skinned, and so on); all of it can still be changed.
+
 ### Keys and the bar (17 Nov)
 Every key can be rebound (Esc menu, Keys): `Keys.k(KEY_W)` is whatever the player
 bound to the key that sits where W does on QWERTY; the game still names defaults,

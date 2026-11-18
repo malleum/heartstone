@@ -478,6 +478,7 @@ func _select(name_: String, sync := true) -> void:
 		return
 	creating = false
 	make = {}
+	_close_gifts()
 	profile = Profile.load_profile(name_)
 	Launch.last_name = profile.name
 	if sync:
@@ -730,7 +731,7 @@ func _ghost_flow() -> void:
 			make.style.skin.select(2); make.style.hair_col.select(6); make.style.height.select(3)
 			_creation_changed()
 		30:
-			_press(side, "Begin")
+			_press(gifts, "Begin")
 		40:
 			print("GHOST flow created: %s cls=%s kit=%s style=%s doors=%d" % [profile.get("name", "-"), profile.get("cls", "-"), profile.get("kit", []), profile.get("style", {}), doors.size()])
 			_press(side, "Loadout")
@@ -761,7 +762,7 @@ func _ghost_flow() -> void:
 		130:
 			_creation("channeller", "Ghost Weaver", "saidin")
 		140:
-			_press(side, "Begin")
+			_press(gifts, "Begin")
 		150:
 			print("GHOST flow second: %s power=%s starter=%s saved=%s" % [profile.get("name", "-"), profile.get("power", "-"), profile.get("starter", "-"), _saved()])
 			# Walk into the first doorway, as feet would.
@@ -876,7 +877,122 @@ func _spin(v: Control, label: String, maxv: int, start: int) -> SpinBox:
 	s.value_changed.connect(func(_x: float) -> void: _creation_changed())
 	return s
 
-func _creation(cls_ := "channeller", name_ := "", power_ := "") -> void:
+## Where you are from sets how you are first drawn: the dress of the place and the
+## look of its people (you can change any of it). [f dress, m dress, style].
+const ORIGIN_LOOKS := {
+	two_rivers = ["two_rivers_f", "two_rivers_m", {skin = 2, hair_col = 1, eyes = 0, height = 2, build = 3}],
+	aiel = ["aiel_f", "aiel_m", {skin = 2, hair_col = 5, eyes = 2, height = 4, build = 2}],
+	cairhien = ["cairhien_f", "cairhien_m", {skin = 1, hair_col = 0, eyes = 4, height = 0, build = 1}],
+	domani = ["domani_f", "merchant", {skin = 3, hair_col = 4, eyes = 0, height = 2, build = 2}],
+	borderlands = ["armswoman", "shienaran", {skin = 0, hair_col = 0, eyes = 2, height = 3, build = 3}],
+	tar_valon = ["novice", "dedicated", {skin = 0, hair_col = 3, eyes = 1, height = 2, build = 2}],
+}
+const CALLING_NOTES := {channeller = "Weaves the One Power. Strength is rolled each round.", warder = "Sword and bond. Tough, quick, hard to kill.",
+	aiel = "Spear and knife. Fastest on their feet.", hunter = "Bow and staff. Strikes from afar."}
+
+## A small drawn icon: a weave's threads, a weapon, or a Power's colour.
+class Icon extends Control:
+	var kind := ""
+	var arg: Variant = null
+	func _init(k: String, a: Variant) -> void:
+		kind = k; arg = a
+		custom_minimum_size = Vector2(40, 40)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		var c := size * 0.5
+		match kind:
+			"weave": Glyph.weave(self, c, 17.0, arg)
+			"weapon": Glyph.weapon(self, c, 17.0, arg)
+			"element":
+				draw_circle(c, 15.0, Color(Glyph.INK, 0.9))
+				draw_circle(c, 9.0, arg)
+			"text":
+				draw_circle(c, 17.0, Color(Glyph.INK, 0.9))
+				draw_arc(c, 17.0, 0.0, TAU, 32, Color(Glyph.GOLD, 0.7), 1.5, true)
+				Glyph.text(self, Glyph.serif(), c + Vector2(0, 7), arg, 20, Glyph.GOLD, 0)
+
+## A choice as a card: an icon, a name, a line under it; gold-edged when chosen.
+func _card(v: Control, title: String, sub: String, icon: Icon, on: bool, pressed: Callable, enabled := true) -> Button:
+	var b := Button.new(); v.add_child(b)
+	b.toggle_mode = false; b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 58)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.disabled = not enabled
+	for st in ["normal", "hover", "pressed", "disabled"]:
+		var sb := StyleBoxFlat.new()
+		sb.set_corner_radius_all(5)
+		sb.bg_color = Color(Glyph.GOLD, 0.16) if on else (Color(1, 1, 1, 0.07) if st == "hover" else Color(1, 1, 1, 0.03))
+		sb.border_color = Color(Glyph.GOLD, 0.9) if on else Color(1, 1, 1, 0.12 if st != "hover" else 0.3)
+		sb.set_border_width_all(2 if on else 1)
+		if st == "disabled":
+			sb.bg_color = Color(0, 0, 0, 0.2); sb.border_color = Color(1, 1, 1, 0.05)
+		b.add_theme_stylebox_override(st, sb)
+	var h := HBoxContainer.new(); b.add_child(h)
+	h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 8; h.offset_right = -8
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_theme_constant_override("separation", 10)
+	if icon:
+		h.add_child(icon)
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var tv := VBoxContainer.new(); h.add_child(tv)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tv.add_theme_constant_override("separation", 0)
+	var t := Label.new(); t.text = title; tv.add_child(t)
+	t.add_theme_font_override("font", Glyph.serif()); t.add_theme_font_size_override("font_size", 16)
+	# Long names are cut to the card, not let run into the next one.
+	t.clip_text = true; t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tv.clip_contents = true
+	b.tooltip_text = title
+	t.add_theme_color_override("font_color", Color(0.98, 0.94, 0.85) if enabled else Color(0.5, 0.5, 0.52))
+	if sub != "":
+		var s := Label.new(); s.text = sub; tv.add_child(s)
+		s.add_theme_font_size_override("font_size", 12); s.add_theme_color_override("font_color", Color(0.66, 0.66, 0.7))
+		s.clip_text = true; s.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	b.pressed.connect(pressed)
+	return b
+
+func _grid(v: Control, cols := 2) -> GridContainer:
+	var g := GridContainer.new(); g.columns = cols; v.add_child(g)
+	g.add_theme_constant_override("h_separation", 6); g.add_theme_constant_override("v_separation", 6)
+	return g
+
+## A value with − and + buttons and a pip bar.
+func _stepper(v: Control, label: String, col: Color, value: int, of: int, change: Callable) -> void:
+	var h := HBoxContainer.new(); v.add_child(h)
+	h.add_theme_constant_override("separation", 6)
+	var l := Label.new(); l.text = label; h.add_child(l); l.custom_minimum_size.x = 92
+	l.add_theme_font_size_override("font_size", 15); l.add_theme_color_override("font_color", col.lerp(Color.WHITE, 0.35))
+	for k in of:
+		var pip := ColorRect.new(); pip.custom_minimum_size = Vector2(13, 10); h.add_child(pip)
+		pip.color = col if k < value else Color(1, 1, 1, 0.08)
+		pip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var sp := Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; h.add_child(sp)
+	for d in [-1, 1]:
+		var b := Button.new(); b.text = "−" if d < 0 else "+"; h.add_child(b)
+		b.custom_minimum_size = Vector2(28, 26); b.focus_mode = Control.FOCUS_NONE
+		var dd: int = d
+		b.pressed.connect(func() -> void: change.call(dd))
+
+var gifts: VBoxContainer          # the right-hand panel while making a character
+
+func _gifts_panel() -> VBoxContainer:
+	if gifts == null or not is_instance_valid(gifts):
+		var root: Control = side.get_parent().get_parent().get_parent()
+		gifts = _column(root, 1.0, -444, -24).get_meta("box")
+	_clear(gifts)
+	gifts.get_parent().get_parent().visible = true
+	return gifts
+
+func _close_gifts() -> void:
+	if gifts != null and is_instance_valid(gifts):
+		gifts.get_parent().get_parent().queue_free()
+	gifts = null
+
+## Making a character: who you are and how you look on the left, your gifts on the
+## right, the character standing between them.
+func _creation(cls_ := "channeller", name_ := "", power_ := "", origin_ := "") -> void:
 	creating = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	profile = {}
@@ -884,67 +1000,128 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "") -> void:
 		d.node.queue_free()
 	doors = []
 	_clear(side)
-	make = {cls_id = cls_}
 	var fighter := cls_ != "channeller"
-	_text(side, "A new %s" % Rules.CLASSES[cls_].name.to_lower(), 28)
+	var power: String = power_ if power_ != "" else ("saidin" if cls_ == "warder" else "saidar")
+	var origin: String = origin_ if origin_ != "" else ("aiel" if cls_ == "aiel" else "two_rivers")
+	var keep_aff: Dictionary = make.get("aff_vals", {}) if make.get("cls_id", "") == cls_ and make.get("power_id", "") == power else {}
+	make = {cls_id = cls_, power_id = power, origin_id = origin, aff_vals = {}, weapons = {}, forms = {}, stats = {}, talent = "", trade = false}
+	_text(side, "A new character", 28)
 	make.name = LineEdit.new(); make.name.placeholder_text = "Name"; make.name.text = name_; side.add_child(make.name)
-	var classes := {}
+	make.name.add_theme_font_size_override("font_size", 18)
+	_section(side, "Calling")
+	var g := _grid(side, 2)
 	for c in Rules.CLASSES:
-		classes[c] = Rules.CLASSES[c].name
-	make.cls = _option(side, "Calling", classes)
-	make.cls.select(Rules.CLASSES.keys().find(cls_))
-	# A different calling is a different form: build it again, keeping the name.
-	make.cls.item_selected.connect(func(_i: int) -> void: _creation.call_deferred(make.cls.get_selected_metadata(), make.name.text))
-	make.power = _option(side, "The One Power" if not fighter else "Born", {saidar = "Saidar (women)", saidin = "Saidin (men)"} if not fighter else {saidar = "A woman", saidin = "A man"})
-	if (cls_ == "warder" and power_ == "") or power_ == "saidin":
-		make.power.select(1)
-	make.origin = _option(side, "Origin", ORIGINS)
+		var cc: String = c
+		var icon := Icon.new("weave", {fire = 1, air = 1, water = 1}) if c == "channeller" else Icon.new("weapon", Rules.weapons[Rules.CLASSES[c].kit[0]].family)
+		_card(g, Rules.CLASSES[c].name, "", icon, c == cls_, func() -> void: _creation.call_deferred(cc, make.name.text, "", ""))
+	_text(side, CALLING_NOTES.get(cls_, ""), 13, Color(0.66, 0.67, 0.72))
+	_section(side, "The One Power" if not fighter else "Born")
+	var pg := _grid(side, 2)
+	for pw in ["saidar", "saidin"]:
+		var pp: String = pw
+		var label: String = ("Saidar" if pw == "saidar" else "Saidin") if not fighter else ("A woman" if pw == "saidar" else "A man")
+		var sub: String = ("women · Air, Water" if pw == "saidar" else "men · Earth, Fire") if not fighter else ""
+		_card(pg, label, sub, Icon.new("element", Glyph.TINT.water if pw == "saidar" else Glyph.TINT.fire) if not fighter else null, pw == power, func() -> void: _creation.call_deferred(make.cls_id, make.name.text, pp, make.origin_id))
+	_section(side, "Origin")
+	var og := _grid(side, 2)
+	for o in ORIGINS:
+		var oo: String = o
+		_card(og, ORIGINS[o], "", null, o == origin, func() -> void: _creation.call_deferred(make.cls_id, make.name.text, make.power_id, oo))
+	# Appearance, folded away until wanted.
+	_section(side, "Appearance")
+	var preset: Array = ORIGIN_LOOKS.get(origin, ORIGIN_LOOKS.two_rivers)
 	make.look = _option(side, "Dress", {})
-	# Saidar is women's and saidin men's, so the wardrobe follows the choice.
-	# The hair, the beard and how much potential can be bought all follow it too,
-	# so the form is built again.
-	make.power.item_selected.connect(func(_i: int) -> void: _creation.call_deferred(make.cls_id, make.name.text, make.power.get_selected_metadata()))
+	make.power = _PowerShim.new(power)
 	_fill_looks()
-	make.style = _style_options(side, {}, make.power.get_selected_metadata() == "saidin")
-	make.aff = {}; make.talents = {}; make.stats = {}; make.skills = {}; make.kit = []; make.weapons = {}; make.forms = {}
+	var want_look: String = ({warder = "warder", aiel = "aiel_" + ("f" if power == "saidar" else "m")}.get(cls_, preset[0] if power == "saidar" else preset[1]))
+	for i in make.look.item_count:
+		if make.look.get_item_metadata(i) == want_look:
+			make.look.select(i)
+	make.style = _style_options(side, preset[2], power == "saidin")
+	if _saved().size() > 0:
+		_button(side, "Back", func() -> void: _select(_saved()[0]))
+	# The gifts.
+	var gv := _gifts_panel()
+	_text(gv, "Gifts", 28)
 	if not fighter:
-		var power: String = make.power.get_selected_metadata()
-		_section(side, "Affinity")
-		_text(side, "How readily each Power answers you. You begin with two points in each Power of your half of the Source and one in Spirit. Moving a point costs two taken from elsewhere. Your strength is not chosen: it is rolled anew every round.", 13, Color(0.66, 0.67, 0.72))
+		_section(gv, "Affinity")
+		_text(gv, "How readily each Power answers. Moving a point costs two taken from elsewhere.", 13, Color(0.66, 0.67, 0.72))
 		var base := Profile.default_aff(power)
 		for e in Rules.ELEMENTS:
-			make.aff[e] = _spin(side, e.capitalize(), 9, int(base[e]))
-		make.trade = CheckBox.new(); make.trade.text = "Give up all five points to be born with a Talent (once, now only)"; side.add_child(make.trade)
-		make.trade.add_theme_font_size_override("font_size", 14)
-		make.talent = _option(side, "Talent", {})
-		for t in Profile.TALENTS:
-			make.talent.add_item(t.capitalize()); make.talent.set_item_metadata(make.talent.item_count - 1, t)
-		make.trade.toggled.connect(func(_on: bool) -> void: _creation_changed())
+			make.aff_vals[e] = int(keep_aff.get(e, base[e]))
+		make.aff_box = VBoxContainer.new(); gv.add_child(make.aff_box)
+		_section(gv, "Or be born with a Talent")
+		_text(gv, "Give up all five points, once and only now, to keep a Talent for good.", 13, Color(0.66, 0.67, 0.72))
+		make.talent_box = _grid(gv, 2)
 	else:
-		_section(side, "Six points")
-		_text(side, "A weapon costs one, a form two, a point of might, quickness or endurance one (two at most). Fighters are tougher and faster than channellers from the start, and grow in the round.", 13, Color(0.66, 0.67, 0.72))
-		for st in ["might", "quickness", "endurance"]:
-			make.stats[st] = _spin(side, st.capitalize(), 2, 0)
-		_section(side, "Weapons")
+		_section(gv, "Weapons  (1 point each)")
+		make.weapon_box = _grid(gv, 2)
 		var probe := {cls = cls_}
 		for w in Rules.weapons:
 			if Rules.wield_block(probe, w) == "":
-				var c := CheckBox.new(); c.text = Rules.weapons[w].name; side.add_child(c)
-				c.add_theme_font_size_override("font_size", 14)
-				c.button_pressed = Rules.CLASSES[cls_].kit.slice(0, 2).has(w)
-				c.toggled.connect(func(_on: bool) -> void: _creation_changed())
-				make.weapons[w] = c
-		_section(side, "Forms")
+				make.weapons[w] = Rules.CLASSES[cls_].kit.slice(0, 2).has(w)
+		_section(gv, "Forms  (2 points each)")
+		make.form_box = _grid(gv, 1)
 		for f in Rules.forms:
-			var c := CheckBox.new(); c.text = "%s  (%s)" % [Rules.forms[f].name, Rules.forms[f].family]; side.add_child(c)
-			c.add_theme_font_size_override("font_size", 14)
-			c.toggled.connect(func(_on: bool) -> void: _creation_changed())
-			make.forms[f] = c
-	make.left = _text(side, "", 16)
-	make.go = _button(side, "Begin", _create)
-	if _saved().size() > 0:
-		_button(side, "Back", func() -> void: _select(_saved()[0]))
+			make.forms[f] = false
+		_section(gv, "Body  (1 point each, 2 at most)")
+		make.stat_box = VBoxContainer.new(); gv.add_child(make.stat_box)
+		for st in ["might", "quickness", "endurance"]:
+			make.stats[st] = 0
+	make.left = _text(gv, "", 16)
+	make.go = _button(gv, "Begin", _create)
+	make.go.custom_minimum_size.y = 40
+	make.go.add_theme_font_size_override("font_size", 18)
+	_refresh_gifts()
 	_creation_changed()
+
+## Something for code that asks make.power which half of the Source this is.
+class _PowerShim:
+	var id := ""
+	func _init(p: String) -> void: id = p
+	func get_selected_metadata() -> String: return id
+
+func _refresh_gifts() -> void:
+	if make.cls_id == "channeller":
+		_clear(make.aff_box)
+		for e in Rules.ELEMENTS:
+			var ee: String = e
+			_stepper(make.aff_box, e.capitalize(), Glyph.TINT.get(e, Glyph.GOLD), int(make.aff_vals[e]) if not make.trade else 0, Profile.AFF_OWN_MAX, func(d: int) -> void:
+				if make.trade: return
+				make.aff_vals[ee] = clampi(int(make.aff_vals[ee]) + d, 0, Profile.AFF_OWN_MAX)
+				_refresh_gifts(); _creation_changed())
+		_clear(make.talent_box)
+		for t in Profile.TALENTS:
+			var tt: String = t
+			_card(make.talent_box, t.capitalize(), "", null, make.trade and make.talent == t, func() -> void:
+				if make.trade and make.talent == tt:
+					make.trade = false; make.talent = ""
+				else:
+					make.trade = true; make.talent = tt
+				_refresh_gifts(); _creation_changed())
+	else:
+		_clear(make.weapon_box)
+		var fams := {}
+		for w in make.weapons:
+			var ww: String = w
+			if make.weapons[w]: fams[Rules.weapons[w].family] = true
+			_card(make.weapon_box, Rules.weapons[w].name, Rules.weapons[w].family, Icon.new("weapon", Rules.weapons[w].family), make.weapons[w], func() -> void:
+				make.weapons[ww] = not make.weapons[ww]
+				_refresh_gifts(); _creation_changed())
+		_clear(make.form_box)
+		for f in make.forms:
+			var ff: String = f
+			var ok: bool = fams.has(Rules.forms[f].family)
+			if not ok: make.forms[f] = false
+			_card(make.form_box, Rules.forms[f].name, Rules.forms[f].family, null, make.forms[f], func() -> void:
+				make.forms[ff] = not make.forms[ff]
+				_refresh_gifts(); _creation_changed(), ok)
+		_clear(make.stat_box)
+		for st in ["might", "quickness", "endurance"]:
+			var s2: String = st
+			_stepper(make.stat_box, st.capitalize(), Glyph.GOLD, int(make.stats[st]), 2, func(d: int) -> void:
+				make.stats[s2] = clampi(int(make.stats[s2]) + d, 0, 2)
+				_refresh_gifts(); _creation_changed())
 
 ## The body's choices, as option rows: hair, its colour, skin, eyes, height, build,
 ## and a beard for men. Returns the widgets by name; _style_of reads them back.
@@ -1090,25 +1267,17 @@ func _fill_looks() -> void:
 ## for a fighter, of the six points.
 func _points_left() -> float:
 	if make.cls_id == "channeller":
-		if make.has("trade") and make.trade.button_pressed:
+		if make.trade:
 			return 0.0
-		var now := {}
-		for e in make.aff:
-			now[e] = int(make.aff[e].value)
-		return float(Profile.trade_left(Profile.default_aff(make.power.get_selected_metadata()), now))
+		return float(Profile.trade_left(Profile.default_aff(make.power_id), make.aff_vals))
 	var spent := 0.0
-	var fams := {}
 	for w in make.weapons:
-		if make.weapons[w].button_pressed:
-			spent += 1.0; fams[Rules.weapons[w].family] = true
+		if make.weapons[w]: spent += 1.0
 	for f in make.forms:
-		make.forms[f].disabled = not fams.has(Rules.forms[f].family)
-		if make.forms[f].disabled: make.forms[f].button_pressed = false
-		if make.forms[f].button_pressed:
-			spent += 2.0
+		if make.forms[f]: spent += 2.0
 	var st := 0.0
 	for k in make.stats:
-		st += make.stats[k].value
+		st += make.stats[k]
 	if st > 2.0:
 		return -1.0
 	return float(Profile.FIGHTER_POINTS) - spent - st
@@ -1119,26 +1288,21 @@ func _creation_changed() -> void:
 	var left := _points_left()
 	var nweap := 0
 	for w in make.weapons:
-		if make.weapons[w].button_pressed: nweap += 1
+		if make.weapons[w]: nweap += 1
 	if make.cls_id == "channeller":
-		for e in make.aff:
-			make.aff[e].editable = not make.trade.button_pressed
-		make.talent.disabled = not make.trade.button_pressed
-		make.left.text = "Born with the Talent; no affinity" if make.trade.button_pressed else ("Points to place: %d" % int(left) if left >= 0 else "Too many points added: every point costs two taken elsewhere")
+		make.left.text = ("Born with the Talent for %s: no affinity" % make.talent.capitalize().to_lower()) if make.trade else ("Points to place: %d" % int(left) if left >= 0 else "Too many points added: each costs two taken elsewhere")
 	else:
-		make.left.text = "Points left: %d" % int(left) if left >= 0 else "Too many points spent (and at most two in might, quickness and endurance)"
+		make.left.text = "Points left: %d of %d" % [int(left), Profile.FIGHTER_POINTS] if left >= 0 else "Too many points (and at most two in the body)"
 		if nweap == 0:
-			make.left.text += "\nChoose at least one weapon"
+			make.left.text += "\nChoose at least one weapon"; left = -1.0
 		elif nweap > Profile.WEAPON_SLOTS:
-			make.left.text += "\nAt most %d weapons" % Profile.WEAPON_SLOTS
-	if make.cls_id != "channeller" and (nweap == 0 or nweap > Profile.WEAPON_SLOTS):
-		left = -1.0
-	make.left.add_theme_color_override("font_color", Color(1, 0.4, 0.3) if left < 0 else Color(0.9, 0.9, 0.92))
+			make.left.text += "\nAt most %d weapons" % Profile.WEAPON_SLOTS; left = -1.0
+	make.left.add_theme_color_override("font_color", Color(1, 0.45, 0.35) if left < 0 else Glyph.GOLD)
 	make.go.disabled = left < 0
 	var kind: String = make.look.get_selected_metadata()
 	var held := ""
 	for w in make.weapons:
-		if make.weapons[w].button_pressed:
+		if make.weapons[w]:
 			held = w; break
 	var st := _style_of(make.style) if make.has("style") else {}
 	if model == null or model.get_meta("kind", "") != kind or model.get_meta("style", "") != str(st):
@@ -1154,28 +1318,24 @@ func _create() -> void:
 	if name_ == "" or _points_left() < 0 or make.go.disabled:
 		make.left.text = "A name is needed." if name_ == "" else make.left.text
 		return
-	var power: String = make.power.get_selected_metadata()
-	var opts := {name = name_, cls = make.cls_id, power = power, sex = "f" if power == "saidar" else "m", origin = make.origin.get_selected_metadata(),
+	var power: String = make.power_id
+	var opts := {name = name_, cls = make.cls_id, power = power, sex = "f" if power == "saidar" else "m", origin = make.origin_id,
 		look = make.look.get_selected_metadata(), style = _style_of(make.style)}
 	if make.cls_id == "channeller":
-		var aff := {}
-		for e in make.aff:
-			aff[e] = int(make.aff[e].value)
-		opts.aff_pts = aff
-		if make.trade.button_pressed:
-			opts.talent = make.talent.get_selected_metadata()
+		opts.aff_pts = make.aff_vals.duplicate()
+		if make.trade:
+			opts.talent = make.talent
 	else:
-		var kit := []; var forms := []; var stats := {}
+		var kit := []; var forms := []
 		for w in make.weapons:
-			if make.weapons[w].button_pressed: kit.append(w)
+			if make.weapons[w]: kit.append(w)
 		for f in make.forms:
-			if make.forms[f].button_pressed: forms.append(f)
-		for st in make.stats:
-			stats[st] = int(make.stats[st].value)
-		opts.kit = kit; opts.forms = forms; opts.stats = stats
+			if make.forms[f]: forms.append(f)
+		opts.kit = kit; opts.forms = forms; opts.stats = make.stats.duplicate()
 	var p := Profile.make(opts)
 	Profile.save(p)
 	Launch.report = []
+	_close_gifts()
 	_select(name_)
 
 # --- doorways you can see through --------------------------------------------------
