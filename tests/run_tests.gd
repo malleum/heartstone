@@ -110,7 +110,7 @@ func _powers() -> void:
 	sim._add_enemy("dummy", Vector3(60, 0, -60))
 	sim.ents[friend].hp = 20.0; sim.ents[friend].fester = 9.0; sim.ents[friend].fester_dps = 0.0
 	check(sim.request_cast(id, "healing", sim.ents[friend].pos) == "", "Healing a friend is allowed")
-	run(sim, 2.5)
+	run(sim, 3.5)   # weak in Spirit, the weaving takes longer
 	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].fester == 0.0, "it mends them and ends the festering")
 
 func _foes() -> void:

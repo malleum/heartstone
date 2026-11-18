@@ -958,6 +958,8 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 		# breaks: when the one held can throw it off (0 = never, while it is held).
 		p.held.append({weave = weave, target = p.get("fasten", 0) if w.kind in ["bind", "sever"] else 0, tied = 0.0, breaks = 0.0})
 		events.append({e = "hold", id = p.id, weave = weave, target = p.held[-1].target})
+	# Size, reach and duration grow with the root of power (Rules.reach).
+	var kr := clampf(sqrt(k), 0.5, 2.2)
 	match w.kind:
 		"bind":
 			# Bonds of Air: wrapped and held where they stand. The strong strain
@@ -978,11 +980,11 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			for i in n:
 				var a := deg_to_rad(b.get("spread", 0.0)) * ((i + 0.5) / n - 0.5)
 				effects.append({kind = "projectile", owner = p.id, weave = weave, pos = hand + throw * 0.6, vel = throw.rotated(Vector3.UP, a) * b.speed,
-					dmg = b.damage * k, radius = b.radius, left = b.range, gravity = b.get("gravity", 0.0), pierce = int(b.get("pierce", 0)), passed = [], id = _fx_id()})
+					dmg = b.damage * k, radius = b.radius * kr, left = b.range * kr, gravity = b.get("gravity", 0.0), pierce = int(b.get("pierce", 0)), passed = [], id = _fx_id()})
 		"cone":
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
-				if d.length() < b.range and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc:
+				if d.length() < b.range * kr and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc:
 					e.vel = d.normalized() * b.push
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
 					_hurt(e, b.damage * k, p.id, weave)
@@ -990,7 +992,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				var along := d.dot(dir)
-				if along > 0.0 and along < b.range and (d - dir * along).length() < b.width + e.radius:
+				if along > 0.0 and along < b.range * kr and (d - dir * along).length() < b.width * kr + e.radius:
 					e.stagger = maxf(e.stagger, b.get("stagger", 0.0))
 					e.vel += dir * b.get("push", 0.0)
 					# A lash of Water wraps what it reaches and hauls it in, off its feet.
@@ -998,11 +1000,11 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 						e.vel = -d.normalized() * minf(float(b.pull), maxf(d.length() - 2.5, 0.0) * 2.5)
 					_hurt(e, b.damage * k, p.id, weave)
 		"strike":
-			_blast(p.id, weave, at, b.radius, b.damage * k)
+			_blast(p.id, weave, at, b.radius * kr, b.damage * k)
 		"burst":
 			for i in int(b.count):
 				var off: Vector3 = Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)) * b.scatter
-				effects.append({kind = "blast", owner = p.id, weave = weave, pos = at + (off if i > 0 else Vector3.ZERO), dmg = b.damage * k, radius = b.radius,
+				effects.append({kind = "blast", owner = p.id, weave = weave, pos = at + (off if i > 0 else Vector3.ZERO), dmg = b.damage * k, radius = b.radius * kr,
 					left = b.delay * rng.randf_range(0.5, 1.5), id = _fx_id()})
 		"blossom":
 			# Blossoms of Fire: a thin pillar of flame where it is aimed, which then
@@ -1013,14 +1015,14 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				dps = b.dps * k, dmg = b.damage * k, id = _fx_id()})
 		"ring":
 			# It rolls out the way it was thrown, a wedge and not a circle.
-			effects.append({kind = "ring", owner = p.id, weave = weave, pos = p.pos, r = 0.5, max = b.radius, speed = b.speed, dmg = b.damage * k,
+			effects.append({kind = "ring", owner = p.id, weave = weave, pos = p.pos, r = 0.5, max = b.radius * kr, speed = b.speed, dmg = b.damage * k,
 				yaw = atan2(dir.x, dir.z), arc = float(b.get("arc", 180.0)), id = _fx_id()})
 		"mover":
 			var n: int = b.count
 			for i in n:
 				var a := deg_to_rad(b.spread) * ((i + 0.5) / n - 0.5)
 				effects.append({kind = "mover", owner = p.id, weave = weave, pos = p.pos + dir * 2.5, vel = dir.rotated(Vector3.UP, a) * b.speed,
-					dps = b.dps * k, radius = b.radius, left = b.duration, id = _fx_id()})
+					dps = b.dps * k, radius = b.radius * kr, left = b.duration * kr, id = _fx_id()})
 		"barrier":
 			p.barrier = b.absorb * k
 		"gate":
@@ -1157,15 +1159,18 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		return
 	if not quiet and Rules.weaves.has(weave):
 		var on: Dictionary = Rules.weaves[weave].get("on_hit", {})
+		# Burns, stuns and soakings last longer from a stronger weaver.
+		var src: Dictionary = ents.get(by, {})
+		var kr: float = Rules.reach(src.profile, weave, src.stamina) if src.get("kind", "") == "player" and src.profile.weaves.has(weave) else 1.0
 		if on.has("burn"):
-			e.burn = maxf(e.burn, on.burn); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
+			e.burn = maxf(e.burn, on.burn * kr); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
 		if on.has("stun"):
-			e.stagger = maxf(e.stagger, on.stun)
+			e.stagger = maxf(e.stagger, on.stun * kr)
 		# Lightning leaves what survives it charged: it runs wild and faster, and the
 		# next thing to strike it sends the charge leaping to those nearby.
 		# Water soaks: the soaked are slowed, and lightning finds them.
 		if on.has("wet"):
-			e.wet = maxf(e.get("wet", 0.0), on.wet)
+			e.wet = maxf(e.get("wet", 0.0), on.wet * kr)
 		if on.has("charge") and e.get("wet", 0.0) > 0.0:
 			dmg *= 1.6
 		if on.has("charge"):

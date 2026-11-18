@@ -81,8 +81,15 @@ flows and the gate.
   19(7) has not been re-read at the source. If the Companion is to hand, check it.
 
 **In the game** strength is stored as a magnitude and shown as a level: level 1 is
-100 and each level down divides by 1.033, so 72 is about 10 and ++1 about 121. Those
-magnitudes are the game's invention; the Companion gives ranks, not ratios.
+100 and each level down divides by 1.05 (Josh, 17 Nov; it was 1.033), so ++1 is about
+134 and level 26 about 30. Those magnitudes are the game's invention; the Companion
+gives ranks, not ratios. Power sets damage, healing and shields directly, and size,
+reach and the length of burns, stuns and holds by its square root.
+
+**Affinity** (Josh, 17 Nov): 0.1 a point (was 0.06), up to 1.4 per Power. A weave's
+affinity is the average over its flows; it multiplies power by (0.5 + that), and also
+quickens the weaving: ordinary (0.5) weaves at the written speed, strong ones in as
+little as half the time, weak ones up to 20% slower.
 
 **Growth (Josh's rulings).**
 - **Strong before trained.** A channeller starts at most ten levels below their

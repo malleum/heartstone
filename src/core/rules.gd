@@ -8,7 +8,9 @@ const ELEMENTS: Array[String] = ["fire", "earth", "water", "air", "spirit"]
 
 ## Every pacing number lives here so tuning never means hunting through code.
 const TUNE := {
-	ref_power = 16.0,          # weave base numbers are written for this power
+	# Weave base numbers are written for this power: re-anchored when the scale went to
+	# 5% a level (17 Nov) so a typical starting roll (26) hits as hard as before.
+	ref_power = 10.64,
 	min_affinity = 0.12,       # per-flow floor to be able to form a weave at all
 	mastery_xp = 150.0,        # level = floor(sqrt(xp / this)), capped
 	mastery_cap = 10,
@@ -24,7 +26,9 @@ const TUNE := {
 	# Strength is stored as a magnitude and shown as a Companion level. Level 1 (the
 	# strongest woman) is magnitude 100 and every level down divides by this, so
 	# level 72 is about 10 and ++1 (the strongest man) about 121.
-	level_ratio = 1.033,
+	level_ratio = 1.05,         # 5% a level (the user's ruling, 17 Nov; was 3.3%)
+	aff_point = 0.1,           # affinity per point (was 0.06), up to aff_cap
+	aff_cap = 1.4,
 	repeat_renown = 0.25,      # share of renown paid for replaying a cleared activity
 	# Stamina replaces a mana bar: a deep pool that barely refills during a fight.
 	# As it drains, weaves weaken and cost less, so a tired channeller keeps weaving
@@ -219,8 +223,26 @@ static func power(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 static func scale(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 	return power(p, weave_id, stamina) / TUNE.ref_power
 
+## How readily the weave's Powers answer this character: affinity averaged over its
+## flows by how many of each it uses (0.5 is ordinary).
+static func weave_affinity(p: Dictionary, weave_id: String) -> float:
+	var fl := flows_of(weaves[weave_id], p)
+	var total := 0.0; var aff := 0.0
+	for e in fl:
+		total += fl[e]; aff += fl[e] * p.affinity[e]
+	return aff / maxf(total, 1.0)
+
+## Practice and affinity both quicken the weaving: an ordinary affinity weaves at the
+## written speed, a strong one in as little as half the time, a weak one 20% slower.
 static func form_time(p: Dictionary, weave_id: String) -> float:
-	return weaves[weave_id].form * maxf(1.0 - TUNE.mastery_speed * mastery_level(p, weave_id), 0.5)
+	var aff := clampf(1.5 - weave_affinity(p, weave_id), 0.5, 1.2)
+	return weaves[weave_id].form * maxf(1.0 - TUNE.mastery_speed * mastery_level(p, weave_id), 0.5) * aff
+
+## Size, reach and the length of what a weave does (burns, stuns, holds) grow with
+## the square root of its power: a weave twice as strong is twice the damage over
+## about 1.4 times the radius, not four times the effect.
+static func reach(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
+	return clampf(sqrt(scale(p, weave_id, stamina)), 0.5, 2.2)
 
 ## A tired channeller draws less of the Power, so the weave costs less too.
 static func draw_of(p: Dictionary, weave_id: String, stamina := -1.0) -> float:

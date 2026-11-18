@@ -255,8 +255,8 @@ static func apply_affinity(p: Dictionary) -> void:
 	for e in (["earth", "fire"] if p.power == "saidin" else ["air", "water"]):
 		lean[e] = 0.45
 	for e in Rules.ELEMENTS:
-		var a: float = lean[e] + 0.06 * int(p.get("aff_pts", {}).get(e, 0))
-		p.affinity[e] = minf(a, 0.95)
+		var a: float = lean[e] + Rules.TUNE.aff_point * int(p.get("aff_pts", {}).get(e, 0))
+		p.affinity[e] = minf(a, Rules.TUNE.aff_cap)
 		p.aptitude[e] = p.affinity[e]
 
 ## The weave you were born knowing: the simplest of the Power that answers you
