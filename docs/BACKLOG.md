@@ -179,14 +179,15 @@ are what the 4:44 review, or the next session, should pick up.
   **The full plan and to-do list is `MELEE.md`.**
 
 ## Online
-- [ ] **Deploy the server on minimus.** It is built and tested on localhost (see
+- [x] **Deploy the server on minimus.** (Live since 17 Nov.) It is built and tested on localhost (see
   Done and `SERVER.md`); adding it to `malleum/nixos` and forwarding UDP 24690 is
   Josh's step, because it changes his server.
-- [ ] Server follow-ups: reconnecting after a dropped connection; proof that the
+- [ ] Server follow-ups: reconnecting after a dropped connection (18 Nov: losing the
+  server mid-fight now says so and Enter goes home; no rejoin yet); proof that the
   server is the real one; friends seen walking in the camp.
 
 ## Found by looking (Claude)
-- [ ] Gateway: the edges do not cut, and nothing uses one yet (a mission could).
+- [x] Gateway: the edges cut (17 Nov) and Darkfriends open one (17 Nov).
 - [x] Healing with two people (18 Nov): tested in the rules; Healing a downed friend
   brings them back up.
 - [ ] Movement prediction is built but has only run on one machine, where there
@@ -195,7 +196,7 @@ are what the 4:44 review, or the next session, should pick up.
   Shadowspawn" and PLAYTEST 62 to 64. Not made: Gholam, Grey Men, Forsaken.
 - [x] Trolloc archers carry bows (done earlier). The Myrddraal's gaze grips with
   fear (18 Nov: weaving slows while you meet it). Still no separate hanging cloak. The wagon ring was lost by a two-bot party.
-- [ ] Stamina starts full each activity; it may be better carried between them.
+- [x] Stamina starts full each activity: kept, since every fight is a fresh round now.
 
 - 2026-11-18, asked by the user:
   - (Done 18 Nov: backing away is 70% speed, 55% while weaving, guarding or drawing;

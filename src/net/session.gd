@@ -17,6 +17,7 @@ signal refused(why: String)
 signal rejected(why: String)                    # could not join at all
 signal vaulted(status: String, kept: Dictionary)  # the server's character store answered
 signal lobby(fights: Array)                     # the server said who is playing what
+signal lost                                    # the server went away mid-fight
 
 const PORT := 24690
 const PROTO := 8               # bump when an RPC or the snapshot format changes
@@ -162,7 +163,12 @@ func _connect(address: String, on_up: Callable, on_fail: Callable) -> Error:
 	multiplayer.multiplayer_peer = peer
 	_on_nonce = on_up
 	multiplayer.connection_failed.connect(on_fail, CONNECT_ONE_SHOT)
+	if not multiplayer.server_disconnected.is_connected(_on_server_gone):
+		multiplayer.server_disconnected.connect(_on_server_gone)
 	return OK
+
+func _on_server_gone() -> void:
+	lost.emit()
 
 ## One round trip to a server's character store. Send the local copy (or {} if this
 ## machine has none); the server keeps whichever has channelled longer and answers

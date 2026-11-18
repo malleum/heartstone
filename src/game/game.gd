@@ -157,6 +157,12 @@ func _begin() -> void:
 		last_refusal = why.capitalize(); refusal_t = 1.5
 		if args.has("ghost"): print("GHOST %d refused %s" % [frame, why]))
 	session.rejected.connect(_offline)
+	session.lost.connect(func() -> void:
+		# The server went away: the fight cannot go on here. Say so, and let Enter
+		# take you home instead of leaving a frozen field.
+		if _started and not _done:
+			_done = true
+			Toast.say("Lost the server", "The fight cannot go on without it. Enter: back to the camp.", "warn", 15.0))
 	if args.has("join"):
 		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""), previewing)
 		# ENet can take half a minute to give up on a server that is not there.
