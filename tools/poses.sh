@@ -32,10 +32,10 @@ weaver() {    # weave
   local out=renders/poses_w_$1
   rm -rf "$out"
   KEEP_EVERY=1 RES=960x720 tools/render.sh "$out" 300 -- --auto --name=Pose --strength=1 --only=$1 --stand --clean --log "${cam[@]}" --spawn=trolloc_brute:3@11 2>&1 | grep -E "^EV|SCRIPT ERROR" > "$out.log"
-  python3 -I - "$out" <<'P'
+  python3 -I - "$out" "$1" <<'P'
 import re, sys, os
-out = sys.argv[1]
-ev = [(int(m[1]), m[2]) for m in (re.match(r"EV (\d+) (\w+)", l) for l in open(out + ".log")) if m]
+out, weave = sys.argv[1], sys.argv[2]
+ev = [(int(m[1]), m[2]) for m in (re.match(r"EV (\d+) (\w+) (\w+)", l) for l in open(out + ".log")) if m and m[3] == weave]
 forms = [f for f, e in ev if e == "form"]
 if not forms: sys.exit(0)
 F = next((f for f in forms if f >= 60), forms[0])
@@ -53,8 +53,8 @@ want=${1:-all}
 if [[ $want == all || $want == weaves ]]; then
   ws=(fireball lightning water_lash heave_the_ground hammer_of_air blade_of_spirit)
   for w in "${ws[@]}"; do weaver $w; done
-  shots=(); for w in "${ws[@]}"; do shots+=(renders/poses_w_${w}_a.png renders/poses_w_${w}_b.png); done
-  ls "${shots[@]}" 2>/dev/null | xargs -r -I{} echo {} | xargs montage -tile 4x3 -geometry 480x360+2+2 renders/poses_weaves.jpg
+  shots=(); for f in renders/poses_w_*_[ab].png; do [[ -f $f ]] && shots+=("$f"); done
+  [[ ${#shots[@]} -gt 0 ]] && montage "${shots[@]}" -tile 4x3 -geometry 480x360+2+2 renders/poses_weaves.jpg
   rm -f renders/poses_w_*
 fi
 ls renders/poses_*.jpg

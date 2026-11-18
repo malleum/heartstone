@@ -267,7 +267,10 @@ are what the 4:44 review, or the next session, should pick up.
     follows a lunge.
 
 - 2026-11-18, asked by the user:
-  - **A collection of screenshots of characters posing**, especially in the middle of
+  - (First pass 18 Nov: `tools/poses.sh` makes a sheet per class of blows caught on
+    their way in, and one of weaves being made and loosed, with no HUD (`--clean`);
+    kept in docs/img/poses_*.jpg. Still to do: every look, and closer framing.)
+    **A collection of screenshots of characters posing**, especially in the middle of
     attacks: weaves being made and loosed, and melee blows, for every class and look.
   - (Done 18 Nov.) **Fewer doorways:** one per mode (training, hold the line,
     Darkfriend, endless, the dream duel, plus Two banners), each picking a random
