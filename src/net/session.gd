@@ -121,13 +121,18 @@ static func _seal(text: String, secret: String, nonce: String, open := false) ->
 
 ## hold: build the fight but keep it still until begin() (a camp doorway's far side,
 ## looked at before anyone has stepped through).
-func host(activity_id: String, my_profile: Dictionary, port := PORT, hold := false) -> Error:
+## listen: false for a game on this machine alone (every shared game is on the
+## server now): no port is opened, so two copies of the game never collide.
+func host(activity_id: String, my_profile: Dictionary, port := PORT, hold := false, listen := true) -> Error:
 	Rules.load_data()
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(port, 5)
-	if err != OK:
-		return err
-	multiplayer.multiplayer_peer = peer
+	if listen:
+		var peer := ENetMultiplayerPeer.new()
+		var err := peer.create_server(port, 5)
+		if err != OK:
+			return err
+		multiplayer.multiplayer_peer = peer
+	else:
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	multiplayer.peer_disconnected.connect(_on_left)
 	multiplayer.peer_connected.connect(_greet)
 	is_host = true; profile = my_profile; activity = activity_id

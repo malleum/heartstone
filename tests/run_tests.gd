@@ -20,7 +20,7 @@ func play(profile: Dictionary, activity: String, max_s := 600.0) -> Sim:
 
 ## One fighter alone with one enemy standing `dist` in front, for exact checks.
 func duel(profile: Dictionary, enemy: String, dist: float) -> Array:
-	var sim := Sim.new("camp_training", 5)
+	var sim := Sim.new("practice", 5)
 	sim._waves = []
 	var id := sim.add_player(profile, Vector3.ZERO)
 	sim._add_enemy(enemy, Vector3(0, 0, dist))
@@ -45,7 +45,7 @@ func _powers() -> void:
 		p.weaves[w] = {known = true, xp = 0.0}
 	p.channelled = Rules.TUNE.flow_steps[4]
 	# Lightning: survivors run wild, and the next blow sends the charge on.
-	var sim := Sim.new("camp_training", 3)
+	var sim := Sim.new("practice", 3)
 	sim._waves = []
 	var id := sim.add_player(p)
 	for i in 3:
@@ -64,7 +64,7 @@ func _powers() -> void:
 	for e in sim.events: seen.append(e.e)
 	check(seen.has("arc") and b.hp < hp_b and a.charge == 0.0, "the next blow sends the charge to its neighbours")
 	# Spirit: dazed, it does not attack; and a Myrddraal cannot slip it.
-	sim = Sim.new("camp_training", 3)
+	sim = Sim.new("practice", 3)
 	sim._waves = []
 	id = sim.add_player(p)
 	sim._add_enemy("trolloc", Vector3(0, 0, 1.6))
@@ -82,7 +82,7 @@ func _powers() -> void:
 		if fade.hp < h0: landed += 1
 	check(landed == 40, "a Myrddraal cannot step aside from Spirit")
 	# A gateway: step in here, step out there; closed when it is let go.
-	sim = Sim.new("camp_training", 3)
+	sim = Sim.new("practice", 3)
 	sim._waves = []
 	id = sim.add_player(p)
 	sim._add_enemy("dummy", Vector3(60, 0, -60))
@@ -102,7 +102,7 @@ func _powers() -> void:
 	weak.weaves["gateway"] = {known = true, xp = 0.0}
 	check(Rules.cast_block(weak, "gateway", 9, 1500.0).begins_with("needs strength"), "the weak cannot make a gateway at all")
 	# Healing: someone else, in reach; and it ends a festering wound.
-	sim = Sim.new("camp_training", 3)
+	sim = Sim.new("practice", 3)
 	sim._waves = []
 	id = sim.add_player(p)
 	check(sim.request_cast(id, "healing", sim.ents[id].pos).begins_with("no one there"), "Healing alone is refused: you cannot Heal yourself")
@@ -153,7 +153,7 @@ func _foes() -> void:
 	check(shots["standing"] > 20.0, "arrows wound someone standing at the wall (%d)" % int(shots["standing"]))
 	check(shots["ducked behind the wall"] < shots["standing"] * 0.25, "the breastwork is cover (%d)" % int(shots["ducked behind the wall"]))
 	# The Myrddraal: hard to hit, cannot be put down, its wounds fester, and its Trollocs die with it.
-	sim = Sim.new("camp_training", 9)
+	sim = Sim.new("practice", 9)
 	sim._waves = []
 	id = sim.add_player(p)
 	sim._spawn_wave({spawn = {myrddraal = 1, trolloc = 3}})
@@ -278,7 +278,7 @@ func _playtest() -> void:
 	sim.request_cast(id, "water_lash", foe.pos)
 	run(sim, 1.5)
 	check(foe.pos.distance_to(me.pos) < 9.0 and foe.get("wet", 0.0) > 0.0, "a Lash of Water hauls a Trolloc in and soaks it")
-	var dry := Sim.new("camp_training", 5); dry._waves = []
+	var dry := Sim.new("practice", 5); dry._waves = []
 	var did := dry.add_player(p); dry._add_enemy("trolloc", Vector3(0, 0, 9)); dry.ents[did + 1].hp = 9999.0
 	dry._hurt(dry.ents[did + 1], 100.0, did, "lightning")
 	var h: float = foe.hp
@@ -286,7 +286,7 @@ func _playtest() -> void:
 	sim._hurt(foe, 100.0, id, "lightning")
 	check(h - foe.hp > (9999.0 - dry.ents[did + 1].hp) * 1.4, "lightning hits the soaked harder")
 	# Arrows of Fire go through the first body into the one behind.
-	sim = Sim.new("camp_training", 5); sim._waves = []
+	sim = Sim.new("practice", 5); sim._waves = []
 	id = sim.add_player(p)
 	sim._add_enemy("trolloc", Vector3(0, 0, 8)); sim._add_enemy("trolloc", Vector3(0, 0, 11)); sim._add_enemy("dummy", Vector3(40, 0, 40))
 	for k in [1, 2]: sim.ents[id + k].hp = 9999.0; sim.ents[id + k].speed = 0.0
@@ -294,7 +294,7 @@ func _playtest() -> void:
 	seen = run(sim, 2.2)
 	check(sim.ents[id + 1].hp < 9999.0 and sim.ents[id + 2].hp < 9999.0 and seen.has("pierce"), "a dart of fire goes through one Trolloc into the next")
 	# Blossoms of Fire: a pillar, then a wide wheel that burns what stands in it.
-	sim = Sim.new("camp_training", 5); sim._waves = []
+	sim = Sim.new("practice", 5); sim._waves = []
 	id = sim.add_player(p)
 	sim._add_enemy("trolloc", Vector3(4.5, 0, 25)); sim._add_enemy("dummy", Vector3(60, 0, 60))
 	var far: Dictionary = sim.ents[id + 1]; far.hp = 9999.0; far.speed = 0.0
@@ -307,7 +307,7 @@ func _playtest() -> void:
 	run(sim, 6.0)
 	check(sim.effects.is_empty(), "and burns out")
 	# The Rolling Ring is a wedge: it strikes ahead and not behind.
-	sim = Sim.new("camp_training", 5); sim._waves = []
+	sim = Sim.new("practice", 5); sim._waves = []
 	id = sim.add_player(p)
 	sim._add_enemy("trolloc", Vector3(0, 0, 9)); sim._add_enemy("trolloc", Vector3(0, 0, -9)); sim._add_enemy("trolloc", Vector3(9, 0, 0))
 	for k in [1, 2, 3]: sim.ents[id + k].hp = 9999.0; sim.ents[id + k].speed = 0.0
@@ -318,7 +318,7 @@ func _playtest() -> void:
 
 	# The Eyeless: it lunges along a line it has chosen, and it steps through shadow.
 	var blade := Profile.create({name = "Test Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, skill_pts = {sword = 3}})
-	sim = Sim.new("camp_training", 9); sim._waves = []
+	sim = Sim.new("practice", 9); sim._waves = []
 	id = sim.add_player(blade)
 	sim._add_enemy("myrddraal", Vector3(0, 0, 9)); sim._add_enemy("dummy", Vector3(60, 0, 60))
 	var fade: Dictionary = sim.ents[id + 1]
@@ -336,7 +336,7 @@ func _playtest() -> void:
 	check(lunged, "a Myrddraal lunges")
 	check(gone and back and hidden, "and goes into shadow, where nothing can touch it, and comes out again")
 	# Step off the line of a lunge and it goes past and is open.
-	sim = Sim.new("camp_training", 9); sim._waves = []
+	sim = Sim.new("practice", 9); sim._waves = []
 	id = sim.add_player(blade)
 	sim._add_enemy("myrddraal", Vector3(0, 0, 8)); sim._add_enemy("dummy", Vector3(60, 0, 60))
 	fade = sim.ents[id + 1]
@@ -399,7 +399,7 @@ func _dream() -> void:
 	var ia := sim.add_player(a, Vector3(0, 0, 0)); var ib := sim.add_player(b, Vector3(0, 0, 14))
 	var pa: Dictionary = sim.ents[ia]; var pb: Dictionary = sim.ents[ib]
 	pa.yaw = 0.0; pb.yaw = PI
-	check(Sim.new("camp_training", 1).request_dream(1, "shift_back", Vector3.ZERO) != "" , "no dream moves in the waking world")
+	check(Sim.new("practice", 1).request_dream(1, "shift_back", Vector3.ZERO) != "" , "no dream moves in the waking world")
 	# Shifts.
 	check(sim.request_dream(ia, "shift_behind", pb.pos) == "" and pa.pos.distance_to(pb.pos) < 3.0 and pa.pos.z > pb.pos.z, "step behind: you are at their back")
 	check(absf(angle_difference(pa.yaw, atan2(pb.pos.x - pa.pos.x, pb.pos.z - pa.pos.z))) < 0.1, "and facing them")
@@ -478,7 +478,7 @@ func _shadowspawn() -> void:
 	check(seen.has("lunge") and me.hp < hp0, "a Darkhound springs, and its bite lands")
 	check(me.get("fester", 0.0) > 0.0, "and the bite festers")
 	# Steel does half to it; the Power does all; left alone it mends.
-	sim = Sim.new("camp_training", 5); sim._waves = []
+	sim = Sim.new("practice", 5); sim._waves = []
 	id = sim.add_player(blade); sim._add_enemy("darkhound", Vector3(0, 0, 30)); foe = sim.ents[id + 1]; foe.speed = 0.0
 	sim._hurt(foe, 40.0, id, "sword")
 	check(is_equal_approx(foe.max_hp - foe.hp, 20.0), "steel does half its work on a Darkhound")
@@ -555,7 +555,7 @@ func _trolloc_blows() -> void:
 	print("== Trolloc attacks by weapon")
 	Map.use("open")
 	var p := Profile.create({name = "Blade", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
-	var sim := Sim.new("camp_training", 5); sim._waves = []
+	var sim := Sim.new("practice", 5); sim._waves = []
 	var id := sim.add_player(p)
 	var me: Dictionary = sim.ents[id]
 	# Each weapon has its own blows and no others.
@@ -756,7 +756,7 @@ func _arms() -> void:
 	check(both.success and both.tallies[iw].casts.size() > 0 and both.tallies[ib2].blows.size() > 0, "a channeller and a Warder hold the watch together, each doing their part")
 
 	# The Warder's work: beside a channeller with guard raised, the blow is theirs.
-	var ward := Sim.new("camp_training", 6)
+	var ward := Sim.new("practice", 6)
 	ward._waves = []
 	var cw := ward.add_player(weaver, Vector3.ZERO); var ww := ward.add_player(blade, Vector3(1.5, 0, 0))
 	ward._add_enemy("trolloc", Vector3(0, 0, 1.6))
@@ -813,7 +813,7 @@ func _arms() -> void:
 	# What a Trolloc swings follows from what it holds.
 	var kinds := {}
 	for i in 40:
-		var s2 := Sim.new("camp_training", i)
+		var s2 := Sim.new("practice", i)
 		s2._add_enemy("trolloc", Vector3.ZERO)
 		var e2: Dictionary = s2.ents[1]
 		kinds[e2.arm + "/" + s2._pick_blow(e2).kind] = true
@@ -976,7 +976,7 @@ func _rounds() -> void:
 	check(dj.over and not dj.won(jid[1]) and dj.won(jid[0]), "the waves outlasted with the Darkfriend free: the Darkfriend wins")
 
 	# Gateways: the Shadow's creatures die going through; arrows and weaves go through.
-	var gs := Sim.new("camp_training", 51)
+	var gs := Sim.new("practice", 51)
 	gs._waves = []
 	var gp := gs.add_player(Profile.create({name = "Gate", power = "saidin"}), Vector3(0, 0, 8))
 	gs.effects.append({kind = "gate", owner = gp, weave = "gateway", pos = Vector3(0, 0, 0), to = Vector3(20, 0, 0), id = 900, flat_a = false, sky = 0.0, age = 5.0})
@@ -1000,7 +1000,7 @@ func _rounds() -> void:
 		if fx.get("id", 0) == 901 and fx.pos.x > 18.0: moved = true
 	check(moved, "a weave thrown into a gateway comes out of the far side")
 
-	var gc := Sim.new("camp_training", 52)
+	var gc := Sim.new("practice", 52)
 	gc._waves = []
 	var gcp := gc.add_player(Profile.create({name = "Cutter", power = "saidin"}), Vector3.ZERO)
 	gc._add_enemy("trolloc", Vector3(0, 0, 10))
@@ -1050,7 +1050,7 @@ func _rounds() -> void:
 	check(slain.alive and not bk.ents[bp].alive, "balefire on a player brings back what they just killed")
 
 	# Linking: a woman leads; men join only her circle; members cannot channel or leave.
-	var ls := Sim.new("camp_training", 81)
+	var ls := Sim.new("practice", 81)
 	ls._waves = []; ls._add_enemy("dummy", Vector3(0, 0, -90))
 	var w1 := ls.add_player(Profile.create({name = "Link W1", power = "saidar", potential_pts = 8}), Vector3(0, 0, 0))
 	var m1 := ls.add_player(Profile.create({name = "Link M1", power = "saidin", potential_pts = 8}), Vector3(1.5, 0, 0))
@@ -1110,7 +1110,6 @@ func _init() -> void:
 	check(p.weaves.has("hammer_of_air") and p.seen.has("dome_of_air"), "weaves taught and seen carry between activities")
 	check(p.get("study", "") != "" and p.study_done > 0.0, "channelling works out the weave being studied")
 	check(Rules.study_options(p).has("dome_of_air") and not Rules.study_options(p).has("blossoms_of_fire"), "the weave tree gates on what you know")
-	check(not Rules.available(p).has("tarwins_gap_night"), "the long night is gated on renown")
 
 	print("== save / load")
 	Profile.save(p)

@@ -93,6 +93,7 @@ func _ready() -> void:
 	if args.has("strength"):
 		profile.potential = Rules.strength_of(float(args.strength))
 		profile.strength = profile.potential
+		profile.no_roll = true
 		profile.book_limit = 99
 	if args.has("tie"):
 		profile.techniques = ["tie_off"]
@@ -157,7 +158,7 @@ func _begin() -> void:
 			if not _started and not _done:
 				_offline("no answer from the server"))
 	else:
-		session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing)
+		session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing, false)
 	if not args.has("auto") and not previewing and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1069,7 +1070,7 @@ func _offline(why: String) -> void:
 		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
 	args.erase("join")
-	session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing)
+	session.host(args.get("activity", "tarwins_gap_watch"), profile, Session.PORT, previewing, false)
 
 # --- mirroring the sim ----------------------------------------------------------------
 

@@ -44,7 +44,7 @@ func _init(activity: String, seed_ := 1) -> void:
 	Map.use(act.get("map", "open"))
 
 func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> int:
-	if round_mode and not profile.has("round"):
+	if (round_mode or Rules.activities[activity_id].get("rolls", false)) and not profile.has("round"):
 		# The round copy: rolled strength or gift, fresh practice. Someone arriving
 		# part-way through catches up to the team's level.
 		profile = Round.begin(profile, rng)

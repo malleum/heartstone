@@ -73,6 +73,9 @@ static func begin(profile: Dictionary, rng: RandomNumberGenerator, opts := {}) -
 	if p.get("cls", "channeller") == "channeller":
 		var pot := roll_potential(rng, man, float(opts.get("bonus", 0.0)))
 		var start := minf(pot + roll_gap(rng), 72.0)
+		if p.get("no_roll", false):
+			# A tour station or a render that set the strength: keep it.
+			pot = float(Rules.level_of(p.potential)); start = float(Rules.level_of(p.strength))
 		r.pot_level = pot; r.start_level = start; r.now_level = start
 		# Men grow in leaps: how many levels owed before the next one, rolled anew each time.
 		r.leap = rng.randi_range(2, 5); r.owed = 0.0

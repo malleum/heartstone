@@ -529,6 +529,13 @@ outlasts it.
 - **Saves.** Characters carry `format = 2`; older ones are deleted when the camp
   opens and old copies from the server are not taken back (the user asked).
 - `short_watch` is the old three-wave watch, hidden from the camp, kept for tests.
+- (17 Nov) Every activity is open from the start except the dream duel (renown 15).
+  The training yard rolls strength each time (`"rolls": true`) without being a full
+  round, and its practice posts have 45 health. `practice` is the same yard without
+  the roll, a fixed sandbox for the rules tests. A tour station or render that sets
+  `--strength` keeps it (`no_roll`). Offline games open no port (`Session.host`
+  with `listen = false`, an `OfflineMultiplayerPeer`), so two copies of the game on
+  one machine never collide.
 
 ## A Darkfriend among us (17 Nov; `darkfriend` activity, Sim `_assign_darkfriends`)
 A single-stage round in the wagon ring. Eight seconds in, roles are given out among
