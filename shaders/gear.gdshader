@@ -1,6 +1,7 @@
 shader_type spatial;
 // Armour, cloth and weapons. COLOR.a picks the material:
 // 0 cloth/hide, 0.33 leather, 0.66 mail, 1 plate or blade.
+global uniform float near_fade;
 varying vec3 rest;
 varying float occ;
 
@@ -22,6 +23,13 @@ void vertex() {
 	occ = UV2.y;
 }
 void fragment() {
+	// Thinned out with a dither when right against the camera (game sets near_fade;
+	// the bench leaves it 0 for close-ups), so a body beside the lens does not fill
+	// the screen.
+	if (near_fade > 0.0) {
+		float seen = smoothstep(near_fade * 0.35, near_fade, length(VERTEX));
+		if (fract(sin(dot(floor(FRAGCOORD.xy), vec2(12.9898, 78.233))) * 43758.5453) > seen) discard;
+	}
 	float kind = COLOR.a;
 	float cloth = 1.0 - smoothstep(0.1, 0.25, kind);
 	float mail = smoothstep(0.5, 0.6, kind) * (1.0 - smoothstep(0.75, 0.9, kind));

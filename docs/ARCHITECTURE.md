@@ -717,6 +717,15 @@ work beside them.
   It exists because bots drive the sim directly: an error on the input path
   (aiming with a weapon selected) passed every other test.
 - `src/test/arms.tscn`, `looks.tscn`: lineups of every weapon and every outfit.
+- Renders may run side by side. The invisible compositor is 5120x2880 and
+  `tools/place.py` (started by render.sh) moves each new window into a free
+  quarter of it. Godot keeps writing frames while sway suspends a window that
+  another covers, but its world stops, which is the kind of fault that looks like
+  a game bug. Found 18 Nov while chasing the controls test's lost tie. That turned
+  out to be something else (the yard burning down to its last post), but
+  overlapping windows can do the same.
+- When a fight is over, the host still passes on its room's news while anyone
+  stays in it (`Session._send_events` on both branches); the sim's clock stops.
 
 ## Dev environment
 - NixOS flake: `nix develop` for the tools, `nix run` to play, `nix run .#horde` for

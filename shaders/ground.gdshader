@@ -31,7 +31,11 @@ void fragment() {
 	vec3 n3 = normalize(wn);
 	float macro = fbm(wp.xz * 0.035 + 3.0);
 	float mid = fbm(wp.xz * 0.6);
-	float fine = tri(wp, n3, 5.0);
+	// Procedural noise has no mipmaps: once a pixel spans more ground than the fine
+	// detail's grain it aliases into a grid of specks (worst on far cliff faces), so
+	// it fades to its average with the pixel's footprint.
+	float foot = length(fwidth(wp));
+	float fine = mix(0.5, tri(wp, n3, 5.0), 1.0 - smoothstep(0.03, 0.12, foot));
 	float slope = 1.0 - n3.y;
 
 	vec3 dirt = mix(vec3(0.16, 0.12, 0.085), vec3(0.3, 0.24, 0.17), mid);

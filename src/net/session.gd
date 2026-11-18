@@ -484,6 +484,10 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 		# Done and paid: keep the world moving (and drawn) for whoever is still in it.
 		sim.step(dt)
 		r.tick -= 1
+		# Its news still goes out: without it, what anyone wove after the end was
+		# never drawn (and the controls test lost its tie whenever fire finished the
+		# last practice post early).
+		_send_events(r, sim)
 		if r.tick % SNAP_EVERY == 0 and not dedicated:
 			snapshot.emit(sim.snapshot())
 		return
@@ -491,22 +495,7 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 	if not r.get("hold", false):
 		sim.step(dt)
 	r.tick += 1
-	# Each room's news goes only to those in it. The machine hosting hears its own
-	# room directly (and a referee with no character still hears it, for tests).
-	if not sim.events.is_empty():
-		var ev := sim.events.duplicate()
-		sim.events.clear()
-		# Some news is for one player only (`to`: a Darkfriend's role); it goes to
-		# that player's machine and no other.
-		for peer in r.peers:
-			var mine := ev.filter(func(e: Dictionary) -> bool: return not e.has("to") or e.to == r.peers[peer])
-			if peer != 1:
-				if not mine.is_empty():
-					_events.rpc_id(peer, mine)
-			elif not dedicated:
-				events.emit(mine)
-		if not dedicated and not r.peers.has(1):
-			events.emit(ev.filter(func(e: Dictionary) -> bool: return not e.has("to")))
+	_send_events(r, sim)
 	if r.tick % SNAP_EVERY == 0:
 		var s := sim.snapshot()
 		# Entities travel as one flat array of 32-bit floats: a fifth of the size of
@@ -532,6 +521,25 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 			for peer in r.peers:
 				_room_of.erase(peer)
 			_rooms.erase(room)
+
+
+## Each room's news goes only to those in it. The machine hosting hears its own
+## room directly (and a referee with no character still hears it, for tests).
+func _send_events(r: Dictionary, sim: Sim) -> void:
+	if not sim.events.is_empty():
+		var ev := sim.events.duplicate()
+		sim.events.clear()
+		# Some news is for one player only (`to`: a Darkfriend's role); it goes to
+		# that player's machine and no other.
+		for peer in r.peers:
+			var mine := ev.filter(func(e: Dictionary) -> bool: return not e.has("to") or e.to == r.peers[peer])
+			if peer != 1:
+				if not mine.is_empty():
+					_events.rpc_id(peer, mine)
+			elif not dedicated:
+				events.emit(mine)
+		if not dedicated and not r.peers.has(1):
+			events.emit(ev.filter(func(e: Dictionary) -> bool: return not e.has("to")))
 
 # --- client side ------------------------------------------------------------------
 

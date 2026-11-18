@@ -58,6 +58,9 @@ if [[ -z ${NOMOVIE:-} ]]; then
 fi
 [[ -n ${TEST:-} ]] && SCENE=res://src/test/test_scene.tscn
 [[ -n ${SCENE:-} ]] && args+=("$SCENE")
+# Move this render's window clear of any other, so neither is suspended (place.py).
+sock=$rt/sway-ipc.$(id -u).$(pgrep -f sway-headless.conf | head -n 1).sock
+[[ -S $sock ]] && { python3 -I tools/place.py "$sock" 20 >/dev/null 2>&1 & }
 # Script errors can leave Godot alive after the last frame: never wait forever.
 timeout "${TIMEOUT:-240}" godot "${args[@]}" -- "$@" 2>&1 | grep -vE "^(Godot Engine|\$)|FIFO protocol|xdg-toplevel-icon|wayland_thread.cpp|^-+\$|render time:|Encoding time:|recorded in|Movie Maker mode" || true
 

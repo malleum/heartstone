@@ -1914,6 +1914,11 @@ func _mark_ground(owner: int, weave: String, at: Vector3, r: float) -> void:
 		"earth": _wreck_walls(at, r)
 
 func _ignite(at: Vector3, r: float, by: int) -> void:
+	# The training yard is trampled and swept: nothing to burn. (Grass fire there
+	# finished off the practice posts, which ends the exercise, before a novice had
+	# tried what they came to try.)
+	if Rules.activities.get(activity_id, {}).get("bare_ground", false):
+		return
 	for p in patches:
 		# Wet ground does not burn.
 		if p.kind == "puddle" and p.pos.distance_to(at) < p.r + r * 0.5:

@@ -1,6 +1,6 @@
 {
   "_doc": "Everything a player can start from the camp. All of them pay into the same character through Progression.award: nothing resets between activities. requires gates on renown and earlier clears; teaches are weaves handed over outright (the training yard only); shows are weaves the character sees woven there, which halves the study they take and they can then learn. grants are techniques (tie_off) learned the first time it is cleared. kind: training | holdout | mission | spar.",
-  "camp_training": {"name": "Training yard", "kind": "training", "rolls": true, "blurb": "Novice exercises at the camp: weave at the practice posts.",
+  "camp_training": {"name": "Training yard", "kind": "training", "rolls": true, "bare_ground": true, "blurb": "Novice exercises at the camp: weave at the practice posts.",
     "requires": {}, "renown": 2, "teaches": ["fireball", "hammer_of_air"], "yield": {"strength": 0.5, "mastery": 1.0},
     "waves": [{"t": 0, "spawn": {"dummy": 6}}]},
   "tarwins_gap_watch": {"hidden": true, "round": {"waves": 16, "gap": 85, "start": 8, "grow": 1.2, "specials": ["trolloc_archer", "trolloc_brute", "myrddraal"], "boss": {"myrddraal": 2, "trolloc_brute": 3}}, "map": "tarwins_gap", "name": "Tarwin's Gap: the watch", "kind": "holdout", "blurb": "A raiding fist comes down the pass at dusk. Hold the line.",

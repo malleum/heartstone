@@ -214,9 +214,53 @@ are what the 4:44 review, or the next session, should pick up.
   replies cleared the peer a second time after the camp did; removed. Unconfirmed
   as the cause: watch the terminal.)
 
-- 2026-11-18, found running the controls test: about one run in four the scripted
-  G press (tie off the dome) reaches the game but no tie happens, and the presses
-  after it go astray. Passes when run again. The suite now retries once; find it.
+- (Found 18 Nov.) The controls test's lost tie, about one run in four: the fireballs
+  set the training yard's grass alight, the fire killed the last practice post, and
+  the exercise ended. After the end the host stopped passing on its room's news and
+  the sim stopped its clock, so the tie and everything after it never showed. Now
+  the yard does not burn (`bare_ground`), news after the end still goes out, and
+  the retry is gone.
+
+- 2026-11-18, the 5:30 review (renders of the camp, every mode and setup, the
+  battle, the dream, weaves, fighters, enemies, the tour). Fixed:
+  - The camp sheet ran to the bottom of the screen with nothing on its lower
+    half: it is now as tall as what is on it.
+  - Hold the line, Darkfriend and endless doorways all glowed the same orange:
+    each doorway has its own colour (green for the Darkfriend, cold blue for the
+    endless night).
+  - Burning grass, watch-fires and torches were a heap of white glowing orbs:
+    now narrow orange tongues of flame with smoke leaning downwind
+    (`Weavefx.flame`, `smoke_column`), and soot that fades at its edge instead
+    of a solid black disc.
+  - Lightning came down as a straight pale beam: now jagged at every scale, with
+    forks.
+  - Breastworks and rubble were piles of identical grey boxes: rough, lumpy
+    stones now (`Scenery._stone`).
+  - Far cliff faces broke into a grid of dark specks (procedural noise with no
+    mipmaps): the fine detail fades with distance.
+  - Sun shadows stopped at 70 m with a hard edge on the cliffs: 100 m, blended
+    cascades.
+  - Heave the Ground's spikes were the ground's own beige and read as card:
+    darker, greyer rock.
+  - A body right beside the camera filled the screen: creatures thin out with a
+    dither within 1.5 m of the lens (`near_fade`, off on the bench).
+  - "X is down" notices sat on top of X's own bar at the top right: the others'
+    bars are on the left under your name, in their side's colour in a battle.
+  - Every ending said "The line held", even the training yard and the duels:
+    each kind of fight has its own words.
+  - The test bench crashed once building creatures on worker threads (signal 11,
+    not seen again in two reruns). Two renders at once also covered each other's
+    window in the invisible compositor; `tools/place.py` now keeps them apart.
+  Still open:
+  - The camp doorways have no name you can read from across the camp; nothing
+    is written on the world, so the colours have to do it. See whether they are
+    enough.
+  - Bots open a fight with the bow drawn while Trollocs are at arm's length.
+  - Wagons are boxes on discs; the wagon ring could use a proper wagon.
+  - A thin line of specks remains along cliff silhouettes (the ledge lines).
+  - On the strokes bench the cloaks stand behind the body like flat boards, mid-blow;
+    the bench does not run the game's cloak motion. Check that the game's cloak
+    follows a lunge.
 
 - 2026-11-18, asked by the user:
   - **A collection of screenshots of characters posing**, especially in the middle of

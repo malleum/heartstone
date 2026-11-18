@@ -161,8 +161,10 @@ static func shard(height: float, girth: float) -> MeshInstance3D:
 	for i in n:
 		var j := (i + 1) % n
 		# Each face its own shade of stone, darker earth at the foot.
-		var c := Color(0.1, 0.085, 0.07).lerp(Color(0.19, 0.17, 0.15), randf())
-		var foot := Color(0.07, 0.05, 0.035)
+		# (Vertex colours are linear: the old 0.1 to 0.19 came out the ground's own
+		# beige, and the spikes read as card. Darker, greyer rock stands out of it.)
+		var c := Color(0.055, 0.052, 0.05).lerp(Color(0.13, 0.12, 0.11), randf())
+		var foot := Color(0.04, 0.03, 0.022)
 		for tri in [[base[i], mid[i], base[j], foot, c, foot], [base[j], mid[i], mid[j], foot, c, c], [mid[i], tip, mid[j], c, c.lightened(0.15), c]]:
 			for k in 3:
 				st.set_color(tri[3 + k]); st.add_vertex(tri[k])

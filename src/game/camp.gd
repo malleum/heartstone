@@ -9,7 +9,10 @@ const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing"
 ## Doorway light by kind of activity: the yard is daylight, a holdout is fire,
 ## the World of Dreams is its own colour.
 const GAME_SCENE := "res://src/game/game.tscn"
-const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38, 0.12), spar = Color(0.5, 0.45, 1.0), battle = Color(0.85, 0.2, 0.25)}
+## Each doorway glows its own colour, so they can be told apart from across the
+## camp (nothing is written on the world): by id first, then by kind.
+const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38, 0.12), spar = Color(0.5, 0.45, 1.0), battle = Color(0.85, 0.2, 0.25),
+	darkfriend_door = Color(0.45, 0.85, 0.3), endless_door = Color(0.3, 0.7, 1.0)}
 
 var profile := {}
 var model: Node3D
@@ -167,7 +170,16 @@ func _ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Nothing is written across the world itself: who you are is on the left, and
 	# anything else arrives as a notice at the top right (Toast).
-	side = _column(root, 0.0, 24, 384).get_meta("box")
+	var side_panel := _column(root, 0.0, 24, 384)
+	side = side_panel.get_meta("box")
+	# The sheet is only as tall as what is on it (scrolling once that is more than
+	# the screen), so the camp shows below a short one.
+	var fit := func() -> void:
+		var want: float = side.get_combined_minimum_size().y + side_panel.get_theme_stylebox("panel").get_minimum_size().y
+		side_panel.anchor_bottom = 0.0
+		side_panel.offset_bottom = side_panel.offset_top + minf(want, root.size.y - side_panel.offset_top - 24.0)
+	side.minimum_size_changed.connect(fit)
+	root.resized.connect(fit)
 	tree = WeaveTree.new(); root.add_child(tree); tree.visible = false
 	tree.chosen.connect(func(id: String) -> void:
 		# Changing your mind loses what was worked out so far.
@@ -456,7 +468,7 @@ func _doors() -> void:
 		# A mode's doorway is done if any of its setups has been won.
 		var won_here: bool = profile.done.keys().any(func(x: String) -> bool: return x == ids[i] or x.begins_with(ids[i] + "@"))
 		var name_: String = a.name + ("  ✓" if won_here else "")
-		var node := Scenery.doorway(self, _ground(at), -ang, DOOR_TINT.get(a.kind, Color.WHITE), ids[i] in open, name_, "" if ids[i] in open else "(closed)",
+		var node := Scenery.doorway(self, _ground(at), -ang, DOOR_TINT.get(ids[i], DOOR_TINT.get(a.kind, Color.WHITE)), ids[i] in open, name_, "" if ids[i] in open else "(closed)",
 			{tarwins_gap = 1, wagon_ring = 2}.get(a.get("map", ""), 4 if a.kind == "spar" else 3))
 		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub})
 		# Home from an activity: you step back out of its doorway, facing the camp.

@@ -39,3 +39,7 @@ burn_rect={
 "type": "vec4",
 "value": Vector4(-64, -64, 128, 128)
 }
+near_fade={
+"type": "float",
+"value": 0.0
+}

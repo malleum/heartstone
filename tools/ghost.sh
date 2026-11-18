@@ -7,12 +7,7 @@ cd "$(dirname "$0")/.."
 command -v godot >/dev/null || exec nix develop -c "$0" "$@"
 out=$(mktemp -d)
 KEEP_EVERY=900 tools/render.sh renders/ghost_arms 960 -- --activity=camp_training --name=GhostW --class=warder --kit=sword,horse_bow,belt_knife --forms --ghost=arms >"$out/arms" 2>&1
-# (Run twice if the first misses its tie: about one run in four the G press is
-# lost, cause not yet found; see BACKLOG "Found by looking".)
-for try in 1 2; do
-  KEEP_EVERY=900 tools/render.sh renders/ghost_weaves 520 -- --activity=camp_training --name=GhostC --aff=fire --only=fireball,dome_of_air,bonds_of_air --tie --flows=3 --ghost=weaves >"$out/weaves" 2>&1
-  grep -qE "GHOST [0-9]+ tie dome_of_air" "$out/weaves" && break
-done
+KEEP_EVERY=900 tools/render.sh renders/ghost_weaves 520 -- --activity=camp_training --name=GhostC --aff=fire --only=fireball,dome_of_air,bonds_of_air --tie --flows=3 --ghost=weaves >"$out/weaves" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_dream 520 -- --activity=dream_spar --name=GhostD --class=warder --ghost=dream >"$out/dream" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_camp 600 -- --who=Bot --ghost=camp >"$out/camp" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_flow 520 -- --ghost=flow >"$out/flow" 2>&1

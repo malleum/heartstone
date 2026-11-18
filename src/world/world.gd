@@ -23,7 +23,11 @@ static func build(parent: Node, sun_yaw := 40.0, sun_pitch := -28.0, night := fa
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(sun_pitch, sun_yaw, 0)
 	sun.light_color = Color(1.0, 0.84, 0.68); sun.light_energy = 2.2
-	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 70.0
+	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 100.0
+	# The cliffs stand at a grazing angle to the sun: more normal bias stops them
+	# breaking into a grid of dark specks, and blended splits stop a hard-edged
+	# block of shadow where one cascade hands over to the next.
+	sun.shadow_normal_bias = 2.2; sun.directional_shadow_blend_splits = true
 	parent.add_child(sun)
 	var rim := DirectionalLight3D.new()
 	rim.rotation_degrees = Vector3(-25, -150, 0)

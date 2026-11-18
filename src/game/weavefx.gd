@@ -85,6 +85,48 @@ static func _particles(col: Color, amount: int, life: float, size: float, speed:
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 
+## Flame for anything that burns (a watch-fire, a torch, burning grass): quick,
+## narrow tongues going from yellow through orange to a dark red as they rise, few
+## enough that where they overlap it stays fire-coloured instead of summing to white.
+## `box` spreads them over a patch of ground (zero for one fire).
+static func flame(amount: int, size: float, rise: float, box := Vector3.ZERO) -> GPUParticles3D:
+	var f := _particles(Color(1.0, 0.38, 0.08), amount, clampf(rise * 0.55, 0.35, 0.9), size, rise, rise * 1.2, 10.0)
+	var pm := f.process_material as ParticleProcessMaterial
+	if box != Vector3.ZERO:
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.emission_box_extents = box
+	else:
+		pm.emission_sphere_radius = size * 0.35
+	pm.damping_min = 0.0; pm.damping_max = rise * 0.3
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 0.72, 0.3, 0.85)); ramp.set_color(1, Color(0.5, 0.06, 0.02, 0.0))
+	ramp.add_point(0.3, Color(1.0, 0.45, 0.1, 0.8)); ramp.add_point(0.7, Color(0.8, 0.16, 0.04, 0.45))
+	(pm.color_ramp as GradientTexture1D).gradient = ramp
+	var sc := Curve.new(); sc.add_point(Vector2(0, 0.7)); sc.add_point(Vector2(0.25, 1.0)); sc.add_point(Vector2(1, 0.1))
+	(pm.scale_curve as CurveTexture).curve = sc
+	var q := f.draw_pass_1 as QuadMesh
+	(q.material as StandardMaterial3D).albedo_color = Color(1.1, 1.1, 1.1)
+	# Upright quads, a third as wide as they are tall: the round sprite stretches
+	# into a tongue (square ones read as a heap of glowing orbs).
+	q.size = Vector2(size * 0.5, size * 1.5)
+	return f
+
+## Smoke going up from a fire and leaning with the wind; `box` as for flame.
+static func smoke_column(amount: int, size: float, at: Vector3, box := Vector3.ZERO) -> GPUParticles3D:
+	var s := _particles(Color(0.16, 0.14, 0.13), amount, 3.4, size, 0.9, 0.7, 16.0, false)
+	var pm := s.process_material as ParticleProcessMaterial
+	if box != Vector3.ZERO:
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.emission_box_extents = box
+	pm.gravity += Wind.at(at) * 0.35
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.2, 0.17, 0.15, 0.0)); ramp.set_color(1, Color(0.3, 0.29, 0.28, 0.0))
+	ramp.add_point(0.15, Color(0.17, 0.15, 0.14, 0.5))
+	(pm.color_ramp as GradientTexture1D).gradient = ramp
+	var sc := Curve.new(); sc.add_point(Vector2(0, 0.4)); sc.add_point(Vector2(1, 1.6))
+	(pm.scale_curve as CurveTexture).curve = sc
+	return s
+
 static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
 	p.one_shot = true; p.explosiveness = 0.92
 	g.add_child(p); p.position = at; p.emitting = true
@@ -747,17 +789,32 @@ static func doom(g: Node3D, at: Vector3, radius: float) -> void:
 	_bolt(g, at, Color(1.0, 0.25, 0.2))
 	blast(g, at + Vector3(0, 0.5, 0), radius, "doom")
 
+## A jagged line from a to b: `depth` halvings, each kinked sideways by `rough` of its length.
+static func _jag(a: Vector3, b: Vector3, rough: float, depth: int) -> Array:
+	var pts: Array = [a, b]
+	for d in depth:
+		var out: Array = [pts[0]]
+		for i in range(1, pts.size()):
+			var p: Vector3 = pts[i - 1]; var q: Vector3 = pts[i]
+			var off := Vector3(randf_range(-1, 1), randf_range(-0.3, 0.3), randf_range(-1, 1)) * p.distance_to(q) * rough
+			out.append((p + q) * 0.5 + off); out.append(q)
+		pts = out
+	return pts
+
 ## Forked lightning: a jittered path from the clouds, one branch, a flash, a crack.
 static func _bolt(g: Node3D, at: Vector3, col: Color) -> void:
 	var top := at + Vector3(randf_range(-8, 8), 55.0, randf_range(-8, 8))
-	var prev := top
-	for i in range(1, 15):
-		var f := i / 14.0
-		var p := top.lerp(at, f) + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 2.2 * sin(f * PI)
-		_fade(g, _bar(g, prev, p, 0.22, Color(0.92, 0.95, 1.0), 16.0), 0.32)
-		if i == 6:
-			_fade(g, _bar(g, p, p + Vector3(randf_range(-9, 9), -14.0, randf_range(-9, 9)), 0.1, col, 10.0), 0.22)
-		prev = p
+	# Midpoint displacement: each halving kinks the line sideways by a share of its
+	# length, so it zigzags at every scale (a sine sway read as a straight beam).
+	var pts := _jag(top, at, 0.22, 5)
+	for i in range(1, pts.size()):
+		_fade(g, _bar(g, pts[i - 1], pts[i], 0.2, Color(0.92, 0.95, 1.0), 16.0), 0.32)
+	# Forks: thinner, dimmer, dying out short of the ground.
+	for k in 3:
+		var from: Vector3 = pts[randi_range(4, pts.size() / 2 + 6)]
+		var fork := _jag(from, from + Vector3(randf_range(-10, 10), -randf_range(8, 18), randf_range(-10, 10)), 0.25, 3)
+		for i in range(1, fork.size()):
+			_fade(g, _bar(g, fork[i - 1], fork[i], 0.09 * (1.0 - float(i) / fork.size()) + 0.03, col, 10.0), 0.22)
 	var l := _light(Color(0.8, 0.88, 1.0), 16.0, 40.0)
 	g.add_child(l); l.position = at + Vector3(0, 3, 0)
 	var tw := g.create_tween()

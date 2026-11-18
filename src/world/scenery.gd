@@ -11,6 +11,34 @@ static func _box(parent: Node3D, size: Vector3, at: Vector3, mat: Material, rot 
 	mi.mesh = b; mi.material_override = mat; mi.position = at; mi.rotation = rot
 	parent.add_child(mi)
 
+## A rough stone the size of `size`: one of a few lumpy, flat-faced rocks (a box
+## read as a stack of cut blocks, not a dry-stone wall).
+static var _rocks: Array = []
+static func _stone(parent: Node3D, size: Vector3, at: Vector3, mat: Material, rot := Vector3.ZERO) -> void:
+	if _rocks.is_empty():
+		var rng := RandomNumberGenerator.new(); rng.seed = 91
+		for k in 6:
+			var sm := SphereMesh.new(); sm.radial_segments = 5; sm.rings = 3; sm.radius = 0.5; sm.height = 1.0
+			var arr := sm.get_mesh_arrays()
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			# Jitter by position, so the copies of a vertex on the seam move together.
+			var moved := {}
+			for i in v.size():
+				var key := v[i].snapped(Vector3.ONE * 0.001)
+				if not moved.has(key):
+					moved[key] = v[i] * Vector3(rng.randf_range(0.7, 1.35), rng.randf_range(0.75, 1.25), rng.randf_range(0.7, 1.35)) + Vector3(rng.randf_range(-0.08, 0.08), 0, rng.randf_range(-0.08, 0.08))
+				v[i] = moved[key]
+			# Flatten the bottom and top a little: stones laid in courses sit on faces.
+			for i in v.size():
+				v[i].y = clampf(v[i].y, -0.4, 0.5)
+			arr[Mesh.ARRAY_VERTEX] = v
+			var raw := ArrayMesh.new(); raw.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+			var st := SurfaceTool.new(); st.create_from(raw, 0); st.deindex(); st.generate_normals()
+			_rocks.append(st.commit())
+	var mi := MeshInstance3D.new(); mi.mesh = _rocks[(int(absf(at.x) * 7.0) + int(absf(at.z) * 13.0)) % _rocks.size()]
+	mi.material_override = mat; mi.position = at; mi.rotation = rot + Vector3(0, float(int(absf(at.x * 11.0)) % 7) * 0.9, 0); mi.scale = size * 1.15
+	parent.add_child(mi)
+
 static func _ground(x: float, z: float) -> Vector3:
 	return Vector3(x, Terrain.height(x, z), z)
 
@@ -19,8 +47,10 @@ static func fire(g: Node3D, at: Vector3) -> void:
 	var wood := _mat(Color(0.12, 0.08, 0.05))
 	for i in 5:
 		_box(g, Vector3(0.14, 0.14, 1.1), at + Vector3(0, 0.25, 0), wood, Vector3(0.9, i * TAU / 5.0, 0))
-	var f := Weavefx._particles(Color(1.0, 0.45, 0.12), 40, 0.9, 0.5, 0.5, 2.4, 25.0)
-	g.add_child(f); f.position = at + Vector3(0, 0.4, 0)
+	var f := Weavefx.flame(26, 0.42, 1.5, Vector3(0.25, 0.05, 0.25))
+	g.add_child(f); f.position = at + Vector3(0, 0.3, 0)
+	var sm := Weavefx.smoke_column(8, 1.2, at)
+	g.add_child(sm); sm.position = at + Vector3(0, 1.4, 0)
 	var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.55, 0.25); l.light_energy = 3.5; l.omni_range = 14.0
 	l.shadow_enabled = false
 	g.add_child(l); l.position = at + Vector3(0, 1.4, 0)
@@ -28,7 +58,7 @@ static func fire(g: Node3D, at: Vector3) -> void:
 ## A torch on a pole driven into the ground.
 static func torch(g: Node3D, at: Vector3) -> void:
 	_box(g, Vector3(0.07, 2.2, 0.07), at + Vector3(0, 1.1, 0), _mat(Color(0.14, 0.1, 0.06)), Vector3(0.05, 0, 0.04))
-	var f := Weavefx._particles(Color(1.0, 0.5, 0.15), 18, 0.5, 0.18, 0.2, 1.4, 12.0)
+	var f := Weavefx.flame(14, 0.2, 0.9)
 	g.add_child(f); f.position = at + Vector3(0, 2.25, 0)
 	var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.58, 0.28); l.light_energy = 2.4; l.omni_range = 10.0
 	g.add_child(l); l.position = at + Vector3(0, 2.4, 0)
@@ -89,7 +119,7 @@ static func walls(g: Node3D) -> void:
 	var dark := _mat(Color(0.1, 0.08, 0.06))
 	var stones := []
 	for k in 5:
-		stones.append(_mat(Color(0.2, 0.2, 0.215) * (0.65 + k * 0.17)))
+		stones.append(_mat(Color(0.23, 0.215, 0.2) * (0.65 + k * 0.17)))
 	for w0 in Map.walls():
 		# Each wall in its own node, so one torn down by a weave can be taken away.
 		var wg := Node3D.new(); wg.name = "wall_%d" % int(w0.get("wid", 0)); g.add_child(wg)
@@ -103,7 +133,7 @@ static func _wall(g: Node3D, w: Dictionary, rng: RandomNumberGenerator, stones: 
 			while s < float(w.hz):
 				var p := _ground(w.x + along.x * s, w.z + along.z * s)
 				var sz := rng.randf_range(0.45, 0.9)
-				_box(g, Vector3(sz, sz * rng.randf_range(0.7, 1.3), sz), p + Vector3(rng.randf_range(-0.2, 0.2), sz * 0.35, 0),
+				_stone(g, Vector3(sz, sz * rng.randf_range(0.7, 1.3), sz), p + Vector3(rng.randf_range(-0.2, 0.2), sz * 0.35, 0),
 					stones[rng.randi() % 5], Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU, rng.randf_range(-0.5, 0.5)))
 				s += sz * 0.6
 		elif w.look == "stone":
@@ -115,7 +145,7 @@ static func _wall(g: Node3D, w: Dictionary, rng: RandomNumberGenerator, stones: 
 					var sw := rng.randf_range(0.45, 0.85)
 					var p := _ground(sx + sw * 0.5, w.z)
 					var shade := rng.randf_range(0.8, 1.15)
-					_box(g, Vector3(sw, 0.34, rng.randf_range(0.55, 0.76)), p + Vector3(0, 0.15 + course * 0.31, rng.randf_range(-0.05, 0.05)),
+					_stone(g, Vector3(sw, 0.36, rng.randf_range(0.55, 0.76)), p + Vector3(0, 0.15 + course * 0.31, rng.randf_range(-0.05, 0.05)),
 						stones[rng.randi() % 5], Vector3(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.12, 0.12), rng.randf_range(-0.05, 0.05)))
 					sx += sw + 0.03
 		elif w.look == "wagon":
@@ -128,11 +158,23 @@ static func _wall(g: Node3D, w: Dictionary, rng: RandomNumberGenerator, stones: 
 			for k in 5:
 				var a := lerpf(-1.1, 1.1, k / 4.0)
 				_box(n, Vector3(0.52, 0.05, 4.0), Vector3(sin(a) * 0.72, 1.45 + cos(a) * 0.62, 0), tilt, Vector3(0, 0, -a))
+			# Side boards along the bed, so it reads as planks and not one block.
+			for sx in [-0.76, 0.76]:
+				for k in 3:
+					_box(n, Vector3(0.05, 0.2, 4.2), Vector3(sx, 0.8 + k * 0.22, 0), dark if k == 1 else wood)
+			# Spoked wheels: an iron-shod rim, a hub and ten spokes (a solid disc read
+			# as a cart from a child's drawing).
 			for wx in [-0.85, 0.85]:
 				for wz in [-1.4, 1.4]:
-					var wheel := MeshInstance3D.new(); var c := CylinderMesh.new(); c.top_radius = 0.6; c.bottom_radius = 0.6; c.height = 0.1
-					wheel.mesh = c; wheel.material_override = dark; wheel.position = Vector3(wx, 0.6, wz); wheel.rotation.z = PI * 0.5
-					n.add_child(wheel)
+					var wheel := Node3D.new(); n.add_child(wheel)
+					wheel.position = Vector3(wx, 0.6, wz)
+					var rim := MeshInstance3D.new(); var tor := TorusMesh.new(); tor.inner_radius = 0.52; tor.outer_radius = 0.62; tor.rings = 24; tor.ring_segments = 6
+					rim.mesh = tor; rim.material_override = dark; rim.rotation.z = PI * 0.5; wheel.add_child(rim)
+					var hub := MeshInstance3D.new(); var c := CylinderMesh.new(); c.top_radius = 0.12; c.bottom_radius = 0.12; c.height = 0.2
+					hub.mesh = c; hub.material_override = dark; hub.rotation.z = PI * 0.5; wheel.add_child(hub)
+					for k in 10:
+						var a := k * TAU / 10.0
+						_box(wheel, Vector3(0.04, 0.5, 0.05), Vector3(0, cos(a) * 0.32, sin(a) * 0.32), wood, Vector3(a, 0, 0))
 			_box(n, Vector3(0.08, 0.08, 2.4), Vector3(0, 0.7, 3.2), wood, Vector3(0.18, 0, 0))
 
 # --- props ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ shader_type spatial;
 // the UVs by the generator) so they stay glued to the body under animation.
 
 uniform float detail = 1.0;
+global uniform float near_fade;
 varying vec3 rest;
 varying float occ;
 
@@ -27,6 +28,13 @@ void vertex() {
 }
 
 void fragment() {
+	// Thinned out with a dither when right against the camera (game sets near_fade;
+	// the bench leaves it 0 for close-ups), so a body beside the lens does not fill
+	// the screen.
+	if (near_fade > 0.0) {
+		float seen = smoothstep(near_fade * 0.35, near_fade, length(VERTEX));
+		if (fract(sin(dot(floor(FRAGCOORD.xy), vec2(12.9898, 78.233))) * 43758.5453) > seen) discard;
+	}
 	float kind = COLOR.a;
 	float fur = smoothstep(0.6, 0.95, kind);
 	float hard = 1.0 - smoothstep(0.05, 0.4, kind);

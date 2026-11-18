@@ -134,3 +134,8 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    35%) but not thrusts; Trollocs sometimes seize you (Space twists free); a spear
    held still stops whatever runs onto it; fire arrows drawn beside a fire. Lightning
    now lands as a white strike with arcs along the ground.
+11. (18 Nov, from the 5:30 review) Looks: each camp doorway glows its own colour
+   (assumed enough to tell them apart from across the camp, with no names written
+   up); fire is orange tongues with smoke; lightning forks; breastworks are rough
+   stones; creatures thin out within 1.5 m of the camera; the others' health bars
+   are on the left under your name. The training yard's ground no longer burns.

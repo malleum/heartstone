@@ -203,6 +203,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		cam_yaw -= ev.relative.x * 0.003
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.2, 0.7)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
+		if args.has("ghost"):
+			print("GHOST %d key %s selected=%s" % [frame, OS.get_keycode_string(ev.physical_keycode), known[selected] if selected < known.size() else "-"])
 		if ev.physical_keycode == KEY_ESCAPE:
 			pass    # the pause menu (pauser.gd) has it
 		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
@@ -614,6 +616,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 	Map.use(Rules.activities[activity].get("map", "open"), activity)
 	if not previewing:
 		Wind.setup(Map.id, self)
+		RenderingServer.global_shader_parameter_set("near_fade", 1.5)
 		Scorch.setup(100.0)
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
@@ -1054,6 +1057,7 @@ func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
 func take_control(yaw: float, pitch: float) -> void:
 	controlled = true
 	Wind.setup(Map.id, self)
+	RenderingServer.global_shader_parameter_set("near_fade", 1.5)
 	Scorch.setup(100.0)
 	stand_in = {}
 	session.begin()     # the fight starts now, not when the doorway was first looked through
@@ -1824,17 +1828,22 @@ func _patch(e: Dictionary) -> void:
 	var r: float = e.r
 	if e.kind == "fire":
 		# Low flames across the patch, a scorched disc under them, and some light.
-		var scorch := MeshInstance3D.new(); var c := CylinderMesh.new()
-		c.top_radius = r; c.bottom_radius = r; c.height = 0.02; c.radial_segments = 20
-		scorch.mesh = c; var sm := StandardMaterial3D.new(); sm.albedo_color = Color(0.05, 0.035, 0.025); sm.roughness = 1.0
-		scorch.material_override = sm; n.add_child(scorch)
-		for i in 3:
-			var f := Weavefx._particles(Color(1.0, 0.5, 0.15), int(18 * r), 0.8, 0.35, 0.4, 1.8, 30.0)
-			var pm := f.process_material as ParticleProcessMaterial
-			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-			pm.emission_box_extents = Vector3(r * 0.7, 0.05, r * 0.7)
-			n.add_child(f); f.position.y = 0.15
-		var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.5, 0.2); l.light_energy = 1.5 + r * 0.4; l.omni_range = r * 3.0 + 4.0
+		# Soot that thins out to nothing at the edge (a solid disc read as a black
+		# hole cut in the ground); the burnt grass itself is Scorch's.
+		var scorch := MeshInstance3D.new(); var pl := PlaneMesh.new(); pl.size = Vector2(r * 2.3, r * 2.3)
+		scorch.mesh = pl
+		var sm := StandardMaterial3D.new(); sm.albedo_color = Color(0.04, 0.03, 0.025); sm.roughness = 1.0
+		sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		var gr := Gradient.new(); gr.set_color(0, Color(1, 1, 1, 0.8)); gr.set_color(1, Color(1, 1, 1, 0.0)); gr.add_point(0.55, Color(1, 1, 1, 0.6))
+		var gt := GradientTexture2D.new(); gt.gradient = gr; gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5); gt.width = 64; gt.height = 64
+		sm.albedo_texture = gt
+		scorch.material_override = sm; n.add_child(scorch); scorch.rotation.y = randf() * TAU
+		var f := Weavefx.flame(int(9 * r), 0.42, 1.3, Vector3(r * 0.7, 0.05, r * 0.7))
+		n.add_child(f); f.position.y = 0.1
+		var smoke := Weavefx.smoke_column(int(4 * r) + 2, 1.5, e.pos, Vector3(r * 0.6, 0.1, r * 0.6))
+		n.add_child(smoke); smoke.position.y = 0.9
+		var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.45, 0.15); l.light_energy = 1.0 + r * 0.3; l.omni_range = r * 3.0 + 4.0
 		n.add_child(l); l.position.y = 1.0
 		Sfx.play(self, "rumble", n.position, -14.0, 1.6)
 	else:
@@ -2318,6 +2327,17 @@ func _draw_hud() -> void:
 	hurt_t = maxf(hurt_t - dt * 2.5, 0.0)
 	flash_t = maxf(flash_t - dt * 1.4, 0.0)
 
+## What the end of this kind of fight is called ("The line held" was said of the
+## training yard and the duels too).
+func _ending(success: bool) -> String:
+	match Rules.activities.get(session.activity, {}).get("kind", ""):
+		"training": return "The exercises are done" if success else "You fell"
+		"spar": return "You won the duel" if success else "You lost the duel"
+		"battle": return "Your side won" if success else "Their side won"
+	if darkfriend:
+		return "The Shadow is served" if success else "You were found out"
+	return "The line held" if success else "You fell"
+
 var _done := false
 func _on_finished(success: bool, report: Array) -> void:
 	_done = true
@@ -2327,7 +2347,7 @@ func _on_finished(success: bool, report: Array) -> void:
 	if args.has("tour"):
 		Toast.say("Done" if success else "You fell", "%s next   ·   %s again" % [Keys.name(KEY_N), Keys.name(KEY_R)], "good" if success else "warn", 12.0)
 	else:
-		Toast.say("The line held" if success else "You fell", "\n".join(report), "good" if success else "warn", 12.0)
+		Toast.say(_ending(success), "\n".join(report), "good" if success else "warn", 12.0)
 	if not args.has("auto") or args.has("homewalk"):
 		get_tree().create_timer(1.5).timeout.connect(_open_home)
 	if args.has("auto"):

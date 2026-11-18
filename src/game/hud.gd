@@ -227,8 +227,14 @@ func _draw() -> void:
 		var a: Dictionary = g.actors[id]
 		if a.kind != "player" or id == g.session.my_id:
 			continue
-		var at := Vector2(W - 250.0, 40.0 + row * 44.0)
-		Glyph.text(self, serif, at, a.get("name", "?"), 18, Color(0.95, 0.93, 0.88) if not a.get("dead", false) else Color(0.6, 0.5, 0.5))
+		# On the left under your own name: the top right is where notices arrive,
+		# and "X is down" landed on top of X's own bar. In a battle, named in their
+		# side's colour.
+		var at := Vector2(30.0, 132.0 + row * 40.0)
+		var col := Color(0.95, 0.93, 0.88)
+		if g.in_battle:
+			col = Color(0.55, 0.75, 1.0) if int(a.get("team", 0)) == g.my_team else Color(1.0, 0.5, 0.45)
+		Glyph.text(self, serif, at, a.get("name", "?"), 17, col if not a.get("dead", false) else Color(0.6, 0.5, 0.5))
 		Glyph.bar(self, at + Vector2(0, 8), 200, 8, 0.0 if a.get("dead", false) else a.get("hp", 100.0) / 100.0, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
 		row += 1
 
