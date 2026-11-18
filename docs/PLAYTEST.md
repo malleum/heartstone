@@ -106,3 +106,9 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    physics ragdolls: procedural, so they cannot fold over a wagon or roll down a slope.
    Players' one death clip varies in pace and turn. Backing away is 70% speed (55%
    while weaving, guarding or drawing); knocked down you crawl at 25%.
+4. (18 Nov) The ground changes for the round: fire weaves leave the grass burning
+   (9 s, it burns anyone in it, friend or foe), Lash of Water leaves puddles (45 s:
+   they put fire out, douse the burning and soak, so lightning finds you), Air blows
+   fires out, Heave the Ground throws down stone walls it crosses and leaves a rubble
+   ridge (30 s, vaultable cover). Is losing the breastwork to your own Heave too
+   costly? Assumed it is the price of the weave.

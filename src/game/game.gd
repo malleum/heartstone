@@ -834,6 +834,7 @@ var autos := {}                    # weaves left going by themselves (G on a wea
 var darkfriend := false          # told in secret: this player serves the Shadow
 var team_meter: Array = []        # [team level, share of the way to the next]
 var mirror := {}                  # my round copy as far as I can know it (no potential)
+var patches := {}                 # burning grass and puddles, by id
 var pick_card: PanelContainer
 
 ## Who the HUD and the choice panel describe: the round copy in a round. On the
@@ -1682,11 +1683,78 @@ func _on_events(list: Array) -> void:
 				Weavefx.blast(self, e.pos, e.radius, e.weave)
 				# Any blast shoves the air: grass, cloaks and banners lean away from it.
 				Wind.gust(e.pos, clampf(float(e.radius) / 4.0, 0.5, 2.0))
+			"patch":
+				_patch(e)
+			"patch_end":
+				if patches.has(e.id):
+					var pn: Node3D = patches[e.id]
+					patches.erase(e.id)
+					if is_instance_valid(pn):
+						var tw: Tween = pn.create_tween()
+						tw.tween_property(pn, "scale", Vector3(1, 0.01, 1), 0.6)
+						tw.tween_callback(pn.queue_free)
+					if e.get("doused", false) or e.get("blown", false):
+						Sfx.play(self, "whoosh", e.get("pos", pn.position if is_instance_valid(pn) else Vector3.ZERO), -10.0, 0.7)
+			"wall_gone":
+				if not session.is_host:
+					Map.remove_wall(int(e.wid))
+				var wn := get_node_or_null("wall_%d" % int(e.wid))
+				if wn:
+					# Thrown down: the stones scatter and sink.
+					Weavefx.blast(self, wn.get_child(0).global_position if wn.get_child_count() > 0 else wn.position, 1.5, "heave_the_ground")
+					wn.queue_free()
+			"wall_up":
+				if not session.is_host:
+					Map.add_wall(e.wall)
+				var wg := Node3D.new(); wg.name = "wall_%d" % int(e.wall.wid); add_child(wg)
+				var sts := []
+				for k in 5: sts.append(Scenery._mat(Color(0.25, 0.22, 0.19) * (0.65 + k * 0.17)))
+				var rr := RandomNumberGenerator.new(); rr.seed = int(e.wall.wid)
+				Scenery._wall(wg, e.wall, rr, sts, null, null)
+				wg.scale.y = 0.05
+				wg.create_tween().tween_property(wg, "scale:y", 1.0, 0.35)
 			"fx_end":
 				if fx.has(e.id):
 					fx[e.id].queue_free(); fx.erase(e.id)
 			"wave":
 				_banner(("They come from every side" if Map.m.get("around", false) else "A wave comes down the pass") if e.left > 0 else "The last of them", 3.0)
+
+## Burning grass or a puddle on the ground (Sim._ignite, Sim._puddle).
+func _patch(e: Dictionary) -> void:
+	if patches.has(e.id) and is_instance_valid(patches[e.id]):
+		# A fire fed again: it spreads to the new size.
+		var old: Node3D = patches[e.id]
+		old.scale = Vector3.ONE * float(e.r) / float(old.get_meta("r", e.r))
+		return
+	var n := Node3D.new(); add_child(n); n.position = e.pos + Vector3(0, 0.03, 0)
+	n.set_meta("r", float(e.r))
+	var r: float = e.r
+	if e.kind == "fire":
+		# Low flames across the patch, a scorched disc under them, and some light.
+		var scorch := MeshInstance3D.new(); var c := CylinderMesh.new()
+		c.top_radius = r; c.bottom_radius = r; c.height = 0.02; c.radial_segments = 20
+		scorch.mesh = c; var sm := StandardMaterial3D.new(); sm.albedo_color = Color(0.05, 0.035, 0.025); sm.roughness = 1.0
+		scorch.material_override = sm; n.add_child(scorch)
+		for i in 3:
+			var f := Weavefx._particles(Color(1.0, 0.5, 0.15), int(18 * r), 0.8, 0.35, 0.4, 1.8, 30.0)
+			var pm := f.process_material as ParticleProcessMaterial
+			pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+			pm.emission_box_extents = Vector3(r * 0.7, 0.05, r * 0.7)
+			n.add_child(f); f.position.y = 0.15
+		var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.5, 0.2); l.light_energy = 1.5 + r * 0.4; l.omni_range = r * 3.0 + 4.0
+		n.add_child(l); l.position.y = 1.0
+		Sfx.play(self, "rumble", n.position, -14.0, 1.6)
+	else:
+		# A puddle: dark, still and shining, a little wider than its wet edge.
+		var disc := MeshInstance3D.new(); var c := CylinderMesh.new()
+		c.top_radius = r; c.bottom_radius = r; c.height = 0.02; c.radial_segments = 24
+		disc.mesh = c
+		var pm2 := StandardMaterial3D.new(); pm2.albedo_color = Color(0.36, 0.43, 0.5, 0.5); pm2.roughness = 0.03; pm2.metallic = 0.25; pm2.metallic_specular = 1.0
+		pm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		disc.material_override = pm2; n.add_child(disc)
+		disc.scale = Vector3(1.0, 1.0, randf_range(0.7, 1.0))
+		disc.rotation.y = randf() * TAU
+	patches[e.id] = n
 
 ## The weave someone was making has left their hands (or come to nothing).
 func _end_form(a: Dictionary) -> void:

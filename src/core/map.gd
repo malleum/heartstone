@@ -19,6 +19,7 @@ static var m := {}
 static var _trees: Array = []
 static var _walls: Array = []
 static var _grid := {}
+static var _next_wid := 1
 
 static func use(map_id: String, activity := "") -> void:
 	id = map_id if MAPS.has(map_id) else "open"
@@ -26,6 +27,7 @@ static func use(map_id: String, activity := "") -> void:
 	_trees = []
 	_walls = []
 	_grid = {}
+	_next_wid = 1
 	var wr := RandomNumberGenerator.new(); wr.seed = 11
 	if m.get("breastwork", false):
 		# The defenders' line: a drystone breastwork across the pass behind the
@@ -58,6 +60,26 @@ static func use(map_id: String, activity := "") -> void:
 		var x := side * (half_width(z) + rng.randf_range(-2.5, 2.0)) if not m.is_empty() else side * rng.randf_range(9.0, 45.0)
 		_trees.append({x = x, z = z, r = 0.38, h = rng.randf_range(3.5, 6.5)})
 	_props(activity)
+	for w in _walls:
+		w.wid = _next_wid; _next_wid += 1
+
+## A wall raised during the fight (rubble from a weave of Earth): it gets an id,
+## and the way round walls is worked out again.
+static func add_wall(w: Dictionary) -> Dictionary:
+	if not w.has("wid"):
+		w.wid = _next_wid; _next_wid += 1
+	_walls.append(w)
+	_grid = {}
+	return w
+
+## A wall torn down during the fight.
+static func remove_wall(wid: int) -> bool:
+	for i in _walls.size():
+		if int(_walls[i].get("wid", 0)) == wid:
+			_walls.remove_at(i)
+			_grid = {}
+			return true
+	return false
 
 ## A solid prop as a circle (r, h). `prop` names what the view draws there; the sim
 ## only sees a circle, like a tree: it blocks feet, and missiles below its top.

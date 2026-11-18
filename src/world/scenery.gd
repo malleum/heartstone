@@ -90,8 +90,23 @@ static func walls(g: Node3D) -> void:
 	var stones := []
 	for k in 5:
 		stones.append(_mat(Color(0.2, 0.2, 0.215) * (0.65 + k * 0.17)))
-	for w in Map.walls():
-		if w.look == "stone":
+	for w0 in Map.walls():
+		# Each wall in its own node, so one torn down by a weave can be taken away.
+		var wg := Node3D.new(); wg.name = "wall_%d" % int(w0.get("wid", 0)); g.add_child(wg)
+		_wall(wg, w0, rng, stones, wood, dark)
+
+static func _wall(g: Node3D, w: Dictionary, rng: RandomNumberGenerator, stones: Array, wood: Material, dark: Material) -> void:
+		if w.look == "rubble":
+			# Earth thrown up in a ridge: broken rock heaped along a line.
+			var along := Vector3(sin(float(w.rot)), 0, cos(float(w.rot)))
+			var s := -float(w.hz)
+			while s < float(w.hz):
+				var p := _ground(w.x + along.x * s, w.z + along.z * s)
+				var sz := rng.randf_range(0.45, 0.9)
+				_box(g, Vector3(sz, sz * rng.randf_range(0.7, 1.3), sz), p + Vector3(rng.randf_range(-0.2, 0.2), sz * 0.35, 0),
+					stones[rng.randi() % 5], Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU, rng.randf_range(-0.5, 0.5)))
+				s += sz * 0.6
+		elif w.look == "stone":
 			# Courses of rough stones, each a little shorter than the one below.
 			var courses := int(round(w.h / 0.32))
 			for course in courses:

@@ -594,6 +594,7 @@ func step(dt: float) -> void:
 	_path_field(players)
 	_step_enemies(foes, players, dt)
 	_step_effects(dt)
+	_step_patches(dt)
 	# Outcome.
 	if _spar:
 		if players.size() <= 1 and tallies.size() > 1:
@@ -1246,6 +1247,8 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				effects.append({kind = "projectile", owner = p.id, weave = weave, pos = hand + throw * 0.6, vel = throw.rotated(Vector3.UP, a) * b.speed,
 					dmg = b.damage * k, radius = b.radius * kr, left = b.range * kr, gravity = b.get("gravity", 0.0), pierce = int(b.get("pierce", 0)), passed = [], id = _fx_id()})
 		"cone":
+			if _power_of(weave) == "air":
+				_blow_out(p.pos, b.range * kr, dir, float(b.arc))
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				# Thrown back, some are knocked to a knee.
@@ -1256,6 +1259,19 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
 					_hurt(e, b.damage * k, p.id, weave)
 		"line", "beam", "lash":
+			var reach_m: float = b.range * kr
+			match _power_of(weave):
+				"water":
+					var s := 3.0
+					while s < reach_m:
+						_puddle(p.pos + dir * s, 1.6)
+						s += 4.5
+				"earth":
+					var s2 := 2.0
+					while s2 < reach_m:
+						_wreck_walls(p.pos + dir * s2, b.width * kr + 0.6)
+						s2 += 1.5
+					_raise_rubble(p.pos + dir * (reach_m * 0.55), dir, minf(6.0, reach_m * 0.4))
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				var along := d.dot(dir)
@@ -1453,6 +1469,7 @@ func aim_missile(from: Dictionary, weapon: String, target: Dictionary) -> Vector
 
 func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -> void:
 	events.append({e = "blast", weave = weave, pos = at, radius = radius})
+	_mark_ground(owner, weave, at, radius)
 	for e in _struck(ents[owner]):
 		if (_feet(e) + Vector3(0, 1.0, 0)).distance_to(at) < radius + e.radius + 0.5 and e.get("safe_until", 0.0) <= t:
 			_hurt(e, dmg, owner, weave)
@@ -1637,6 +1654,113 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 		return true
 	return false
 
+# --- the ground changed for the round -------------------------------------------
+# Fire catches in the grass and burns a while; Water leaves puddles that put fire
+# out and soak whoever stands in them; Air blows fires out; Earth tears down stone
+# and leaves rubble you can shelter behind. The view hears of each change by event.
+
+var patches: Array = []        # {id, kind "fire" | "puddle", pos, r, until, by}
+
+func _power_of(weave: String) -> String:
+	var fl: Dictionary = Rules.weaves.get(weave, {}).get("flows", {})
+	if weave == "balefire" or fl.is_empty():
+		return ""
+	var best := ""; var n := 0
+	for k in fl:
+		if int(fl[k]) > n or (int(fl[k]) == n and k == "fire"):
+			best = k; n = int(fl[k])
+	# Any fire in it sets grass alight, whatever else is in the weave.
+	return "fire" if fl.has("fire") else best
+
+func _mark_ground(owner: int, weave: String, at: Vector3, r: float) -> void:
+	match _power_of(weave):
+		"fire": _ignite(at, clampf(r * 0.8, 1.2, 4.0), owner)
+		"water": _puddle(at, clampf(r, 1.5, 3.5))
+		"air": _blow_out(at, r * 1.5)
+		"earth": _wreck_walls(at, r)
+
+func _ignite(at: Vector3, r: float, by: int) -> void:
+	for p in patches:
+		# Wet ground does not burn.
+		if p.kind == "puddle" and p.pos.distance_to(at) < p.r + r * 0.5:
+			return
+	for p in patches:
+		if p.kind == "fire" and p.pos.distance_to(at) < p.r:
+			p.until = maxf(p.until, t + 9.0); p.r = minf(maxf(p.r, r), 5.0)
+			events.append({e = "patch", id = p.id, kind = "fire", pos = p.pos, r = p.r, secs = p.until - t})
+			return
+	var pa := {id = _fx_id(), kind = "fire", pos = Vector3(at.x, Terrain.height(at.x, at.z), at.z), r = r, until = t + 9.0, by = by}
+	patches.append(pa)
+	events.append({e = "patch", id = pa.id, kind = "fire", pos = pa.pos, r = r, secs = 9.0})
+
+func _puddle(at: Vector3, r: float) -> void:
+	var keep: Array = []
+	for p in patches:
+		if p.kind == "fire" and p.pos.distance_to(at) < p.r + r:
+			events.append({e = "patch_end", id = p.id, doused = true})
+		else:
+			keep.append(p)
+	patches = keep
+	var pa := {id = _fx_id(), kind = "puddle", pos = Vector3(at.x, Terrain.height(at.x, at.z), at.z), r = r, until = t + 45.0, by = 0}
+	patches.append(pa)
+	events.append({e = "patch", id = pa.id, kind = "puddle", pos = pa.pos, r = r, secs = 45.0})
+
+func _blow_out(at: Vector3, r: float, dir := Vector3.ZERO, arc := 180.0) -> void:
+	var keep: Array = []
+	for p in patches:
+		var off: Vector3 = (p.pos - at) * Vector3(1, 0, 1)
+		var inside: bool = off.length() < r + p.r and (dir == Vector3.ZERO or off.length() < 1.0 or absf(rad_to_deg(dir.signed_angle_to(off.normalized(), Vector3.UP))) < arc)
+		if p.kind == "fire" and inside:
+			events.append({e = "patch_end", id = p.id, blown = true})
+		else:
+			keep.append(p)
+	patches = keep
+
+## Stone walls (and rubble) within r of `at` are thrown down. Wagons are not stone.
+func _wreck_walls(at: Vector3, r: float) -> void:
+	for w in Map.walls().duplicate():
+		if not w.look in ["stone", "rubble"]:
+			continue
+		var l := Map._local(w, at.x, at.z)
+		var dx := maxf(absf(l.x) - float(w.hx), 0.0); var dz := maxf(absf(l.y) - float(w.hz), 0.0)
+		if Vector2(dx, dz).length() < r:
+			Map.remove_wall(int(w.wid))
+			events.append({e = "wall_gone", wid = w.wid})
+
+## A low ridge of rubble thrown up along a line of Earth: cover, for a while.
+func _raise_rubble(from: Vector3, dir: Vector3, length: float) -> void:
+	var mid := from + dir * length * 0.5
+	var w := Map.add_wall({x = mid.x, z = mid.z, hx = 0.45, hz = length * 0.5, h = 0.85, yaw = 0.0, rot = atan2(dir.x, dir.z), look = "rubble", until = t + 30.0})
+	events.append({e = "wall_up", wall = w})
+
+func _step_patches(dt: float) -> void:
+	var keep: Array = []
+	for p in patches:
+		if t >= p.until:
+			events.append({e = "patch_end", id = p.id})
+			continue
+		keep.append(p)
+		for id in ents:
+			var e: Dictionary = ents[id]
+			if not e.alive or e.get("gone", false):
+				continue
+			var f := _feet(e)
+			if Vector2(f.x - p.pos.x, f.z - p.pos.z).length() > p.r + e.radius * 0.5 or f.y > p.pos.y + 1.0:
+				continue
+			if p.kind == "fire":
+				# Burning grass: it catches whoever stands in it, friend or foe.
+				e.burn = maxf(e.burn, 1.2); e.burn_dps = maxf(e.burn_dps, 5.0); e.burn_by = p.by
+			else:
+				# A puddle puts out the burning and soaks the rest.
+				e.burn = 0.0
+				e.wet = maxf(e.get("wet", 0.0), 1.0)
+	patches = keep
+	# Rubble settles back into the ground in time.
+	for w in Map.walls().duplicate():
+		if w.has("until") and t >= float(w.until):
+			Map.remove_wall(int(w.wid))
+			events.append({e = "wall_gone", wid = w.wid})
+
 func _step_effects(dt: float) -> void:
 	var keep: Array = []
 	for fx in effects:
@@ -1742,6 +1866,10 @@ func _step_effects(dt: float) -> void:
 						e.vel += fwd * 6.0
 						_hurt(e, fx.dmg, fx.owner, fx.weave)
 				alive = fx.r < fx.max
+				if not alive:
+					# The ring's teeth throw down stone in its path, and its fire catches.
+					_wreck_walls(fx.pos + fwd * fx.max * 0.6, fx.max * 0.45)
+					_ignite(fx.pos + fwd * fx.max * 0.7, 2.5, fx.owner)
 			"blossom":
 				fx.age += dt; fx.left -= dt
 				var opening: float = clampf((fx.age - fx.pillar) / fx.open, 0.0, 1.0)
@@ -1761,6 +1889,9 @@ func _step_effects(dt: float) -> void:
 						_hurt(e, fx.dps * dt * (0.4 if e.id == fx.owner else 1.0), fx.owner, fx.weave if e.id != fx.owner else "", true)
 						e.burn = maxf(e.burn, 2.5); e.burn_dps = 5.0; e.burn_by = fx.owner
 				alive = fx.left > 0.0
+				if not alive:
+					# It leaves the grass under it burning.
+					_ignite(fx.pos, clampf(fx.max * 0.6, 1.5, 5.0), fx.owner)
 			"mover":
 				fx.pos += fx.vel * dt; fx.left -= dt
 				for e in _struck(owner):

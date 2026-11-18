@@ -210,6 +210,8 @@ func _holds() -> void:
 	check(sim.free_slots(me) == 1, "holding it takes one of the two flows")
 	check(sim.request_cast(id, "lightning", foe.pos) == "too many flows", "so a two-flow weave no longer fits")
 	check(sim.request_cast(id, "fireball", sim.aim_at(me, "fireball", foe)) == "", "but a one-flow weave does")
+	# (The fireball leaves the grass under it burning: keep the Trolloc alive through it.)
+	foe.hp = 9999.0; foe.max_hp = 9999.0
 	var st0: float = me.stamina
 	run(sim, 3.0)
 	check(me.stamina < st0 - 6.0 + 3.0 * Rules.TUNE.stamina_regen, "holding costs breath every second")
@@ -1104,6 +1106,34 @@ func _rounds() -> void:
 	var crawled: float = bke.pos.z
 	run(bks, 1.0)
 	check(crawled < fwd_m * 0.2 and bke.down == 0.0, "knocked down you crawl (%.1f m in half a second), and get up again" % crawled)
+
+	# The ground changes for the round: fire catches, water douses, air blows out,
+	# earth throws down stone and leaves rubble.
+	var grs := Sim.new("short_watch", 96)
+	grs._waves = []
+	var grp := grs.add_player(Profile.create({name = "Grounder", power = "saidin", potential_pts = 8, affinity_pts = {fire = 3, earth = 3}}))
+	grs._blast(grp, "fireball", Vector3(0, Terrain.height(0, -8), -8), 2.0, 10.0)
+	check(grs.patches.size() == 1 and grs.patches[0].kind == "fire", "a fireball sets the grass alight")
+	grs._puddle(Vector3(0.5, 0, -8), 2.0)
+	check(grs.patches.size() == 1 and grs.patches[0].kind == "puddle", "a puddle puts the fire out")
+	grs._blast(grp, "fireball", Vector3(0.5, Terrain.height(0.5, -8), -8), 2.0, 10.0)
+	check(grs.patches.size() == 1, "wet ground does not catch")
+	grs._ignite(Vector3(6, 0, -8), 2.0, grp)
+	grs._blow_out(Vector3(5, 0, -8), 3.0)
+	check(grs.patches.all(func(q: Dictionary) -> bool: return q.kind != "fire"), "air blows a fire out")
+	grs._ignite(Vector3(10, 0, -12), 2.0, grp)
+	var grpe: Dictionary = grs.ents[grp]
+	grpe.pos = Vector3(10, 0, -12); grpe.burn = 0.0
+	run(grs, 0.2)
+	check(grpe.burn > 0.0, "burning grass sets you alight")
+	var gstones0 := Map.walls().filter(func(w: Dictionary) -> bool: return w.look == "stone").size()
+	var gsw: Dictionary = Map.walls()[0]
+	grs._wreck_walls(Vector3(gsw.x, 0, gsw.z), 1.0)
+	check(Map.walls().filter(func(w: Dictionary) -> bool: return w.look == "stone").size() == gstones0 - 1, "earth throws down a stone wall")
+	grs._raise_rubble(Vector3(0, 0, 5), Vector3(1, 0, 0), 5.0)
+	check(Map.in_wall(Vector3(2.5, Terrain.height(2.5, 5) + 0.3, 5)), "rubble raised by earth is solid")
+	grs.t += 31.0; grs._step_patches(0.1)
+	check(not Map.in_wall(Vector3(2.5, Terrain.height(2.5, 5) + 0.3, 5)), "and settles back after a while")
 
 	# Affinity room follows the Talents selected: 9, 7, 5.
 	var rp := Profile.make({name = "Roomy", power = "saidar"})
