@@ -49,6 +49,14 @@ var floor_t := 0.0
 var swing_t := -1.0               # seconds into a weapon swing, or -1
 var swing_kind := "chop"          # chop | sweep | thrust: each reads differently, each is answered differently
 var dead_dir := 1.0
+# How this one dies, picked at the death: 0 topples the way it was hit, 1 crumples to
+# its knees then pitches forward, 2 twists and goes down on its side, 3 is thrown
+# (a heavy blow): carried back off its feet before it lands. Then a bounce and limbs
+# that flop where they fall, so no two corpses lie alike.
+var death_style := 0
+var death_side := 1.0
+var death_force := 1.0
+var death_limb := Vector4.ZERO      # a little of each arm and leg thrown out, per body
 var ft_pos: Array[Vector3] = [Vector3(), Vector3()]   # current ball position, world
 var ft_from: Array[Vector3] = [Vector3(), Vector3()]
 var ft_tgt: Array[Vector3] = [Vector3(), Vector3()]
@@ -109,10 +117,17 @@ func hit(dir: Vector3, strength := 1.0) -> void:
 	lean_v += Vector2(-local.x, local.z) * 13.0 * strength
 	push += dir.normalized() * 2.2 * strength
 
-func die(dir: Vector3) -> void:
+func die(dir: Vector3, force := 1.0) -> void:
 	dead = 0.0
 	dead_dir = signf((Basis(Vector3.UP, -heading) * dir).z + 0.001)
-	push += dir.normalized() * 1.5
+	death_force = force
+	var r := RandomNumberGenerator.new(); r.seed = get_instance_id()
+	death_style = 3 if force > 1.6 and r.randf() < 0.7 else r.randi() % 3
+	death_side = -1.0 if r.randf() < 0.5 else 1.0
+	death_limb = Vector4(r.randf_range(-1, 1), r.randf_range(-1, 1), r.randf_range(-1, 1), r.randf_range(-1, 1))
+	if death_style == 1:
+		dead_dir = 1.0 if r.randf() < 0.75 else dead_dir
+	push += dir.normalized() * (1.5 + (2.5 * force if death_style == 3 else 0.0))
 
 static func _leg_basis(n: Vector3, d: Vector3) -> Basis:
 	var y := d.normalized()
@@ -238,13 +253,42 @@ func compute(dt: float) -> void:
 	var floored := dead >= 0.0 or floor_t > 0.001
 	if floored:
 		# Procedural death: knees give way, then the body topples the way it was hit.
-		var ft := dead / 1.1 if dead >= 0.0 else floor_t
+		var style := death_style if dead >= 0.0 else 0
+		var dspan: float = [1.1, 1.7, 1.25, 0.9][style]
+		var ft := dead / dspan if dead >= 0.0 else floor_t
 		fall = smoothstep(0.0, 1.0, ft)
 		fall = fall * fall
 		var drop := smoothstep(0.0, 0.7, ft)
-		hips_pos.y = lerpf(hips_pos.y, 0.17 * L, drop)
-		hips_pos.z += dead_dir * 0.35 * L * fall
-		r_hips = _rx(dead_dir * fall * 1.55) * _ry(yaw + fall * 0.25)
+		# After it lands: a bounce that dies away.
+		var settle := 0.0
+		if dead >= 0.0 and ft > 1.0:
+			settle = exp(-(ft - 1.0) * 5.0) * sin((ft - 1.0) * 16.0) * 0.07
+		match style:
+			1:
+				# Knees first (the first 40%), then it pitches over.
+				var knees := smoothstep(0.0, 0.4, ft)
+				var over := smoothstep(0.35, 1.0, ft)
+				over *= over
+				fall = over
+				hips_pos.y = lerpf(hips_pos.y, lerpf(0.42 * L, 0.17 * L, over), knees)
+				hips_pos.z += dead_dir * 0.3 * L * over
+				r_hips = _rx(dead_dir * (over * 1.5 + settle) + knees * 0.25) * _ry(yaw + death_side * over * 0.2)
+			2:
+				# Turned by the blow, it goes down on one side.
+				hips_pos.y = lerpf(hips_pos.y, 0.2 * L, drop)
+				hips_pos.x += death_side * 0.3 * L * fall
+				hips_pos.z += dead_dir * 0.12 * L * fall
+				r_hips = _ry(yaw + death_side * fall * 1.1) * _rz(-death_side * (fall * 1.45 + settle)) * _rx(dead_dir * fall * 0.35)
+			3:
+				# Lifted and thrown back, then down hard.
+				var air := sin(clampf(ft, 0.0, 1.0) * PI) * 0.22 * L * minf(death_force, 2.5)
+				hips_pos.y = lerpf(hips_pos.y, 0.17 * L, drop) + air
+				hips_pos.z += dead_dir * 0.6 * L * fall
+				r_hips = _rx(dead_dir * (fall * 1.6 + settle)) * _ry(yaw + death_side * fall * 0.5)
+			_:
+				hips_pos.y = lerpf(hips_pos.y, 0.17 * L, drop)
+				hips_pos.z += dead_dir * 0.35 * L * fall
+				r_hips = _rx(dead_dir * (fall * 1.55 + settle)) * _ry(yaw + fall * 0.25 * death_side)
 
 	# Feet to model space; keep the hips within reach of both ankles.
 	var ankle: Array[Vector3] = [Vector3(), Vector3()]
@@ -322,9 +366,12 @@ func compute(dt: float) -> void:
 					r_u = base * _rx(ang) * _rz(-sx * 0.25)
 					r_f = base * _rx(ang - 0.9 * up - 0.15 * thru) * _rz(-sx * 0.25)
 		if floored:
-			# Limp: arms settle beside the body instead of holding a pose.
-			r_u = rot[C.CHEST] * _rz(-sx * (adrop - 0.25 * fall)) * _rx(-0.25 * fall)
-			r_f = r_u * _rx(-0.3 * fall)
+			# Limp: arms settle where they fall, each body a little differently
+			# (one flung out, one under it), instead of holding a pose.
+			var fling: float = (death_limb.x if i == 0 else death_limb.y) if dead >= 0.0 else 0.0
+			# Spread out along the ground, never raised to the sky.
+			r_u = rot[C.CHEST] * _rz(-sx * (adrop - 0.25 * fall + absf(fling) * 0.8 * fall)) * _rx(-0.25 * fall)
+			r_f = r_u * _rx(-0.3 * fall - absf(fling) * 0.4 * fall)
 		rot[C.CLAV + o] = rot[C.CHEST]
 		rot[C.UARM + o] = r_u
 		rot[C.FARM + o] = r_f

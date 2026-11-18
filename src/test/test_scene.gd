@@ -315,7 +315,11 @@ func _mode_walk() -> void:
 	if args.has("hit"):
 		events[int(args.hit)] = func() -> void: walkers[0].hit(Vector3(-1, 0, 0.3), _f("force", 1.0))
 	if args.has("die"):
-		events[int(args.die)] = func() -> void: walkers[0].die(Vector3(-1, 0, 0))
+		# Every walker dies, each its own way (a heavy blow on every third).
+		events[int(args.die)] = func() -> void:
+			for k in walkers.size():
+				walkers[k].vel = Vector3.ZERO
+				walkers[k].die(Vector3(-1, 0, 0.4 * (k % 3 - 1)), 2.2 if k % 3 == 2 else 1.0)
 	# --attack=chop|sweep|thrust --at=<frame>: one weapon swing, to look at.
 	if args.has("attack"):
 		events[int(_f("at", 20))] = func() -> void:

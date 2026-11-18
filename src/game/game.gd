@@ -1263,14 +1263,22 @@ func _on_events(list: Array) -> void:
 					_status(a, 0)
 					if a.node is Walker:
 						(a.node as Walker).vel = Vector3.ZERO
-						(a.node as Walker).die(a.node.position - (me.position if me else Vector3.ZERO))
+						# It falls away from whatever struck it last, harder for a heavy blow.
+						var from: Vector3 = a.get("last_from", me.position if me else Vector3.ZERO)
+						(a.node as Walker).die(a.node.position - from, a.get("last_force", 1.0))
 						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
 					elif a.node is Hound:
 						(a.node as Hound).vel = Vector3.ZERO
 						(a.node as Hound).die(a.node.position - (me.position if me else Vector3.ZERO))
 						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
 					elif a.kind == "player":
-						(a.node.get_meta("anim") as AnimationPlayer).play("Death01", 0.15)
+						# The pack has one death: vary its pace and turn the body as it
+						# goes, so two players do not fall the same.
+						var ap := a.node.get_meta("anim") as AnimationPlayer
+						var dr := RandomNumberGenerator.new(); dr.seed = int(e.id) * 7919 + frame
+						ap.play("Death01", 0.15, dr.randf_range(0.8, 1.25))
+						var tw: Tween = a.node.create_tween()
+						tw.tween_property(a.node, "rotation:y", a.node.rotation.y + dr.randf_range(-0.9, 0.9), 0.7).set_ease(Tween.EASE_OUT)
 					else:
 						a.node.queue_free()
 					a.dead = true
@@ -1283,6 +1291,7 @@ func _on_events(list: Array) -> void:
 						var knock: float = e.get("knock", 0.0)
 						var from: Vector3 = actors[e.by].node.position if actors.has(e.by) and is_instance_valid(actors[e.by].node) else (me.position if me else Vector3.ZERO)
 						(a.node as Walker).hit(a.node.position - from, clampf(0.55 + knock * 0.14, 0.55, 2.4))
+						a.last_from = from; a.last_force = clampf(0.55 + knock * 0.14, 0.55, 2.4)
 						# Hit-stop, for the one struck only: it flashes and hangs for a few
 						# frames, heavier blows longer. The world keeps moving (co-op).
 						if e.dmg >= 4.0:
