@@ -48,9 +48,9 @@
       # checkout is brought to the new commit. NixOS is only switched when this
       # script or Godot itself changes. If the repository cannot be reached, the
       # snapshot from the last switch runs as before.
-      mkLiveServer = pkgs: { repo, branch, every }: pkgs.writeShellApplication {
+      mkLiveServer = pkgs: { repo, sshRepo, branch, every }: pkgs.writeShellApplication {
         name = "heartstone-server-live";
-        runtimeInputs = [ pkgs.godot pkgs.rsync pkgs.git pkgs.coreutils pkgs.gnugrep pkgs.gnused ];
+        runtimeInputs = [ pkgs.godot pkgs.rsync pkgs.git pkgs.openssh pkgs.coreutils pkgs.gnugrep pkgs.gnused ];
         text = ''
           state="''${STATE_DIRECTORY:-''${XDG_STATE_HOME:-$HOME/.local/state}/heartstone}"
           src="$state/src"
@@ -58,14 +58,23 @@
           export HOME="$state" GIT_TERMINAL_PROMPT=0
           mkdir -p "$state/data"
           log() { echo "UPDATER $*"; }
+          # A private repository is read with a deploy key (autoUpdate.keyFile,
+          # handed over by systemd as a credential); a public one over HTTPS.
+          url="${repo}"
+          key="''${CREDENTIALS_DIRECTORY:-/nonexistent}/deploykey"
+          if [ -f "$key" ]; then
+            url="${sshRepo}"
+            export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$state/known_hosts"
+          fi
           # A thin checkout: the newest commit only, and not the built games in dist/.
           fetch() {
             if [ ! -d "$src/.git" ]; then
               rm -rf "$src"
-              git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ${branch} ${repo} "$src" || return 1
+              git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ${branch} "$url" "$src" || return 1
               git -C "$src" sparse-checkout set --no-cone '/*' '!/dist/' || return 1
               git -C "$src" checkout --quiet ${branch} || return 1
             else
+              git -C "$src" remote set-url origin "$url"
               git -C "$src" fetch --quiet --depth 1 origin ${branch} || return 1
               git -C "$src" reset --quiet --hard FETCH_HEAD || return 1
             fi
@@ -73,9 +82,9 @@
           if fetch; then
             project="$src"
             printf '{"tag": "", "commit": "%s", "date": %s}\n' "$(git -C "$src" rev-parse --short HEAD)" "$(git -C "$src" log -1 --format=%ct)" > "$project/build.json"
-            log "running $(git -C "$src" rev-parse --short HEAD) from ${repo} ${branch}"
+            log "running $(git -C "$src" rev-parse --short HEAD) from $url ${branch}"
           else
-            log "cannot reach ${repo}: running the snapshot from the last switch"
+            log "cannot reach $url: running the snapshot from the last switch (a private repository needs autoUpdate.keyFile)"
             project="$state/project"
             mkdir -p "$project"
             rsync -a --checksum --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$project/"
@@ -92,8 +101,12 @@
             sleep ${every} &
             wait $! || true
             kill -0 $game 2>/dev/null || { wait $game; exit $?; }
-            newest=$(git ls-remote ${repo} refs/heads/${branch} 2>/dev/null | cut -f1)
-            [ -n "$newest" ] || continue
+            # (Never fatal: a repository out of reach is asked again next time.)
+            newest=$(git ls-remote "$url" refs/heads/${branch} 2>/dev/null | cut -f1) || newest=""
+            if [ -z "$newest" ]; then
+              log "cannot ask $url for its newest commit; trying again in ${every} s"
+              continue
+            fi
             [ -d "$src/.git" ] && [ "$newest" = "$(git -C "$src" rev-parse HEAD)" ] && continue
             # A new commit. Wait for a quiet moment: nobody in a fight.
             fights=$(grep -o '"fights":[0-9]*' "$HEARTSTONE_STATUS" 2>/dev/null | sed 's/.*://')
@@ -116,6 +129,8 @@
             port = lib.mkOption { type = lib.types.port; default = 24690; description = "UDP port players connect to."; };
             openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the UDP port in the firewall."; };
             autoUpdate = {
+              keyFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; description = "A read-only deploy key (SSH private key) for a private repository, e.g. a sops secret's path. Without it the repository is read over HTTPS, which works only while it is public."; };
+              sshRepo = lib.mkOption { type = lib.types.str; default = "git@github.com:malleum/heartstone.git"; description = "The repository's SSH address, used with keyFile."; };
               enable = lib.mkOption { type = lib.types.bool; default = true; description = "Keep the server on the newest commit of the repository by itself (it restarts onto a new one when nobody is in a fight), instead of only when NixOS is switched."; };
               repo = lib.mkOption { type = lib.types.str; default = "https://github.com/malleum/heartstone"; description = "Git repository to follow."; };
               branch = lib.mkOption { type = lib.types.str; default = "master"; description = "Branch to follow."; };
@@ -135,9 +150,10 @@
               environment.HEARTSTONE_PORT = toString cfg.port;
               serviceConfig = {
                 ExecStart = if cfg.autoUpdate.enable
-                  then "${mkLiveServer pkgs { inherit (cfg.autoUpdate) repo branch every; }}/bin/heartstone-server-live"
+                  then "${mkLiveServer pkgs { inherit (cfg.autoUpdate) repo sshRepo branch every; }}/bin/heartstone-server-live"
                   else "${mkServer pkgs}/bin/heartstone-server";
                 EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
+                LoadCredential = lib.mkIf (cfg.autoUpdate.enable && cfg.autoUpdate.keyFile != null) [ "deploykey:${toString cfg.autoUpdate.keyFile}" ];
                 DynamicUser = true;
                 StateDirectory = "heartstone";
                 Environment = [ "HOME=/var/lib/heartstone" ];
@@ -182,7 +198,7 @@
         default = launcher pkgs "heartstone" "";
         horde = launcher pkgs "heartstone-horde" "res://src/test/test_scene.tscn -- --mode=horde";
         server = mkServer pkgs;
-        server-live = mkLiveServer pkgs { repo = "https://github.com/malleum/heartstone"; branch = "master"; every = "120"; };
+        server-live = mkLiveServer pkgs { repo = "https://github.com/malleum/heartstone"; sshRepo = "git@github.com:malleum/heartstone.git"; branch = "master"; every = "120"; };
         # A conventional library layout for the exported binary in dist/ (see
         # dist/heartstone). `env` simply runs whatever command follows.
         fhs = pkgs.buildFHSEnv {

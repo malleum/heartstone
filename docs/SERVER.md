@@ -170,5 +170,10 @@ NixOS switch, and keeps it there:
 - Characters stay under the state directory's `data/`, untouched by updates.
 - A switch is still needed when the updater script, Godot or the module itself
   changes, not for the game.
+- The repository must be public for this (it is read over HTTPS with no
+  credentials), or `autoUpdate.keyFile` must name a read-only deploy key (an SSH
+  private key, e.g. a sops secret), which systemd hands to the service.
+- A check that cannot reach the repository is logged and tried again next time;
+  it never stops the server.
 - Logs: `journalctl -u heartstone` shows `UPDATER running <commit>`, `<commit> is
   waiting: N fight(s) going` and `<commit> is out: restarting onto it`.
