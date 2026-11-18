@@ -532,6 +532,18 @@ func _do_cast(peer: int, weave: String, at: Vector3, hold := false) -> void:
 const AWAY_SECS := 90.0
 var _away := {}
 
+## Rooms with someone in them, or waiting for someone who dropped: a restart now
+## would end a fight.
+func busy_rooms() -> int:
+	var n := 0
+	for room in _rooms:
+		# (A held room is a doorway looked into from a camp, not a fight.)
+		if _rooms[room].get("hold", false) and not _awaited(room):
+			continue
+		if not _rooms[room].peers.is_empty() or _awaited(room):
+			n += 1
+	return n
+
 func _awaited(room: String) -> bool:
 	for n in _away:
 		if _away[n].room == room:

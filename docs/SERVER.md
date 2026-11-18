@@ -152,3 +152,23 @@ camp lists them under Playing now and says when one arrives.
   build; it only places figures when the link is down.
 - Not shown: names over their heads (nothing is written on the world) or what
   they hold.
+
+## Keeping itself up to date (18 Nov)
+`services.heartstone.autoUpdate.enable` (on by default) runs the server from a git
+checkout of `master` in its state directory instead of the snapshot from the last
+NixOS switch, and keeps it there:
+- On start the checkout is brought to the newest commit (a shallow, sparse clone:
+  the built games in `dist/` are never fetched), stamped into `build.json`,
+  imported, and the game server started from it.
+- A loop beside it asks the repository for the newest commit every 120 s
+  (`autoUpdate.every`). When there is a new one it waits until nobody is in a fight
+  (the server writes `status.json` every 2 s; a doorway looked into from a camp does
+  not count), then stops the server. systemd (`Restart = always`) starts it again
+  onto the new commit. Players in their camps reconnect by themselves.
+- If the repository cannot be reached at start, the snapshot from the last switch
+  runs, as before.
+- Characters stay under the state directory's `data/`, untouched by updates.
+- A switch is still needed when the updater script, Godot or the module itself
+  changes, not for the game.
+- Logs: `journalctl -u heartstone` shows `UPDATER running <commit>`, `<commit> is
+  waiting: N fight(s) going` and `<commit> is out: restarting onto it`.

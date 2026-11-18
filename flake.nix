@@ -40,6 +40,73 @@
           exec godot --headless --path "$state/project" -s src/net/server.gd -- "$@"
         '';
       };
+      # The same server kept up to date by itself (services.heartstone.autoUpdate):
+      # it runs from a git checkout of the branch in the state directory, and a
+      # loop beside it asks the repository for the newest commit every so often.
+      # When there is one and nobody is in a fight (the server says so in a status
+      # file), it stops the server; systemd starts it again, and on the way up the
+      # checkout is brought to the new commit. NixOS is only switched when this
+      # script or Godot itself changes. If the repository cannot be reached, the
+      # snapshot from the last switch runs as before.
+      mkLiveServer = pkgs: { repo, branch, every }: pkgs.writeShellApplication {
+        name = "heartstone-server-live";
+        runtimeInputs = [ pkgs.godot pkgs.rsync pkgs.git pkgs.coreutils pkgs.gnugrep pkgs.gnused ];
+        text = ''
+          state="''${STATE_DIRECTORY:-''${XDG_STATE_HOME:-$HOME/.local/state}/heartstone}"
+          src="$state/src"
+          export GIT_SSL_CAINFO="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+          export HOME="$state" GIT_TERMINAL_PROMPT=0
+          mkdir -p "$state/data"
+          log() { echo "UPDATER $*"; }
+          # A thin checkout: the newest commit only, and not the built games in dist/.
+          fetch() {
+            if [ ! -d "$src/.git" ]; then
+              rm -rf "$src"
+              git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch ${branch} ${repo} "$src" || return 1
+              git -C "$src" sparse-checkout set --no-cone '/*' '!/dist/' || return 1
+              git -C "$src" checkout --quiet ${branch} || return 1
+            else
+              git -C "$src" fetch --quiet --depth 1 origin ${branch} || return 1
+              git -C "$src" reset --quiet --hard FETCH_HEAD || return 1
+            fi
+          }
+          if fetch; then
+            project="$src"
+            printf '{"tag": "", "commit": "%s", "date": %s}\n' "$(git -C "$src" rev-parse --short HEAD)" "$(git -C "$src" log -1 --format=%ct)" > "$project/build.json"
+            log "running $(git -C "$src" rev-parse --short HEAD) from ${repo} ${branch}"
+          else
+            log "cannot reach ${repo}: running the snapshot from the last switch"
+            project="$state/project"
+            mkdir -p "$project"
+            rsync -a --checksum --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$project/"
+            printf '{"tag": "", "commit": "%s", "date": %s}\n' "${self.shortRev or self.dirtyShortRev or "dirty"}" "${toString (self.lastModified or 0)}" > "$project/build.json"
+          fi
+          export XDG_DATA_HOME="$state/data" XDG_CONFIG_HOME="$state/data" XDG_CACHE_HOME="$state/data"
+          export HEARTSTONE_STATUS="$state/status.json"
+          rm -f "$HEARTSTONE_STATUS"
+          godot --headless --path "$project" --import >/dev/null 2>&1 || true
+          godot --headless --path "$project" -s src/net/server.gd -- "$@" &
+          game=$!
+          trap 'kill $game 2>/dev/null; wait $game; exit 0' TERM INT
+          while true; do
+            sleep ${every} &
+            wait $! || true
+            kill -0 $game 2>/dev/null || { wait $game; exit $?; }
+            newest=$(git ls-remote ${repo} refs/heads/${branch} 2>/dev/null | cut -f1)
+            [ -n "$newest" ] || continue
+            [ -d "$src/.git" ] && [ "$newest" = "$(git -C "$src" rev-parse HEAD)" ] && continue
+            # A new commit. Wait for a quiet moment: nobody in a fight.
+            fights=$(grep -o '"fights":[0-9]*' "$HEARTSTONE_STATUS" 2>/dev/null | sed 's/.*://')
+            if [ "''${fights:-0}" != "0" ]; then
+              log "''${newest:0:7} is waiting: $fights fight(s) going"
+              continue
+            fi
+            log "''${newest:0:7} is out: restarting onto it"
+            kill $game; wait $game || true
+            exit 0
+          done
+        '';
+      };
     in {
       # services.heartstone: see docs/SERVER.md.
       nixosModules.default = { config, lib, pkgs, ... }:
@@ -48,6 +115,12 @@
             enable = lib.mkEnableOption "the Heartstone dedicated server (co-op meeting point and character store)";
             port = lib.mkOption { type = lib.types.port; default = 24690; description = "UDP port players connect to."; };
             openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the UDP port in the firewall."; };
+            autoUpdate = {
+              enable = lib.mkOption { type = lib.types.bool; default = true; description = "Keep the server on the newest commit of the repository by itself (it restarts onto a new one when nobody is in a fight), instead of only when NixOS is switched."; };
+              repo = lib.mkOption { type = lib.types.str; default = "https://github.com/malleum/heartstone"; description = "Git repository to follow."; };
+              branch = lib.mkOption { type = lib.types.str; default = "master"; description = "Branch to follow."; };
+              every = lib.mkOption { type = lib.types.str; default = "120"; description = "Seconds between asking the repository for its newest commit."; };
+            };
             environmentFile = lib.mkOption {
               type = lib.types.nullOr lib.types.path; default = null;
               description = "File containing HEARTSTONE_WORD=..., the word players must give to join. Without it anyone who finds the port can play and store characters.";
@@ -61,12 +134,15 @@
               after = [ "network.target" ];
               environment.HEARTSTONE_PORT = toString cfg.port;
               serviceConfig = {
-                ExecStart = "${mkServer pkgs}/bin/heartstone-server";
+                ExecStart = if cfg.autoUpdate.enable
+                  then "${mkLiveServer pkgs { inherit (cfg.autoUpdate) repo branch every; }}/bin/heartstone-server-live"
+                  else "${mkServer pkgs}/bin/heartstone-server";
                 EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
                 DynamicUser = true;
                 StateDirectory = "heartstone";
                 Environment = [ "HOME=/var/lib/heartstone" ];
-                Restart = "on-failure";
+                # (The live server exits on purpose to move to a new commit.)
+                Restart = "always";
                 RestartSec = 5;
                 # It is a game server reachable from the internet: give it nothing it does not need.
                 NoNewPrivileges = true; ProtectSystem = "strict"; ProtectHome = true; PrivateTmp = true; PrivateDevices = true;
@@ -106,6 +182,7 @@
         default = launcher pkgs "heartstone" "";
         horde = launcher pkgs "heartstone-horde" "res://src/test/test_scene.tscn -- --mode=horde";
         server = mkServer pkgs;
+        server-live = mkLiveServer pkgs { repo = "https://github.com/malleum/heartstone"; branch = "master"; every = "120"; };
         # A conventional library layout for the exported binary in dist/ (see
         # dist/heartstone). `env` simply runs whatever command follows.
         fhs = pkgs.buildFHSEnv {

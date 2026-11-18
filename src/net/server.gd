@@ -16,3 +16,14 @@ func _init() -> void:
 	print("SERVER listening on udp %d err=%d word=%s" % [port, err, "set" if s.word != "" else "none"])
 	if err != OK:
 		quit(1)
+	# HEARTSTONE_STATUS: a file the updater beside the server reads (flake.nix,
+	# autoUpdate), saying whether anyone is in a fight, so it restarts the server
+	# onto a new commit only when that interrupts nobody.
+	var status := OS.get_environment("HEARTSTONE_STATUS")
+	if status != "":
+		while true:
+			var f := FileAccess.open(status, FileAccess.WRITE)
+			if f:
+				f.store_string(JSON.stringify({fights = s.busy_rooms(), camp = s._camp_peers.size(), t = int(Time.get_unix_time_from_system())}))
+				f.close()
+			await create_timer(2.0).timeout
