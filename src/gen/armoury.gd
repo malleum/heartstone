@@ -80,7 +80,14 @@ static func string(bow: Node3D, pull: float, nocked: bool) -> void:
 	if not bow.has_meta("bow"):
 		return
 	var m: Dictionary = bow.get_meta("bow")
-	var nock := Vector3(-m.bend - pull * 0.5, 0, 0)
+	string_to(bow, Vector3(-m.bend - pull * 0.5, 0, 0), nocked)
+
+## The string drawn to a given point (the bow's own space): where the string
+## hand's fingers are while drawing (ArmPose.nock).
+static func string_to(bow: Node3D, nock: Vector3, nocked: bool) -> void:
+	if not bow.has_meta("bow"):
+		return
+	var m: Dictionary = bow.get_meta("bow")
 	for pair in [["StringA", 1.0], ["StringB", -1.0]]:
 		var mi: MeshInstance3D = bow.get_node(pair[0])
 		var tip := Vector3(-m.bend, pair[1] * m.height * 0.5, 0)
@@ -92,6 +99,9 @@ static func string(bow: Node3D, pull: float, nocked: bool) -> void:
 	var arrow: Node3D = bow.get_node("Nock")
 	arrow.visible = nocked
 	arrow.position = nock
+	# Along the line from the nock to the grip, where the arrow rests on the bow.
+	if nock.length() > 0.05:
+		arrow.basis = Basis(Quaternion(Vector3.RIGHT, -nock.normalized()))
 
 ## {main, off, off_bone}: main goes in the right hand; off (a bow, a buckler) on
 ## the named left-arm bone. Either may be null.

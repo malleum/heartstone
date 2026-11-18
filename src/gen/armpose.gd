@@ -21,6 +21,14 @@ var left := Vector3(1, 0, 0)
 ## whatever twist the arm happens to have.
 var grip_l := Basis.IDENTITY
 var grip_r := Basis.IDENTITY
+## A bow in the left hand: where it sits on the hand bone, and its size
+## ({height, bend}), so the string hand can find the string. `nock` is where the
+## string hand's fingers are, in the bow's own space, for Hero.bow to draw the
+## string to (the string used to come back on its own while the hand did not).
+var bow_hold := Transform3D.IDENTITY
+var bow_size := {}
+var nock := Vector3.ZERO
+var nock_ok := false
 
 ## --- sword forms -------------------------------------------------------------------
 ## The pack has three sword cuts, and eight forms cannot all be one of them. A
@@ -189,12 +197,30 @@ func _process_modification() -> void:
 			# The bow upright, its back to the target and its string to the archer.
 			var by := (up - aim * up.dot(aim)).normalized()
 			_hold("hand_l", Basis(aim, by, aim.cross(by)) * grip_l.inverse())
-			var u0 := (aim * 0.75 - left * 0.25 - up * 0.25).normalized()
-			var u1 := (-left * 0.8 - aim * 0.35 + up * 0.25).normalized()
-			var f0 := (aim * 0.9 + left * 0.35).normalized()
-			var f1 := (aim * 0.55 + left * 0.8 + up * 0.05).normalized()
-			_point("upperarm_r", "lowerarm_r", u0.slerp(u1, pull))
-			_point("lowerarm_r", "hand_r", f0.slerp(f1, pull))
+			nock_ok = false
+			var sk := get_skeleton()
+			var hl := sk.find_bone("hand_l"); var hr := sk.find_bone("hand_r"); var sh := sk.find_bone("upperarm_r")
+			var head := sk.find_bone("head")
+			if head < 0: head = sk.find_bone("Head")
+			if bow_size.is_empty() or hl < 0 or hr < 0 or sh < 0 or head < 0:
+				return
+			# The string hand takes the string where it rests and brings it back to
+			# the corner of the mouth: fingers on the string the whole way.
+			var bow_t := sk.get_bone_global_pose(hl) * bow_hold
+			var rest := bow_t * Vector3(-float(bow_size.bend), 0, 0)
+			var hp := sk.get_bone_global_pose(head).origin
+			var anchor := hp + aim * 0.06 - left * 0.03 - up * 0.07
+			var want := rest.lerp(anchor, pull)
+			# (The bone's origin is the wrist: the fingers are a hand's width on.)
+			var fingers := sk.get_bone_global_pose(hr).basis.y.normalized() * 0.07
+			var shoulder := sk.get_bone_global_pose(sh).origin
+			_reach("upperarm_r", "lowerarm_r", "hand_r", want - fingers - shoulder, (-aim * 0.6 - left * 0.7 + up * 0.25).normalized(), true)
+			var hand := sk.get_bone_global_pose(hr)
+			nock = bow_t.affine_inverse() * (hand.origin + hand.basis.y.normalized() * 0.07)
+			# Kept on the line the string can reach (no further forward than at
+			# rest, no further back than a long arm's draw).
+			nock.x = clampf(nock.x, -float(bow_size.bend) - 0.8, -float(bow_size.bend))
+			nock_ok = weight > 0.6
 		"crossbow":
 			# Stock in the right hand at the shoulder, the left hand under the tiller.
 			_point("upperarm_r", "lowerarm_r", (aim * 0.45 - left * 0.25 - up * 0.85).normalized())

@@ -432,7 +432,7 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 		sk.add_child(pose)
 		root.set_meta("pose", pose)
 	pose.fwd = fwd.normalized(); pose.up = up.normalized(); pose.left = up.cross(fwd).normalized()
-	pose.mode = ""; pose.weight = 0.0
+	pose.mode = ""; pose.weight = 0.0; pose.bow_size = {}; pose.nock_ok = false
 	for part in [[kit.main, "hand_r"], [kit.off, kit.off_bone]]:
 		if part[0] == null:
 			continue
@@ -458,6 +458,7 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 			holder.position = inv * (along * 0.085 - up * 0.03)
 			holder.set_meta("grips", {"": holder.transform})
 			pose.grip_l = holder.basis
+			pose.bow_hold = holder.transform; pose.bow_size = holder.get_meta("bow")
 		elif part[1].begins_with("lowerarm"):
 			# A buckler: flat against the back of the forearm.
 			var out := inv * up
@@ -502,7 +503,11 @@ static func bow(root: Node3D, _mode: String, pull: float, nocked: bool) -> void:
 	if at == null or at.get_child_count() == 0 or not at.get_child(0).has_meta("grips"):
 		return
 	var b: Node3D = at.get_child(0)
-	Armoury.string(b, pull, nocked)
+	var pose: ArmPose = root.get_meta("pose") if root.has_meta("pose") else null
+	if pose and pose.mode == "bow" and pose.nock_ok:
+		Armoury.string_to(b, pose.nock, nocked)   # to the fingers that hold it
+	else:
+		Armoury.string(b, pull, nocked)
 
 ## Turn what is in the right hand about the fist (a sling being whirled);
 ## a negative angle puts it back as it is carried.

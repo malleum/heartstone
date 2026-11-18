@@ -31,7 +31,7 @@ P
 weaver() {    # weave
   local out=renders/poses_w_$1
   rm -rf "$out"
-  KEEP_EVERY=1 RES=960x720 tools/render.sh "$out" 300 -- --auto --name=Pose --strength=6 --only=$1 --stand --clean --log "${cam[@]}" --spawn=dummy:2@10 2>&1 | grep -E "^EV|SCRIPT ERROR" > "$out.log"
+  KEEP_EVERY=1 RES=960x720 tools/render.sh "$out" 300 -- --auto --name=Pose --strength=1 --only=$1 --stand --clean --log "${cam[@]}" --spawn=trolloc_brute:3@11 2>&1 | grep -E "^EV|SCRIPT ERROR" > "$out.log"
   python3 -I - "$out" <<'P'
 import re, sys, os
 out = sys.argv[1]

@@ -258,6 +258,10 @@ are what the 4:44 review, or the next session, should pick up.
   - Bots open a fight with the bow drawn while Trollocs are at arm's length.
   - Wagons are boxes on discs; the wagon ring could use a proper wagon.
   - A thin line of specks remains along cliff silhouettes (the ledge lines).
+  - (Done 18 Nov, asked by the user.) Bows: the string hand now takes the string
+    at the bow and brings it back to the cheek (two-bone reach in ArmPose), and
+    the string and arrow follow those fingers. Trolloc archers' bows are baked into
+    the creature mesh, so their strings still do not move.
   - On the strokes bench the cloaks stand behind the body like flat boards, mid-blow;
     the bench does not run the game's cloak motion. Check that the game's cloak
     follows a lunge.
