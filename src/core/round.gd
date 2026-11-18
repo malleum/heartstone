@@ -81,6 +81,8 @@ static func begin(profile: Dictionary, rng: RandomNumberGenerator, opts := {}) -
 		r.leap = rng.randi_range(2, 5); r.owed = 0.0
 		p.potential = Rules.strength_of(pot)
 		p.strength = Rules.strength_of(start)
+		# All owned affinity counts (characters saved with a smaller "taken" share too).
+		if p.has("aff_owned"): Profile.apply_affinity(p)
 		# Every channeller can tie off a held weave (it used to be earned in the old
 		# progression, which rounds no longer pay out).
 		if not p.has("techniques"): p.techniques = []

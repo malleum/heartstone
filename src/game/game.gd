@@ -1882,7 +1882,7 @@ func _draw_actors(dt: float) -> void:
 				n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			a.speed = speed
-			a.cloak_speed = lerpf(a.get("cloak_speed", 0.0), speed, minf(4.0 * dt, 1.0))
+			a.cloak_speed = lerpf(a.get("cloak_speed", 0.0), minf(speed, 9.0), minf(3.0 * dt, 1.0))
 			Hero.cloak_motion(n, a.cloak_speed)
 			if a.get("downed", false) or a.get("dead", false):
 				continue     # lying where they fell (Death01 holds its last frame)

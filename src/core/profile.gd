@@ -219,7 +219,7 @@ static func current(p: Dictionary) -> bool:
 # the couple of creation points.
 
 const AFF_OWN_MAX := 9       # affinity points a character can own
-const AFF_BASE := 5          # taken into a game, plus 2 per unused Talent slot
+const AFF_BASE := 5          # (no longer used: all owned affinity goes into a fight)
 const TALENT_SLOTS := 2
 const WEAVE_SLOTS := 3       # weaves beyond the starting one, per game
 const WEAPON_SLOTS := 3
@@ -251,6 +251,9 @@ static func aff_cap(p: Dictionary) -> int:
 
 ## The rules read p.affinity (0..1 per Power); work it out from the points taken.
 static func apply_affinity(p: Dictionary) -> void:
+	# What you own is what you fight with (the user, 17 Nov: no separate "take").
+	if p.has("aff_owned"):
+		p.aff_pts = p.aff_owned.duplicate()
 	var lean := {fire = 0.3, earth = 0.3, water = 0.3, air = 0.3, spirit = 0.35}
 	for e in (["earth", "fire"] if p.power == "saidin" else ["air", "water"]):
 		lean[e] = 0.45

@@ -365,7 +365,9 @@ func _process(dt: float) -> void:
 				pos -= fwd * (depth + 0.3)
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
-	Hero.cloak_motion(model, (7.5 if sprint else 5.0) if move.length() > 0.1 else 0.0)
+	# Eased, so the first step does not throw it back at once.
+	_cloak_speed = lerpf(_cloak_speed, (7.5 if sprint else 5.0) if move.length() > 0.1 else 0.0, minf(3.0 * dt, 1.0))
+	Hero.cloak_motion(model, _cloak_speed)
 	var ap: AnimationPlayer = model.get_meta("anim")
 	var clip := ("Sprint" if sprint and ap.has_animation("Sprint") else "Jog_Fwd") if move.length() > 0.1 else "Idle"
 	if ap.current_animation != clip:
@@ -535,7 +537,7 @@ func _sheet() -> void:
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
-	_button(side, "Loadout: what you own and what you take", _loadout)
+	_button(side, "Loadout: Talents, weaves, affinity", _loadout)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
 		_section(side, "Last time out")
@@ -611,23 +613,18 @@ func _loadout() -> void:
 			wv[w] = _check(menu_box, Rules.weaves[w].name, profile.weaves.has(w))
 		if wv.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
-		_section(menu_box, "Affinity: what you own, and what you take in")
-		_text(menu_box, "Own: move points between Powers (and into your body), two out for each one in. Take: what goes into the next fight (5, plus 2 for each Talent left out).", 13, Color(0.66, 0.67, 0.72))
+		_section(menu_box, "Affinity")
+		_text(menu_box, "All of it goes into every fight. Points can be moved between Powers (and into your body), two out for each one in.", 13, Color(0.66, 0.67, 0.72))
 		var before := {}
 		for e in Rules.ELEMENTS: before[e] = int(profile.aff_owned.get(e, 0))
 		for st in ["might", "quickness", "endurance"]: before[st] = int(Rules.stat(profile, st))
-		var own := {}; var aff := {}
+		var own := {}
 		for k in before:
 			var row := HBoxContainer.new(); menu_box.add_child(row)
 			var l := Label.new(); l.text = k.capitalize(); row.add_child(l); l.custom_minimum_size.x = 96
 			l.add_theme_color_override("font_color", Glyph.TINT.get(k, Glyph.GOLD).lerp(Color.WHITE, 0.35))
-			var ol := Label.new(); ol.text = "own"; row.add_child(ol); ol.add_theme_font_size_override("font_size", 12)
 			var os := SpinBox.new(); os.max_value = Profile.AFF_OWN_MAX; os.value = before[k]; row.add_child(os)
 			own[k] = os
-			if Rules.ELEMENTS.has(k):
-				var tl := Label.new(); tl.text = "take"; row.add_child(tl); tl.add_theme_font_size_override("font_size", 12)
-				var ts := SpinBox.new(); ts.max_value = Profile.AFF_OWN_MAX; ts.value = int(profile.aff_pts.get(k, 0)); row.add_child(ts)
-				aff[k] = ts
 		_button(menu_box, "Take these", func() -> void:
 			var after := {}
 			for k in own: after[k] = int(own[k].value)
@@ -636,20 +633,13 @@ func _loadout() -> void:
 			for st in ["might", "quickness", "endurance"]: asum += after[st]
 			if Profile.trade_left(before, after) < 0: note.text = "Too many points added: every point costs two taken from elsewhere."; return
 			if asum > Profile.AFF_OWN_MAX: note.text = "You can own at most %d points in all." % Profile.AFF_OWN_MAX; return
-			for e in Rules.ELEMENTS:
-				if int(aff[e].value) > after[e]: note.text = "You cannot take more %s than you own." % e.capitalize(); return
 			var t := tal.keys().filter(func(k: String) -> bool: return tal[k].button_pressed)
 			var w := wv.keys().filter(func(k: String) -> bool: return wv[k].button_pressed)
-			var total := 0
-			for e in aff: total += int(aff[e].value)
-			var cap := Profile.AFF_BASE + 2 * (Profile.TALENT_SLOTS - t.size())
 			if t.size() > Profile.TALENT_SLOTS: note.text = "At most %d Talents." % Profile.TALENT_SLOTS; return
 			if w.size() > Profile.WEAVE_SLOTS: note.text = "At most %d weaves besides your own." % Profile.WEAVE_SLOTS; return
-			if total > cap: note.text = "With %d Talent%s you can take %d affinity points (you chose %d)." % [t.size(), "" if t.size() == 1 else "s", cap, total]; return
 			profile.talents = t
 			profile.weaves = {profile.starter: {known = true, xp = 0.0}}
 			for k in w: profile.weaves[k] = {known = true, xp = 0.0}
-			for e in aff: profile.aff_pts[e] = int(aff[e].value)
 			for e in Rules.ELEMENTS: profile.aff_owned[e] = after[e]
 			for st in ["might", "quickness", "endurance"]: profile.stats[st] = after[st]
 			Profile.apply_affinity(profile)
@@ -1398,6 +1388,7 @@ func _create() -> void:
 var _pre := {}       # {door, vp, game, A (this side's frame), mat, live}
 var _phase := 0      # 0 looking through, 1 your feet are through
 var cam_x := -1.1    # the camera's sideways offset (eases to 0 near a doorway)
+var _cloak_speed := 0.0
 var cam_back := 4.6  # and how far behind (eases back after coming home through a gateway)
 var returning := false   # built as the far side of a fight's gateway home (driven from there)
 var _came_from := ""     # the doorway just come home through: not opened again till you walk off

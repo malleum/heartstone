@@ -89,3 +89,8 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 83 | Gateways as windows, and walking home through one at the end of a round: seamless in real time? | Rendered frame by frame | `game.gd` `_open_window`, `_open_home` |
 | 84 | Bows: the arrow should leave the moment you let go of a full draw, and you turn to your aim while drawing. Arrows have a trail now. Better? | Rules tested; seen in renders | `Sim.set_draw`, `request_attack`; `game.gd` draw facing |
 | 85 | The pause menu (Esc), smaller notices, no frozen world at the end of a round. | Seen in code and renders, not clicked | `pauser.gd`, `toast.gd` |
+1. (17 Nov) Cloak and hair in motion: the cloak eases back over about a second as you
+   speed up (no snap on the first step), ripples run down it, and a light stir stays
+   while standing. Hair tips drift back and stir, more when running. Assumed amounts:
+   sway 0.42 m back at a sprint, ripple 6 cm, hair 3.5 cm. Say if it is still stiff;
+   the Quaternius cloak has few rows of vertices, so a finer cloak mesh may be needed.

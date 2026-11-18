@@ -26,8 +26,14 @@ uniform vec3 sway = vec3(0.0);
 uniform float flutter = 0.0;
 
 void vertex() {
+	// More the further down it hangs; nothing at the shoulders.
 	float d = UV.y * UV.y;
-	VERTEX += sway * d + vec3(sin(TIME * 7.0 + UV.x * 6.0), 0.0, cos(TIME * 5.0 + UV.x * 4.0)) * flutter * d * 0.05;
+	// Ripples that run down the cloth from shoulder to hem, two of them crossing,
+	// so it moves like cloth and not like a board.
+	float w1 = sin(TIME * 4.3 - UV.y * 7.0 + UV.x * 3.1);
+	float w2 = sin(TIME * 2.7 - UV.y * 4.0 - UV.x * 5.3 + 1.7);
+	vec3 ripple = vec3(0.35 * w2, 0.12 * w1, w1 + 0.5 * w2) * flutter * 0.06;
+	VERTEX += (sway + ripple) * d;
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 

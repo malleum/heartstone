@@ -10,6 +10,7 @@ const ANIMS2 := "res://assets/quaternius/ual2.glb"
 const MODEL := "res://assets/quaternius/chars/%s.glb"
 const OUTFIT := preload("res://shaders/outfit.gdshader")
 const GARMENT := preload("res://shaders/garment.gdshader")
+const HAIR_SHADER := preload("res://shaders/hair.gdshader")
 const HAIR := [Color(0.16, 0.1, 0.06), Color(0.38, 0.22, 0.1), Color(0.62, 0.3, 0.12), Color(0.75, 0.6, 0.33), Color(0.07, 0.06, 0.06)]
 ## What a player may choose about their body (profile.style). Each list is
 ## [label, value]; anything not chosen is rolled from the character's name.
@@ -184,6 +185,10 @@ static func _cloak_from_shoulders(m: MeshInstance3D, base: String, sk: Skeleton3
 	_cloaks[base] = out
 	m.mesh = out
 
+static func _hair_wind(root: Node3D, k: float) -> void:
+	for hm in root.get_meta("hair_mats", []):
+		(hm as ShaderMaterial).set_shader_parameter("gust", 0.35 + 1.4 * k)
+
 ## How the cloak moves with its wearer: speed in metres a second, 0 standing.
 static func cloak_motion(root: Node3D, speed: float) -> void:
 	var m: MeshInstance3D = root.get_meta("cloak", null) if root.has_meta("cloak") else null
@@ -192,11 +197,16 @@ static func cloak_motion(root: Node3D, speed: float) -> void:
 			m = c
 		root.set_meta("cloak", m)
 	if m == null or not m.visible or not (m.material_override is ShaderMaterial):
+		_hair_wind(root, clampf(speed / 7.5, 0.0, 1.2))
 		return
-	var k := clampf(speed / 5.0, 0.0, 1.4)
+	# A walk barely lifts it; a run sends it back; a sprint streams it out.
+	var k := clampf(speed / 7.5, 0.0, 1.2)
 	var mat: ShaderMaterial = m.material_override
-	mat.set_shader_parameter("sway", Vector3(0.0, 0.18 * k, -0.5 * k))
-	mat.set_shader_parameter("flutter", 0.3 + k)
+	mat.set_shader_parameter("sway", Vector3(0.0, 0.14 * k * k, -0.42 * k * k))
+	# Always a little stir, as if there is air; more the faster you go.
+	mat.set_shader_parameter("flutter", 0.5 + 1.8 * k)
+	root.set_meta("wind_k", k)
+	_hair_wind(root, k)
 
 static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 	var all := looks()
@@ -246,11 +256,26 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 				gm.set_shader_parameter("cut", cut)
 				m.material_override = gm
 		elif n.begins_with("Hair") or n.begins_with("Eyebrows"):
-			# The pack ships hair as a grey map meant to be tinted.
+			# The pack ships hair as a grey map meant to be tinted. Hair (not brows)
+			# goes to a shader that lets it move in the wind (Hero.cloak_motion).
+			var aabb := m.mesh.get_aabb()
 			for i in m.mesh.get_surface_count():
-				var mat: BaseMaterial3D = m.get_active_material(i).duplicate()
-				mat.albedo_color = tint
-				m.set_surface_override_material(i, mat)
+				var src: BaseMaterial3D = m.get_active_material(i)
+				if n.begins_with("Hair") and src != null:
+					var hm := ShaderMaterial.new(); hm.shader = HAIR_SHADER
+					hm.set_shader_parameter("tint", tint)
+					hm.set_shader_parameter("use_tex", src.albedo_texture != null)
+					if src.albedo_texture: hm.set_shader_parameter("tex", src.albedo_texture)
+					hm.set_shader_parameter("top", aabb.end.y)
+					hm.set_shader_parameter("span", maxf(aabb.size.y, 0.1))
+					m.set_surface_override_material(i, hm)
+					var list: Array = root.get_meta("hair_mats", [])
+					list.append(hm)
+					root.set_meta("hair_mats", list)
+				else:
+					var mat: BaseMaterial3D = src.duplicate()
+					mat.albedo_color = tint
+					m.set_surface_override_material(i, mat)
 			if n.begins_with("Hair_Beard"):
 				var rolled: bool = rng.randf() < 0.4 and look_id != "ashaman"
 				m.visible = bool(style.beard) if style.has("beard") else rolled
