@@ -170,9 +170,13 @@ NixOS switch, and keeps it there:
 - Characters stay under the state directory's `data/`, untouched by updates.
 - A switch is still needed when the updater script, Godot or the module itself
   changes, not for the game.
-- The repository must be public for this (it is read over HTTPS with no
-  credentials), or `autoUpdate.keyFile` must name a read-only deploy key (an SSH
-  private key, e.g. a sops secret), which systemd hands to the service.
+- A private repository needs a credential: `autoUpdate.tokenFile` names a file
+  holding a GitHub token (on minimus, the sops secret `github_token` that gh and
+  nix already use). systemd reads it as root and hands it to the sandboxed
+  service (`LoadCredential`); git gets it from a credential helper that reads the
+  file when asked, so it never shows in a command line, the environment or a log.
+  (`autoUpdate.keyFile`, a read-only SSH deploy key, works too.) A public
+  repository needs neither.
 - A check that cannot reach the repository is logged and tried again next time;
   it never stops the server.
 - Logs: `journalctl -u heartstone` shows `UPDATER running <commit>`, `<commit> is

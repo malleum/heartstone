@@ -62,7 +62,14 @@
           # handed over by systemd as a credential); a public one over HTTPS.
           url="${repo}"
           key="''${CREDENTIALS_DIRECTORY:-/nonexistent}/deploykey"
-          if [ -f "$key" ]; then
+          token="''${CREDENTIALS_DIRECTORY:-/nonexistent}/ghtoken"
+          if [ -f "$token" ]; then
+            # A GitHub token (autoUpdate.tokenFile): given to git by a credential
+            # helper that reads the file when asked, so it never appears in a
+            # command line, the environment or a log.
+            export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper
+            export GIT_CONFIG_VALUE_0="!f() { echo username=x-access-token; printf 'password=%s\\n' \"\$(cat '$token')\"; }; f"
+          elif [ -f "$key" ]; then
             url="${sshRepo}"
             export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$state/known_hosts"
           fi
@@ -84,7 +91,7 @@
             printf '{"tag": "", "commit": "%s", "date": %s}\n' "$(git -C "$src" rev-parse --short HEAD)" "$(git -C "$src" log -1 --format=%ct)" > "$project/build.json"
             log "running $(git -C "$src" rev-parse --short HEAD) from $url ${branch}"
           else
-            log "cannot reach $url: running the snapshot from the last switch (a private repository needs autoUpdate.keyFile)"
+            log "cannot reach $url: running the snapshot from the last switch (a private repository needs autoUpdate.tokenFile)"
             project="$state/project"
             mkdir -p "$project"
             rsync -a --checksum --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$project/"
@@ -129,6 +136,7 @@
             port = lib.mkOption { type = lib.types.port; default = 24690; description = "UDP port players connect to."; };
             openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the UDP port in the firewall."; };
             autoUpdate = {
+              tokenFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; description = "A file holding a GitHub token that can read the repository (e.g. config.sops.secrets.github_token.path), for a private repository over HTTPS."; };
               keyFile = lib.mkOption { type = lib.types.nullOr lib.types.path; default = null; description = "A read-only deploy key (SSH private key) for a private repository, e.g. a sops secret's path. Without it the repository is read over HTTPS, which works only while it is public."; };
               sshRepo = lib.mkOption { type = lib.types.str; default = "git@github.com:malleum/heartstone.git"; description = "The repository's SSH address, used with keyFile."; };
               enable = lib.mkOption { type = lib.types.bool; default = true; description = "Keep the server on the newest commit of the repository by itself (it restarts onto a new one when nobody is in a fight), instead of only when NixOS is switched."; };
@@ -153,7 +161,9 @@
                   then "${mkLiveServer pkgs { inherit (cfg.autoUpdate) repo sshRepo branch every; }}/bin/heartstone-server-live"
                   else "${mkServer pkgs}/bin/heartstone-server";
                 EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
-                LoadCredential = lib.mkIf (cfg.autoUpdate.enable && cfg.autoUpdate.keyFile != null) [ "deploykey:${toString cfg.autoUpdate.keyFile}" ];
+                LoadCredential = lib.mkIf cfg.autoUpdate.enable
+                  ((lib.optional (cfg.autoUpdate.tokenFile != null) "ghtoken:${toString cfg.autoUpdate.tokenFile}")
+                   ++ (lib.optional (cfg.autoUpdate.keyFile != null) "deploykey:${toString cfg.autoUpdate.keyFile}"));
                 DynamicUser = true;
                 StateDirectory = "heartstone";
                 Environment = [ "HOME=/var/lib/heartstone" ];
