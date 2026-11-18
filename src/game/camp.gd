@@ -836,7 +836,7 @@ func _menu_fill() -> void:
 		_row(menu_box, "The server", Updater.label(server_stamp))
 		if server_version != Session.version():
 			var who := Updater.behind(Updater.stamp(), server_stamp) if not server_stamp.is_empty() else "the server"
-			var same := String(server_stamp.get("commit", "")) != "" and server_stamp.get("commit", "") == Updater.stamp().get("commit", "")
+			var same: bool = String(server_stamp.get("commit", "")) != "" and server_stamp.get("commit", "") == Updater.stamp().get("commit", "")
 			_text(menu_box, "They do not match, so fights are played offline. %s" % ("Same build, different game data: the server's copy is stale and needs restarting." if same else "%s is out of date." % who.capitalize() if who != "" else "Update both."), 13, Color(1.0, 0.6, 0.45))
 	_section(menu_box, "Your place on the server")
 	_text(menu_box, "Every fight is held on the server, so friends anywhere can join. Your character is kept there too, guarded by your passphrase.", 13, Color(0.66, 0.67, 0.72))
