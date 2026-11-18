@@ -154,6 +154,9 @@ static func choices(p: Dictionary) -> Array:
 		for w in p.weaves:
 			if Rules.weaves.has(w) and p.weaves[w].get("known", false) and Rules.mastery_level(p, w) < Rules.TUNE.mastery_cap:
 				out.append({kind = "weave", id = w, name = Rules.weaves[w].name})
+		# Or a new weave: any the chart says comes next from what is known.
+		for w in Rules.study_options(p):
+			out.append({kind = "learn", id = w, name = "Learn " + Rules.weaves[w].name})
 		return out
 	var fams := {}
 	for w in p.get("kit", []):
@@ -182,6 +185,10 @@ static func pick(p: Dictionary, choice_kind: String, id: String) -> String:
 			# One level of mastery: the xp for the next level.
 			var lv := Rules.mastery_level(p, id) + 1
 			p.weaves[id].xp = maxf(p.weaves[id].xp, float(lv * lv) * Rules.TUNE.mastery_xp)
+		"learn":
+			if p.get("cls", "channeller") != "channeller" or not Rules.study_options(p).has(id):
+				return "not a weave you can learn yet"
+			p.weaves[id] = {known = true, xp = 0.0}
 		"skill":
 			var lv := Rules.skill_level(p, id) + 1
 			if not p.has("skills"):

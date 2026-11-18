@@ -237,6 +237,11 @@ func link() -> void:
 	if is_host: _do_arms(1, "link", [])
 	else: _arms.rpc_id(1, "link", [])
 
+## Drop the weave being made, unloosed (Sim.cancel_weave).
+func cancel_weave() -> void:
+	if is_host: _do_arms(1, "cancel", [])
+	else: _arms.rpc_id(1, "cancel", [])
+
 ## Tie or untie someone with rope (held down; Sim.set_tying).
 func tie_rope(on: bool) -> void:
 	if is_host: _do_arms(1, "rope", [on])
@@ -311,6 +316,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			if a.size() == 1 and a[0] is String and Rules.weaves.has(a[0]): why = sim.tie(ent, a[0])
 		"link":
 			why = sim.request_link(ent)
+		"cancel":
+			why = sim.cancel_weave(ent)
 		"rope":
 			if a.size() == 1 and a[0] is bool: why = sim.set_tying(ent, a[0])
 		"df_gate":

@@ -199,8 +199,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 			session.tie_rope(true)
 		elif ev.physical_keycode == Keys.k(KEY_J) and darkfriend:
 			session.df_gate()
-		elif ev.physical_keycode == Keys.k(KEY_TAB) and not team_meter.is_empty():
-			_show_picks(pick_card == null or not pick_card.visible)
+		elif ev.physical_keycode == Keys.k(KEY_TAB):
+			if profile.get("cls", "channeller") == "channeller":
+				_show_tree(tree_view == null or not tree_view.visible)
+			elif not team_meter.is_empty():
+				_show_picks(pick_card == null or not pick_card.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
 			session.dream(dream_keys[ev.physical_keycode], _aim_point())
 		elif ev.physical_keycode == Keys.k(KEY_Q):
@@ -262,6 +265,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 					session.draw(true)
 			else:
 				_cast_selected()
+		elif ev.button_index == MOUSE_BUTTON_RIGHT and (weaving or not my_form.is_empty()) and me:
+			# Right click while weaving: let it go, unloosed.
+			weaving = false
+			session.cancel_weave()
 		elif ev.button_index == MOUSE_BUTTON_RIGHT and hand() != "" and me:
 			# A parry is the press, not the hold.
 			if Rules.guard_share(profile, hand()) <= 0.0:
@@ -660,6 +667,14 @@ func _on_started(_my_id: int, activity: String) -> void:
 		_ally = session.sim.add_player(ap, Vector3(2.5, 0, 1.0))
 		if args.has("ally_hp"):
 			session.sim.ents[_ally].hp = float(args.ally_hp)
+	# --levels=N: the team starts N levels up, choices waiting (a quick look at
+	# levelling). --fast: the waves come four times as fast.
+	if session.is_host and session.sim.round_mode:
+		for i in int(args.get("levels", "0")):
+			session.sim._gain(Round.xp_for(session.sim.team_level))
+		if args.has("fast"):
+			for w in session.sim._waves:
+				w.t = 3.0 + (w.t - 3.0) * 0.25
 	if args.has("tour"):
 		var st: Dictionary = Launch.TOUR[Launch.tour]
 		print("TOUR station %d %s" % [Launch.tour + 1, st.title])
@@ -811,6 +826,7 @@ func _update_windows() -> void:
 			(v.vp as SubViewport).size = get_viewport().get_visible_rect().size
 
 # --- the round, as this player sees it -------------------------------------------
+var autos := {}                    # weaves left going by themselves (G on a weave that strikes)
 var darkfriend := false          # told in secret: this player serves the Shadow
 var team_meter: Array = []        # [team level, share of the way to the next]
 var mirror := {}                  # my round copy as far as I can know it (no potential)
@@ -862,13 +878,44 @@ func _round_picked(e: Dictionary) -> void:
 	if not mirror.is_empty():
 		mirror.round.picks = e.picks
 	# New arms and forms go on the bar.
-	if e.kind in ["weapon", "form"] and not known.has(e.choice):
+	if e.kind in ["weapon", "form", "learn"] and not known.has(e.choice):
 		known.append(e.choice)
 		if e.kind == "weapon":
 			var row: Dictionary = Rules.weapons[e.choice]
 			ammo[e.choice] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
 	if pick_card and pick_card.visible:
 		_show_picks(true)
+	if tree_view and tree_view.visible:
+		_show_tree(true)
+
+var tree_view: WeaveTree
+var tree_note: Label
+
+## Tab for a channeller: the weave chart, any time. With a level-up to spend, click a
+## weave you know to grow it or an open one to learn it.
+func _show_tree(on: bool) -> void:
+	if tree_view == null:
+		tree_view = WeaveTree.new(); hud_layer.add_child(tree_view)
+		tree_view.pickable = true
+		tree_view.chosen.connect(func(id: String) -> void:
+			var vp := view_profile()
+			if vp.get("round", {}).get("picks", 0) <= 0:
+				return
+			session.pick("weave" if Rules.knows(vp, id) else "learn", id))
+		tree_note = Label.new(); hud_layer.add_child(tree_note)
+		tree_note.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		tree_note.offset_top = 18; tree_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tree_note.add_theme_font_override("font", Glyph.serif()); tree_note.add_theme_font_size_override("font_size", 22)
+		tree_note.add_theme_color_override("font_color", Glyph.GOLD)
+	tree_view.visible = on
+	tree_note.visible = on
+	if on:
+		tree_view.profile = view_profile()
+		var left: int = view_profile().get("round", {}).get("picks", 0)
+		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 else "The weave chart   ·   Tab closes"
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif not args.has("auto") and DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 ## Tab: what this level-up can grow, from your tree (Round.choices).
 func _show_picks(on: bool) -> void:
@@ -900,6 +947,7 @@ func _show_picks(on: bool) -> void:
 			"weave": now = "mastery %d → %d" % [Rules.mastery_level(vp, ch.id), Rules.mastery_level(vp, ch.id) + 1]
 			"skill": now = "%d → %d" % [Rules.skill_level(vp, ch.id), Rules.skill_level(vp, ch.id) + 1]
 			"form": now = "new form"
+			"learn": now = "new weave"
 			"weapon": now = "new weapon"
 		b.text = "%s   ·   %s" % [ch.name, now]
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1145,6 +1193,16 @@ func _on_events(list: Array) -> void:
 			"balefire_unmade":
 				if e.n > 0:
 					_banner("Balefire\nWhat it did these last moments never happened: %d stand%s again." % [e.n, "s" if e.n == 1 else ""], 5.0, "good")
+			"auto":
+				if e.id == session.my_id:
+					if e.on: autos[e.weave] = true
+					else: autos.erase(e.weave)
+					_banner("%s %s" % [Rules.weaves[e.weave].name, "goes on by itself\nIt keeps its flows and weaves itself at the nearest foe. %s again stops it." % Keys.name(KEY_G) if e.on else "stops"], 3.0, "info")
+			"cancel":
+				if e.id == session.my_id:
+					my_form = {}
+				if actors.has(e.id):
+					_end_form(actors[e.id])
 			"tied", "untied":
 				var who: String = "You are" if e.id == session.my_id else "%s is" % (actors[e.id].get("name", "Someone") if actors.has(e.id) else "Someone")
 				if e.e == "tied":
@@ -1424,6 +1482,13 @@ func _on_events(list: Array) -> void:
 						# A step back, still facing them: the jog run backwards, leaning away.
 						ap.play("Jog_Fwd", 0.04, -2.6, true)
 						a.lean = {t = 0.0, time = e.time}
+					elif e.get("vault", false):
+						# Over a wall or a wagon: a jump, carried up and over (see _draw_actors).
+						ap.play("Jump" if ap.has_animation("Jump") else "Roll", 0.05, ap.get_animation("Jump").length / maxf(e.time, 0.1) if ap.has_animation("Jump") else 1.0)
+						a.roll_yaw = atan2(e.dir.x, e.dir.z)
+						a.roll_until = clock + e.time
+						a.vault = {t = 0.0, time = e.time}
+						a.node.rotation.y = a.roll_yaw
 					else:
 						# A roll goes head first the way you are travelling, so the body
 						# turns that way for as long as it lasts.
@@ -1759,7 +1824,14 @@ func _draw_actors(dt: float) -> void:
 					w.vel = Vector3.ZERO
 					w.pos += to * minf(10.0 * dt, 1.0)
 				else:
-					w.vel = (to * 3.0).limit_length(5.5) if to.length() > 0.25 else Vector3.ZERO
+					w.vel = (to * 3.0).limit_length(6.5) if to.length() > 0.25 else Vector3.ZERO
+					# Catching up backwards (after being thrown): step back still facing the
+					# way the sim says, rather than turning round to walk there.
+					w.face_yaw = a.yaw if to.dot(Vector3(sin(a.yaw), 0, cos(a.yaw))) < -0.1 else 999.0
+					# Standing still (an archer drawing, a blow coming): it faces where
+					# the sim says, at you.
+					if to.length() <= 0.25:
+						w.heading = lerp_angle(w.heading, a.yaw, minf(8.0 * dt, 1.0))
 			walkers.append(w)
 		elif a.node is Hound:
 			var h: Hound = a.node
@@ -1783,12 +1855,21 @@ func _draw_actors(dt: float) -> void:
 			var tgt := _ground(a.target)
 			var speed := n.position.distance_to(tgt) / maxf(dt, 0.001)
 			n.position = n.position.lerp(tgt, minf(12.0 * dt, 1.0))
+			if a.has("vault"):
+				# Up and over: an arc on top of the ground.
+				a.vault.t += dt
+				var k: float = clampf(a.vault.t / maxf(a.vault.time, 0.01), 0.0, 1.0)
+				n.position.y += sin(k * PI) * 1.6
+				if k >= 1.0:
+					a.erase("vault")
 			if a.get("roll_until", 0.0) > clock:
 				n.rotation.y = a.roll_yaw
 			else:
 				n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			a.speed = speed
+			a.cloak_speed = lerpf(a.get("cloak_speed", 0.0), speed, minf(4.0 * dt, 1.0))
+			Hero.cloak_motion(n, a.cloak_speed)
 			if a.get("downed", false) or a.get("dead", false):
 				continue     # lying where they fell (Death01 holds its last frame)
 			_flourish(a, n, dt)

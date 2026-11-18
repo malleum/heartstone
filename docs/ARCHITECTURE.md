@@ -514,6 +514,19 @@ outlasts it.
   (`_circle_mult`) and two more flows per member; members cannot channel and cannot
   leave unless she lets them go (L again). A blow of a quarter of their health, or
   going down, knocks someone out.
+- (17 Nov, after the user's play) Level-ups can learn a new weave from the chart
+  (`learn` in `Round.choices`); Tab opens the weave chart for a channeller (click a
+  known weave to grow it, an open one to learn it); a lone choice takes itself. G on
+  a weave that strikes keeps it going by itself (`Sim.toggle_auto`: it holds its
+  flows and weaves itself at the nearest foe whenever ready). Right click drops a
+  weave being made. A cleared field brings the next wave in 6 s. Trollocs are a
+  little faster, begin their blow while still closing, and a Hammer of Air drops
+  some to a knee; the player is a little slower (4.7 m/s base). Space by a low wall
+  or a wagon vaults it (`Map.vault_over`). Wagons collide as oriented boxes
+  (`rot`). Archers need a clear line (wagons and trees block it; a breastwork is
+  shot over). Natural healing is slow (0.8%/s after 10 s). Ranks show one number.
+  The cloak hangs from the shoulders (leg weights moved to the pelvis at load) and
+  swings in the shader with speed (`Hero.cloak_motion`).
 - **Results.** `Progression._award_round`: a loss pays nothing; a win pays renown and
   one unlock owed (`unlocks_owed`; the camp's unlock choice is not built yet).
 - **Characters and loadouts** (`Profile.make`, camp `_loadout`, `_retrain`, `_unlocks`).

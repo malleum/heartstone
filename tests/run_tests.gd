@@ -169,7 +169,7 @@ func _foes() -> void:
 	sim._wound(fade, 0.01, id, "sword", {down = 2.0}, Vector3(0, 0, 1))
 	check(fade.down == 0.0, "it cannot be knocked down")
 	fade.pos = sim.ents[id].pos + Vector3(0, 0, 1.5)
-	var seen := run(sim, 3.0)
+	var seen := run(sim, 6.0)
 	check(seen.has("fester") and sim.ents[id].get("fester", 0.0) > 0.0, "its blade leaves a festering wound")
 	fade.hp = 0.001; fade.stagger = 1.0
 	sim._hurt(fade, 1.0, id, "sword")
@@ -1066,6 +1066,39 @@ func _rounds() -> void:
 	check(ls.ents[m2].get("circle_of", 0) == 0 and ls.ents[w1].circle.size() == 1, "a heavy blow knocks a member out of the circle")
 	ls.request_link(w1)
 	check(ls.ents[w1].circle.is_empty() and ls.ents[m1].circle_of == 0, "the leader lets them go")
+
+	# New weaves can be learned at a level-up; a lone choice takes itself.
+	var lr := Sim.new("tarwins_gap_watch", 91)
+	lr._waves = []; lr._add_enemy("dummy", Vector3(0, 0, -90))
+	var lp := lr.add_player(Profile.create({name = "Learner", power = "saidin", potential_pts = 8}))
+	var opts := Round.choices(lr.ents[lp].profile).filter(func(c: Dictionary) -> bool: return c.kind == "learn")
+	check(not opts.is_empty(), "a level-up can teach a new weave from the chart")
+	lr.ents[lp].profile.round.picks = 1
+	check(lr.request_pick(lp, "learn", opts[0].id) == "" and lr.ents[lp].profile.weaves.has(opts[0].id), "and it is learned there and then")
+	# Vaulting: Space by a wagon goes over it.
+	var vs := Sim.new("wagon_ring", 92)
+	vs._waves = []
+	var wg: Dictionary = Map.walls()[0]
+	var vp := vs.add_player(Profile.create({name = "Vaulter", power = "saidin"}))
+	var toward := Vector3(sin(float(wg.rot)), 0, cos(float(wg.rot)))
+	var across := Vector3(toward.z, 0, -toward.x)   # the wagon's short way
+	vs.ents[vp].pos = Vector3(wg.x, 0, wg.z) - across * 1.9
+	vs.ents[vp].stamina = 999.0
+	check(vs.request_dodge(vp, across, true) == "" and vs.ents[vp].dash.get("vault", false), "Space by a wagon is a vault")
+	run(vs, 1.0)
+	check(Map._local(wg, vs.ents[vp].pos.x, vs.ents[vp].pos.z).dot(Map._local(wg, wg.x + across.x, wg.z + across.z)) > 0.0, "and lands on the far side")
+	check(not Map.in_wall(Vector3(wg.x, 0, wg.z) + across * 1.3 + Vector3(0, 0.5, 0)), "a wagon's solid is the wagon, not a box round it")
+	# A weave left going by itself.
+	var au := Sim.new("practice", 93)
+	au._waves = []
+	var ap := au.add_player(Profile.create({name = "Autocaster", power = "saidin", potential_pts = 8, affinity_pts = {fire = 6}}))
+	au.ents[ap].profile.channelled = float(Rules.TUNE.flow_steps[4])
+	au._add_enemy("trolloc", Vector3(0, 0, 10))
+	var auseen := []
+	check(au.tie(ap, "fireball") == "" and au.ents[ap].autos.has("fireball"), "G on a weave that strikes keeps it going by itself")
+	auseen = run(au, 4.0)
+	check(auseen.has("cast"), "and it weaves itself at the nearest foe")
+	check(au.tie(ap, "fireball") == "" and au.ents[ap].autos.is_empty(), "G again stops it")
 
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)

@@ -164,6 +164,8 @@ func free_slots(p: Dictionary) -> int:
 	for h in p.held:
 		if h.tied == 0.0:
 			used += Rules.slots_of(Rules.weaves[h.weave], p.profile)
+	for w in p.get("autos", []):
+		used += Rules.slots_of(Rules.weaves[w], p.profile)
 	return Rules.flow_capacity(p.profile) + 2 * p.get("circle", []).size() - used
 
 ## Who a held weave aimed at `aim` would fasten on: the nearest body the weave can
@@ -186,6 +188,9 @@ func _aimed(p: Dictionary, w: Dictionary, aim: Vector3) -> int:
 ## flows it took are yours again. A technique, learned and not born with.
 func tie(id: int, weave: String) -> String:
 	var p: Dictionary = ents[id]
+	# On a weave that strikes and is done, the same key keeps it going by itself.
+	if not Rules.weaves[weave].get("hold", false):
+		return toggle_auto(id, weave)
 	if not Rules.has_technique(p.profile, "tie_off"):
 		return "you have not learned to tie off a weave"
 	var any := false
@@ -195,6 +200,59 @@ func tie(id: int, weave: String) -> String:
 			any = true
 			events.append({e = "tie", id = id, weave = weave, target = h.target})
 	return "" if any else "you are not holding that"
+
+## Let go of a weave being made, or made and held back, without loosing it.
+func cancel_weave(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or p.forming.is_empty():
+		return "nothing being woven"
+	events.append({e = "cancel", id = id, weave = p.forming.weave})
+	p.forming = {}
+	return ""
+
+## A weave left going on its own (G on a weave that strikes): it keeps the flows it
+## needs, and weaves itself again at the nearest foe in reach whenever it is ready,
+## paying its own stamina. The hands stay free for something else.
+func toggle_auto(id: int, weave: String) -> String:
+	var p: Dictionary = ents[id]
+	if not p.has("autos"):
+		p.autos = []; p.auto_t = {}
+	if p.autos.has(weave):
+		p.autos.erase(weave)
+		events.append({e = "auto", id = id, weave = weave, on = false})
+		return ""
+	var w: Dictionary = Rules.weaves[weave]
+	if Rules.slots_of(w, p.profile) > free_slots(p):
+		return "not enough flows to keep it going"
+	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.stamina)
+	if why != "":
+		return why
+	p.autos.append(weave)
+	p.auto_t[weave] = t + Rules.form_time(p.profile, weave)
+	events.append({e = "auto", id = id, weave = weave, on = true})
+	return ""
+
+func _step_autos(p: Dictionary) -> void:
+	for weave in p.get("autos", []):
+		if t < p.auto_t.get(weave, 0.0):
+			continue
+		var reach: float = float(Rules.weaves[weave].base.get("range", 25.0))
+		var best := {}; var bd := reach
+		for e in _targets(p):
+			var d: float = e.pos.distance_to(p.pos)
+			if d < bd and e.get("row", {}).get("speed", 1.0) > 0.0:
+				bd = d; best = e
+		if best.is_empty():
+			p.auto_t[weave] = t + 0.3
+			continue
+		var cost := Rules.draw_of(p.profile, weave, p.stamina)
+		if cost > p.stamina:
+			p.auto_t[weave] = t + 1.0
+			continue
+		p.stamina -= cost
+		_cast(p, weave, _feet(best) + Vector3(0, 1.1, 0))
+		events.append({e = "cast", id = p.id, weave = weave, auto = true})
+		p.auto_t[weave] = t + Rules.form_time(p.profile, weave) + Rules.cooldown(p.profile, weave)
 
 ## Start forming a weave at an aim point. Returns "" or the reason it was refused.
 ## `hold`: the weave, once made, waits in the hands until aim_cast lets it go
@@ -417,8 +475,13 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	# Leaving is always possible: it abandons a blow or a weave half made.
 	p.swing = {}; p.queued = {}; p.forming = {}; p.guard = false; p.drawing = false
 	p.dash = {vel = dir * (d.dist / d.time), left = d.time}
-	p.safe_until = t + d.safe
-	events.append({e = "dodge", id = id, roll = rolling, back = back, dir = dir, time = d.time})
+	# A low wall or a wagon right ahead: over it, not into it.
+	var over := Map.vault_over(p.pos, dir, 1.6, p.radius) if not back else 0.0
+	if over > 0.0:
+		var secs := maxf(d.time, over / 7.0)
+		p.dash = {vel = dir * (over / secs), left = secs, vault = true}
+	p.safe_until = t + maxf(d.safe, p.dash.left if over > 0.0 else 0.0)
+	events.append({e = "dodge", id = id, roll = rolling, back = back, dir = dir, time = p.dash.left, vault = over > 0.0})
 	return ""
 
 ## The friend a Healing aimed here would reach: the most hurt within reach of the
@@ -489,6 +552,17 @@ func step(dt: float) -> void:
 				p.pos = Map.clamp_pos(Map.unblock(p.pos + p.move * p.speed * dt, p.radius))
 		return
 	t += dt
+	# A round's field cleared early: the next wave comes in a few seconds, not when
+	# its timer says.
+	if round_mode and not _waves.is_empty() and _waves[0].t > t + 6.0:
+		var any_foe := false
+		for id in ents:
+			if ents[id].kind == "enemy" and ents[id].alive and ents[id].get("row", {}).get("speed", 1.0) > 0.0:
+				any_foe = true; break
+		if not any_foe:
+			var shift: float = _waves[0].t - (t + 6.0)
+			for w in _waves:
+				w.t -= shift
 	# Bots that belong to the fight itself (an Aes Sedai's Warder) are driven here,
 	# so they fight the same on a server as on a desk.
 	for id in ents:
@@ -929,8 +1003,10 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		step *= p.mire
 	if dream:
 		Dream.step_player(self, p, dt)
-	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius))
+	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius, not p.dash.get("vault", false)))
 	_step_holds(p, dt)
+	if not p.get("autos", []).is_empty() and not p.get("downed", false) and p.severed <= t:
+		_step_autos(p)
 	_step_swing(p, dt)
 	if p.forming.is_empty():
 		return
@@ -1159,6 +1235,9 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 		"cone":
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
+				# Thrown back, some are knocked to a knee.
+				if e.kind == "enemy" and d.length() < b.range * kr and rng.randf() < 0.35:
+					e.down = maxf(e.down, 0.9)
 				if d.length() < b.range * kr and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc:
 					e.vel = d.normalized() * b.push
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
@@ -1740,7 +1819,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			# falls back on its blade like any other.
 			e.yaw = atan2(target.pos.x - e.pos.x, target.pos.z - e.pos.z)
 			e.blow = {}
-			if far > shot.range or Map.crosses(e.pos, target.pos, 0.0) and far > shot.keep:
+			# No clear line (a wall, a wagon, a tree in the way): move until there is one.
+			# (A waist-high breastwork is shot over; ducking behind it is the cover.)
+			if far > shot.range or Map.crosses(e.pos, target.pos, 0.0, 1.6) or not _clear_of_trees(e.pos, target.pos):
 				want = _steer(e, target) * e.speed
 				e.atk = 0.0
 			else:
@@ -1780,10 +1861,14 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 						e.think = t + rng.randf_range(1.0, 2.0)
 			else:
 				e.yaw = atan2(to.x, to.z)
-				if dist > e.row.reach * 0.8:
+				if dist > e.row.reach * 1.7:
 					want = _steer(e, target) * e.speed
 					e.atk = 0.0; e.blow = {}
 				else:
+					# Close enough to begin the blow: it keeps coming as it winds up,
+					# rather than stopping first and giving the game away.
+					if dist > e.row.reach * 0.8:
+						want = _steer(e, target) * e.speed * 0.85
 					if e.blow.is_empty():
 						if pressing.get(target.id, 0) >= int(Rules.TUNE.gang):
 							e.move = want
@@ -2137,6 +2222,10 @@ func _gain(xp: float) -> void:
 			p.speed = Rules.run_speed(p.profile)
 			out.e = "level"; out.id = id; out.picks = p.profile.round.picks
 			events.append(out)
+			# Only one thing it could be: it is done, nobody need choose.
+			var ch := Round.choices(p.profile)
+			if ch.size() == 1:
+				request_pick(id, ch[0].kind, ch[0].id)
 
 ## The team's level and how far to the next, for the view.
 func round_meter() -> Array:
@@ -2153,6 +2242,8 @@ func request_pick(id: int, kind: String, choice: String) -> String:
 	if kind == "weapon":
 		var row: Dictionary = Rules.weapons[choice]
 		p.ammo[choice] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
+	if kind == "learn" and Rules.weaves[choice].has("hold"):
+		pass
 	events.append({e = "picked", id = id, kind = kind, choice = choice, picks = p.profile.round.picks})
 	return ""
 

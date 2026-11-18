@@ -38,6 +38,10 @@ func _draw() -> void:
 	if p.get("cls", "channeller") == "channeller":
 		# In a round your potential is yours to find out: only where you stand now.
 		var line := "strength %s" % Rules.level_name(Rules.level_of(Rules.strength(p))) if p.has("round") else "strength %s   of %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(Rules.level_of(p.potential))]
+		# Tired, you weave below your strength: both, so neither is mistaken for the other.
+		var eff := Rules.level_of(Rules.strength(p) * Rules.vigor(g.my_stamina))
+		if eff > Rules.level_of(Rules.strength(p)):
+			line = "strength %s   ·   tired, weaving as %s" % [Rules.level_name(Rules.level_of(Rules.strength(p))), Rules.level_name(eff)]
 		Glyph.text(self, sans, Vector2(30, 78), line, 15, Color(0.85, 0.85, 0.9))
 		# Flows: gold is free, a Power's colour is a flow holding a weave.
 		var used: Array = g.used_flows()
@@ -79,7 +83,7 @@ func _draw() -> void:
 	var st: float = g.my_stamina / Rules.TUNE.stamina
 	Glyph.bar(self, Vector2(bx - 6, by + 24), 330, 9, st, Color(0.85, 0.9, 1.0), Color(0.35, 0.5, 0.85))
 	var vig := Rules.vigor(g.my_stamina)
-	var tired := ("weaves at %d%%  ·  as strength %s" % [int(vig * 100.0), Rules.level_name(Rules.level_of(Rules.strength(p) * vig))]) if p.get("cls", "channeller") == "channeller" else "blows at %d%% strength" % int(vig * 100.0)
+	var tired := ("tired: weaves at %d%%" % int(vig * 100.0) if vig < 0.995 else "") if p.get("cls", "channeller") == "channeller" else ("tired: blows at %d%%" % int(vig * 100.0) if vig < 0.995 else "")
 	Glyph.text(self, sans, Vector2(bx - 6, by + 54), tired, 13, Color(0.75, 0.8, 0.9) if vig > 0.6 else Color(1.0, 0.7, 0.45))
 
 	if g.dreaming:
@@ -118,7 +122,7 @@ func _draw() -> void:
 				if uses:
 					Glyph.text(self, sans, c + Vector2(r * 0.75, r * 0.95), str(left), 13, Color.WHITE if left > 0 else Color(1.0, 0.5, 0.4), 0)
 				if i < 9:
-					Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+					Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
 				continue
 			var is_form: bool = Rules.forms.has(id)
 			var total: float = float(Rules.forms[id].cooldown) if is_form else Rules.cooldown(p, id)
@@ -138,6 +142,8 @@ func _draw() -> void:
 					for q in 4:
 						draw_arc(c, r + 2.0, q * PI * 0.5 + 0.3, q * PI * 0.5 + 1.27, 10, Color(Glyph.GOLD, 0.95), 2.5, true)
 					Glyph.text(self, sans, c + Vector2(0, r + 16), "tied", 11, Glyph.GOLD, 0)
+				elif g.autos.has(id):
+					Glyph.text(self, sans, c + Vector2(0, r + 16), "by itself", 11, Glyph.GOLD, 0)
 			if wait > 0.0 and total > 0.0:
 				# The cooldown drains like a clock face.
 				var f := clampf(wait / total, 0.0, 1.0)
@@ -149,7 +155,7 @@ func _draw() -> void:
 					draw_colored_polygon(pts, Color(0, 0, 0, 0.62))
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
-				Glyph.text(self, sans, c + Vector2(0, -r - 9), str(i + 1), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+				Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
 		var sel_id: String = known[g.selected]
 		var sw: Dictionary = Rules.forms[sel_id] if Rules.forms.has(sel_id) else (Rules.weapons[sel_id] if Rules.weapons.has(sel_id) else Rules.weaves[sel_id])
 		Glyph.text(self, serif, Vector2(W * 0.5, H - 132.0), sw.name, 22, Color(0.97, 0.94, 0.88), 0)

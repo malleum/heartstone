@@ -71,8 +71,8 @@ const TUNE := {
 	spar_cap = 0.07,           # and the most of a body one such blow can take
 	bond_reach = 15.0,         # a Warder and a channeller this close both recover stamina faster
 	bond_regen = 3.0,
-	rest_after = 6.0,          # s without being hurt before you catch your breath
-	rest_regen = 0.03,         # share of full health recovered each second after that
+	rest_after = 10.0,         # s without being hurt before you catch your breath
+	rest_regen = 0.008,        # share of full health recovered each second after that (slow: a fight is won by Healing, not waiting)
 	# One dodge: a roll the way you are moving, or a step back if you are standing.
 	sidestep = {dist = 3.6, time = 0.4, safe = 0.32, cost = 16.0},
 }
@@ -175,10 +175,12 @@ static func vigor(stamina: float) -> float:
 
 ## "19(7)", "8(+5)" or "++2": the level, then its rank on the older White Tower
 ## scale, which began at what is now 13.
+## "19", or "++2" for the six men's levels above the strongest woman. (The older
+## White Tower number in brackets was dropped: the player knows what the main one means.)
 static func level_name(level: int) -> String:
 	if level <= 0:
 		return "++%d" % (level + 6)
-	return "%d(%s)" % [level, str(level - 12) if level > 12 else "+%d" % (13 - level)]
+	return str(level)
 
 static func mastery_level(p: Dictionary, weave_id: String) -> int:
 	var xp: float = p.weaves.get(weave_id, {}).get("xp", 0.0)
@@ -363,7 +365,7 @@ static func dodge(p: Dictionary, rolling: bool) -> Dictionary:
 
 static func run_speed(p: Dictionary) -> float:
 	# Those who fight with their hands run faster than those who weave.
-	return 5.2 * cls(p).speed * (1.15 if p.get("cls", "channeller") != "channeller" else 1.0) * (1.0 + 0.01 * stat(p, "quickness"))
+	return 4.7 * cls(p).speed * (1.15 if p.get("cls", "channeller") != "channeller" else 1.0) * (1.0 + 0.01 * stat(p, "quickness"))
 
 ## Seconds to draw (or span) and loose, at this character's skill.
 static func draw_time(p: Dictionary, weapon_id: String) -> float:

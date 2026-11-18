@@ -11,6 +11,7 @@ const ORDER := ["fire", "air", "water", "spirit", "earth"]   # neighbours are th
 const RADII := [1.0, 0.67, 0.4, 0.2]
 
 var profile := {}
+var pickable := false   # in a round: a known weave can be chosen too (to grow it)
 var t := 0.0
 var hover := ""
 var _pos := {}       # weave id -> Vector2
@@ -133,7 +134,7 @@ func _gui_input(ev: InputEvent) -> void:
 			if (ev.position / _k()).distance_to(_pos[id]) < _node_r() * 1.25:
 				hover = id
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-		if hover != "" and _state(hover) == "open":
+		if hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known")):
 			chosen.emit(hover)
 
 func _draw() -> void:

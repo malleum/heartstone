@@ -48,7 +48,9 @@ static func use(map_id: String) -> void:
 			var c := Vector3(sin(a), 0, cos(a)) * float(m.ring)
 			# Each wagon lies along the circle; the solid is its bounding box.
 			var along := absf(cos(a)); var across := absf(sin(a))
-			_walls.append({x = c.x, z = c.z, hx = 0.9 + 1.5 * along, hz = 0.9 + 1.5 * across, h = 2.1, yaw = a, look = "wagon"})
+			# The solid is the wagon itself, turned as it stands (its bed is 1.5 by
+			# 4.2, its wheels a little wider), not a box round it.
+			_walls.append({x = c.x, z = c.z, hx = 0.95, hz = 2.2, h = 2.1, yaw = a, rot = a + PI * 0.5, look = "wagon"})
 	var rng := RandomNumberGenerator.new(); rng.seed = 23
 	for i in 22:
 		var z := rng.randf_range(-95.0, 30.0) if not m.is_empty() else rng.randf_range(-60.0, 30.0)
@@ -67,12 +69,29 @@ static func trees() -> Array:
 static func walls() -> Array:
 	return _walls
 
+## A point in a wall's own frame (a wall may be turned: `rot`, as the view turns it).
+static func _local(w: Dictionary, x: float, z: float) -> Vector2:
+	var dx: float = x - w.x; var dz: float = z - w.z
+	var r: float = w.get("rot", 0.0)
+	if r == 0.0:
+		return Vector2(dx, dz)
+	return Vector2(dx * cos(r) - dz * sin(r), dx * sin(r) + dz * cos(r))
+
+static func _world(w: Dictionary, l: Vector2) -> Vector2:
+	var r: float = w.get("rot", 0.0)
+	if r == 0.0:
+		return Vector2(w.x + l.x, w.z + l.y)
+	return Vector2(w.x + l.x * cos(r) + l.y * sin(r), w.z - l.x * sin(r) + l.y * cos(r))
+
 ## Does the straight line from a to b cross a wall (grown by `pad`)?
-static func crosses(a: Vector3, b: Vector3, pad := 0.5) -> bool:
+static func crosses(a: Vector3, b: Vector3, pad := 0.5, min_h := 0.0) -> bool:
 	for w in _walls:
+		if float(w.h) < min_h:
+			continue
 		var t0 := 0.0; var t1 := 1.0
 		var hit := true
-		for ax in [[a.x, b.x - a.x, w.x, w.hx + pad], [a.z, b.z - a.z, w.z, w.hz + pad]]:
+		var la := _local(w, a.x, a.z); var lb := _local(w, b.x, b.z)
+		for ax in [[la.x, lb.x - la.x, 0.0, w.hx + pad], [la.y, lb.y - la.y, 0.0, w.hz + pad]]:
 			var o: float = ax[0]; var d: float = ax[1]
 			var lo: float = ax[2] - ax[3]; var hi: float = ax[2] + ax[3]
 			if absf(d) < 1e-6:
@@ -90,7 +109,8 @@ static func crosses(a: Vector3, b: Vector3, pad := 0.5) -> bool:
 ## Is this point inside a wall, below its top?
 static func in_wall(p: Vector3) -> bool:
 	for w in _walls:
-		if absf(p.x - w.x) < w.hx and absf(p.z - w.z) < w.hz and p.y < Terrain.height(w.x, w.z) + w.h:
+		var l := _local(w, p.x, p.z)
+		if absf(l.x) < w.hx and absf(l.y) < w.hz and p.y < Terrain.height(w.x, w.z) + w.h:
 			return true
 	return false
 
@@ -110,23 +130,49 @@ static func grid() -> Dictionary:
 			var p := Vector3(-wx + (ix + 0.5) * cell, 0, z0 + (iz + 0.5) * cell)
 			var bad: bool = absf(p.x) > half_width(p.z) - 0.4
 			for w in _walls:
-				if absf(p.x - w.x) < w.hx + 0.7 and absf(p.z - w.z) < w.hz + 0.7:
+				var l := _local(w, p.x, p.z)
+				if absf(l.x) < w.hx + 0.7 and absf(l.y) < w.hz + 0.7:
 					bad = true
 			blocked[iz * nx + ix] = 1 if bad else 0
 	_grid = {x0 = -wx, z0 = z0, nx = nx, nz = nz, cell = cell, blocked = blocked}
 	return _grid
 
-## Slide a position out of any tree trunk or wall it overlaps.
-static func unblock(p: Vector3, radius: float) -> Vector3:
+## A low wall or a wagon just ahead that can be vaulted: how far along `dir` you must
+## go to land clear of it (0 if there is none within `reach`).
+static func vault_over(p: Vector3, dir: Vector3, reach: float, radius: float) -> float:
+	var best := 0.0
 	for w in _walls:
-		var dx: float = p.x - w.x; var dz: float = p.z - w.z
-		var px: float = w.hx + radius - absf(dx); var pz: float = w.hz + radius - absf(dz)
-		if px > 0.0 and pz > 0.0:
-			# Out by the shorter way.
-			if px < pz:
-				p.x = w.x + (w.hx + radius) * (1.0 if dx >= 0.0 else -1.0)
+		if float(w.h) > 2.3:
+			continue
+		var la := _local(w, p.x, p.z); var lb := _local(w, p.x + dir.x * (reach + 6.0), p.z + dir.z * (reach + 6.0))
+		var t0 := 0.0; var t1 := 1.0; var hit := true
+		for ax in [[la.x, lb.x - la.x, w.hx + radius], [la.y, lb.y - la.y, w.hz + radius]]:
+			var o: float = ax[0]; var d: float = ax[1]; var e: float = ax[2]
+			if absf(d) < 1e-6:
+				if absf(o) > e: hit = false
 			else:
-				p.z = w.z + (w.hz + radius) * (1.0 if dz >= 0.0 else -1.0)
+				var ta := (-e - o) / d; var tb := (e - o) / d
+				t0 = maxf(t0, minf(ta, tb)); t1 = minf(t1, maxf(ta, tb))
+				if t0 > t1: hit = false
+		var length := reach + 6.0
+		if hit and t0 * length <= reach:
+			best = maxf(best, t1 * length + 0.3)
+	return best
+
+## Slide a position out of any tree trunk or wall it overlaps. walls: false while
+## vaulting over one.
+static func unblock(p: Vector3, radius: float, walls := true) -> Vector3:
+	for w in (_walls if walls else []):
+		var l := _local(w, p.x, p.z)
+		var px: float = w.hx + radius - absf(l.x); var pz: float = w.hz + radius - absf(l.y)
+		if px > 0.0 and pz > 0.0:
+			# Out by the shorter way, in the wall's own frame.
+			if px < pz:
+				l.x = (w.hx + radius) * (1.0 if l.x >= 0.0 else -1.0)
+			else:
+				l.y = (w.hz + radius) * (1.0 if l.y >= 0.0 else -1.0)
+			var out := _world(w, l)
+			p.x = out.x; p.z = out.y
 	for t in _trees:
 		var d := Vector2(p.x - t.x, p.z - t.z)
 		var min_d: float = t.r + radius

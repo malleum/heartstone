@@ -142,6 +142,62 @@ static func kind_for(profile: Dictionary) -> String:
 
 ## style: what the player chose about the body (see HAIR_COLOURS and the rest):
 ## {hair: mesh name or "none", hair_col, skin, eyes, height, build: indexes, beard: bool}.
+static var _cloaks := {}   # model -> the cloak mesh rehung from the shoulders
+
+## The cloak was skinned partly to the legs below the hips, so its lower half walked
+## with them while the top stayed with the back. Hand those weights to the pelvis:
+## it hangs from the shoulders as one cloth, and the shader swings it (cloak_motion).
+static func _cloak_from_shoulders(m: MeshInstance3D, base: String, sk: Skeleton3D) -> void:
+	if _cloaks.has(base):
+		m.mesh = _cloaks[base]
+		return
+	var mesh: ArrayMesh = m.mesh as ArrayMesh
+	if mesh == null:
+		return
+	var names := []
+	if m.skin:
+		for i in m.skin.get_bind_count():
+			var bn: String = m.skin.get_bind_name(i)
+			names.append(bn if bn != "" else sk.get_bone_name(m.skin.get_bind_bone(i)))
+	else:
+		for i in sk.get_bone_count():
+			names.append(sk.get_bone_name(i))
+	var pelvis := names.find("pelvis")
+	if pelvis < 0:
+		return
+	var legs := {}
+	for i in names.size():
+		var nm: String = String(names[i]).to_lower()
+		if nm.contains("thigh") or nm.contains("calf") or nm.contains("foot"):
+			legs[i] = true
+	var out := ArrayMesh.new()
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		for i in bones.size():
+			if legs.has(bones[i]):
+				bones[i] = pelvis
+		arr[Mesh.ARRAY_BONES] = bones
+		var flags := mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		out.add_surface_from_arrays(mesh.surface_get_primitive_type(si), arr, [], {}, flags)
+		out.surface_set_material(si, mesh.surface_get_material(si))
+	_cloaks[base] = out
+	m.mesh = out
+
+## How the cloak moves with its wearer: speed in metres a second, 0 standing.
+static func cloak_motion(root: Node3D, speed: float) -> void:
+	var m: MeshInstance3D = root.get_meta("cloak", null) if root.has_meta("cloak") else null
+	if m == null:
+		for c in root.find_children("Cloak", "MeshInstance3D", true, false):
+			m = c
+		root.set_meta("cloak", m)
+	if m == null or not m.visible or not (m.material_override is ShaderMaterial):
+		return
+	var k := clampf(speed / 5.0, 0.0, 1.4)
+	var mat: ShaderMaterial = m.material_override
+	mat.set_shader_parameter("sway", Vector3(0.0, 0.18 * k, -0.5 * k))
+	mat.set_shader_parameter("flutter", 0.3 + k)
+
 static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 	var all := looks()
 	var look: Dictionary = all.get(LEGACY.get(look_id, look_id), all.two_rivers_f)
@@ -169,6 +225,8 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 		# Trousers under a skirt only ever show as a knee poking through the cloth.
 		if look.has("skirt") and n.ends_with("_Legs"):
 			m.visible = false
+		if n == "Cloak":
+			_cloak_from_shoulders(m, look.base, sk)
 		if n in ["Skirt", "Cloak", "Shawl", "Coat"]:
 			var spec: Array = look.get(n.to_lower(), [])
 			var cut := 1.0

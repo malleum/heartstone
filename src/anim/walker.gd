@@ -36,6 +36,7 @@ var look_yaw := 0.0
 # State.
 var pos := Vector3.ZERO
 var heading := 0.0
+var face_yaw := 999.0   # < 100: face this way whatever way it walks
 var root_y := 0.0
 var phase := 0.0
 var time := 0.0
@@ -137,7 +138,10 @@ func compute(dt: float) -> void:
 	v.y = 0.0
 	var speed := v.length()
 	speed_s = lerpf(speed_s, speed, 1.0 - exp(-6.0 * dt))
-	if vel.length() > 0.1 and dead < 0.0:
+	if face_yaw < 100.0 and dead < 0.0:
+		# Told which way to face (stepping back to where it was thrown, still facing you).
+		heading = lerp_angle(heading, face_yaw, 1.0 - exp(-6.0 * dt))
+	elif vel.length() > 0.1 and dead < 0.0:
 		heading = lerp_angle(heading, atan2(vel.x, vel.z), 1.0 - exp(-4.0 * dt))
 	pos += v * dt
 	root_y = lerpf(root_y, Terrain.height(pos.x, pos.z), 1.0 - exp(-5.0 * dt))

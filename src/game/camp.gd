@@ -353,15 +353,17 @@ func _process(dt: float) -> void:
 			var fwd := -A.basis.z
 			var right := A.basis.x
 			var depth := (pos - A.origin).dot(fwd)
-			# Walking into a doorway draws you to its middle, so you come out of
-			# the far side where the body over there stands.
-			if depth > -3.0 and depth < 0.6 and move.dot(fwd) > 0.2:
-				pos -= right * (pos - A.origin).dot(right) * minf(5.0 * dt, 1.0)
-			# Its far side not made yet: wait on the sill.
-			if not _pre.game.portal_ready() and depth > -0.3:
+			var lateral := (pos - A.origin).dot(right)
+			# Only in front of this doorway's own opening: walking into it draws you
+			# to its middle, so you come out where the body over there stands...
+			if absf(lateral) < 1.3 and depth > -2.5 and depth < 0.6 and move.dot(fwd) > 0.2:
+				pos -= right * lateral * minf(5.0 * dt, 1.0)
+			# ...and if its far side is not made yet, you wait on the sill.
+			if absf(lateral) < 1.3 and not _pre.game.portal_ready() and depth > -0.3 and depth < 0.6:
 				pos -= fwd * (depth + 0.3)
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
+	Hero.cloak_motion(model, (7.5 if sprint else 5.0) if move.length() > 0.1 else 0.0)
 	var ap: AnimationPlayer = model.get_meta("anim")
 	var clip := ("Sprint" if sprint and ap.has_animation("Sprint") else "Jog_Fwd") if move.length() > 0.1 else "Idle"
 	if ap.current_animation != clip:
@@ -425,8 +427,9 @@ func _doors() -> void:
 		var a: Dictionary = Rules.activities[ids[i]]
 		# The sheet covers the left of the view, so the arc starts just left of
 		# straight ahead and runs round to the right; more doorways carry on round.
-		var ang := deg_to_rad(16.0 * i)
-		var at := Vector3(sin(ang) * 17.0, 0, -cos(ang) * 17.0)
+		# Spaced so each doorway is its own: about eight paces between them.
+		var ang := deg_to_rad(22.0 * i - 10.0)
+		var at := Vector3(sin(ang) * 20.0, 0, -cos(ang) * 20.0)
 		var sub: String = a.blurb
 		if not ids[i] in open:
 			var need := []
@@ -440,7 +443,7 @@ func _doors() -> void:
 		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub})
 		# Home from an activity: you step back out of its doorway, facing the camp.
 		if not _placed and Launch.last_activity == ids[i]:
-			pos = at * (1.0 - 2.6 / 17.0); face = atan2(-at.x, -at.z); cam_yaw = face
+			pos = at * (1.0 - 2.6 / 20.0); face = atan2(-at.x, -at.z); cam_yaw = face
 	_placed = true
 	if model:
 		model.rotation.y = face
@@ -1464,7 +1467,8 @@ func _portal(dt: float) -> void:
 				best = d
 		if _came_from != "" and pos.distance_to(_door_by_id(_came_from).get("at", Vector3(999, 0, 999))) >= 11.0:
 			_came_from = ""
-		if not _pre.is_empty() and pos.distance_to(_pre.door.at) > 13.0:
+		# Heading for another doorway: build that one behind instead.
+		if not _pre.is_empty() and (pos.distance_to(_pre.door.at) > 13.0 or (not best.is_empty() and best.id != _pre.door.id and pos.distance_to(best.at) < 7.0 and pos.distance_to(best.at) + 1.5 < pos.distance_to(_pre.door.at))):
 			_close_way()
 		if _pre.is_empty() and not best.is_empty():
 			_open_way(best)

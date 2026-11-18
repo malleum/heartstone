@@ -333,3 +333,11 @@ are what the 4:44 review, or the next session, should pick up.
 - 2026-11-17, asked by the user:
   - **Gateways as live windows:** done (17 Nov).
   - **Gateways cut:** done (17 Nov), 120 damage opening or closing on you.
+- 2026-11-17, asked by the user:
+  - **Weaves change the map for the round:** Water leaves puddles and puts out fires;
+    Earth tears down barricades and raises new ones; Air pushes sticks and debris
+    about and blows out fires; Fire sets grass and wood alight for a while.
+  - **Deaths that vary:** randomised death falls, and ragdoll corpses.
+  - **Wind:** capes stir a little when running; some maps have a steady wind that
+    always blows capes, flags and grass one way, with a little wind sound; Air weaves
+    blow capes, grass and flags as they pass.
