@@ -20,7 +20,16 @@ float noise(vec2 x) {
 // The seven Ajahs, in the order of the bands on an Accepted's dress.
 const vec3 AJAH[7] = vec3[](vec3(0.05, 0.12, 0.5), vec3(0.05, 0.3, 0.08), vec3(0.7, 0.55, 0.05), vec3(0.5, 0.03, 0.03), vec3(0.85, 0.85, 0.82), vec3(0.3, 0.3, 0.32), vec3(0.22, 0.12, 0.05));
 
-void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+// A cloak in motion: it lifts and streams back more the further down it hangs, with a
+// little flutter, set each frame from how fast the wearer goes (Hero.cloak_motion).
+uniform vec3 sway = vec3(0.0);
+uniform float flutter = 0.0;
+
+void vertex() {
+	float d = UV.y * UV.y;
+	VERTEX += sway * d + vec3(sin(TIME * 7.0 + UV.x * 6.0), 0.0, cos(TIME * 5.0 + UV.x * 4.0)) * flutter * d * 0.05;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
 
 void fragment() {
 	float v = UV.y, u = UV.x;
