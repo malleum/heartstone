@@ -222,7 +222,8 @@ are what the 4:44 review, or the next session, should pick up.
   the exercise ended. After the end the host stopped passing on its room's news and
   the sim stopped its clock, so the tie and everything after it never showed. Now
   the yard does not burn (`bare_ground`), news after the end still goes out, and
-  the retry is gone.
+  the retry is gone. (Later the same day: a strong strength roll's two fireballs
+  could still kill every post outright; the test now fixes strength at 1.)
 
 - 2026-11-18, the 5:30 review (renders of the camp, every mode and setup, the
   battle, the dream, weaves, fighters, enemies, the tour). Fixed:
