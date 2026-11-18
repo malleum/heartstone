@@ -1091,6 +1091,20 @@ func _rounds() -> void:
 	var across := Vector3(cos(float(wagon.rot)), 0, -sin(float(wagon.rot)))
 	check(not Map.in_wall(Vector3(wagon.x, 0, wagon.z) + across * 1.3 + Vector3(0, 0.5, 0)) and Map.in_wall(Vector3(wagon.x, 0.5, wagon.z)), "a wagon's solid is the wagon, not a box round it")
 
+	# Backing away is slower than going forward, slower still while weaving.
+	var bks := Sim.new("practice", 95)
+	var bkp := bks.add_player(Profile.create({name = "Backer", power = "saidin"}))
+	var bke: Dictionary = bks.ents[bkp]
+	bke.pos = Vector3.ZERO; bks.set_input(bkp, Vector3(0, 0, 1), 0.0); run(bks, 1.0)
+	var fwd_m: float = bke.pos.z
+	bke.pos = Vector3.ZERO; bks.set_input(bkp, Vector3(0, 0, -1), 0.0); run(bks, 1.0)
+	var bwd_m: float = -bke.pos.z
+	check(bwd_m < fwd_m * 0.8 and bwd_m > fwd_m * 0.5, "backing away is slower than going forward (%.1f against %.1f m)" % [bwd_m, fwd_m])
+	bke.down = 1.0; bke.pos = Vector3.ZERO; bks.set_input(bkp, Vector3(0, 0, 1), 0.0); run(bks, 0.5)
+	var crawled: float = bke.pos.z
+	run(bks, 1.0)
+	check(crawled < fwd_m * 0.2 and bke.down == 0.0, "knocked down you crawl (%.1f m in half a second), and get up again" % crawled)
+
 	# Affinity room follows the Talents selected: 9, 7, 5.
 	var rp := Profile.make({name = "Roomy", power = "saidar"})
 	check(Profile.aff_cap(rp) == 9 and Profile.aff_cap(rp, 1) == 7 and Profile.aff_cap(rp, 2) == 5, "affinity room is 9, 7 or 5 by Talents selected")

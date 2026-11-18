@@ -1,6 +1,6 @@
 class_name Scenery
-## Dressing for maps: view only. Nothing here affects the Sim, so anything a Trolloc
-## could walk into has to stay off the fighting ground or be small enough to ignore.
+## Dressing for maps: view only. Anything solid is placed by Map (its walls and
+## props), so the sim collides with it where it is drawn; `props` draws those.
 
 static func _mat(col: Color, rough := 0.95) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new(); m.albedo_color = col; m.roughness = rough
@@ -128,6 +128,34 @@ static func _cyl(parent: Node3D, r0: float, r1: float, h: float, at: Vector3, ma
 	parent.add_child(mi)
 	return mi
 
+## Everything Map placed as a prop, drawn where the sim has it.
+static func props(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 41
+	var wood := _mat(Color(0.16, 0.11, 0.07))
+	for t in Map.trees():
+		var at := _ground(t.x, t.z)
+		match t.get("prop", ""):
+			"fire": fire(g, at)
+			"torch": torch(g, at)
+			"crate":
+				crate(g, at, rng); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw
+			"barrel":
+				barrel(g, at, rng, t.get("lying", false)); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw
+			"sacks": sacks(g, at, rng, t.get("count", 3))
+			"bale": bale(g, at, t.yaw)
+			"stake":
+				# Driven in at the near end, leaning out at whatever comes.
+				_box(g, Vector3(0.09, 2.0, 0.09), at + Vector3(0, 0.6, 0), wood, Vector3(-0.85, t.yaw, 0))
+			"banner", "banner_camp":
+				var cloth := _mat(Color(0.55, 0.1, 0.08), 0.8)
+				var hgt: float = t.h
+				_box(g, Vector3(0.1, hgt, 0.1), at + Vector3(0, hgt * 0.5, 0), wood)
+				if t.prop == "banner":
+					_box(g, Vector3(0.04, 1.6, 1.0), at + Vector3(0, 4.0, 0.55), cloth)
+				else:
+					_box(g, Vector3(1.3, 1.7, 0.04), at + Vector3(0.7, 4.2, 0), _mat(Color(0.5, 0.09, 0.07), 0.9))
+					_box(g, Vector3(0.5, 0.5, 0.05), at + Vector3(0.7, 4.3, 0), _mat(Color(0.85, 0.8, 0.7), 0.9), Vector3(0, 0, PI * 0.25))
+
 ## A cask: staves bulging at the middle, two iron hoops.
 static func barrel(g: Node3D, at: Vector3, rng: RandomNumberGenerator, lying := false) -> void:
 	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = rng.randf() * TAU
@@ -196,9 +224,8 @@ static func practice_post(seed: int) -> Node3D:
 	return n
 
 ## A ridge tent: canvas over a pole, the flap open and dark inside.
-static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
+static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator, k := 1.0) -> void:
 	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = yaw
-	var k := rng.randf_range(0.9, 1.15)
 	var canvas := _mat(Color(0.6, 0.55, 0.44) * rng.randf_range(0.8, 1.05), 1.0)
 	var pr := PrismMesh.new(); pr.size = Vector3(2.6 * k, 1.9 * k, 3.4 * k)
 	var mi := MeshInstance3D.new(); mi.mesh = pr; mi.material_override = canvas; mi.position.y = 0.95 * k
@@ -217,23 +244,13 @@ static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator)
 ## the fire, logs to sit on, a banner.
 static func camp(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 29
-	for t in [[11.0, 9.0], [4.5, 13.0], [-4.0, 13.5], [-11.0, 9.5], [-15.0, 3.0], [15.5, 2.5]]:
-		var p := _ground(t[0], t[1])
-		tent(g, p, atan2(-p.x, -(p.z - 3.0)) + rng.randf_range(-0.25, 0.25), rng)
 	var wood := _mat(Color(0.2, 0.14, 0.09))
-	# Logs round the fire (it burns at 6, 3).
-	for k in 3:
-		var a := 0.6 + k * 1.5
-		_cyl(g, 0.17, 0.15, 1.7, _ground(6.0 + sin(a) * 1.9, 3.0 + cos(a) * 1.9) + Vector3(0, 0.16, 0), wood, Vector3(PI * 0.5, a, 0), 8)
-	crate(g, _ground(8.6, 5.6), rng); crate(g, _ground(9.3, 4.9), rng)
-	barrel(g, _ground(8.2, 6.6), rng); barrel(g, _ground(9.9, 5.9), rng, true)
-	sacks(g, _ground(7.2, 7.2), rng, 3)
-	bale(g, _ground(-8.0, 7.5), 0.4); bale(g, _ground(-9.0, 8.4), 1.2)
-	# A banner by the way in.
-	var bp := _ground(-3.0, 6.5)
-	_box(g, Vector3(0.1, 5.2, 0.1), bp + Vector3(0, 2.6, 0), wood)
-	_box(g, Vector3(1.3, 1.7, 0.04), bp + Vector3(0.7, 4.2, 0), _mat(Color(0.5, 0.09, 0.07), 0.9))
-	_box(g, Vector3(0.5, 0.5, 0.05), bp + Vector3(0.7, 4.3, 0), _mat(Color(0.85, 0.8, 0.7), 0.9), Vector3(0, 0, PI * 0.25))
+	for w in Map.walls():
+		if w.look == "tent":
+			tent(g, _ground(w.x, w.z), w.yaw, rng, w.k)
+		elif w.look == "log":
+			_cyl(g, 0.17, 0.15, 1.7, _ground(w.x, w.z) + Vector3(0, 0.16, 0), wood, Vector3(PI * 0.5, w.rot, 0), 8)
+	props(g)
 
 ## The training yard: a rail fence round the ground, with what a yard has at its
 ## edges. Nothing here is solid, so it is all kept out of the way of the fighting.
@@ -290,15 +307,7 @@ static func yard(g: Node3D) -> void:
 ## The caravan's ground: a fire in the middle of the ring and a few bales and casks.
 static func wagon_ring(g: Node3D) -> void:
 	walls(g)
-	fire(g, _ground(0.0, 0.0) + Vector3(2.5, 0, 2.0))
-	var rng := RandomNumberGenerator.new(); rng.seed = 3
-	for i in 12:
-		var a := rng.randf() * TAU
-		var p := _ground(sin(a) * rng.randf_range(3.5, 6.5), cos(a) * rng.randf_range(3.5, 6.5))
-		match i % 3:
-			0: crate(g, p, rng)
-			1: barrel(g, p, rng, i % 2 == 0)
-			2: sacks(g, p, rng, 2 + i % 2)
+	props(g)
 
 static func tarwins_gap(g: Node3D, night := false) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 11
@@ -307,26 +316,7 @@ static func tarwins_gap(g: Node3D, night := false) -> void:
 	var z0 := Map.line_z()
 	var w := Map.half_width(z0)
 	walls(g)
-	for i in 26:
-		var sx := rng.randf_range(-w + 1.5, w - 1.5)
-		var p := _ground(sx, z0 - rng.randf_range(3.0, 6.5))
-		_box(g, Vector3(0.09, 2.0, 0.09), p + Vector3(0, 0.6, -0.4), wood, Vector3(-0.85, rng.randf_range(-0.2, 0.2), 0))
-	for sx in [-w * 0.55, w * 0.55]:
-		fire(g, _ground(sx, z0 + 4.0))
-	if night:
-		# Watch fires thrown well out up the pass, to see what comes by, and
-		# torches along the line.
-		for k in 3:
-			for sx in [-w * 0.6, w * 0.6]:
-				fire(g, _ground(sx * (1.0 - k * 0.1), z0 - 16.0 - k * 17.0))
-		for sx in [-w * 0.9, -w * 0.3, w * 0.3, w * 0.9]:
-			torch(g, _ground(sx, z0 + 1.5))
-	# Banner poles behind the line, so the place reads as held ground from a distance.
-	var cloth := _mat(Color(0.55, 0.1, 0.08), 0.8)
-	for sx in [-w * 0.8, w * 0.8]:
-		var p := _ground(sx, z0 + 7.0)
-		_box(g, Vector3(0.1, 5.0, 0.1), p + Vector3(0, 2.5, 0), wood)
-		_box(g, Vector3(0.04, 1.6, 1.0), p + Vector3(0, 4.0, 0.55), cloth)
+	props(g)
 	# Boulders shed by the cliffs, kept to the edges of the pass.
 	var rocks: Array = []
 	for i in 40:
@@ -429,6 +419,8 @@ static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 	_multi(g, stone, stones, true)
 	# Trees stand where the map says, because the sim collides with them there.
 	for t in Map.trees():
+		if t.has("prop"):
+			continue
 		if tree:
 			await tree.process_frame
 		dead_tree(g, _ground(t.x, t.z) - Vector3(0, 0.2, 0), rng, t.h)

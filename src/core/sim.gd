@@ -41,7 +41,7 @@ func _init(activity: String, seed_ := 1) -> void:
 	_spar = act.kind == "spar"
 	dream = act.get("dream", false)
 	Dream.load_data()
-	Map.use(act.get("map", "open"))
+	Map.use(act.get("map", "open"), activity)
 
 func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> int:
 	if (round_mode or Rules.activities[activity_id].get("rolls", false)) and not profile.has("round"):
@@ -882,6 +882,9 @@ func _spawn_wave(w: Dictionary) -> void:
 func _clear_of_trees(a: Vector3, b: Vector3) -> bool:
 	var ab := Vector2(b.x - a.x, b.z - a.z)
 	for tr in Map.trees():
+		# A crate or a stake is shot over; a tree or a banner pole is not.
+		if float(tr.h) < 1.6:
+			continue
 		var ap := Vector2(tr.x - a.x, tr.z - a.z)
 		var u := clampf(ap.dot(ab) / maxf(ab.length_squared(), 0.01), 0.0, 1.0)
 		if (ap - ab * u).length() < tr.r + 1.2:
@@ -961,6 +964,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 			bonded = Rules.TUNE.bond_regen
 	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
+	p.down = maxf(p.down - dt, 0.0)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
 		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, p.max_hp)
@@ -972,6 +976,15 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if p.duck: slow = minf(slow, Rules.TUNE.duck_slow)
 	if p.get("drawing", false): slow = minf(slow, Rules.TUNE.draw_slow)
 	if p.reel_until > t: slow = 0.0
+	# Knocked off your feet: you crawl, you do not run.
+	if p.down > 0.0: slow = minf(slow, 0.25)
+	# Backing away is slower than going forward, and much slower while weaving or
+	# guarding: you cannot run full tilt backwards with your eyes on the foe.
+	var facing := Vector3(sin(p.yaw), 0, cos(p.yaw))
+	var back: float = -p.move.dot(facing)
+	if back > 0.3:
+		var careful: bool = not p.forming.is_empty() or p.guard or p.get("drawing", false)
+		slow *= lerpf(1.0, 0.55 if careful else 0.7, clampf((back - 0.3) / 0.5, 0.0, 1.0))
 	var step: Vector3 = p.move * p.speed * slow * dt
 	if p.get("shove", Vector3.ZERO).length() > 0.2:
 		# Thrown back by a blow: carried a step whatever the feet wanted.

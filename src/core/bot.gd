@@ -32,7 +32,8 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 		var away := -to
 		if me.pos.length() > 30.0:
 			away = (away - me.pos.normalized() * 1.5).normalized()
-		sim.set_input(id, away if best < 14.0 else Vector3.ZERO, yaw)
+		# Turned to run, as a person does (backing away is slow).
+		sim.set_input(id, away if best < 14.0 else Vector3.ZERO, atan2(away.x, away.z) if best < 14.0 else yaw)
 		return
 	if me.weapon == ranged:
 		sim.set_guard(id, false)
@@ -58,8 +59,12 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 		if me.hp < me.max_hp * 0.5 and sim.request_dodge(id, -to) == "":
 			return
 	sim.set_guard(id, false)
-	# Hold your ground and let them come; only close the last stretch.
-	sim.set_input(id, to if best > reach * 0.75 and best < 16.0 else Vector3.ZERO, yaw)
+	# Hold your ground and let them come; only close the last stretch. Where there
+	# is a line to hold (the breastwork, its stakes in front), do not leave it.
+	var go := to if best > reach * 0.75 and best < 16.0 else Vector3.ZERO
+	if Map.m.get("breastwork", false) and me.pos.z + go.normalized().z * 0.5 < Map.line_z() - 1.0:
+		go = Vector3.ZERO
+	sim.set_input(id, go, yaw)
 	if best < reach * 0.95:
 		# Pressed by several, clear room: a wide heavy blow, or take their legs.
 		var close := 0

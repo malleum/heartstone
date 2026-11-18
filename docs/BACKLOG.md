@@ -199,7 +199,8 @@ are what the 4:44 review, or the next session, should pick up.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 - 2026-11-18, asked by the user:
-  - **No full-speed backpedalling:** running backwards at full speed while weaving,
+  - (Done 18 Nov: backing away is 70% speed, 55% while weaving, guarding or drawing;
+    knocked down you crawl at 25%.) **No full-speed backpedalling:** running backwards at full speed while weaving,
     or while down on the ground (knocked down), should not be possible: slow it.
 
 - 2026-11-18, seen in the user's terminal: Godot prints "Attempt to disconnect a
@@ -356,7 +357,10 @@ are what the 4:44 review, or the next session, should pick up.
     always blows capes, flags and grass one way, with a little wind sound; Air weaves
     blow capes, grass and flags as they pass.
 - 2026-11-17, from the user's play (to do with the changeable-map work above):
-  - **Vaulting and hitboxes:** vaulting felt like too much (it now only crosses
+  - (Done 18 Nov, first pass: every prop is placed by `Map` and solid in the sim:
+    stakes, banner poles, fires, torches, crates, barrels, sacks; the yard's fence,
+    butts, racks, bales and benches; the camp's tents, logs and stores. Enemies path
+    round them. Breastwork height checked: 0.9 m, as drawn.) **Vaulting and hitboxes:** vaulting felt like too much (it now only crosses
     waist-high walls, with a small hop, as a stopgap). Many solids need adding or
     resizing: the breastwork boxes stand too tall; tents, poles and banners have
     none; check every prop against what it looks like.

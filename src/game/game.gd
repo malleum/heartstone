@@ -589,7 +589,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 	_stamp("session started")
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
 		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
-	Map.use(Rules.activities[activity].get("map", "open"))
+	Map.use(Rules.activities[activity].get("map", "open"), activity)
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
 	var spread: SceneTree = get_tree() if previewing else null
@@ -2034,7 +2034,12 @@ func _predict(move: Vector3, dt: float) -> void:
 	if a.get("busy", 0.0) > 0.0: slow = 0.5
 	if st & 16: slow = minf(slow, Rules.TUNE.guard_slow)
 	if st & 32: slow = minf(slow, Rules.TUNE.duck_slow)
-	if st & (2 | 4 | 128): slow = 0.0
+	if st & (4 | 128): slow = 0.0
+	elif st & 2: slow = minf(slow, 0.25)
+	# As the host does: backing away is slower, more so while weaving or guarding.
+	var back := -move.limit_length(1.0).dot(Vector3(sin(face_yaw), 0, cos(face_yaw)))
+	if back > 0.3:
+		slow *= lerpf(1.0, 0.55 if (st & (16 | 2048 | 16384)) else 0.7, clampf((back - 0.3) / 0.5, 0.0, 1.0))
 	var pred: Vector3 = a.pred
 	pred = Map.clamp_pos(Map.unblock(pred + move.limit_length(1.0) * Rules.run_speed(profile) * slow * dt, 0.45))
 	var err: Vector3 = a.srv - pred

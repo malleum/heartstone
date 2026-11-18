@@ -65,7 +65,7 @@ func _ready() -> void:
 	# doorway yet, restart into it straight away.
 	Updater.check(self, func() -> bool: return _pre.is_empty() and get_tree().current_scene == self)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	Map.use("open")
+	Map.use("open", "camp")
 	World.build(self, -32.0, -26.0)
 	Terrain.amp = 0.25
 	add_child(await Terrain.build_mesh(120.0, 1.0))

@@ -20,7 +20,7 @@ static var _trees: Array = []
 static var _walls: Array = []
 static var _grid := {}
 
-static func use(map_id: String) -> void:
+static func use(map_id: String, activity := "") -> void:
 	id = map_id if MAPS.has(map_id) else "open"
 	m = MAPS[id]
 	_trees = []
@@ -57,6 +57,86 @@ static func use(map_id: String) -> void:
 		var side := -1.0 if rng.randf() < 0.5 else 1.0
 		var x := side * (half_width(z) + rng.randf_range(-2.5, 2.0)) if not m.is_empty() else side * rng.randf_range(9.0, 45.0)
 		_trees.append({x = x, z = z, r = 0.38, h = rng.randf_range(3.5, 6.5)})
+	_props(activity)
+
+## A solid prop as a circle (r, h). `prop` names what the view draws there; the sim
+## only sees a circle, like a tree: it blocks feet, and missiles below its top.
+static func _solid(x: float, z: float, r: float, h: float, prop: String, extra := {}) -> void:
+	var d := {x = x, z = z, r = r, h = h, prop = prop, yaw = 0.0, k = 1.0}
+	d.merge(extra, true)
+	_trees.append(d)
+
+## The things that stand about each place, where the view draws them and the sim
+## collides with them (they used to be dressing only, walked through).
+static func _props(activity: String) -> void:
+	var pr := RandomNumberGenerator.new(); pr.seed = 3
+	if id == "wagon_ring":
+		_solid(2.5, 2.0, 0.6, 0.6, "fire")
+		for i in 12:
+			var a := pr.randf() * TAU
+			var rad := pr.randf_range(3.5, 6.5)
+			var x := sin(a) * rad; var z := cos(a) * rad
+			match i % 3:
+				0: _solid(x, z, 0.45, 0.7, "crate", {yaw = pr.randf() * TAU, k = pr.randf_range(0.85, 1.1)})
+				1: _solid(x, z, 0.4 if i % 2 == 0 else 0.33, 0.6 if i % 2 == 0 else 0.85, "barrel", {yaw = pr.randf() * TAU, lying = i % 2 == 0})
+				2: _solid(x, z, 0.6, 0.55, "sacks", {count = 2 + i % 2, yaw = pr.randf_range(-0.5, 0.5)})
+	elif id == "tarwins_gap":
+		var z0 := line_z(); var w := half_width(z0)
+		# Sharpened stakes ahead of the breastwork, leaning at whatever comes.
+		for i in 26:
+			_solid(pr.randf_range(-w + 1.5, w - 1.5), z0 - pr.randf_range(3.0, 6.5) - 0.4, 0.12, 1.1, "stake", {yaw = pr.randf_range(-0.2, 0.2)})
+		for sx in [-w * 0.55, w * 0.55]:
+			_solid(sx, z0 + 4.0, 0.6, 0.6, "fire")
+		for sx in [-w * 0.8, w * 0.8]:
+			_solid(sx, z0 + 7.0, 0.12, 5.0, "banner")
+		if Rules.activities.get(activity, {}).get("night", false):
+			for k in 3:
+				for sx in [-w * 0.6, w * 0.6]:
+					_solid(sx * (1.0 - k * 0.1), z0 - 16.0 - k * 17.0, 0.6, 0.6, "fire")
+			for sx in [-w * 0.9, -w * 0.3, w * 0.3, w * 0.9]:
+				_solid(sx, z0 + 1.5, 0.1, 2.2, "torch")
+	if activity == "camp_training":
+		# The yard (drawn by Scenery.yard): a rail fence with a gate behind you,
+		# butts, racks, bales, a water butt and benches.
+		var c := Vector3(0, 0, -6.0); var r := 21.0; var n := 30
+		for i in range(1, n - 1):
+			var a0 := i * TAU / n; var a1 := (i + 1) * TAU / n
+			var p0 := Vector2(c.x + sin(a0) * r, c.z + cos(a0) * r); var p1 := Vector2(c.x + sin(a1) * r, c.z + cos(a1) * r)
+			var mid := (p0 + p1) * 0.5; var d := p1 - p0
+			# The rail lies along d: local z along it, so rot turns +z onto d.
+			_walls.append({x = mid.x, z = mid.y, hx = 0.08, hz = d.length() * 0.5 + 0.05, h = 1.0, yaw = 0.0, rot = atan2(d.x, d.y), look = "fence"})
+		for i in 3:
+			var a := PI + (i - 1) * 0.16
+			_solid(c.x + sin(a) * (r - 2.0), c.z + cos(a) * (r - 2.0), 0.6, 1.7, "butt")
+		for side: float in [-1.0, 1.0]:
+			var a: float = side * 1.35
+			var rp := Vector2(c.x + sin(a) * (r - 1.5), c.z + cos(a) * (r - 1.5))
+			_walls.append({x = rp.x, z = rp.y, hx = 1.0, hz = 0.2, h = 1.6, yaw = 0.0, rot = a + PI, look = "rack"})
+			for k in 3:
+				var a2: float = a + side * (0.2 + (k if k < 2 else 0.5) * 0.085)
+				if k < 2:
+					_solid(c.x + sin(a2) * (r - 1.2), c.z + cos(a2) * (r - 1.2), 0.5, 1.0, "bale_yard")
+			_solid(c.x + sin(a - side * 0.14) * (r - 1.2), c.z + cos(a - side * 0.14) * (r - 1.2), 0.36, 0.85, "barrel_yard")
+			var bp := Vector2(c.x + sin(a - side * 0.3) * (r - 1.4), c.z + cos(a - side * 0.3) * (r - 1.4))
+			_walls.append({x = bp.x, z = bp.y, hx = 0.92, hz = 0.18, h = 0.5, yaw = 0.0, rot = a - side * 0.3 + PI, look = "bench"})
+	if activity == "camp":
+		# The camp's tents and stores (drawn by Scenery.camp from these).
+		for t in [[11.0, 9.0], [4.5, 13.0], [-4.0, 13.5], [-11.0, 9.5], [-15.0, 3.0], [15.5, 2.5]]:
+			var yaw := atan2(-t[0], -(t[1] - 3.0)) + pr.randf_range(-0.25, 0.25)
+			var k := pr.randf_range(0.9, 1.15)
+			_walls.append({x = t[0], z = t[1], hx = 1.3 * k, hz = 1.75 * k, h = 1.9 * k, yaw = yaw, rot = yaw, look = "tent", k = k})
+		_solid(6.0, 3.0, 0.7, 0.6, "fire_camp")
+		for k in 3:
+			var a := 0.6 + k * 1.5
+			_walls.append({x = 6.0 + sin(a) * 1.9, z = 3.0 + cos(a) * 1.9, hx = 0.18, hz = 0.85, h = 0.35, yaw = 0.0, rot = a, look = "log"})
+		for c2 in [[8.6, 5.6], [9.3, 4.9]]:
+			_solid(c2[0], c2[1], 0.45, 0.7, "crate", {yaw = pr.randf() * TAU, k = pr.randf_range(0.85, 1.1)})
+		_solid(8.2, 6.6, 0.33, 0.85, "barrel", {yaw = pr.randf() * TAU})
+		_solid(9.9, 5.9, 0.4, 0.6, "barrel", {yaw = pr.randf() * TAU, lying = true})
+		_solid(7.2, 7.2, 0.6, 0.55, "sacks", {count = 3})
+		_solid(-8.0, 7.5, 0.55, 0.5, "bale", {yaw = 0.4})
+		_solid(-9.0, 8.4, 0.55, 0.5, "bale", {yaw = 1.2})
+		_solid(-3.0, 6.5, 0.12, 5.2, "banner_camp")
 
 ## Solid things standing on the map, as circles: the sim blocks movement and weaves
 ## on them and the view draws a tree at each, so the two cannot disagree.
@@ -132,6 +212,10 @@ static func grid() -> Dictionary:
 			for w in _walls:
 				var l := _local(w, p.x, p.z)
 				if absf(l.x) < w.hx + 0.7 and absf(l.y) < w.hz + 0.7:
+					bad = true
+			# Props too, so a way is found round stakes and stores, not into them.
+			for t in _trees:
+				if t.has("prop") and Vector2(p.x - t.x, p.z - t.z).length() < float(t.r) + 0.75:
 					bad = true
 			blocked[iz * nx + ix] = 1 if bad else 0
 	_grid = {x0 = -wx, z0 = z0, nx = nx, nz = nz, cell = cell, blocked = blocked}
