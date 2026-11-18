@@ -6,6 +6,9 @@ uniform vec3 root : source_color = vec3(0.16, 0.16, 0.07);
 varying float h;
 global uniform vec3 wind_vec;
 global uniform vec4 gust;
+global uniform sampler2D burn_map : filter_linear;
+global uniform vec4 burn_rect;
+varying float burnt;
 void vertex() {
 	h = UV.y;
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -22,11 +25,15 @@ void vertex() {
 		off += gd / gl * gust.w * clamp(1.0 - gl / 12.0, 0.0, 1.0) * 0.35;
 	}
 	VERTEX += inverse(mat3(MODEL_MATRIX)) * (off * h * h);
+	// Burnt ground: blades shrink to stubble.
+	vec2 buv = (w.xz - burn_rect.xy) / burn_rect.zw;
+	burnt = (buv.x > 0.0 && buv.x < 1.0 && buv.y > 0.0 && buv.y < 1.0) ? texture(burn_map, buv).r : 0.0;
+	VERTEX.y *= 1.0 - 0.85 * burnt;
 }
 void fragment() {
 	// Lit like the ground it stands on, on both faces: blade normals would make half
 	// of every tuft black.
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	ALBEDO = mix(root, tip, h) * (0.8 + 0.4 * COLOR.r);
+	ALBEDO = mix(mix(root, tip, h) * (0.8 + 0.4 * COLOR.r), vec3(0.03, 0.025, 0.02), burnt);
 	ROUGHNESS = 1.0;
 }

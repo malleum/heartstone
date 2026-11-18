@@ -31,3 +31,11 @@ gust={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+burn_map={
+"type": "sampler2D",
+"value": ""
+}
+burn_rect={
+"type": "vec4",
+"value": Vector4(-64, -64, 128, 128)
+}

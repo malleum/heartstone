@@ -611,6 +611,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 	Map.use(Rules.activities[activity].get("map", "open"), activity)
 	if not previewing:
 		Wind.setup(Map.id, self)
+		Scorch.setup(100.0)
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
 	var spread: SceneTree = get_tree() if previewing else null
@@ -1050,6 +1051,7 @@ func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
 func take_control(yaw: float, pitch: float) -> void:
 	controlled = true
 	Wind.setup(Map.id, self)
+	Scorch.setup(100.0)
 	stand_in = {}
 	session.begin()     # the fight starts now, not when the doorway was first looked through
 	cam_yaw = yaw; cam_pitch = pitch
@@ -1804,6 +1806,8 @@ func _paint_rings() -> void:
 
 ## Burning grass or a puddle on the ground (Sim._ignite, Sim._puddle).
 func _patch(e: Dictionary) -> void:
+	if e.kind == "fire":
+		Scorch.burn(e.pos, float(e.r))
 	if patches.has(e.id) and is_instance_valid(patches[e.id]):
 		# A fire fed again: it spreads to the new size.
 		var old: Node3D = patches[e.id]

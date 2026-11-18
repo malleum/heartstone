@@ -67,6 +67,7 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Map.use("open", "camp")
 	Wind.setup("camp", self)
+	Scorch.setup(100.0)
 	World.build(self, -32.0, -26.0)
 	Terrain.amp = 0.25
 	add_child(await Terrain.build_mesh(120.0, 1.0))
