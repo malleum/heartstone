@@ -219,7 +219,7 @@ static func current(p: Dictionary) -> bool:
 # the couple of creation points.
 
 const AFF_OWN_MAX := 9       # affinity points a character can own
-const AFF_BASE := 5          # (no longer used: all owned affinity goes into a fight)
+const AFF_BASE := 5          # affinity room with both Talent slots filled
 const TALENT_SLOTS := 2
 const WEAVE_SLOTS := 3       # weaves beyond the starting one, per game
 const WEAPON_SLOTS := 3
@@ -245,9 +245,16 @@ static func trade_left(before: Dictionary, after: Dictionary) -> int:
 		if not after.has(k): removed += int(before[k])
 	return removed - 2 * added
 
-## Affinity points a character may take into a game, by Talents taken.
-static func aff_cap(p: Dictionary) -> int:
-	return AFF_BASE + 2 * (TALENT_SLOTS - p.get("talents", []).size())
+## Affinity points a character may have, by the Talents they have selected (kept
+## from one fight to the next): 9 with none, 7 with one, 5 with two.
+static func aff_cap(p: Dictionary, talents := -1) -> int:
+	var n: int = p.get("talents", []).size() if talents < 0 else talents
+	return mini(AFF_OWN_MAX, AFF_BASE + 2 * (TALENT_SLOTS - n))
+
+static func aff_total(p: Dictionary) -> int:
+	var n := 0
+	for e in Rules.ELEMENTS: n += int(p.get("aff_owned", {}).get(e, 0))
+	return n
 
 ## The rules read p.affinity (0..1 per Power); work it out from the points taken.
 static func apply_affinity(p: Dictionary) -> void:
@@ -323,7 +330,7 @@ static func unlock_offers(p: Dictionary, n: int, rng: RandomNumberGenerator) -> 
 		var owned := 0
 		for e in p.get("aff_owned", {}):
 			owned += int(p.aff_owned[e])
-		if owned < AFF_OWN_MAX:
+		if owned < aff_cap(p):
 			for e in Rules.ELEMENTS:
 				pool.append({kind = "affinity", id = e, name = "+1 affinity in %s" % e.capitalize()})
 	else:

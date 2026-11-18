@@ -614,7 +614,7 @@ func _loadout() -> void:
 		if wv.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
 		_section(menu_box, "Affinity")
-		_text(menu_box, "All of it goes into every fight. Points can be moved between Powers (and into your body), two out for each one in.", 13, Color(0.66, 0.67, 0.72))
+		_text(menu_box, "All of it goes into every fight. Room: 9 points with no Talent selected, 7 with one, 5 with two (now %d of %d). Points can be moved between Powers (and into your body), two out for each one in; points let go are gone." % [Profile.aff_total(profile), Profile.aff_cap(profile)], 13, Color(0.66, 0.67, 0.72))
 		var before := {}
 		for e in Rules.ELEMENTS: before[e] = int(profile.aff_owned.get(e, 0))
 		for st in ["might", "quickness", "endurance"]: before[st] = int(Rules.stat(profile, st))
@@ -634,6 +634,10 @@ func _loadout() -> void:
 			if Profile.trade_left(before, after) < 0: note.text = "Too many points added: every point costs two taken from elsewhere."; return
 			if asum > Profile.AFF_OWN_MAX: note.text = "You can own at most %d points in all." % Profile.AFF_OWN_MAX; return
 			var t := tal.keys().filter(func(k: String) -> bool: return tal[k].button_pressed)
+			var esum := 0
+			for e in Rules.ELEMENTS: esum += after[e]
+			var room := Profile.aff_cap(profile, t.size())
+			if esum > room: note.text = "With %d Talent%s selected there is room for %d affinity points; you have %d. Lower %d first, or select fewer Talents." % [t.size(), "" if t.size() == 1 else "s", room, esum, esum - room]; return
 			var w := wv.keys().filter(func(k: String) -> bool: return wv[k].button_pressed)
 			if t.size() > Profile.TALENT_SLOTS: note.text = "At most %d Talents." % Profile.TALENT_SLOTS; return
 			if w.size() > Profile.WEAVE_SLOTS: note.text = "At most %d weaves besides your own." % Profile.WEAVE_SLOTS; return
@@ -667,33 +671,6 @@ func _loadout() -> void:
 			menu.visible = false
 			_select(profile.name))
 	_bar_order(menu_box)
-	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
-
-## Between fights a channeller may move affinity they own, two points out for each
-## one in, into another Power or into their body (might, quickness, endurance).
-func _retrain() -> void:
-	_panel("Retrain")
-	_text(menu_box, "Every point moved costs two taken from elsewhere. You can own at most %d points in all." % Profile.AFF_OWN_MAX, 13, Color(0.66, 0.67, 0.72))
-	var before := {}
-	for e in Rules.ELEMENTS: before[e] = int(profile.aff_owned.get(e, 0))
-	for st in ["might", "quickness", "endurance"]: before[st] = int(Rules.stat(profile, st))
-	var spins := {}
-	for k in before:
-		spins[k] = _spin(menu_box, k.capitalize(), Profile.AFF_OWN_MAX, before[k])
-	var note := _text(menu_box, "", 14, Color(1.0, 0.7, 0.45))
-	_button(menu_box, "Keep these", func() -> void:
-		var after := {}
-		for k in spins: after[k] = int(spins[k].value)
-		if Profile.trade_left(before, after) < 0: note.text = "Too many points added: every point costs two taken elsewhere."; return
-		for e in Rules.ELEMENTS:
-			profile.aff_owned[e] = after[e]
-			profile.aff_pts[e] = mini(int(profile.aff_pts.get(e, 0)), after[e])
-		for st in ["might", "quickness", "endurance"]:
-			profile.stats[st] = after[st]
-		Profile.apply_affinity(profile)
-		Profile.save(profile)
-		menu.visible = false
-		_select(profile.name))
 	_button(menu_box, "Back to the camp  (Esc)", func() -> void: _show_menu(false))
 
 ## After a win: three things to choose from, one to keep for good.

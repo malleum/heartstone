@@ -1091,6 +1091,15 @@ func _rounds() -> void:
 	var across := Vector3(cos(float(wagon.rot)), 0, -sin(float(wagon.rot)))
 	check(not Map.in_wall(Vector3(wagon.x, 0, wagon.z) + across * 1.3 + Vector3(0, 0.5, 0)) and Map.in_wall(Vector3(wagon.x, 0.5, wagon.z)), "a wagon's solid is the wagon, not a box round it")
 
+	# Affinity room follows the Talents selected: 9, 7, 5.
+	var rp := Profile.make({name = "Roomy", power = "saidar"})
+	check(Profile.aff_cap(rp) == 9 and Profile.aff_cap(rp, 1) == 7 and Profile.aff_cap(rp, 2) == 5, "affinity room is 9, 7 or 5 by Talents selected")
+	rp.talents = ["healing", "foretelling"]; rp.talents_owned = rp.talents.duplicate()
+	var rng_room := RandomNumberGenerator.new(); rng_room.seed = 3
+	check(Profile.unlock_offers(rp, 50, rng_room).all(func(o: Dictionary) -> bool: return o.kind != "affinity"), "no +1 affinity offered with no room (5 of 5, two Talents)")
+	rp.aff_owned.air = 3; Profile.apply_affinity(rp)
+	check(int(rp.aff_pts.air) == 3, "all owned affinity counts in a fight")
+
 	# A weave left going by itself.
 	var au := Sim.new("practice", 93)
 	au._waves = []

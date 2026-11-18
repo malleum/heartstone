@@ -198,6 +198,14 @@ are what the 4:44 review, or the next session, should pick up.
   cloak and no fear in its gaze. The wagon ring was lost by a two-bot party.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
+- 2026-11-18, asked by the user:
+  - **No full-speed backpedalling:** running backwards at full speed while weaving,
+    or while down on the ground (knocked down), should not be possible: slow it.
+
+## Super backlog (only these two; everything above is to be worked through)
+- Multi-stage runs: stages joined by a gateway.
+- Drawing to weave: tracing a weave's shape to make it.
+
 ## Done
 - 2026-11-14: **polish.** Server: up to eight fights at once in named rooms, a
   list of who is playing what, and the word and passphrases no longer cross the
