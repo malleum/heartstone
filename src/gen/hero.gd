@@ -343,6 +343,42 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 		_pins(root, int(look.pins))
 	return root
 
+## The Aiel veil: a dark band over the lower face, put on before killing. Shown or
+## hidden with `veiled` (the camp shows faces; a fight shows the veil).
+static func veil(root: Node3D, on: bool) -> void:
+	var sk_list := root.find_children("*", "Skeleton3D", true, false)
+	if sk_list.is_empty():
+		return
+	var sk: Skeleton3D = sk_list[0]
+	var at := sk.get_node_or_null("Veil") as BoneAttachment3D
+	if at == null:
+		if not on:
+			return
+		var bone := sk.find_bone("Head")
+		if bone < 0:
+			bone = sk.find_bone("head")
+		if bone < 0:
+			return
+		var to_model := Basis.IDENTITY
+		var node: Node = sk
+		while node != root and node is Node3D:
+			to_model = (node as Node3D).transform.basis * to_model
+			node = node.get_parent()
+		var inv := sk.get_bone_global_rest(bone).basis.inverse() * to_model.inverse()
+		at = BoneAttachment3D.new(); at.name = "Veil"; at.bone_name = sk.get_bone_name(bone)
+		sk.add_child(at)
+		# A band of cloth wound round the jaw and nose (the shoufa drawn up).
+		var c := CylinderMesh.new(); c.top_radius = 0.1; c.bottom_radius = 0.1; c.height = 0.1; c.radial_segments = 16
+		var mi := MeshInstance3D.new(); mi.mesh = c
+		var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.07, 0.065, 0.06); mat.roughness = 1.0
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mi.material_override = mat
+		mi.position = inv * Vector3(0, 0.058, 0.03)
+		mi.basis = inv
+		mi.scale = Vector3(1.0, 1.0, 1.0)
+		at.add_child(mi)
+	at.visible = on
+
 ## The Asha'man's collar pins: a silver sword for a Dedicated, and with it a
 ## red-and-gold dragon for a full Asha'man. Placed from the rest pose like weapons.
 static func _pins(root: Node3D, n: int) -> void:

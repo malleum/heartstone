@@ -191,7 +191,8 @@ Bare hands
       Swallow Takes Flight, Arc of the Moon, Lightning of Three Prongs, The
       Kingfisher Takes a Silverback, The Courtier Taps His Fan, Sheathing the
       Sword (take a blow to give a killing one)
-- [ ] Aiel forms: the dance of spears; veiling before a kill
+- [~] Aiel forms: the dance of spears (not yet); veiling before a kill (18 Nov: an Aiel
+      is veiled in every fight, face bare in the camp)
 - [x] Finishing blows on downed Trollocs
 
 ### 5. Defence

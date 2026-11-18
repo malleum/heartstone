@@ -1273,6 +1273,9 @@ func _on_events(list: Array) -> void:
 						_team_ring(rig, int(e.get("team", 0)))
 					Hero.arm(rig, e.get("weapon", ""))
 					actors[e.id].weapon = e.get("weapon", "")
+					# Aiel veil themselves to fight.
+					if e.get("cls", "") == "aiel":
+						Hero.veil(rig, true)
 					if e.id == session.my_id:
 						me = rig
 						banner.text = ""
