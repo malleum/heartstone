@@ -49,11 +49,16 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 		return
 	var threats := 0
 	var danger := to
+	var low := false
 	for eid in sim.ents:
 		var e: Dictionary = sim.ents[eid]
 		if e.alive and e.kind == "enemy" and e.swung and e.atk >= e.blow.time - 0.25 and e.pos.distance_to(me.pos) < e.blow.reach * 1.2 + 1.0:
 			threats += 1
 			danger = e.pos - me.pos
+			low = low or e.blow.get("height", "") == "low"
+	# A trip coming: over it.
+	if low and me.swing.is_empty() and sim.request_jump(id) == "":
+		return
 	var reach: float = Rules.weapons[me.weapon].reach + near.radius
 	# One blow coming can be met on the steel. Several at once cannot: when hurt,
 	# roll out from among them; otherwise keep cutting, which is the best defence.
@@ -103,6 +108,10 @@ static func drive(sim: Sim, id: int) -> void:
 		return
 	# Seized: twist free at once.
 	if me.get("grabbed_by", 0) != 0:
+		sim.request_dodge(id, Vector3.ZERO, true)
+		return
+	# Knocked down: roll up and away at once.
+	if me.get("lying", false):
 		sim.request_dodge(id, Vector3.ZERO, true)
 		return
 	# A friend down nearby comes first: stand over them until they are up.

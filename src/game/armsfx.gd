@@ -98,7 +98,8 @@ static func telegraph(g: Node3D, feet: Vector3, yaw: float, reach: float, arc_de
 	var mi := MeshInstance3D.new()
 	mi.mesh = _band(-arc, arc, 0.5, reach, false, 18)
 	var sm := ShaderMaterial.new(); sm.shader = WARN
-	sm.set_shader_parameter("tint", Color(1.0, 0.55, 0.1) if height == "high" else Color(1.0, 0.1, 0.05))
+	# Orange: duck it. Yellow: jump it. Red: it cannot be got under or over.
+	sm.set_shader_parameter("tint", Color(1.0, 0.55, 0.1) if height == "high" else (Color(0.95, 0.9, 0.2) if height == "low" else Color(1.0, 0.1, 0.05)))
 	mi.material_override = sm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(mi)

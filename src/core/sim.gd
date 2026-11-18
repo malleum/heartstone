@@ -451,6 +451,11 @@ func set_guard(id: int, on: bool) -> void:
 	var p: Dictionary = ents[id]
 	if not on or not p.alive or t < p.parry_free or p.reel_until > t or Rules.guard_share(p.profile, p.weapon) <= 0.0:
 		return
+	# Knocked down: rise behind the guard, a moment slower than rolling up.
+	if p.down > 0.0:
+		p.down = minf(p.down, 0.3)
+		p.rise_guard = true
+		return
 	# It abandons a blow not yet thrown; one already landing finishes.
 	if not p.swing.is_empty():
 		if p.swing.struck:
@@ -460,6 +465,30 @@ func set_guard(id: int, on: bool) -> void:
 	p.parry_free = t + Rules.TUNE.parry_again
 	p.guard = true
 	events.append({e = "parry_try", id = id})
+
+## Up off the ground after a knockdown: by rolling away, behind a guard, or slowly
+## when it wears off.
+func _rise(p: Dictionary, how: String) -> void:
+	if not p.get("lying", false):
+		return
+	p.lying = false
+	events.append({e = "rise", id = p.id, how = how})
+
+## A jump: clear of the ground for a moment, so a low sweep passes under (and it
+## costs breath, like a roll, so it is not free).
+const JUMP_SECS := 0.55
+func request_jump(id: int) -> String:
+	var p: Dictionary = ents[id]
+	if not p.alive or p.get("downed", false) or p.down > 0.0 or p.get("tied", false) or p.chained > t or not p.dash.is_empty():
+		return "busy"
+	if p.get("air_until", 0.0) > t:
+		return "busy"
+	if p.stamina < 12.0:
+		return "out of breath"
+	p.stamina -= 12.0
+	p.air_until = t + JUMP_SECS
+	events.append({e = "jump", id = id})
+	return ""
 
 ## Drawing a bow: known to the sim only so that everyone can see it, and so that
 ## nobody runs at full speed with a bow at full draw.
@@ -500,6 +529,11 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 		return "you are down"
 	if p.get("tied", false):
 		return "tied with rope"
+	# Knocked down: the roll is how you get up, away from what put you there.
+	if p.down > 0.0:
+		p.down = 0.0
+		rolling = true
+		_rise(p, "roll")
 	dir.y = 0.0
 	# With no direction given it is a step back, out of reach, still facing them.
 	var back := dir.length() <= 0.1
@@ -1141,6 +1175,12 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	p.down = maxf(p.down - dt, 0.0)
+	if p.get("lying", false) and p.down <= 0.0:
+		var guarding: bool = p.get("rise_guard", false)
+		_rise(p, "guard" if guarding else "slow")
+		if guarding:
+			p.rise_guard = false
+			p.guard = true; p.parry_at = t; p.parry_free = t + Rules.TUNE.parry_again
 	if p.get("grabbed_by", 0) != 0:
 		var gb: Dictionary = ents.get(p.grabbed_by, {})
 		if gb.is_empty() or not gb.alive or gb.stagger > 0.0 or p.chained <= t:
@@ -1369,6 +1409,13 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 			e.reel_until = maxf(e.reel_until, t + on.stagger * 0.5)
 	if on.has("down") and e.kind == "enemy" and not e.row.get("steady", false):
 		e.down = maxf(e.down, on.down)
+	# A player swept off their feet: on the ground, guard and weave lost, until
+	# they roll up (Space), rise guarding, or it wears off.
+	if on.has("down") and e.kind == "player" and e.alive and not e.get("downed", false):
+		e.down = maxf(e.down, float(on.down))
+		e.lying = true
+		e.guard = false; e.swing = {}; e.queued = {}; e.forming = {}
+		events.append({e = "knocked_down", id = e.id, secs = e.down})
 	if on.has("push"):
 		e.vel += dir * on.push
 		if e.kind == "player":
@@ -2550,11 +2597,14 @@ func _pick_blow(e: Dictionary, target := {}, players := []) -> Dictionary:
 		long = maxf(long, float(a.get("reach", 1.0))); heavy = maxf(heavy, float(a.get("dmg", 1.0)))
 	for i in list.size():
 		var a: Dictionary = list[i]
-		# Its favourite comes first in the data.
-		var w := 2.0 if i == 0 else 1.0
+		# Its favourite comes first in the data; a rare one says so ("weight").
+		var w := (2.0 if i == 0 else 1.0) * float(a.get("weight", 1.0))
 		if not target.is_empty():
 			# A high sweep over someone ducking is wasted, and it knows it.
 			if target.get("duck", false) and a.get("height", "mid") == "high":
+				w *= 0.01
+			# ...and so is a trip at someone already on the ground.
+			if target.get("down", 0.0) > 0.0 and a.get("height", "mid") == "low":
 				w *= 0.01
 			# Two in front of it: the wide one.
 			if crowd >= 2 and float(a.get("arc", 30.0)) >= 55.0:
@@ -2605,7 +2655,7 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 				# However it came, the Warder's steel is in its way.
 				dir = -Vector3(sin(p.yaw), 0, cos(p.yaw))
 				break
-	if target.safe_until > t or (b.height == "high" and target.duck):
+	if target.safe_until > t or (b.height == "high" and target.duck) or (b.height == "low" and target.get("air_until", 0.0) > t):
 		e.stagger = maxf(e.stagger, 0.3)
 		events.append({e = "evade", id = target.id, from = e.id, duck = target.safe_until <= t})
 		return

@@ -247,6 +247,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_show_picks(pick_card == null or not pick_card.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
 			session.dream(dream_keys[ev.physical_keycode], _aim_point())
+		elif ev.physical_keycode == Keys.k(KEY_V) and not dreaming and me:
+			session.jump()   # a low sweep (the yellow wedge) passes under
 		elif ev.physical_keycode == Keys.k(KEY_Q):
 			_select(posmod(selected - 1, n_known))
 		elif ev.physical_keycode == Keys.k(KEY_E):
@@ -1214,7 +1216,7 @@ func _on_events(list: Array) -> void:
 		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike", "dream", "shift", "deny"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
 		# --log: say when my weaves form, fly and land, so a render's frames can be picked.
-		if args.has("log") and e.e in ["form", "ready", "cast", "loose", "blast", "hold", "gate_open"] and e.get("id", session.my_id) == session.my_id:
+		if args.has("log") and e.e in ["form", "ready", "cast", "loose", "blast", "hold", "gate_open", "jump", "knocked_down", "rise"] and e.get("id", session.my_id) == session.my_id:
 			print("EV %d %s %s" % [frame, e.e, e.get("weave", "")])
 		match e.e:
 			"spawn":
@@ -1246,6 +1248,29 @@ func _on_events(list: Array) -> void:
 					if not mirror.is_empty() and mirror.get("cls", "channeller") == "channeller":
 						mirror.strength = Rules.strength_of(float(e.strength)); mirror.potential = mirror.strength
 					_banner("You return with the wave\nWeaker for dying: %d level%s of strength lost." % [e.lost, "" if e.lost == 1 else "s"], 6.0, "warn")
+			"knocked_down":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
+					var ka: Dictionary = actors[e.id]
+					# The fall: the death clip run quickly, held on the ground until they rise.
+					(ka.node.get_meta("anim") as AnimationPlayer).play("Death01", 0.08, 1.8)
+					ka.lying = true; ka.erase("gesture"); ka.forming = false
+					if e.id == session.my_id:
+						_banner("Swept off your feet\n%s: roll up and away   ·   %s: rise behind your guard" % [Keys.name(KEY_SPACE), "Right click"], 3.0, "warn")
+			"rise":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var ra: Dictionary = actors[e.id]
+					ra.lying = false
+					if e.how != "roll":
+						# Getting up: the fall played backwards (the pack has no get-up).
+						(ra.node.get_meta("anim") as AnimationPlayer).play("Death01", 0.05, -2.4 if e.how == "guard" else -1.6, true)
+						ra.busy = 0.45 if e.how == "guard" else 0.65
+			"jump":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
+					var ja: Dictionary = actors[e.id]
+					var jap: AnimationPlayer = ja.node.get_meta("anim")
+					if jap.has_animation("Jump"):
+						jap.play("Jump", 0.08, 1.7)
+						ja.busy = 0.55
 			"away":
 				if e.id != session.my_id:
 					Toast.say("%s lost the connection" % e.name, "Their place is kept for %d seconds." % int(e.secs), "info", 6.0)
@@ -1340,7 +1365,7 @@ func _on_events(list: Array) -> void:
 						if _hinted or args.has("tour"):
 							pass
 						elif not profile.get("kit", []).is_empty():
-							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: throw   1-9: change what is in hand" % Keys.name(KEY_F), 9.0)
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand" % [Keys.name(KEY_V), Keys.name(KEY_F)], 9.0)
 						elif not known.is_empty():
 							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
 						_hinted = true
@@ -2130,7 +2155,7 @@ func _draw_actors(dt: float) -> void:
 			a.speed = speed
 			a.cloak_speed = lerpf(a.get("cloak_speed", 0.0), minf(speed, 9.0), minf(3.0 * dt, 1.0))
 			Hero.cloak_motion(n, a.cloak_speed)
-			if a.get("downed", false) or a.get("dead", false):
+			if a.get("downed", false) or a.get("dead", false) or a.get("lying", false):
 				continue     # lying where they fell (Death01 holds its last frame)
 			_flourish(a, n, dt)
 			if a.get("rearm", -1.0) > 0.0 and clock >= a.rearm:

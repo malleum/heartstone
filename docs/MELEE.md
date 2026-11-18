@@ -107,8 +107,12 @@ of it. Notes on what a tick does not cover:
       linked Trollocs die with it.
 - [x] Grabs that must be broken with a dodge (18 Nov: 12% of unguarded Trolloc hits
       seize you for up to 2 s; Space twists free for 15 breath and staggers it).
-- [ ] Hit reactions on the player that match the blow (stagger, knocked back,
-      knocked down) and a get-up.
+- [x] Hit reactions on the player that match the blow (stagger, knocked back,
+      knocked down) and a get-up. (18 Nov: Trollocs with a spear or club can trip
+      you, a low blow drawn as a yellow wedge; you go down, and Space rolls you up
+      and away, guard rises you behind it, or you get up when it wears off. The
+      fall is the death clip run fast and the rise the same clip backwards: the
+      pack has no get-up.)
 
 ### 3. Weapons
 Swords
@@ -198,10 +202,11 @@ Bare hands
 ### 5. Defence
 - [x] Guard, parry, guard break (see Foundations)
 - [x] Sidestep, roll, duck (see Foundations)
-- [ ] Jump, for low sweeps
+- [x] Jump, for low sweeps (18 Nov: V; 0.55 s clear of the ground for 12 breath;
+      a trip passes under. Bots jump a trip and roll up at once when tripped.)
 - [x] Riposte after a parry
 - [ ] Deflecting arrows with a shield
-- [ ] Getting up from a knockdown: roll away or rise guarding
+- [x] Getting up from a knockdown: roll away or rise guarding (18 Nov, above)
 
 ### 6. Seeing it
 - [x] Add the Universal Animation Library 2 clips (CC0): three sword cuts, heavy
@@ -210,8 +215,9 @@ Bare hands
       bow in the off hand; buckler on the forearm; sheathed when weaving.
 - [x] A clip (or a stand-in) for every move, timed so the blade lands when the
       sim says it does.
-- [ ] Arrows, knives, javelins and stones in flight; stuck in what they hit.
-- [ ] Trails on a swinging blade; sparks on a parry; blood or ichor on a hit.
+- [x] Arrows, knives, javelins and stones in flight; stuck in what they hit (armsfx).
+- [~] Trails on a swinging blade; sparks on a parry (both built, armsfx); blood or
+      ichor on a hit (not built).
 - [x] Sounds: swing, steel on steel, steel on flesh, bowstring, arrow strike,
       footfall of a roll.
 - [ ] Stand-ins to replace with real animation: spear thrust, staff work, bow

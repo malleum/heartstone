@@ -259,6 +259,11 @@ func link() -> void:
 	if is_host: _do_arms(1, "link", [])
 	else: _arms.rpc_id(1, "link", [])
 
+## Jump (Sim.request_jump): a low sweep passes under.
+func jump() -> void:
+	if is_host: _do_arms(1, "jump", [])
+	else: _arms.rpc_id(1, "jump", [])
+
 ## Drop the weave being made, unloosed (Sim.cancel_weave).
 func cancel_weave() -> void:
 	if is_host: _do_arms(1, "cancel", [])
@@ -342,6 +347,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			why = sim.cancel_weave(ent)
 		"rope":
 			if a.size() == 1 and a[0] is bool: why = sim.set_tying(ent, a[0])
+		"jump":
+			why = sim.request_jump(ent)
 		"df_gate":
 			why = sim.request_df_gate(ent)
 		"pick":

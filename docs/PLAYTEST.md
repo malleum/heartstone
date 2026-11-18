@@ -139,3 +139,8 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    up); fire is orange tongues with smoke; lightning forks; breastworks are rough
    stones; creatures thin out within 1.5 m of the camera; the others' health bars
    are on the left under your name. The training yard's ground no longer burns.
+12. (18 Nov) Trips, jumps and getting up: a Trolloc with a spear or club sometimes
+   sweeps low (a yellow wedge); V jumps it. Caught, you go down for 1.6 s: Space
+   rolls you up and away, right click rises behind your guard. Assumed: jump 0.55 s
+   for 12 breath, trips at a little over half the weight of their other blows. Is
+   the jump key (V) comfortable, and is a trip readable in time?

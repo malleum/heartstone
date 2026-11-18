@@ -1111,6 +1111,44 @@ func _rounds() -> void:
 	run(bks, 1.0)
 	check(crawled < fwd_m * 0.2 and bke.down == 0.0, "knocked down you crawl (%.1f m in half a second), and get up again" % crawled)
 
+	# A Trolloc's trip sweeps you off your feet; Space rolls you up, guard rises you
+	# behind it, and a jump lets the trip pass under.
+	var ks := Sim.new("practice", 96)
+	ks._waves = []
+	var kp := ks.add_player(Profile.create({name = "Tripped", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword", "horse_bow", "belt_knife"]}))
+	var ke: Dictionary = ks.ents[kp]
+	ke.pos = Vector3.ZERO; ke.stamina = 999.0
+	ks._add_enemy("trolloc", Vector3(0, 0, -1.2))
+	var tk: Dictionary = ks.ents[ks._next - 1]
+	var trip: Dictionary = {}
+	for b in Rules.enemies.trolloc.attacks:
+		if b.get("height", "") == "low": trip = b.duplicate()
+	check(not trip.is_empty(), "Trollocs can trip (a low blow)")
+	trip.dmg = 5.0
+	tk.blow = trip; tk.aim_yaw = atan2(ke.pos.x - tk.pos.x, ke.pos.z - tk.pos.z)
+	ks.events.clear()
+	ks._enemy_blow(tk, [ke])
+	check(ke.get("lying", false) and ke.down > 1.0 and ks.events.any(func(e: Dictionary) -> bool: return e.e == "knocked_down"), "a trip knocks a player down")
+	ks.events.clear()
+	check(ks.request_dodge(kp, Vector3(1, 0, 0), false) == "" and ke.down == 0.0 and not ke.dash.is_empty() and ks.events.any(func(e: Dictionary) -> bool: return e.e == "rise" and e.how == "roll"), "Space rolls you up off the ground")
+	run(ks, 1.0)
+	ke.pos = Vector3.ZERO; ke.dash = {}; ke.safe_until = 0.0
+	tk.pos = Vector3(0, 0, -1.2); tk.blow = trip; tk.aim_yaw = atan2(-tk.pos.x, -tk.pos.z)
+	ks._enemy_blow(tk, [ke])
+	ks.events.clear()
+	ke.parry_free = 0.0
+	ks.set_guard(kp, true)
+	tk.pos = Vector3(0, 0, -40)   # (out of the way while she gets up)
+	var risen := run(ks, 0.5)
+	check(not ke.get("lying", false) and ke.guard and "rise" in risen, "guard rises you behind it")
+	run(ks, 2.0)
+	ke.pos = Vector3.ZERO; ke.guard = false; ke.safe_until = 0.0
+	check(ks.request_jump(kp) == "", "a jump")
+	ks.events.clear()
+	tk.pos = Vector3(0, 0, -1.2); tk.blow = trip; tk.aim_yaw = atan2(-tk.pos.x, -tk.pos.z)
+	ks._enemy_blow(tk, [ke])
+	check(not ke.get("lying", false) and ks.events.any(func(e: Dictionary) -> bool: return e.e == "evade"), "and the trip passes under it")
+
 	# The ground changes for the round: fire catches, water douses, air blows out,
 	# earth throws down stone and leaves rubble.
 	var grs := Sim.new("short_watch", 96)
