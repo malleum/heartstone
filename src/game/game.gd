@@ -84,6 +84,7 @@ func _ready() -> void:
 	# bot can be made to show one weave in a render.
 	if args.has("only"):
 		profile.weaves = {}
+		profile.hotbar = []     # the order given here, not one saved earlier
 		for w in args.only.split(","):
 			if Rules.weaves.has(w):
 				profile.weaves[w] = {known = true, xp = 0.0}
@@ -112,7 +113,12 @@ func _ready() -> void:
 	# The order the player chose in the camp's loadout, if any.
 	var order: Array = profile.get("hotbar", [])
 	if not order.is_empty():
-		known.sort_custom(func(x: String, y: String) -> bool: return (order.find(x) if order.has(x) else 99) < (order.find(y) if order.has(y) else 99))
+		# Stable: what the order does not name keeps its own place after what it does.
+		var first := known.duplicate()
+		known.sort_custom(func(x: String, y: String) -> bool:
+			var a := (order.find(x) if order.has(x) else 99) * 1000 + first.find(x)
+			var b := (order.find(y) if order.has(y) else 99) * 1000 + first.find(y)
+			return a < b)
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
@@ -588,6 +594,7 @@ func shake_at(at: Vector3, radius: float) -> void:
 ## is: a joining client learns that from the host.
 func _on_started(_my_id: int, activity: String) -> void:
 	_started = true
+	in_battle = Rules.activities[activity].has("battle")
 	_stamp("session started")
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
 		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
@@ -674,8 +681,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 	# --levels=N: the team starts N levels up, choices waiting (a quick look at
 	# levelling). --fast: the waves come four times as fast.
 	if session.is_host and session.sim.round_mode:
+		var lside: int = session.sim.ents.get(session.my_id, {}).get("team", 0)
 		for i in int(args.get("levels", "0")):
-			session.sim._gain(Round.xp_for(session.sim.team_level))
+			session.sim._gain(Round.xp_for(session.sim.levels.get(lside, 1) if not session.sim.battle.is_empty() else session.sim.team_level), lside)
 		if args.has("fast"):
 			for w in session.sim._waves:
 				w.t = 3.0 + (w.t - 3.0) * 0.25
@@ -1160,6 +1168,8 @@ func _on_events(list: Array) -> void:
 					actors[e.id].downed = true
 				if e.id == session.my_id:
 					_banner("You are down\nA friend must stand over you within %d seconds. Half a body more and you are dead." % int(e.secs), 6.0, "warn")
+				elif actors.has(e.id) and in_battle and int(actors[e.id].get("team", 0)) != my_team:
+					_banner("%s is down\nFinish them before their side brings them back." % actors[e.id].get("name", "One of theirs"), 4.0, "good")
 				elif actors.has(e.id):
 					_banner("%s is down\nStand over them to bring them back." % actors[e.id].get("name", "A friend"), 5.0, "warn")
 			"revived":
@@ -1244,12 +1254,18 @@ func _on_events(list: Array) -> void:
 					_stamp("hero model made")
 					add_child(rig)
 					rig.position = _ground(e.pos)
-					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI}
+					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI, team = int(e.get("team", 0))}
+					# In a battle, a ring of your banner's colour at everyone's feet:
+					# blue for your side, red for theirs, so a glance tells friend from foe.
+					if in_battle:
+						_team_ring(rig, int(e.get("team", 0)))
 					Hero.arm(rig, e.get("weapon", ""))
 					actors[e.id].weapon = e.get("weapon", "")
 					if e.id == session.my_id:
 						me = rig
 						banner.text = ""
+						my_team = int(e.get("team", 0))
+						_paint_rings()
 						_arrive(rig)
 						if known.has(e.get("weapon", "")):
 							selected = known.find(e.weapon)
@@ -1683,6 +1699,20 @@ func _on_events(list: Array) -> void:
 				Weavefx.blast(self, e.pos, e.radius, e.weave)
 				# Any blast shoves the air: grass, cloaks and banners lean away from it.
 				Wind.gust(e.pos, clampf(float(e.radius) / 4.0, 0.5, 2.0))
+			"gaze":
+				# The first time in a while: say what it is doing to you.
+				if e.id == session.my_id and frame - _gaze_said > 900:
+					_gaze_said = frame
+					_banner("The Eyeless gaze\nFear grips you while you meet its stare: weaving comes slowly. Look away.", 4.0, "shadow")
+			"prop_out":
+				if not session.is_host and e.index < Map.trees().size():
+					Map.trees()[e.index].out = true
+				var pf := get_node_or_null("propfire_%d" % int(e.index))
+				if pf:
+					for c in pf.get_children():
+						if c is GPUParticles3D or c is OmniLight3D:
+							c.queue_free()
+					Weavefx._once(Weavefx._particles(Color(0.45, 0.45, 0.45), 30, 2.0, 0.6, 1.2, 0.8, 40.0, false), self, pf.get_child(0).global_position + Vector3(0, 0.5, 0))
 			"patch":
 				_patch(e)
 			"patch_end":
@@ -1718,6 +1748,32 @@ func _on_events(list: Array) -> void:
 					fx[e.id].queue_free(); fx.erase(e.id)
 			"wave":
 				_banner(("They come from every side" if Map.m.get("around", false) else "A wave comes down the pass") if e.left > 0 else "The last of them", 3.0)
+
+var my_team := 0
+var _gaze_said := -9999
+var in_battle := false
+
+func _team_ring(rig: Node3D, team: int) -> void:
+	var ring := MeshInstance3D.new(); var tm := TorusMesh.new()
+	tm.inner_radius = 0.48; tm.outer_radius = 0.56; tm.rings = 24; tm.ring_segments = 6
+	ring.mesh = tm; ring.name = "TeamRing"
+	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring.material_override = m
+	ring.scale = Vector3(1, 0.15, 1); ring.position.y = 0.04
+	rig.add_child(ring)
+	ring.set_meta("team", team)
+	_paint_rings()
+
+## Friend or foe is judged from my side, which is known only once I am introduced.
+func _paint_rings() -> void:
+	for id in actors:
+		var a: Dictionary = actors[id]
+		if a.kind != "player" or not is_instance_valid(a.node):
+			continue
+		var r := a.node.get_node_or_null("TeamRing") as MeshInstance3D
+		if r:
+			var mine: bool = int(r.get_meta("team")) == my_team
+			(r.material_override as StandardMaterial3D).albedo_color = Color(0.35, 0.6, 1.0, 1.0) if mine else Color(1.0, 0.3, 0.25, 1.0)
 
 ## Burning grass or a puddle on the ground (Sim._ignite, Sim._puddle).
 func _patch(e: Dictionary) -> void:

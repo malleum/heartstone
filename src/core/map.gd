@@ -143,7 +143,8 @@ static func _props(activity: String) -> void:
 			_walls.append({x = bp.x, z = bp.y, hx = 0.92, hz = 0.18, h = 0.5, yaw = 0.0, rot = a - side * 0.3 + PI, look = "bench"})
 	if activity == "camp":
 		# The camp's tents and stores (drawn by Scenery.camp from these).
-		for t in [[11.0, 9.0], [4.5, 13.0], [-4.0, 13.5], [-11.0, 9.5], [-15.0, 3.0], [15.5, 2.5]]:
+		# Out beyond the ring of doorways (20 m), so every doorway has a clear way in.
+		for t in [[21.0, 17.0], [8.5, 25.0], [-7.6, 25.6], [-21.0, 18.0], [-27.0, 6.0], [27.5, 5.0]]:
 			var yaw := atan2(-t[0], -(t[1] - 3.0)) + pr.randf_range(-0.25, 0.25)
 			var k := pr.randf_range(0.9, 1.15)
 			_walls.append({x = t[0], z = t[1], hx = 1.3 * k, hz = 1.75 * k, h = 1.9 * k, yaw = yaw, rot = yaw, look = "tent", k = k})

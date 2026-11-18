@@ -147,10 +147,15 @@ static func _cyl(parent: Node3D, r0: float, r1: float, h: float, at: Vector3, ma
 static func props(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 41
 	var wood := _mat(Color(0.16, 0.11, 0.07))
-	for t in Map.trees():
+	var trees := Map.trees()
+	for ti in trees.size():
+		var t: Dictionary = trees[ti]
 		var at := _ground(t.x, t.z)
 		match t.get("prop", ""):
-			"fire": fire(g, at)
+			"fire":
+				# In a node of its own, so a weave that puts it out can take its flame.
+				var fn := Node3D.new(); fn.name = "propfire_%d" % ti; g.add_child(fn)
+				fire(fn, at)
 			"torch": torch(g, at)
 			"crate":
 				crate(g, at, rng); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw

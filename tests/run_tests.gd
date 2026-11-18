@@ -1135,6 +1135,50 @@ func _rounds() -> void:
 	grs.t += 31.0; grs._step_patches(0.1)
 	check(not Map.in_wall(Vector3(2.5, Terrain.height(2.5, 5) + 0.3, 5)), "and settles back after a while")
 
+	# Healing a friend who is down brings them up off the ground.
+	var hls := Sim.new("tarwins_gap_watch", 99)
+	hls._waves = [{t = 999.0, spawn = {}}]
+	var hl1 := hls.add_player(Profile.make({name = "Healer", power = "saidar"}))
+	var hl2 := hls.add_player(Profile.make({name = "Fallen", power = "saidin"}), Vector3(1.5, 0, 0))
+	hls.ents[hl1].profile.weaves["healing"] = {known = true, xp = 0.0}
+	hls.ents[hl1].profile.no_roll = true
+	hls.ents[hl1].profile.strength = Rules.strength_of(10.0)
+	hls._hurt(hls.ents[hl2], 9999.0, 0, "")
+	check(hls.ents[hl2].get("downed", false), "a round player goes down first")
+	var hwhy := hls.request_cast(hl1, "healing", hls.ents[hl2].pos)
+	run(hls, 4.0)
+	check(hwhy == "" and not hls.ents[hl2].get("downed", false) and hls.ents[hl2].hp > 0.0, "Healing brings a downed friend up (%s)" % hwhy)
+
+	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
+	var gzs := Sim.new("practice", 98)
+	gzs._waves = []
+	var gzp := gzs.add_player(Profile.create({name = "Gazer", power = "saidin"}))
+	var gze: Dictionary = gzs.ents[gzp]
+	gze.pos = Vector3.ZERO; gze.yaw = 0.0
+	gzs._add_enemy("myrddraal", Vector3(0, 0, 8))
+	gzs.ents[gzp + 1].speed = 0.0
+	gzs._gaze(gze)
+	check(gze.get("afraid", 0.0) > gzs.t, "meeting a Myrddraal's stare up close, fear grips you")
+	gze.afraid = 0.0; gze.yaw = PI
+	gzs._gaze(gze)
+	check(gze.get("afraid", 0.0) <= gzs.t, "looking away, it does not")
+
+	# Team battle: sides filled with bots, kills scored, one side wins.
+	var tbs := Sim.new("team_battle", 97)
+	var tbp := tbs.add_player(Profile.make({name = "Banner", power = "saidin"}))
+	var tbt := 0.0
+	while not tbs.over and tbs.t < 800.0:
+		Bot.drive(tbs, tbp)
+		tbs.step(1.0 / 15.0)
+		tbs.events.clear()
+	var sides := {1: 0, 2: 0}
+	for k in tbs.ents:
+		if tbs.ents[k].kind == "player": sides[tbs.ents[k].team] += 1
+	print("  team battle: over %s at %.0fs, scores %s, winner %d, levels %s, sides %s" % [tbs.over, tbs.t, tbs.scores, tbs.winner, tbs.levels, sides])
+	check(sides[1] == sides[2] and sides[1] >= 2, "both sides are filled to the same number")
+	check(tbs.over and tbs.winner in [1, 2] and tbs.won(tbp) == (tbs.ents[tbp].team == tbs.winner), "a battle ends with one side the winner")
+	check(tbs.scores[1] + tbs.scores[2] > 0, "deaths under the other banner are scored")
+
 	# Affinity room follows the Talents selected: 9, 7, 5.
 	var rp := Profile.make({name = "Roomy", power = "saidar"})
 	check(Profile.aff_cap(rp) == 9 and Profile.aff_cap(rp, 1) == 7 and Profile.aff_cap(rp, 2) == 5, "affinity room is 9, 7 or 5 by Talents selected")

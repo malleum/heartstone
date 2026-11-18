@@ -9,7 +9,7 @@ const TALENT_PICKS := ["healing", "travelling", "cloud_dancing", "earth_singing"
 ## Doorway light by kind of activity: the yard is daylight, a holdout is fire,
 ## the World of Dreams is its own colour.
 const GAME_SCENE := "res://src/game/game.tscn"
-const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38, 0.12), spar = Color(0.5, 0.45, 1.0)}
+const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38, 0.12), spar = Color(0.5, 0.45, 1.0), battle = Color(0.85, 0.2, 0.25)}
 
 var profile := {}
 var model: Node3D
@@ -264,10 +264,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if cam == null:
 		return
 	# Waiting for a key to bind (the Keys panel): the next key pressed is it.
-	if _binding != -1 and ev is InputEventKey and ev.pressed and not ev.echo:
+	if (_binding != -1 or _binding_dream != "") and ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.physical_keycode != KEY_ESCAPE:
-			Keys.bind(_binding as Key, ev.physical_keycode)
-		_binding = -1
+			if _binding_dream != "":
+				# Dream moves are kept with the character (profile.dream_keys).
+				if not profile.has("dream_keys"): profile.dream_keys = {}
+				profile.dream_keys[_binding_dream] = OS.get_keycode_string(ev.physical_keycode)
+				Profile.save(profile)
+			else:
+				Keys.bind(_binding as Key, ev.physical_keycode)
+		_binding = -1; _binding_dream = ""
 		get_viewport().set_input_as_handled()
 		_keys_panel()
 		return
@@ -547,6 +553,7 @@ func _sheet() -> void:
 	_button(side, "Menu: characters, keys, server, quit  (Esc)", func() -> void: _show_menu(true))
 
 var _binding := -1   # the default key being rebound in the Keys panel, or -1
+var _binding_dream := ""   # or the dream move being rebound
 
 ## Every key that does something, and what it is bound to; press one to change it.
 func _keys_panel() -> void:
@@ -558,8 +565,18 @@ func _keys_panel() -> void:
 		_button(menu_box, label, func() -> void:
 			_binding = int(dk)
 			_keys_panel())
+	# The dream duel's moves, kept with this character.
+	_section(menu_box, "In the World of Dreams")
+	Dream.load_data()
+	for mv in Dream.moves:
+		var m: String = mv
+		var cur: String = profile.get("dream_keys", {}).get(m, Dream.moves[m].key)
+		_button(menu_box, "%s:   %s" % [Dream.moves[m].name, "press a key…" if _binding_dream == m else cur], func() -> void:
+			_binding_dream = m
+			_keys_panel())
 	_button(menu_box, "Put every key back as it was", func() -> void:
 		Keys.reset()
+		profile.erase("dream_keys"); Profile.save(profile)
 		_keys_panel())
 	_button(menu_box, "Back  (Esc)", func() -> void: _binding = -1; _show_menu(true))
 

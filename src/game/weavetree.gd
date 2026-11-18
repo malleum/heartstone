@@ -209,14 +209,22 @@ func _draw() -> void:
 		var name_col := Color(0.97, 0.94, 0.88) if st == "known" else (Color(0.9, 0.9, 0.95) if st != "locked" else Color(0.5, 0.5, 0.56))
 		# Long names (the sword forms) go on two lines.
 		var label: String = _table()[id].name
-		var cut := label.find(" ", label.length() / 2 - 1) if label.length() > 20 else -1
+		var cut := label.find(" ", label.length() / 2 - 1) if label.length() > 13 else -1
 		Glyph.text(self, sans, p + Vector2(0, r + 22.0), label if cut < 0 else label.substr(0, cut), 13, name_col, 0)
 		if cut >= 0:
 			Glyph.text(self, sans, p + Vector2(0, r + 38.0), label.substr(cut + 1), 13, name_col, 0)
 	Glyph.text(self, serif, Vector2(40, 60), "The Forms" if _forms() else "The Weaves", 38, Color(0.97, 0.94, 0.88))
 	Glyph.text(self, sans, Vector2(42, 86), "One form is worked out at a time," if _forms() else "One weave is worked out at a time,", 14, Color(0.65, 0.67, 0.75))
 	Glyph.text(self, sans, Vector2(42, 106), "by fighting with anything." if _forms() else "by channelling anything.", 14, Color(0.65, 0.67, 0.75))
-	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), "%s or Esc: back to the camp" % Keys.name(KEY_T), 14, Color(0.65, 0.67, 0.75))
+	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), ("%s or Esc: close" % Keys.name(KEY_TAB)) if pickable else ("%s or Esc: back to the camp" % Keys.name(KEY_T)), 14, Color(0.65, 0.67, 0.75))
+	# Weaves past the spoiler setting are not drawn, but it should be plain there are more.
+	if not _forms():
+		var hidden := 0
+		for id in Rules.weaves:
+			if not str(id).begins_with("_") and Rules.weaves[id].book > profile.book_limit and not profile.weaves.has(id):
+				hidden += 1
+		if hidden > 0:
+			Glyph.text(self, sans, Vector2(42, 126), "%d more in later books (past your spoiler setting)" % hidden, 13, Color(0.55, 0.57, 0.65))
 	_card(hover if hover != "" else profile.get("study", ""))
 
 ## The panel on the right: what the weave under the pointer is and what it asks.

@@ -27,5 +27,6 @@
   "practice": {"name": "Practice ground (tests)", "hidden": true, "kind": "training", "blurb": "The training yard without its rolls: a fixed sandbox for the rules tests.",
     "requires": {}, "renown": 0, "teaches": [], "yield": {"strength": 0.5, "mastery": 1.0}, "waves": [{"t": 0, "spawn": {"dummy": 6}}]},
   "dream_spar": {"name": "Sparring in Tel'aran'rhiod", "kind": "spar", "dream": true, "blurb": "Duel a friend in the World of Dreams. Nothing here can truly harm you.",
-    "requires": {"renown": 15}, "renown": 3, "teaches": [], "yield": {"strength": 0.3, "mastery": 1.0}, "waves": []}
+    "requires": {"renown": 15}, "renown": 3, "teaches": [], "yield": {"strength": 0.3, "mastery": 1.0}, "waves": []},
+  "team_battle": {"round": {"waves": 10, "gap": 70, "start": 3, "grow": 1.12, "specials": ["trolloc_archer"], "boss": {"trolloc_archer": 2}}, "map": "wagon_ring", "name": "Two banners", "kind": "battle", "blurb": "Two sides meet round a ring of wagons. Kill those under the other banner, ten deaths wins, or the most when twelve minutes run out. Shadowspawn come for both.", "requires": {}, "renown": 4, "yield": {"strength": 1.0, "mastery": 1.0}, "waves": [], "battle": {"kills": 10, "time": 720, "respawn": 8, "fill": 2}, "teaches": []}
 }

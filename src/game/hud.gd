@@ -67,9 +67,20 @@ func _draw() -> void:
 
 	# The round: the team's level, how far to the next, and choices waiting.
 	if not g.team_meter.is_empty():
-		var lv: int = g.team_meter[0]
+		var tm: Array = g.team_meter
+		var side: int = g.my_team if tm.size() >= 7 else 0
+		var lv: int = tm[2] if side == 2 else tm[0]
 		Glyph.text(self, serif, Vector2(300, 46), "Level %d" % lv, 20, Glyph.GOLD)
-		Glyph.bar(self, Vector2(300, 52), 110, 5, float(g.team_meter[1]), Glyph.GOLD, Color(1.0, 0.9, 0.6))
+		Glyph.bar(self, Vector2(300, 52), 110, 5, float(tm[3] if side == 2 else tm[1]), Glyph.GOLD, Color(1.0, 0.9, 0.6))
+		if tm.size() >= 7:
+			# A battle: the score, ours first in our colour, and the time left.
+			var ours: int = tm[4] if side != 2 else tm[5]
+			var theirs: int = tm[5] if side != 2 else tm[4]
+			var left := int(tm[6])
+			var line := "%d" % ours
+			Glyph.text(self, serif, Vector2(W * 0.5 - 60, 46), line, 30, Color(0.45, 0.68, 1.0))
+			Glyph.text(self, serif, Vector2(W * 0.5 - 14, 44), "%d:%02d" % [left / 60, left % 60], 16, Color(0.85, 0.85, 0.85))
+			Glyph.text(self, serif, Vector2(W * 0.5 + 44, 46), "%d" % theirs, 30, Color(1.0, 0.4, 0.35))
 		if g.darkfriend:
 			Glyph.text(self, sans, Vector2(300, 70), "%s: the Shadow's gateway" % Keys.name(KEY_J), 12, Color(0.85, 0.3, 0.3, 0.8))
 		var picks: int = p.get("round", {}).get("picks", 0)

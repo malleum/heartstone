@@ -153,8 +153,9 @@ static func stuck(body: Node3D, at: Vector3, dir: Vector3, weapon: String) -> vo
 	m.global_position = at - dir * 0.25
 	if dir.length() > 0.1:
 		m.global_basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.98 else Vector3.RIGHT)
-	body.get_tree().create_timer(20.0).timeout.connect(func() -> void:
-		if is_instance_valid(m): m.queue_free())
+	# A timer of its own, so it goes with the missile if the body is cleared first.
+	var tm := Timer.new(); tm.wait_time = 20.0; tm.one_shot = true; tm.autostart = true
+	m.add_child(tm); tm.timeout.connect(m.queue_free)
 
 ## Where a missile met the ground: a puff of dust.
 static func puff(g: Node3D, at: Vector3) -> void:

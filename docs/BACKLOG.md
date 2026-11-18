@@ -161,8 +161,8 @@ are what the 4:44 review, or the next session, should pick up.
   lands unguarded staggers you or throws you back, with a matching hit clip. PLAYTEST 65.
 
 ## Character and progression
-- [ ] Weave tree follow-ups: weaves beyond your book limit are simply absent (no
-  hint that more exist); long names can touch a neighbour.
+- [x] Weave tree follow-ups (18 Nov): a line says how many weaves lie past your
+  spoiler setting; names over 13 letters go on two lines.
 - [ ] Camp follow-ups: other players are not seen in the camp; the doorways show
   a silhouette of the place, not the place itself; the armoury and appearance are
   panels, not things you walk to.
@@ -187,15 +187,14 @@ are what the 4:44 review, or the next session, should pick up.
 
 ## Found by looking (Claude)
 - [ ] Gateway: the edges do not cut, and nothing uses one yet (a mission could).
-- [ ] Healing has a marker and a refusal when nobody is in reach; it has not been
-  tried with two people.
+- [x] Healing with two people (18 Nov): tested in the rules; Healing a downed friend
+  brings them back up.
 - [ ] Movement prediction is built but has only run on one machine, where there
   is no delay to hide. It needs a real connection to judge.
 - [x] Darkhounds, Draghkar and Dreadlords (15 Nov): see ARCHITECTURE "More
   Shadowspawn" and PLAYTEST 62 to 64. Not made: Gholam, Grey Men, Forsaken.
-- [ ] Trolloc
-  archers carry whatever their body was given, not a bow. The Myrddraal has no
-  cloak and no fear in its gaze. The wagon ring was lost by a two-bot party.
+- [x] Trolloc archers carry bows (done earlier). The Myrddraal's gaze grips with
+  fear (18 Nov: weaving slows while you meet it). Still no separate hanging cloak. The wagon ring was lost by a two-bot party.
 - [ ] Stamina starts full each activity; it may be better carried between them.
 
 - 2026-11-18, asked by the user:
@@ -208,6 +207,10 @@ are what the 4:44 review, or the next session, should pick up.
   the camp. Harmless, and not reproduced in renders (movie mode, online or offline);
   likely Godot's multiplayer cache tidying a Session that is freed or moved between
   worlds. Find the step that does it and stop it.
+
+- 2026-11-18, found running the controls test: about one run in four the scripted
+  G press (tie off the dome) reaches the game but no tie happens, and the presses
+  after it go astray. Passes when run again. The suite now retries once; find it.
 
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
@@ -283,7 +286,7 @@ are what the 4:44 review, or the next session, should pick up.
     of the name and the weave).
 - 2026-11-16, Dreamworld duelling (asked for 15 Nov; first version built, see
   ARCHITECTURE "Duelling in the dream" and PLAYTEST 72-74). Still to do:
-  - Rebinding the dream keys in the camp (`profile.dream_keys` is already read).
+  - (Done 18 Nov: in the camp's Keys panel, kept with the character.) Rebinding the dream keys in the camp.
   - More imagined things (a change of clothes, a sudden pit under a runner, a
     mirror image), and dream moves against Shadowspawn in a dream mission.
   - A duel of real players over the server has passed the co-op test path only as
@@ -342,7 +345,7 @@ are what the 4:44 review, or the next session, should pick up.
   the endless night; friendly fire; gateways that kill Shadowspawn and pass weaves,
   with flat ends; releases for Linux and Windows with self-updating. Still to do from
   the multiplayer list: multi-stage runs joined by a gateway, canon linking, team PvP
-  with levels, a fighter's physical restraint (for Darkfriends), balefire undoing
+  with levels (done 18 Nov: "Two banners", see ARCHITECTURE), a fighter's physical restraint (for Darkfriends), balefire undoing
   recent deaths, the character screen made beautiful, origin mattering, and walking
   back to the camp through a portal.
 - 2026-11-17, asked by the user:

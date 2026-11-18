@@ -112,3 +112,13 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    fires out, Heave the Ground throws down stone walls it crosses and leaves a rubble
    ridge (30 s, vaultable cover). Is losing the breastwork to your own Heave too
    costly? Assumed it is the price of the weave.
+5. (18 Nov) Two banners (team battle): ten deaths wins, or the most in twelve minutes;
+   you come back at your end 8 s after dying, no strength lost; bots fill both sides
+   to the same number (at least two each). Killing one of theirs is worth about two
+   Trollocs to your whole side. Blue rings: yours; red: theirs. Bots end a battle in
+   about two minutes: is ten too few with real players?
+6. (18 Nov) The Eyeless gaze: facing a Myrddraal within 14 m (within about 25 degrees)
+   grips you with fear: weaves form at 60% speed, you move at 80%, for 1.5 s after you
+   look away (0.75 s for fighters). Too harsh against a Fade that circles you?
+7. (18 Nov) Healing a friend who is down brings them back up at once with the
+   Healing's amount of health.

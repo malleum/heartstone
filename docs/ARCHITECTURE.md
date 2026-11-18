@@ -597,6 +597,42 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
 Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
 (`endless_won`), and the fight goes on for as long as anyone lasts.
 
+## Two banners: team battle (`team_battle`; Sim `battle`, built 18 Nov)
+- Two sides of players. Each player joins the side with fewer on it, at that side's
+  end of the field (outside the wagon ring, 21 m out). A few seconds in, bots fill
+  both sides to the same number (at least `battle.fill`, 2), half channellers, half
+  Warders. No rolled Warders in a battle: the sides are matched by number.
+- Each side levels on its own kills (`levels`, `xps`); killing one of theirs is worth
+  about two Trollocs to the whole side. The round meter carries both sides' levels,
+  the score and the time left; each view shows its own side's (`game.my_team`).
+- Going down and reviving work as in rounds (only your own side can bring you back);
+  a death scores a point for the side that caused it (a downed player left to die is
+  still the work of whoever put them down: `downed_by`) and you return at your end
+  after `battle.respawn` seconds, with no strength lost.
+- Ends at `battle.kills` (10) or, after `battle.time` (12 min), with whoever leads.
+  `Sim.won(id)` is by side. A light trickle of Shadowspawn harasses both sides.
+- Rings at everyone's feet: blue for your side, red for theirs.
+
+## Weaves change the ground (Sim `patches`, `_mark_ground`; built 18 Nov)
+- Fire in a weave (not balefire) leaves burning grass where it lands (9 s; it
+  burns anyone standing in it). Lash of Water leaves puddles along its line (45 s):
+  they put fire out, douse the burning and soak. Air (a Hammer, an Air blast) blows
+  fires out. Heave the Ground and the Rolling Ring throw down stone walls they cross,
+  and Heave leaves a ridge of rubble (vaultable cover, 30 s).
+- Walls carry ids (`wid`) so they can fall and rise in play: `Map.add_wall`,
+  `Map.remove_wall`, and `wall_up` / `wall_gone` events that clients apply to their
+  own Map. A player joining late misses earlier changes (not sent in the roster).
+
+## Solid props and wind (18 Nov)
+- Every prop that stands on a fighting ground is placed by `Map._props` (by map and
+  activity) as a circle in `Map.trees()` with a `prop` name, or as a wall: the sim
+  collides with it where `Scenery.props` / `Scenery.yard` / `Scenery.camp` draw it.
+  Props below 1.6 m do not block an archer's line. Enemies path round props too.
+- Wind (`src/game/wind.gd`, view only): a steady wind per place and gusts from
+  blasts and Air weaves, passed to shaders as the global parameters `wind_vec` and
+  `gust` (declared in project.godot). Grass, banners (`shaders/flag.gdshader`),
+  cloaks and hair (`Hero.cloak_motion`) read it; a looped wind sound follows it.
+
 ## Duelling in the dream (src/core/dream.gd, data/dream.json; built 16 Nov)
 An activity with `"dream": true` (only `dream_spar` so far) gives every player **Will**
 (100; back at 13/s after 1 s without spending, x1.6 standing still) and the dream moves,

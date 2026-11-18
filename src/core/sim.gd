@@ -23,6 +23,13 @@ var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dre
 var round_mode := false  # a round (see Round): everyone grows during it, from fresh
 var team_level := 1
 var team_xp := 0.0
+# Team battle (an activity with "battle"): two sides of players, each with its own
+# level, scoring the other side's deaths. Shadowspawn come for both.
+var battle := {}
+var scores := {1: 0, 2: 0}
+var levels := {1: 1, 2: 1}
+var xps := {1: 0.0, 2: 0.0}
+var _filled := false
 var _endless_won := false
 var ledger: Array = []   # recent harm: {t, by, on, dmg, hp, downed}; balefire undoes it
 var df_mode := false     # a Darkfriend round: one or two players may secretly serve the Shadow
@@ -39,6 +46,7 @@ func _init(activity: String, seed_ := 1) -> void:
 		df_mode = act.get("darkfriend", false)
 		_waves = Round.plan(act, rng)
 	_spar = act.kind == "spar"
+	battle = act.get("battle", {})
 	dream = act.get("dream", false)
 	Dream.load_data()
 	Map.use(act.get("map", "open"), activity)
@@ -48,7 +56,7 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> in
 		# The round copy: rolled strength or gift, fresh practice. Someone arriving
 		# part-way through catches up to the team's level.
 		profile = Round.begin(profile, rng)
-		for lv in range(2, team_level + 1):
+		for lv in range(2, (levels[_smaller_side()] if not battle.is_empty() else team_level) + 1):
 			Round.level_up(profile, lv, rng)
 	var id := _next; _next += 1
 	ents[id] = {id = id, kind = "player", profile = profile, pos = pos, yaw = PI, hp = 100.0, max_hp = 100.0,
@@ -61,6 +69,13 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> in
 		will = 100.0, will_t = -99.0, chained = 0.0, shaken = 0.0, deny_until = 0.0}
 	var p: Dictionary = ents[id]
 	p.bot = as_bot
+	if not battle.is_empty():
+		# No Warders in a battle: the sides are matched by number.
+		if profile.has("round"): profile.round.warder = false
+		# The side with fewer on it, at its own end of the field.
+		p.team = _smaller_side()
+		p.pos = _base(p.team) + Vector3(rng.randf_range(-2.0, 2.0), 0, 0)
+		p.yaw = 0.0 if p.team == 1 else PI
 	# Those who fight with their hands are built for it: more breath than a channeller.
 	p.stamina_max = Rules.TUNE.stamina * (1.5 if profile.get("cls", "channeller") != "channeller" else 1.0)
 	p.stamina = p.stamina_max
@@ -92,7 +107,7 @@ func _intro(e: Dictionary) -> Dictionary:
 	# how far they can go is theirs to find out).
 	var rd: Dictionary = pr.get("round", {})
 	var round_view := {} if rd.is_empty() else {level = rd.get("level", 1), picks = rd.get("picks", 0), strength = Rules.level_of(Rules.strength(pr)) if pr.get("cls", "channeller") == "channeller" else 0, warder = rd.get("warder", false), gift = rd.get("gift", 0.0), bot = e.get("bot", false)}
-	return {round = round_view, e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
+	return {round = round_view, team = e.get("team", 0), e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:
@@ -554,7 +569,7 @@ func step(dt: float) -> void:
 	t += dt
 	# A round's field cleared early: the next wave comes in a few seconds, not when
 	# its timer says.
-	if round_mode and not _waves.is_empty() and _waves[0].t > t + 6.0:
+	if round_mode and battle.is_empty() and not _waves.is_empty() and _waves[0].t > t + 6.0:
 		var any_foe := false
 		for id in ents:
 			if ents[id].kind == "enemy" and ents[id].alive and ents[id].get("row", {}).get("speed", 1.0) > 0.0:
@@ -596,7 +611,9 @@ func step(dt: float) -> void:
 	_step_effects(dt)
 	_step_patches(dt)
 	# Outcome.
-	if _spar:
+	if not battle.is_empty():
+		_step_battle()
+	elif _spar:
 		if players.size() <= 1 and tallies.size() > 1:
 			_finish(true)
 	elif players.is_empty():
@@ -658,6 +675,8 @@ func _df_free() -> bool:
 
 ## Did this player win? In a Darkfriend round the two sides win and lose apart.
 func won(id: int) -> bool:
+	if not battle.is_empty():
+		return over and ents.get(id, {}).get("team", 0) == winner
 	if not df_mode or not over:
 		return success
 	var df: bool = ents.get(id, {}).get("darkfriend", false)
@@ -803,6 +822,82 @@ func _circle_mult(p: Dictionary) -> float:
 			add += Rules.TUNE.link_share * Rules.strength(ents[k].profile) / mine
 	return 1.0 + add
 
+# --- team battle -------------------------------------------------------------------
+
+func _smaller_side() -> int:
+	var n := {1: 0, 2: 0}
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.kind == "player" and e.get("team", 0) in [1, 2]:
+			n[e.team] += 1
+	return 1 if n[1] <= n[2] else 2
+
+## Each side's end of the field: outside the wagon ring, facing each other across it.
+func _base(team: int) -> Vector3:
+	return Vector3(0, 0, -21.0 if team == 1 else 21.0)
+
+## A few seconds in: fill both sides with bots up to the same number (and at least
+## `fill`), so a few friends, or one player alone, still have a fight.
+func _fill_battle() -> void:
+	_filled = true
+	var n := {1: 0, 2: 0}
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.kind == "player" and e.get("team", 0) in [1, 2]:
+			n[e.team] += 1
+	var want: int = maxi(maxi(n[1], n[2]), int(battle.get("fill", 2)))
+	var names := ["Aram", "Bain", "Corlan", "Daved", "Elyas", "Faile", "Gareth", "Hurin", "Ila", "Jaim", "Kiruna", "Lan", "Morvrin", "Nynaeve", "Ostric", "Perrin"]
+	var k := 0
+	for side in [1, 2]:
+		while n[side] < want:
+			var nm: String = names[(k * 7 + side) % names.size()] + " (bot)"
+			k += 1
+			var pr: Dictionary
+			if rng.randf() < 0.5:
+				pr = Profile.make({name = nm, power = "saidin" if rng.randf() < 0.5 else "saidar"})
+			else:
+				pr = Profile.create({name = nm, cls = "warder", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["sword", "horse_bow"]})
+			# (add_player puts it on the smaller side, which is this one.)
+			add_player(pr, Vector3.ZERO, true)
+			n[side] += 1
+
+## Someone under one banner killed by the other: a point to the killer's side, and
+## experience for that whole side.
+func _battle_death(e: Dictionary, by: int) -> void:
+	var killer: Dictionary = ents.get(by, {})
+	var side: int = killer.get("team", 0)
+	if side in [1, 2] and side != e.team:
+		scores[side] += 1
+		_gain(Round.xp_of({tier = 3.0}) * 2.0, side)
+	events.append({e = "score", scores = scores.duplicate(), by = by, id = e.id})
+	e.return_at = t + float(battle.get("respawn", 8))
+
+func _step_battle() -> void:
+	if not _filled and t > 2.0:
+		_fill_battle()
+	for id in ents:
+		var p: Dictionary = ents[id]
+		if p.kind == "player" and not p.alive and p.has("return_at") and t >= float(p.return_at):
+			p.erase("return_at")
+			p.alive = true
+			p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
+			p.pos = _base(p.team) + Vector3(rng.randf_range(-2.0, 2.0), 0, 0)
+			p.safe_until = t + 2.0
+			p.burn = 0.0; p.stagger = 0.0; p.down = 0.0
+			events.append({e = "returned", id = id, lost = 0, strength = Rules.level_of(Rules.strength(p.profile))})
+			events.append(_intro(p))
+	var goal := int(battle.get("kills", 10))
+	if scores[1] >= goal or scores[2] >= goal:
+		_finish_battle(1 if scores[1] >= goal else 2)
+	elif t >= float(battle.get("time", 720)) and scores[1] != scores[2]:
+		_finish_battle(1 if scores[1] > scores[2] else 2)
+
+var winner := 0
+
+func _finish_battle(side: int) -> void:
+	winner = side
+	_finish(true)
+
 func _finish(ok: bool) -> void:
 	over = true; success = ok
 	events.append({e = "over", success = ok})
@@ -829,7 +924,8 @@ func _step_downed(p: Dictionary, dt: float) -> void:
 		p.downed = false
 		p.down_hp = 0.0
 		p.finishing = true
-		_hurt(p, p.hp + 1.0, 0, "", true)
+		# Left to die: the death is still the work of whoever put them down.
+		_hurt(p, p.hp + 1.0, p.get("downed_by", 0), "", true)
 		p.finishing = false
 
 ## Those who died come back as a wave arrives, where the defenders stand, with
@@ -949,6 +1045,24 @@ func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 				dir = Vector3(g.x0 + (ix + 0.5) * g.cell, 0, g.z0 + (iz + 0.5) * g.cell) - e.pos
 	return dir.normalized() if dir != Vector3.ZERO else to.normalized()
 
+## The Eyeless gaze: meet a Myrddraal's eyeless stare up close and fear grips you:
+## weaving comes slowly and the feet drag. Those who fight with their hands have
+## schooled themselves against it and feel it for half as long.
+func _gaze(p: Dictionary) -> void:
+	var facing := Vector3(sin(p.yaw), 0, cos(p.yaw))
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.kind != "enemy" or not e.alive or e.get("type", "") != "myrddraal":
+			continue
+		var to: Vector3 = (e.pos - p.pos) * Vector3(1, 0, 1)
+		var d := to.length()
+		if d < 14.0 and d > 0.1 and facing.dot(to / d) > 0.9 and not Map.crosses(p.pos, e.pos, 0.0, 1.6):
+			var was: float = p.get("afraid", 0.0)
+			p.afraid = t + (0.75 if p.profile.get("cls", "channeller") != "channeller" else 1.5)
+			if was <= t:
+				events.append({e = "gaze", id = p.id, by = e.id})
+			return
+
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
 	if p.get("tying", 0) != 0:
@@ -966,6 +1080,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	p.down = maxf(p.down - dt, 0.0)
+	_gaze(p)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
 		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, p.max_hp)
@@ -977,6 +1092,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if p.duck: slow = minf(slow, Rules.TUNE.duck_slow)
 	if p.get("drawing", false): slow = minf(slow, Rules.TUNE.draw_slow)
 	if p.reel_until > t: slow = 0.0
+	if p.get("afraid", 0.0) > t: slow = minf(slow, 0.8)
 	# Knocked off your feet: you crawl, you do not run.
 	if p.down > 0.0: slow = minf(slow, 0.25)
 	# Backing away is slower than going forward, and much slower while weaving or
@@ -1024,7 +1140,8 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	_step_swing(p, dt)
 	if p.forming.is_empty():
 		return
-	p.forming.left -= dt
+	# Held by an Eyeless gaze, the weave comes slowly.
+	p.forming.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0)
 	if p.forming.left > 0.0:
 		return
 	if p.forming.hold:
@@ -1328,6 +1445,12 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			# Canon: you cannot Heal yourself.
 			var best := _heal_target(p, at, b.range)
 			if not best.is_empty():
+				# Healing brings the fallen back from the edge: up off the ground.
+				if best.get("downed", false):
+					best.downed = false
+					best.hp = 0.0
+					best.safe_until = t + 1.0
+					events.append({e = "revived", id = best.id, healed = true})
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
 				best.fester = 0.0
 				events.append({e = "heal", id = best.id})
@@ -1562,6 +1685,7 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			for h in e.get("held", []).duplicate():
 				release(e.id, h.weave, h.target)
 			events.append({e = "downed", id = e.id, secs = e.down_left, by = by})
+			e.downed_by = by
 			_drop_from_circle(e)
 			return
 	if dmg > 0.0:
@@ -1605,11 +1729,14 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			_drop_from_circle(e)
 		if weave == "balefire":
 			_unmake(e, by)
-		# Dead in a round: back at the next wave, weaker for it.
-		if round_mode and e.kind == "player":
+		# Dead in a round: back at the next wave, weaker for it. In a battle, back
+		# at your own end in a few seconds, and a point to the other side.
+		if not battle.is_empty() and e.kind == "player":
+			_battle_death(e, by)
+		elif round_mode and e.kind == "player":
 			e.return_next = not df_mode    # no coming back in a Darkfriend round
 		if round_mode and e.kind == "enemy":
-			_gain(Round.xp_of(e.row))
+			_gain(Round.xp_of(e.row), ents.get(by, {}).get("team", 0))
 		if tallies.has(by) and weave != "":
 			var tl: Dictionary = tallies[by]
 			tl.kills[weave] = tl.kills.get(weave, 0) + 1
@@ -1694,6 +1821,7 @@ func _ignite(at: Vector3, r: float, by: int) -> void:
 	events.append({e = "patch", id = pa.id, kind = "fire", pos = pa.pos, r = r, secs = 9.0})
 
 func _puddle(at: Vector3, r: float) -> void:
+	_douse_props(at, r)
 	var keep: Array = []
 	for p in patches:
 		if p.kind == "fire" and p.pos.distance_to(at) < p.r + r:
@@ -1705,7 +1833,17 @@ func _puddle(at: Vector3, r: float) -> void:
 	patches.append(pa)
 	events.append({e = "patch", id = pa.id, kind = "puddle", pos = pa.pos, r = r, secs = 45.0})
 
+## The map's own fires (watch-fires, the camp's) put out by wind or water.
+func _douse_props(at: Vector3, r: float) -> void:
+	var trees := Map.trees()
+	for i in trees.size():
+		var tr: Dictionary = trees[i]
+		if tr.get("prop", "") == "fire" and not tr.get("out", false) and Vector2(tr.x - at.x, tr.z - at.z).length() < r + float(tr.r):
+			tr.out = true
+			events.append({e = "prop_out", index = i})
+
 func _blow_out(at: Vector3, r: float, dir := Vector3.ZERO, arc := 180.0) -> void:
+	_douse_props(at, r * 0.6)
 	var keep: Array = []
 	for p in patches:
 		var off: Vector3 = (p.pos - at) * Vector3(1, 0, 1)
@@ -2350,16 +2488,29 @@ func _enemy_blow(e: Dictionary, players: Array) -> void:
 ## Compact state for clients: enough to draw the fight, nothing they could cheat with.
 ## The team's experience: every kill counts for everyone. Each team level carries
 ## every player's round copy on (Round.level_up) and gives them a choice to make.
-func _gain(xp: float) -> void:
+func _gain(xp: float, side := 0) -> void:
+	if not battle.is_empty():
+		# Each side levels on its own kills.
+		if not side in [1, 2]:
+			return
+		xps[side] += xp
+		while xps[side] >= Round.xp_for(levels[side]):
+			xps[side] -= Round.xp_for(levels[side])
+			levels[side] += 1
+			_level_side(levels[side], side)
+		return
 	team_xp += xp
 	while team_xp >= Round.xp_for(team_level):
 		team_xp -= Round.xp_for(team_level)
 		team_level += 1
+		_level_side(team_level, -99)
+
+func _level_side(level: int, side: int) -> void:
 		for id in ents:
 			var p: Dictionary = ents[id]
-			if p.kind != "player" or not p.profile.has("round"):
+			if p.kind != "player" or not p.profile.has("round") or (side != -99 and p.get("team", 0) != side):
 				continue
-			var out := Round.level_up(p.profile, team_level, rng)
+			var out := Round.level_up(p.profile, level, rng)
 			var hp0: float = p.max_hp
 			p.max_hp = Rules.max_hp(p.profile)
 			p.hp += p.max_hp - hp0
@@ -2373,6 +2524,9 @@ func _gain(xp: float) -> void:
 
 ## The team's level and how far to the next, for the view.
 func round_meter() -> Array:
+	if not battle.is_empty():
+		# Both sides' levels, then the score: each view shows its own side's.
+		return [levels[1], xps[1] / Round.xp_for(levels[1]), levels[2], xps[2] / Round.xp_for(levels[2]), scores[1], scores[2], maxf(float(battle.get("time", 720)) - t, 0.0)]
 	return [team_level, team_xp / Round.xp_for(team_level)] if round_mode else []
 
 ## A player spends a level-up on their tree (Round.choices). "" or why not.
@@ -2404,7 +2558,7 @@ func snapshot() -> Dictionary:
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
 				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
 				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0) \
-				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0)
+				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t or e.get("afraid", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
 	var fx := []
 	for f in effects:
