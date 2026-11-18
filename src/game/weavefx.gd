@@ -165,6 +165,13 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.add_child(_mesh(core, Color(0.05, 0.0, 0.0), 0.0))
 			n.add_child(Flowfx.Ribbon.new(Color(0.9, 0.04, 0.02), 0.6, 18, 2.2, 0.8))
 			n.add_child(_light(Color(1.0, 0.15, 0.05), 2.5, 6.0))
+		"missile" when weave.ends_with(":lit"):
+			# A fire arrow: lit from a fire, flame at the head and a smoky trail.
+			n.add_child(Armoury.missile(weave.trim_suffix(":lit")))
+			var fl := _particles(Color(1.0, 0.5, 0.12), 24, 0.35, 0.16, 0.6, 1.0, 40.0)
+			n.add_child(fl); fl.position = Vector3(0, 0, -0.45)
+			n.add_child(Flowfx.Ribbon.new(Color(1.0, 0.55, 0.2), 0.09, 22, 4.0, 0.5))
+			n.add_child(_light(Color(1.0, 0.55, 0.2), 1.2, 4.0))
 		"missile":
 			var mm := Armoury.missile(weave)
 			# Small things are drawn larger than life in the air, or they are not seen.

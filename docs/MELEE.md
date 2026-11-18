@@ -155,7 +155,8 @@ Bows and missiles
 - [x] Horse bow (Saldaea)
 - [x] Crossbow with a crank (flat, hard-hitting, slow to span)
 - [x] Sling (cheap, stuns)
-- [ ] Arrow kinds: broadhead, bodkin (through armour), fire arrows lit by a
+- [~] Arrow kinds (18 Nov: fire arrows, drawn standing by a watch-fire or burning
+      grass; they burn what they hit and catch the grass). Broadhead, bodkin: not yet. Was: broadhead, bodkin (through armour), fire arrows lit by a
       channeller's Fire
 - [x] Quiver counts, picking arrows back up
 

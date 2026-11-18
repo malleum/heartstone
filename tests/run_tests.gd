@@ -1186,6 +1186,20 @@ func _rounds() -> void:
 	run(wds, 120.0)
 	check(wde.hp <= cap + 0.01 and wde.hp > cap - 5.0, "rest mends up to the wound and no further (%.0f of %.0f)" % [wde.hp, wde.max_hp])
 
+	# Fire arrows: drawn beside a watch-fire, an arrow is lit and the grass it
+	# falls in catches.
+	var fas := Sim.new("tarwins_gap_watch", 102)
+	fas._waves = [{t = 999.0, spawn = {}}]
+	var fire_at: Dictionary = Map.trees().filter(func(q: Dictionary) -> bool: return q.get("prop", "") == "fire")[0]
+	var fap := fas.add_player(Profile.create({name = "Fire Archer", cls = "warder", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["sword", "horse_bow"]}), Vector3(fire_at.x + 1.5, 0, fire_at.z))
+	var fape: Dictionary = fas.ents[fap]
+	fape.pos = Vector3(fire_at.x + 1.5, 0, fire_at.z)
+	check(fas._by_fire(fape.pos), "standing by a watch-fire, an archer can light an arrow")
+	var eq_why := fas.equip(fap, "horse_bow")
+	var sh_why := fas.request_attack(fap, "light", fape.pos + Vector3(4, 0, 0))
+	var fa_ev := run(fas, 3.0)
+	check(fas.patches.any(func(q: Dictionary) -> bool: return q.kind == "fire"), "a fire arrow sets the grass it falls in alight (%s / %s / %s)" % [eq_why, sh_why, fa_ev.slice(0, 10)])
+
 	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
 	var gzs := Sim.new("practice", 98)
 	gzs._waves = []

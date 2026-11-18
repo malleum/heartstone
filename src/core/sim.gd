@@ -1260,8 +1260,8 @@ func _strike(p: Dictionary) -> void:
 		var pull: float = sw.charge if w.has("shot") else 1.0
 		effects.append({kind = "missile", owner = p.id, weapon = sw.weapon, pos = hand + throw * 0.5, vel = throw * shot.speed * lerpf(0.35, 1.0, pull * pull),
 			dmg = dmg * lerpf(0.15, 1.0, pull * pull), radius = 0.5, left = shot.range * lerpf(0.4, 1.0, pull), gravity = shot.gravity, stagger = shot.get("stagger", 0.0) * pull,
-			push = shot.get("push", 0.0) * pull, id = _fx_id()})
-		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon], pull = pull})
+			push = shot.get("push", 0.0) * pull, id = _fx_id(), lit = w.family == "bow" and not w.shot.get("crank", false) and _by_fire(p.pos)})
+		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon], pull = pull, lit = effects[-1].lit})
 		return
 	var reach: float = w.reach * m.get("reach", 1.0)
 	var found := []
@@ -1907,6 +1907,17 @@ func _puddle(at: Vector3, r: float) -> void:
 	patches.append(pa)
 	events.append({e = "patch", id = pa.id, kind = "puddle", pos = pa.pos, r = r, secs = 45.0})
 
+## Standing by a fire (a watch-fire still burning, or burning grass), an archer can
+## light an arrow from it.
+func _by_fire(at: Vector3) -> bool:
+	for tr in Map.trees():
+		if tr.get("prop", "") == "fire" and not tr.get("out", false) and Vector2(tr.x - at.x, tr.z - at.z).length() < 3.0:
+			return true
+	for pa in patches:
+		if pa.kind == "fire" and Vector2(pa.pos.x - at.x, pa.pos.z - at.z).length() < pa.r + 1.5:
+			return true
+	return false
+
 ## The map's own fires (watch-fires, the camp's) put out by wind or water.
 func _douse_props(at: Vector3, r: float) -> void:
 	var trees := Map.trees()
@@ -2017,6 +2028,12 @@ func _step_effects(dt: float) -> void:
 						if fx.stagger > 0.0: mon.stagger = fx.stagger
 						if fx.get("push", 0.0) > 0.0: mon.push = fx.push
 						_wound(ents[fx.struck], fx.dmg, fx.owner, fx.weapon, mon, flat.normalized())
+						if fx.get("lit", false):
+							var hit_e: Dictionary = ents[fx.struck]
+							hit_e.burn = maxf(hit_e.burn, 3.0); hit_e.burn_dps = maxf(hit_e.burn_dps, 6.0); hit_e.burn_by = fx.owner
+					elif fx.get("lit", false):
+						# A fire arrow in the grass: it catches.
+						_ignite(fx.pos, 1.4, fx.owner)
 					if fx.get("blast", 0.0) > 0.0:
 						# Woven fire: it bursts where it lands, and scorches who stands near.
 						events.append({e = "blast", weave = fx.weapon, pos = fx.pos, radius = fx.blast})
@@ -2645,5 +2662,5 @@ func snapshot() -> Dictionary:
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
 	var fx := []
 	for f in effects:
-		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")), f.get("yaw", 0.0)])
+		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0)])
 	return {t = t, ents = es, fx = fx, round = round_meter()}
