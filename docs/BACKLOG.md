@@ -202,6 +202,12 @@ are what the 4:44 review, or the next session, should pick up.
   - **No full-speed backpedalling:** running backwards at full speed while weaving,
     or while down on the ground (knocked down), should not be possible: slow it.
 
+- 2026-11-18, seen in the user's terminal: Godot prints "Attempt to disconnect a
+  nonexistent connection from Session ... tree_exited" a few times while playing in
+  the camp. Harmless, and not reproduced in renders (movie mode, online or offline);
+  likely Godot's multiplayer cache tidying a Session that is freed or moved between
+  worlds. Find the step that does it and stop it.
+
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
 - Drawing to weave: tracing a weave's shape to make it.

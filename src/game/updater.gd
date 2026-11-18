@@ -35,10 +35,13 @@ static func label(st: Dictionary) -> String:
 	if String(st.get("tag", "")) != "": parts.append(st.tag)
 	if String(st.get("commit", "")) != "": parts.append(st.commit)
 	if int(st.get("date", 0)) > 0:
-		var dt := Time.get_datetime_dict_from_unix_time(int(st.date))
+		# In the player's own time zone (the stamp is UTC).
+		var dt := Time.get_datetime_dict_from_unix_time(int(st.date) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60)
 		parts.append("%d %s %d %02d:%02d" % [dt.day, ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][dt.month], dt.year, dt.hour, dt.minute])
 	return " · ".join(parts)
 
+## Two builds of the same commit that still differ in version (the server's copy
+## of the data was stale): neither is behind by its stamp.
 ## Which of two builds is behind, by their commit times: "the server", "your game",
 ## or "" if it cannot be told.
 static func behind(mine: Dictionary, theirs: Dictionary) -> String:

@@ -17,7 +17,7 @@
         text = ''
           dir="''${XDG_CACHE_HOME:-$HOME/.cache}/heartstone/project"
           mkdir -p "$dir"
-          rsync -a --delete --chmod=u+w --exclude .godot --exclude renders ${self}/ "$dir/"
+          rsync -a --checksum --delete --chmod=u+w --exclude .godot --exclude renders ${self}/ "$dir/"
           godot --headless --path "$dir" --import >/dev/null 2>&1 || true
           exec godot --path "$dir" ${args} "$@"
         '';
@@ -30,7 +30,7 @@
         text = ''
           state="''${STATE_DIRECTORY:-''${XDG_STATE_HOME:-$HOME/.local/state}/heartstone}"
           mkdir -p "$state/project" "$state/data"
-          rsync -a --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$state/project/"
+          rsync -a --checksum --delete --chmod=u+w --exclude .godot --exclude renders --exclude dist ${self}/ "$state/project/"
           # Which commit this server is, so a player turned away for a version
           # mismatch can be told which side is out of date.
           printf '{"tag": "", "commit": "%s", "date": %s}\n' "${self.shortRev or self.dirtyShortRev or "dirty"}" "${toString (self.lastModified or 0)}" > "$state/project/build.json"
