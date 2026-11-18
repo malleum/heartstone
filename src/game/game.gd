@@ -365,6 +365,8 @@ func _aim_point() -> Vector3:
 	return from + dir * 60.0
 
 func _process(dt: float) -> void:
+	if controlled:
+		Wind.step(dt)
 	if _awaiting_cast:
 		if Cast.ready_now():
 			_awaiting_cast = false
@@ -590,6 +592,8 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:
 		print("GHOST flow entered %s as %s (%s)" % [activity, profile.name, "joined a host" if not session.is_host else "hosting"])
 	Map.use(Rules.activities[activity].get("map", "open"), activity)
+	if not previewing:
+		Wind.setup(Map.id, self)
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
 	var spread: SceneTree = get_tree() if previewing else null
@@ -1026,6 +1030,7 @@ func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
 ## the camp's camera looks.
 func take_control(yaw: float, pitch: float) -> void:
 	controlled = true
+	Wind.setup(Map.id, self)
 	stand_in = {}
 	session.begin()     # the fight starts now, not when the doorway was first looked through
 	cam_yaw = yaw; cam_pitch = pitch
@@ -1669,8 +1674,14 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id:
 					my_form = {}
 				Weavefx.cast(self, e)
+				# A weave mostly of Air blows outward from the one who made it.
+				var wflows: Dictionary = Rules.weaves.get(e.weave, {}).get("flows", {})
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and int(wflows.get("air", 0)) * 2 >= wflows.values().reduce(func(x, y): return x + y, 0):
+					Wind.gust(actors[e.id].node.position, 1.2)
 			"blast":
 				Weavefx.blast(self, e.pos, e.radius, e.weave)
+				# Any blast shoves the air: grass, cloaks and banners lean away from it.
+				Wind.gust(e.pos, clampf(float(e.radius) / 4.0, 0.5, 2.0))
 			"fx_end":
 				if fx.has(e.id):
 					fx[e.id].queue_free(); fx.erase(e.id)

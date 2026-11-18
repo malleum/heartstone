@@ -66,6 +66,7 @@ func _ready() -> void:
 	Updater.check(self, func() -> bool: return _pre.is_empty() and get_tree().current_scene == self)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Map.use("open", "camp")
+	Wind.setup("camp", self)
 	World.build(self, -32.0, -26.0)
 	Terrain.amp = 0.25
 	add_child(await Terrain.build_mesh(120.0, 1.0))
@@ -303,6 +304,7 @@ func _show_menu(on: bool) -> void:
 func _process(dt: float) -> void:
 	if cam == null or model == null or returning:
 		return
+	Wind.step(dt)
 	if cl.has("timing") and dt > 0.05:
 		print("TIMING camp frame %d took %d ms (preloading: %s)" % [_frame, int(dt * 1000.0), not _pre.is_empty()])
 	_frame += 1

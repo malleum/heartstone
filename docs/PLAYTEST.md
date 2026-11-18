@@ -94,3 +94,15 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    while standing. Hair tips drift back and stir, more when running. Assumed amounts:
    sway 0.42 m back at a sprint, ripple 6 cm, hair 3.5 cm. Say if it is still stiff;
    the Quaternius cloak has few rows of vertices, so a finer cloak mesh may be needed.
+2. (18 Nov) Wind: each place has its own steady wind (Tarwin's Gap blows hard down
+   the pass, 0.75; the wagon ring 0.35; the yard 0.2; the camp 0.25). Grass leans and
+   waves with it, banners stream downwind and wave, cloaks and hair are carried by it,
+   and a low wind sound follows its strength. Blasts and Air weaves send a gust out
+   that flattens grass and throws cloaks for a second or so. Assumed: wind sound -14 dB
+   plus strength; gusts reach 12 m.
+3. (18 Nov) Deaths: Trollocs (and every generated walker) fall one of four ways:
+   topple from the blow, crumple to the knees then forward, twist onto a side, or are
+   thrown (heavy blows), then bounce and lie with limbs set differently. Not real
+   physics ragdolls: procedural, so they cannot fold over a wagon or roll down a slope.
+   Players' one death clip varies in pace and turn. Backing away is 70% speed (55%
+   while weaving, guarding or drawing); knocked down you crawl at 25%.

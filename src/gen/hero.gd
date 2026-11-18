@@ -185,9 +185,19 @@ static func _cloak_from_shoulders(m: MeshInstance3D, base: String, sk: Skeleton3
 	_cloaks[base] = out
 	m.mesh = out
 
+## The wind where this body stands, turned into its own frame (+z is its front).
+static func _wind_local(root: Node3D) -> Vector3:
+	if not root.is_inside_tree():
+		return Vector3.ZERO
+	return root.global_basis.orthonormalized().inverse() * Wind.at(root.global_position)
+
 static func _hair_wind(root: Node3D, k: float) -> void:
+	var wl := _wind_local(root)
+	# Running blows it back (-z); the wind blows it its own way.
+	var blow := Vector3(0, 0, -k) + wl
 	for hm in root.get_meta("hair_mats", []):
-		(hm as ShaderMaterial).set_shader_parameter("gust", 0.35 + 1.4 * k)
+		(hm as ShaderMaterial).set_shader_parameter("wind", blow.normalized() if blow.length() > 0.01 else Vector3(0, 0, -1))
+		(hm as ShaderMaterial).set_shader_parameter("gust", 0.35 + 1.4 * blow.length())
 
 ## How the cloak moves with its wearer: speed in metres a second, 0 standing.
 static func cloak_motion(root: Node3D, speed: float) -> void:
@@ -199,12 +209,14 @@ static func cloak_motion(root: Node3D, speed: float) -> void:
 	if m == null or not m.visible or not (m.material_override is ShaderMaterial):
 		_hair_wind(root, clampf(speed / 7.5, 0.0, 1.2))
 		return
-	# A walk barely lifts it; a run sends it back; a sprint streams it out.
+	# A walk barely lifts it; a run sends it back; a sprint streams it out. The wind
+	# (the map's own, and gusts from weaves) carries it its way on top of that.
 	var k := clampf(speed / 7.5, 0.0, 1.2)
+	var wl := _wind_local(root)
 	var mat: ShaderMaterial = m.material_override
-	mat.set_shader_parameter("sway", Vector3(0.0, 0.14 * k * k, -0.42 * k * k))
-	# Always a little stir, as if there is air; more the faster you go.
-	mat.set_shader_parameter("flutter", 0.5 + 1.8 * k)
+	mat.set_shader_parameter("sway", Vector3(0.0, 0.14 * k * k, -0.42 * k * k) + Vector3(wl.x, absf(wl.length()) * 0.15, wl.z) * 0.32)
+	# Always a little stir, as if there is air; more the faster you go, and in wind.
+	mat.set_shader_parameter("flutter", 0.5 + 1.8 * k + wl.length() * 1.5)
 	root.set_meta("wind_k", k)
 	_hair_wind(root, k)
 

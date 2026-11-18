@@ -47,6 +47,13 @@ static func build() -> void:
 	# A bowstring: a low pluck that drops in pitch, and the slap of the string.
 	bank.twang = _render(0.35, func(t: float) -> float:
 		return sin(TAU * (210.0 * t - 160.0 * t * t)) * exp(-t * 14.0) * 0.7 + _noise(b, 0.7) * exp(-t * 70.0) * 0.5)
+	# Wind: low noise swelling and falling, a seamless loop (whole periods only).
+	var wl := 6.0
+	bank.wind = _render(wl, func(t: float) -> float:
+		var swell := 0.55 + 0.3 * sin(TAU * t / wl) + 0.15 * sin(TAU * 3.0 * t / wl + 1.0)
+		return (_noise(a, 0.025) * 2.6 + _noise(b, 0.12) * 0.25) * swell)
+	(bank.wind as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+	(bank.wind as AudioStreamWAV).loop_end = int(wl * RATE)
 	randomize()
 
 static func play(g: Node3D, name: String, at: Vector3, db := 0.0, pitch := 1.0) -> void:
