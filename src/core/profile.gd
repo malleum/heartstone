@@ -294,6 +294,7 @@ static func make(opts: Dictionary) -> Dictionary:
 		p.starter = pick_starter(p)
 		p.weaves[p.starter] = {known = true, xp = 0.0}
 		p.weaves_owned = []
+		p.techniques = ["tie_off"]
 	else:
 		var stats: Dictionary = opts.get("stats", {})
 		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {})})

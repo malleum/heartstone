@@ -81,6 +81,10 @@ static func begin(profile: Dictionary, rng: RandomNumberGenerator, opts := {}) -
 		r.leap = rng.randi_range(2, 5); r.owed = 0.0
 		p.potential = Rules.strength_of(pot)
 		p.strength = Rules.strength_of(start)
+		# Every channeller can tie off a held weave (it used to be earned in the old
+		# progression, which rounds no longer pay out).
+		if not p.has("techniques"): p.techniques = []
+		if not p.techniques.has("tie_off"): p.techniques.append("tie_off")
 		# Three flows at once to begin with; more come with team levels.
 		p.channelled = float(Rules.TUNE.flow_steps[3])
 		for w in p.weaves:
