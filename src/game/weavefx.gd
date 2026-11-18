@@ -497,6 +497,40 @@ static func knot(n: Node3D, weave: String) -> void:
 	n.get_node("Body").add_child(mi)
 
 ## A charge leaping from one body to the next.
+## Where lightning lands: no swelling ball, but a white flash gone at once, jagged
+## arcs running out along the ground to the edge of what it struck, sparks, and a
+## burnt star on the ground.
+static func _strike_flash(g: Node3D, at: Vector3, radius: float) -> void:
+	var col := Color(0.88, 0.93, 1.0)
+	var mi := Flowfx.ball(1.0, col, 4.0, 0.2)
+	mi.position = at + Vector3(0, 0.3, 0); mi.scale = Vector3.ONE * 0.5
+	g.add_child(mi)
+	var l := _light(col, 14.0, radius * 4.0)
+	mi.add_child(l)
+	var tw := g.create_tween().set_parallel()
+	tw.tween_property(mi, "scale", Vector3.ONE * minf(radius * 0.35, 1.2), 0.06)
+	tw.tween_property(mi.material_override, "shader_parameter/burn", 1.0, 0.14)
+	tw.tween_property(l, "light_energy", 0.0, 0.3)
+	tw.chain().tween_callback(mi.queue_free)
+	for i in int(6 + radius * 1.5):
+		var ang := randf() * TAU
+		var end := at + Vector3(cos(ang), 0, sin(ang)) * radius * randf_range(0.6, 1.0)
+		var prev := at + Vector3(0, 0.1, 0)
+		for k in range(1, 6):
+			var f := k / 5.0
+			var p := at.lerp(end, f) + Vector3(randf_range(-0.3, 0.3), 0.1 + randf_range(0.0, 0.25) * (1.0 - f), randf_range(-0.3, 0.3))
+			_fade(g, _bar(g, prev, p, 0.05, col, 12.0), randf_range(0.12, 0.25))
+			prev = p
+	_once(_particles(col, int(30 + radius * 10), 0.4, 0.07, 7.0, -9.0, 85.0), g, at + Vector3(0, 0.3, 0))
+	var c := CylinderMesh.new(); c.top_radius = 1.0; c.bottom_radius = 1.0; c.height = 0.03
+	var sc := _mesh(c, Color(0.03, 0.03, 0.04, 0.5), 0.0)
+	sc.position = g._ground(at) + Vector3(0, 0.03, 0); sc.scale = Vector3(radius * 0.45, 1, radius * 0.45)
+	g.add_child(sc)
+	var ts := g.create_tween()
+	ts.tween_interval(5.0)
+	ts.tween_property(sc.material_override, "albedo_color:a", 0.0, 2.0)
+	ts.tween_callback(sc.queue_free)
+
 static func arc(g: Node3D, a: Vector3, b: Vector3) -> void:
 	var prev := a
 	for i in range(1, 7):
@@ -588,6 +622,9 @@ static func blast(g: Node3D, at: Vector3, radius: float, weave: String) -> void:
 	var col := colour(weave)
 	if Rules.weaves.has(weave) and Rules.weaves[weave].get("dart", false):
 		spit(g, at, col)
+		return
+	if weave == "lightning":
+		_strike_flash(g, at, radius)
 		return
 	var fiery: bool = not Rules.weaves.has(weave) or Rules.weaves[weave].flows.has("fire")
 	# The burst itself: a ball of the stuff that swells fast and then burns through
