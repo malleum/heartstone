@@ -9,8 +9,10 @@ uniform float fill = 0.0;
 void fragment() {
 	float rim = smoothstep(0.9, 1.0, UV.y) + smoothstep(0.94, 1.0, abs(UV.x * 2.0 - 1.0));
 	float inside = 1.0 - smoothstep(fill - 0.05, fill, UV.y);
-	float a = 0.12 + 0.3 * inside + 0.55 * clamp(rim, 0.0, 1.0);
+	// (The filled part kept fainter than the rim: at night, unshaded, a strong fill
+	// read as a solid disc of paint on the ground.)
+	float a = 0.08 + 0.2 * inside + 0.55 * clamp(rim, 0.0, 1.0);
 	a *= 0.45 + 0.55 * fill;
-	ALBEDO = tint.rgb * (0.7 + 0.9 * fill);
+	ALBEDO = tint.rgb * (0.6 + 0.6 * fill);
 	ALPHA = clamp(a, 0.0, 0.9);
 }

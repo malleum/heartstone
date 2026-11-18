@@ -76,6 +76,10 @@ func _ready() -> void:
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
 		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
+	# --cloak=<id> (Hero.CLOAKS): put a cloak on for this run, for pictures.
+	if args.has("cloak"):
+		profile.style = profile.get("style", {}).duplicate()
+		profile.style.cloak = args.cloak; profile.style.cloak_len = 0
 	# --weaves=a,b adds weaves to a throwaway channeller and --tie teaches tying off.
 	if args.has("weaves"):
 		for w in args.weaves.split(","):
@@ -1886,7 +1890,12 @@ func _patch(e: Dictionary) -> void:
 		gt.fill_from = Vector2(0.5, 0.5); gt.fill_to = Vector2(1.0, 0.5); gt.width = 64; gt.height = 64
 		sm.albedo_texture = gt
 		scorch.material_override = sm; n.add_child(scorch); scorch.rotation.y = randf() * TAU
-		var f := Weavefx.flame(int(9 * r), 0.42, 1.3, Vector3(r * 0.7, 0.05, r * 0.7))
+		# Many small tongues, unevenly sized, so a patch reads as a sheet of fire and
+		# not rows of candle flames.
+		var f := Weavefx.flame(int(18 * r), 0.65, 1.2, Vector3(r * 0.65, 0.05, r * 0.65))
+		var fpm := f.process_material as ParticleProcessMaterial
+		fpm.scale_min = 0.35; fpm.scale_max = 1.6; fpm.spread = 22.0
+		f.randomness = 0.6
 		n.add_child(f); f.position.y = 0.1
 		var smoke := Weavefx.smoke_column(int(4 * r) + 2, 1.5, e.pos, Vector3(r * 0.6, 0.1, r * 0.6))
 		n.add_child(smoke); smoke.position.y = 0.9

@@ -92,6 +92,8 @@ static func trail(g: Node3D, feet: Vector3, dir: Vector3, reach: float, m: Dicti
 ## until it lands `secs` later: a wedge that fills outward. A blow that can be
 ## ducked is drawn paler; one that cannot, red.
 static func telegraph(g: Node3D, feet: Vector3, yaw: float, reach: float, arc_deg: float, secs: float, height: String) -> void:
+	if g.get("args") is Dictionary and g.args.has("clean"):
+		return   # (pictures: --clean)
 	var arc := deg_to_rad(arc_deg)
 	var mi := MeshInstance3D.new()
 	mi.mesh = _band(-arc, arc, 0.5, reach, false, 18)

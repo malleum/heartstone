@@ -106,10 +106,29 @@ static func flame(amount: int, size: float, rise: float, box := Vector3.ZERO) ->
 	(pm.scale_curve as CurveTexture).curve = sc
 	var q := f.draw_pass_1 as QuadMesh
 	(q.material as StandardMaterial3D).albedo_color = Color(1.1, 1.1, 1.1)
+	(q.material as StandardMaterial3D).albedo_texture = _flame_tex()
 	# Upright quads, a third as wide as they are tall: the round sprite stretches
 	# into a tongue (square ones read as a heap of glowing orbs).
-	q.size = Vector2(size * 0.5, size * 1.5)
+	q.size = Vector2(size * 0.85, size * 1.4)
 	return f
+
+## A tongue of flame to draw each flame particle with: wide and solid at the
+## root, narrowing to a ragged tip (the round sprite read as floating orbs).
+static var _flame: ImageTexture
+static func _flame_tex() -> ImageTexture:
+	if _flame != null:
+		return _flame
+	var img := Image.create(32, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		var v := y / 63.0                     # 0 at the tip, 1 at the root
+		var w := 0.46 * pow(v, 0.75) * (1.0 - 0.55 * smoothstep(0.82, 1.0, v))
+		for x in 32:
+			var d := absf(x / 31.0 - 0.5)
+			var a := (1.0 - smoothstep(w * 0.15, w, d)) * smoothstep(0.0, 0.3, v) * (1.0 - smoothstep(0.9, 1.0, v) * 0.7)
+			var hot := (1.0 - smoothstep(0.0, w * 0.6, d)) * smoothstep(0.4, 0.95, v)
+			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0).lerp(Color(1.0, 0.85, 0.6, 1.0), 1.0 - hot) * Color(1, 1, 1, a))
+	_flame = ImageTexture.create_from_image(img)
+	return _flame
 
 ## Smoke going up from a fire and leaning with the wind; `box` as for flame.
 static func smoke_column(amount: int, size: float, at: Vector3, box := Vector3.ZERO) -> GPUParticles3D:
