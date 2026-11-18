@@ -13,6 +13,10 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 	var want: String = ranged if ranged != "" and (best > 7.0 or melee == "") else melee
 	if want == "":
 		want = me.profile.kit[0]
+	# Something at arm's length while a bow is drawn: drop the draw and take up
+	# the blade (the draw kept the swing busy, so it never changed).
+	if me.weapon == ranged and want != ranged and best < 2.5 and not me.swing.is_empty() and not me.swing.get("struck", false):
+		me.swing = {}; me.drawing = false
 	if me.weapon != want and me.swing.is_empty():
 		sim.equip(id, want)
 	if me.weapon == "":

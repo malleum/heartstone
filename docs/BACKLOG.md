@@ -256,7 +256,10 @@ are what the 4:44 review, or the next session, should pick up.
   - The camp doorways have no name you can read from across the camp; nothing
     is written on the world, so the colours have to do it. See whether they are
     enough.
-  - Bots open a fight with the bow drawn while Trollocs are at arm's length.
+  - (Done 18 Nov.) Bots kept the bow drawn while Trollocs were at arm's length: the
+    draw kept the swing busy, so they never changed weapon. Now they drop the draw
+    and take up the blade when one is within 2.5 m. (At 4 m the Warder lost its
+    trial watch: shooting close was doing well.)
   - Wagons are boxes on discs; the wagon ring could use a proper wagon.
   - A thin line of specks remains along cliff silhouettes (the ledge lines).
   - (Done 18 Nov, asked by the user.) Bows: the string hand now takes the string
