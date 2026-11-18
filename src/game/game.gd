@@ -385,6 +385,11 @@ func _aim_point() -> Vector3:
 func _process(dt: float) -> void:
 	if controlled:
 		Wind.step(dt)
+	# --clean: nothing over the picture (tools/poses.sh).
+	if args.has("clean"):
+		if hud_layer: hud_layer.visible = false
+		var toasts := get_tree().root.get_node_or_null("Toasts") as CanvasLayer
+		if toasts: toasts.visible = false
 	if _awaiting_cast:
 		if Cast.ready_now():
 			_awaiting_cast = false
@@ -1339,7 +1344,7 @@ func _on_events(list: Array) -> void:
 						# Hit-stop, for the one struck only: it flashes and hangs for a few
 						# frames, heavier blows longer. The world keeps moving (co-op).
 						if e.dmg >= 4.0:
-							Weavefx.flash(self, a.node)
+							_flash(a.node)
 							a.hold = clampf(e.dmg * 0.004 + knock * 0.008, 0.05, 0.2)
 							if e.by == session.my_id:
 								punch = minf(punch + e.dmg * 0.01, 1.0)
@@ -1347,7 +1352,7 @@ func _on_events(list: Array) -> void:
 						var from2: Vector3 = actors[e.by].node.position if actors.has(e.by) and is_instance_valid(actors[e.by].node) else (me.position if me else Vector3.ZERO)
 						(a.node as Hound).hit(a.node.position - from2, clampf(0.55 + float(e.get("knock", 0.0)) * 0.14, 0.55, 2.0))
 						if e.dmg >= 4.0:
-							Weavefx.flash(self, a.node)
+							_flash(a.node)
 					elif a.kind == "player" and not a.get("dead", false):
 						# An overhead blow drives the head down, a shove throws them back.
 						_play(a, a.get("struck_by", "Hit_Chest"), true)
@@ -1579,7 +1584,7 @@ func _on_events(list: Array) -> void:
 						if actors.has(e.from) and is_instance_valid(actors[e.from].node) and actors[e.from].node is Walker:
 							var fw: Walker = actors[e.from].node
 							fw.hit((fw.position - actors[e.id].node.position).normalized(), 2.2)
-							Weavefx.flash(self, fw, 0.16)
+							_flash(fw, 0.16)
 					if e.id == session.my_id:
 						flash_t = 1.0
 						flash_text = {parry = "Perfect parry", block = "Parried", guard_break = "Your guard is broken"}[e.e]
@@ -1815,6 +1820,12 @@ func _paint_rings() -> void:
 			(r.material_override as StandardMaterial3D).albedo_color = Color(0.35, 0.6, 1.0, 1.0) if mine else Color(1.0, 0.3, 0.25, 1.0)
 
 ## Burning grass or a puddle on the ground (Sim._ignite, Sim._puddle).
+## The struck body's flash (Weavefx.flash), left out of --clean pose shots: forms
+## land several hits close together and nearly every frame caught one.
+func _flash(who: Node3D, secs := 0.09) -> void:
+	if not args.has("clean"):
+		Weavefx.flash(self, who, secs)
+
 func _patch(e: Dictionary) -> void:
 	if e.kind == "fire":
 		Scorch.burn(e.pos, float(e.r))

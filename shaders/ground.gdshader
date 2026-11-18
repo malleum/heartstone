@@ -60,7 +60,8 @@ void fragment() {
 	vec3 rock = mix(vec3(0.15, 0.14, 0.135), vec3(0.4, 0.365, 0.32), smoothstep(0.25, 0.75, strata));
 	rock *= 0.82 + 0.36 * fine;
 	float lf = fract(by * 0.42 + noise(vec2(by * 0.42, 9.0)) * 0.3);
-	float ledge = 1.0 - smoothstep(0.0, 0.07, lf);
+	// The ledge lines are about 0.17 m thick: thinned out once a pixel spans that much.
+	float ledge = (1.0 - smoothstep(0.0, 0.07, lf)) * (1.0 - smoothstep(0.1, 0.35, foot));
 	rock *= 1.0 - 0.5 * ledge;
 	float hc = wp.x * 0.6 + wp.z;
 	float crack = smoothstep(0.6, 0.66, fbm(vec2(hc * 0.55, wp.y * 0.07 + 5.0))) * (1.0 - smoothstep(0.66, 0.74, fbm(vec2(hc * 0.55, wp.y * 0.07 + 5.0))));
@@ -80,5 +81,8 @@ void fragment() {
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);
 	vec3 r1 = cross(dpy, NORMAL), r2 = cross(NORMAL, dpx);
 	float det = dot(dpx, r1);
-	NORMAL = normalize(abs(det) * NORMAL - 0.06 * sign(det) * (dFdx(h) * r1 + dFdy(h) * r2));
+	// At a grazing angle a pixel's derivatives span metres and the bump turns to
+	// noise (a dotted line along every cliff edge): it fades as the fine detail does.
+	float bump = 0.06 * (1.0 - smoothstep(0.05, 0.3, foot));
+	NORMAL = normalize(abs(det) * NORMAL - bump * sign(det) * (dFdx(h) * r1 + dFdy(h) * r2));
 }

@@ -623,8 +623,14 @@ static func flash(g: Node3D, who: Node3D, secs := 0.09) -> void:
 	if _white == null:
 		_white = StandardMaterial3D.new()
 		_white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_white.albedo_color = Color(1.0, 0.95, 0.85, 0.75)
+		# Added light, not paint: the body brightens and keeps its shape and shading
+		# (three-quarters-opaque white made it a flat cut-out for those frames).
+		_white.albedo_color = Color(0.45, 0.41, 0.36)
 		_white.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_white.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		# Thinned beside the lens like the bodies themselves (near_fade).
+		_white.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+		_white.distance_fade_min_distance = 0.5; _white.distance_fade_max_distance = 1.5
 	var meshes := who.find_children("*", "MeshInstance3D", true, false)
 	for m in meshes:
 		(m as MeshInstance3D).material_overlay = _white
