@@ -163,7 +163,7 @@ are what the 4:44 review, or the next session, should pick up.
 ## Character and progression
 - [x] Weave tree follow-ups (18 Nov): a line says how many weaves lie past your
   spoiler setting; names over 13 letters go on two lines.
-- [ ] Camp follow-ups: other players are not seen in the camp; the doorways show
+- [ ] Camp follow-ups: (other players are seen walking in the camp, 18 Nov); the doorways show
   a silhouette of the place, not the place itself; the armoury and appearance are
   panels, not things you walk to.
 - [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
@@ -186,9 +186,8 @@ are what the 4:44 review, or the next session, should pick up.
   server keeps a dropped player's body, out of reach, for 90 s, and a room whose
   players have all dropped waits; the game keeps knocking every few seconds and is
   let back into the same body); proof that the
-  server is the real one; friends seen walking in the camp (18 Nov: the camp's
-  menu names who else is in their camp, and a notice says when one arrives; not
-  seen walking).
+  server is the real one; (done 18 Nov: friends seen walking about the camp, see
+  SERVER.md "Friends in the camp").
 
 ## Found by looking (Claude)
 - [x] Gateway: the edges cut (17 Nov) and Darkfriends open one (17 Nov).

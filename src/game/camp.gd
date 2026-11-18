@@ -89,6 +89,9 @@ func _ready() -> void:
 		var o = JSON.parse_string(FileAccess.get_file_as_string(ONLINE))
 		if o is Dictionary:
 			online = o
+	# --word=: the server's word for this run only (tests against a local server).
+	if cl.has("word"):
+		online = online.duplicate(); online.word = cl.word
 	# Characters from before rounds are cleared (the user asked for a clean start).
 	var gone := Profile.purge_old()
 	if gone > 0:
@@ -336,6 +339,7 @@ func _process(dt: float) -> void:
 		if _frame % 30 == 0:
 			print("GHOST %d camp tree=%s menu=%s sheet=%s pos=%s" % [_frame, tree.visible, menu.visible, side.get_parent().get_parent().visible, pos.snapped(Vector3.ONE * 0.1)])
 	_poll_lobby(dt)
+	_walk_others(dt)
 	if creating or profile.is_empty():
 		# Making a character: they stand and are looked at.
 		cam.position = cam.position.lerp(_ground(Vector3.ZERO) + Vector3(0.0, 1.35, 3.6), minf(6.0 * dt, 1.0))
@@ -812,9 +816,23 @@ static var server_version := ""
 var _lobby_t := 0.0
 func _poll_lobby(dt: float) -> void:
 	_lobby_t -= dt
-	if _lobby_t > 0.0 or get_tree().root.get_node_or_null("Session") != null:
+	if _lobby_t > 0.0:
 		return
-	_lobby_t = 12.0
+	# Quick while a friend is about, so they are seen walking, not jumping; slow
+	# otherwise, just to notice someone arriving.
+	_lobby_t = 1.5 if not others.is_empty() or not in_camp.is_empty() else 4.0
+	var where := {}
+	if model and not creating:
+		where = {x = pos.x, z = pos.z, yaw = face, kind = String(model.get_meta("kind", "")), style = profile.get("style", {})}
+	var word: String = online.get("word", "")
+	var busy := get_tree().root.get_node_or_null("Session") as Session
+	if busy != null:
+		# A doorway's fight is loaded. Joined to the server, it asks over that
+		# connection (one at a time: a second would take over the first); played
+		# here, there is nobody to ask.
+		if busy.ask_here(word, profile.get("name", ""), where):
+			busy.lobby.connect(func(list: Array) -> void: _heard(list, true), CONNECT_ONE_SHOT)
+		return
 	var s := Session.new()
 	get_tree().root.add_child(s)
 	var sid := s.get_instance_id()
@@ -824,31 +842,97 @@ func _poll_lobby(dt: float) -> void:
 			return
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
-		# The server says who it is in an entry of its own; the rest are fights.
-		fights = []
-		for f in list:
-			if f.get("room", "") == "_server":
-				server_stamp = f.get("stamp", {}); server_version = f.get("version", "")
-			elif f.get("room", "") == "_camp":
-				# A friend just come to their camp: say so, once.
-				for n in f.get("players", []):
-					if not in_camp.has(n) and not cl.has("ghost"):
-						Toast.say("%s is in their camp" % n, "A doorway you both walk through puts you in the same fight.", "good", 6.0)
-				in_camp = f.get("players", [])
-			else:
-				fights.append(f)
-		# Say once when the server stops (or starts) answering.
-		if answered != reachable and not cl.has("ghost"):
-			if answered:
-				Toast.say("Connected", "The server is answering. Friends can join your fights.", "good")
-			else:
-				Toast.say("Can't reach the server", "Fights will be played offline until it answers.", "warn", 8.0)
-		reachable = answered
-		if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
-			_menu_fill()
+		_heard(list, answered)
 	s.lobby.connect(func(list: Array) -> void: done.call(list, true))
 	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights, false))
-	s.ask_lobby(Launch.server(), online.get("word", ""), profile.get("name", ""))
+	s.ask_lobby(Launch.server(), word, profile.get("name", ""), where)
+
+## The server's answer: who it is, who is fighting what, who is in their camp and
+## where they stand.
+func _heard(list: Array, answered: bool) -> void:
+	# The server says who it is in an entry of its own; the rest are fights.
+	fights = []
+	for f in list:
+		if f.get("room", "") == "_server":
+			server_stamp = f.get("stamp", {}); server_version = f.get("version", "")
+		elif f.get("room", "") == "_camp":
+			# A friend just come to their camp: say so, once.
+			for n in f.get("players", []):
+				if not in_camp.has(n) and not cl.has("ghost"):
+					Toast.say("%s is in their camp" % n, "A doorway you both walk through puts you in the same fight.", "good", 6.0)
+			in_camp = f.get("players", [])
+			_place_others(f.get("walkers", []))
+			# Someone to watch walk: ask again soon (the wait was chosen before
+			# this answer came).
+			if not others.is_empty():
+				_lobby_t = minf(_lobby_t, 1.5)
+		else:
+			fights.append(f)
+	# Say once when the server stops (or starts) answering.
+	if answered != reachable and not cl.has("ghost"):
+		if answered:
+			Toast.say("Connected", "The server is answering. Friends can join your fights.", "good")
+		else:
+			Toast.say("Can't reach the server", "Fights will be played offline until it answers.", "warn", 8.0)
+	reachable = answered
+	if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
+		_menu_fill()
+
+## Friends in their own camps, drawn walking about in this one: name ->
+## {node, to (where the server last said), yaw}. They walk to each new spot rather
+## than jump, since the answers come a second and a half apart.
+var others := {}
+func _place_others(walkers: Array) -> void:
+	var seen := {}
+	for w in walkers:
+		var n: String = w.get("name", "")
+		if n == "" or n == profile.get("name", ""):
+			continue
+		seen[n] = true
+		var to := _ground(Vector3(float(w.x), 0, float(w.z)))
+		if not others.has(n):
+			var kind: String = w.get("kind", "")
+			if kind == "" or not Hero.looks().has(kind):
+				continue
+			var node := Hero.instantiate(kind, hash(n), w.get("style", {}))
+			add_child(node)
+			node.position = to
+			(node.get_meta("anim") as AnimationPlayer).play("Idle")
+			others[n] = {node = node, to = to, yaw = float(w.yaw)}
+		others[n].to = to; others[n].yaw = float(w.yaw)
+	# Gone from two answers running (one can miss them while their camp is busy
+	# opening a doorway): they have left, or gone through one.
+	for n in others.keys():
+		if seen.has(n):
+			others[n].miss = 0
+			continue
+		others[n].miss = int(others[n].get("miss", 0)) + 1
+		if others[n].miss >= 2:
+			if is_instance_valid(others[n].node):
+				others[n].node.queue_free()
+			others.erase(n)
+
+func _walk_others(dt: float) -> void:
+	for n in others:
+		var o: Dictionary = others[n]
+		var node: Node3D = o.node
+		if not is_instance_valid(node):
+			continue
+		var off: Vector3 = o.to - node.position
+		off.y = 0.0
+		var moving := off.length() > 0.15
+		# Far behind (they ran, or an answer was missed): catch up quicker.
+		var speed := clampf(off.length() / 1.5, 1.4, 7.0)
+		if moving:
+			node.position = _ground(node.position + off.limit_length(speed * dt))
+			node.rotation.y = lerp_angle(node.rotation.y, atan2(off.x, off.z), minf(dt * 8.0, 1.0))
+		else:
+			node.rotation.y = lerp_angle(node.rotation.y, float(o.yaw), minf(dt * 4.0, 1.0))
+		var ap: AnimationPlayer = node.get_meta("anim")
+		var clip := ("Sprint" if speed > 4.5 and ap.has_animation("Sprint") else "Jog_Fwd") if moving else "Idle"
+		if ap.current_animation != clip:
+			ap.play(clip, 0.2)
+		Hero.cloak_motion(node, speed if moving else 0.0)
 
 func _lobby_text() -> String:
 	if not reachable:

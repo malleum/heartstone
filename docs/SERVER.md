@@ -87,7 +87,7 @@ In the camp, under **Server**:
   server only checks that a character is shaped like one.
 - Progress is saved when an activity ends; a character is sent to the server when
   you are next in the camp.
-- You do not see friends walking about in the camp, only their names in a fight.
+- (Seeing friends walk about the camp: done 18 Nov, see below.)
 
 ## Where it lives
 - `src/net/server.gd`: the program (a Godot script with no window).
@@ -134,3 +134,15 @@ camp lists them under Playing now and says when one arrives.
   proved) or with "that fight is over"; a rejoin never starts a new fight.
 - Others in the fight are told "X lost the connection" and "X is back".
 - Tested in `tools/test.sh` (the `dropper` client).
+
+## Friends in the camp (18 Nov, PROTO 10)
+- Each camp's question to the server (`_who`) carries where it stands: position,
+  facing and look (`{x, z, yaw, kind, style}`, checked for shape). The answer's
+  `_camp` entry lists the others as `walkers`, leaving out anyone fighting (a held
+  doorway preview does not count) or not heard from in 15 s.
+- A camp asks every 4 s, or every 1.5 s while a friend is about, and walks each
+  friend's figure to their newest spot instead of jumping it there. While a
+  doorway's fight is loaded and joined to the server, the camp asks over that
+  connection (`Session.ask_here`), since only one can be open at a time.
+- Not shown: names over their heads (nothing is written on the world), what they
+  hold, or their cloaks moving with their walk beyond the usual sway.

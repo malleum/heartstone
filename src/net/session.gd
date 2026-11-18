@@ -20,7 +20,7 @@ signal lobby(fights: Array)                     # the server said who is playing
 signal lost                                    # the server went away mid-fight
 
 const PORT := 24690
-const PROTO := 9               # bump when an RPC or the snapshot format changes
+const PROTO := 10              # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 const MAX_ROOMS := 8
@@ -189,8 +189,18 @@ func vault_sync(address: String, name_: String, key: String, local: Dictionary, 
 
 ## Ask a server who is playing what, answered through `lobby`: a list of
 ## {room, activity, players [names], t (seconds in)}. Empty if nobody, or no answer.
-func ask_lobby(address: String, their_word := "", me := "") -> void:
-	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce), me.left(32)), func() -> void: lobby.emit([]))
+## `where`: this camp's {x, z, yaw, kind, style}, for others to see us walk about.
+func ask_lobby(address: String, their_word := "", me := "", where := {}) -> void:
+	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: lobby.emit([]))
+
+## The same question over a connection already open to a server (a camp doorway's
+## fight joined there): false if this session is not joined to one.
+func ask_here(their_word := "", me := "", where := {}) -> bool:
+	var peer := multiplayer.multiplayer_peer
+	if is_host or peer == null or peer is OfflineMultiplayerPeer or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED or _nonce == "":
+		return false
+	_who.rpc_id(1, _proof(their_word, _nonce), me.left(32), where)
+	return true
 
 # --- intent: called locally, routed to the host --------------------------------
 
@@ -393,24 +403,51 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 	# A latecomer missed the events that introduced everyone already on the field.
 	_events.rpc_id(peer, r.sim.roster())
 
-var _in_camp := {}     # name -> when last heard asking from a camp (dedicated server)
+var _in_camp := {}     # name -> {t: when last heard asking from a camp, at: where they stand} (dedicated server)
+
+## Where someone stands in their camp, as a camp sends it: position, facing and
+## what they look like, so the others can show them walking about. Checked for
+## shape (it comes from another machine), and small or nothing.
+static func _camp_spot(where: Dictionary) -> Dictionary:
+	if not (where.get("x") is float and where.get("z") is float and where.get("yaw") is float):
+		return {}
+	var style = where.get("style", {})
+	if not style is Dictionary or JSON.stringify(style).length() > 2000:
+		style = {}
+	return {x = clampf(where.x, -60.0, 60.0), z = clampf(where.z, -60.0, 60.0), yaw = where.yaw,
+		kind = String(where.get("kind", "")).left(24), style = style}
 
 @rpc("any_peer", "reliable")
-func _who(proof: String, me := "") -> void:
+func _who(proof: String, me := "", where := {}) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	var out := []
 	if dedicated and proof == _proof(word, _nonces.get(peer, "")):
-		# Whoever asks from a camp is in their camp: others are told who is about.
+		# Whoever asks from a camp is in their camp: others are told who is about,
+		# and where they stand.
 		var now := Time.get_ticks_msec() / 1000.0
-		if me.strip_edges() != "":
-			_in_camp[me.strip_edges()] = now
+		var mine := me.strip_edges()
+		if mine != "":
+			_in_camp[mine] = {t = now, at = _camp_spot(where)}
 		var about := []
+		var walkers := []
+		# Not drawn in the camp: anyone in a fight just now, or not heard from lately.
+		var fighting := []
+		for room in _rooms:
+			# (A held room is a doorway's fight looked into from a camp, not entered.)
+			if _rooms[room].get("hold", false):
+				continue
+			for p in _rooms[room].peers:
+				fighting.append(_rooms[room].sim.ents[_rooms[room].peers[p]].profile.name)
 		for n in _in_camp.keys():
-			if now - float(_in_camp[n]) > 40.0:
+			if now - float(_in_camp[n].t) > 40.0:
 				_in_camp.erase(n)
-			elif n != me.strip_edges():
+			elif n != mine:
 				about.append(n)
-		out.append({room = "_camp", players = about})
+				if not _in_camp[n].at.is_empty() and not n in fighting and now - float(_in_camp[n].t) < 15.0:
+					var w: Dictionary = _in_camp[n].at.duplicate()
+					w.name = n
+					walkers.append(w)
+		out.append({room = "_camp", players = about, walkers = walkers})
 		for room in _rooms:
 			var r: Dictionary = _rooms[room]
 			var names := []
