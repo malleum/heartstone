@@ -509,11 +509,17 @@ func _process(dt: float) -> void:
 		session.sim._cast(p, "gateway", p.pos + Vector3(sin(p.yaw), 0, cos(p.yaw)) * 14.0 + Vector3(6, 0, 0))
 	# --demo=weave[:metres]: weave it ahead again and again, whoever the character is,
 	# so one weave can be looked at in a render.
-	if args.has("demo") and frame % 240 == 100 and session.is_host and me:
+	# Several places, --demo=weave:12@-30,22@25 (metres@degrees off ahead), are woven
+	# in turn every four seconds, so their effects overlap.
+	var dspots: PackedStringArray = (args.demo.split(":")[1] if args.has("demo") and args.demo.contains(":") else "13").split(",")
+	var dgap := 240 if dspots.size() == 1 else 120
+	if args.has("demo") and frame % dgap == 100 % dgap and session.is_host and me:
 		var dp: Dictionary = session.sim.ents[session.my_id]
-		var parts: PackedStringArray = args.demo.split(":")
-		if Rules.weaves.has(parts[0]):
-			session.sim._cast(dp, parts[0], dp.pos + Vector3(sin(dp.yaw), 0, cos(dp.yaw)) * (float(parts[1]) if parts.size() > 1 else 13.0) + Vector3(0, 1.0, 0))
+		var dweave: String = args.demo.split(":")[0]
+		var spot: PackedStringArray = dspots[(frame / dgap) % dspots.size()].split("@")
+		var dyaw: float = dp.yaw + deg_to_rad(float(spot[1]) if spot.size() > 1 else 0.0)
+		if Rules.weaves.has(dweave):
+			session.sim._cast(dp, dweave, dp.pos + Vector3(sin(dyaw), 0, cos(dyaw)) * float(spot[0]) + Vector3(0, 1.0, 0))
 	# --dreamdemo: the player works through the dream moves one after another at
 	# whoever is nearest, so each can be looked at in a render.
 	if args.has("dreamdemo") and frame % 75 == 40 and session.is_host and me and session.sim.dream:
