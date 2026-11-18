@@ -81,7 +81,7 @@
       # `nix flake check` evaluates the module in a minimal NixOS system.
       checks = forAll (pkgs: {
         module = (nixpkgs.lib.nixosSystem {
-          system = pkgs.system;
+          system = pkgs.stdenv.hostPlatform.system;
           modules = [ self.nixosModules.default {
             services.heartstone.enable = true;
             boot.isContainer = true; system.stateVersion = "25.05";
@@ -119,10 +119,10 @@
       });
 
       apps = forAll (pkgs: {
-        default = { type = "app"; program = "${self.packages.${pkgs.system}.default}/bin/heartstone"; };
-        horde = { type = "app"; program = "${self.packages.${pkgs.system}.horde}/bin/heartstone-horde"; };
-        server = { type = "app"; program = "${self.packages.${pkgs.system}.server}/bin/heartstone-server"; };
-        fhs = { type = "app"; program = "${self.packages.${pkgs.system}.fhs}/bin/heartstone-fhs"; };
+        default = { type = "app"; program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/heartstone"; };
+        horde = { type = "app"; program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.horde}/bin/heartstone-horde"; };
+        server = { type = "app"; program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.server}/bin/heartstone-server"; };
+        fhs = { type = "app"; program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.fhs}/bin/heartstone-fhs"; };
       });
     };
 }
