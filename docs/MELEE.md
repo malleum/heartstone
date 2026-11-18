@@ -143,7 +143,7 @@ Staves
 Axes, hammers, clubs
 - [x] Half-moon axe with a back spike (Perrin's)
 - [x] Woodsman's axe
-- [ ] Throwing axe
+- [x] Throwing axe (18 Nov: three, heavy, short, a hit staggers)
 - [x] Smith's hammer; war hammer
 - [x] Mace or cudgel
 
@@ -172,12 +172,14 @@ Bare hands
       so on)
 - [x] Heavy move per family (overhead, lunge, great sweep)
 - [x] Low move per family (leg sweep that knocks down)
-- [ ] Running attack; attack out of a roll
+- [x] Running attack (20% harder) and attack out of a roll (asked for while rolling
+      toward where you aim: it comes out of the roll 30% harder) (18 Nov)
 - [x] Thrusts that pass through one body into the next
 - [x] Haft and pommel strikes that stagger
 - [ ] Staff spin; spear held to keep them off (set against a charge)
-- [ ] Bleeding from cuts, staggers from blunt blows, armour that turns cuts but
-      not thrusts
+- [~] Bleeding from cuts (18 Nov: an edged blow leaves a fifth of its damage again
+      over four seconds); staggers from blunt blows (weapon impact, built); armour
+      that turns cuts but not thrusts: not yet
 - [x] **Sword forms** as learned special moves on the bar with cooldowns, in a
       tree like the weave tree: Parting the Silk, The Boar Rushes Down the
       Mountain, Heron Wading in the Rushes, Apple Blossoms in the Wind, The

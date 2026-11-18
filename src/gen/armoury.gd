@@ -114,6 +114,9 @@ static func build(weapon_id: String) -> Dictionary:
 		"belt_knife": _hilt(n, 0.11, 0.07); _blade(n, 0.06, 0.2, 0.03, steel)
 		"aiel_knife": _hilt(n, 0.13, 0.06); _blade(n, 0.07, 0.36, 0.045, steel)
 		"throwing_knives": _blade(n, -0.04, 0.2, 0.025, steel)
+		"throwing_axes":
+			_rod(n, Vector3(0, -0.12, 0), Vector3(0, 0.3, 0), 0.014, 0.013, _mat(WOOD))
+			_box(n, Vector3(0.022, 0.09, 0.11), Vector3(0, 0.27, 0.05), steel)
 		"daggers":
 			_hilt(n, 0.11, 0.09); _blade(n, 0.06, 0.26, 0.03, steel)
 			var o := Node3D.new(); _hilt(o, 0.11, 0.09); _blade(o, 0.06, 0.26, 0.03, steel)
@@ -196,7 +199,7 @@ static func missile(weapon_id: String) -> Node3D:
 		_rod(n, Vector3(0, 0, -0.4), Vector3(0, 0, -0.52), 0.02, 0.001, _mat(DARK, 0.6))
 		_box(n, Vector3(0.07, 0.003, 0.12), Vector3(0, 0, 0.4), _mat(Color(0.15, 0.1, 0.08)))
 		return n
-	match Rules.weapons[weapon_id].family if not weapon_id in ["javelins", "aiel_spear", "sling", "throwing_knives", "belt_knife"] else weapon_id:
+	match Rules.weapons[weapon_id].family if not weapon_id in ["javelins", "aiel_spear", "sling", "throwing_knives", "belt_knife", "throwing_axes"] else weapon_id:
 		"bow":
 			_rod(n, Vector3(0, 0, 0.4), Vector3(0, 0, -0.38), 0.006, 0.006, _mat(PALE))
 			_rod(n, Vector3(0, 0, -0.38), Vector3(0, 0, -0.46), 0.014, 0.001, steel)
@@ -205,6 +208,10 @@ static func missile(weapon_id: String) -> Node3D:
 		"javelins", "aiel_spear":
 			_rod(n, Vector3(0, 0, 0.7), Vector3(0, 0, -0.6), 0.015, 0.013, _mat(WOOD))
 			_rod(n, Vector3(0, 0, -0.6), Vector3(0, 0, -0.9), 0.03, 0.002, steel)
+		"throwing_axes":
+			# Turned so it reads as an axe in flight, head forward.
+			_rod(n, Vector3(0, 0, 0.18), Vector3(0, 0, -0.18), 0.013, 0.012, _mat(WOOD))
+			_box(n, Vector3(0.022, 0.11, 0.09), Vector3(0, 0.05, -0.16), steel)
 		"sling":
 			var mi := MeshInstance3D.new(); var s := SphereMesh.new(); s.radius = 0.035; s.height = 0.07
 			mi.mesh = s; mi.material_override = _mat(Color(0.4, 0.4, 0.42)); n.add_child(mi)

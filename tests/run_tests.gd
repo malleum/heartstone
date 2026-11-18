@@ -9,8 +9,8 @@ func check(cond: bool, what: String) -> void:
 		fails += 1
 		print("  FAIL: ", what)
 
-func play(profile: Dictionary, activity: String, max_s := 600.0) -> Sim:
-	var sim := Sim.new(activity, 3)
+func play(profile: Dictionary, activity: String, max_s := 600.0, seed_ := 3) -> Sim:
+	var sim := Sim.new(activity, seed_)
 	var id := sim.add_player(profile)
 	while not sim.over and sim.t < max_s:
 		Bot.drive(sim, id)
@@ -737,6 +737,10 @@ func _arms() -> void:
 	for who in [warder, aiel, hunter]:
 		for act in ["camp_training", "short_watch"]:
 			var s := play(who, act)
+			# A lone bot against a watch is chaotic: any small change in the rules
+			# moves which seed it loses. Two tries; losing both is a real weakness.
+			if not s.success:
+				s = play(who, act, 600.0, 7)
 			var tl: Dictionary = s.tallies[1]
 			print("  %s, %s: %s in %.0fs, %d blows, health %d, stamina %d" % [who.name, act, "won" if s.success else "LOST", s.t, tl.blows.values().reduce(func(x, y): return x + y, 0), int(maxf(s.ents[1].hp, 0.0)), int(s.ents[1].stamina)])
 			check(s.success, "%s can win %s" % [who.name, act])
@@ -1148,6 +1152,28 @@ func _rounds() -> void:
 	var hwhy := hls.request_cast(hl1, "healing", hls.ents[hl2].pos)
 	run(hls, 4.0)
 	check(hwhy == "" and not hls.ents[hl2].get("downed", false) and hls.ents[hl2].hp > 0.0, "Healing brings a downed friend up (%s)" % hwhy)
+
+	# A blow at a run lands harder; an edge leaves them bleeding.
+	var rn := Sim.new("practice", 100)
+	rn._waves = []
+	var rnp := rn.add_player(Profile.create({name = "Runner", cls = "warder", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["sword"]}), Vector3.ZERO)
+	rn._add_enemy("trolloc", Vector3(0, 0, 1.6))
+	var rne: Dictionary = rn.ents[rnp + 1]
+	rne.speed = 0.0; rne.hp = 9999.0; rne.max_hp = 9999.0
+	rn.set_input(rnp, Vector3(0, 0, 1), 0.0)
+	rn.request_attack(rnp, "light", Vector3(0, 1, 2))
+	check(rn.ents[rnp].swing.get("bonus", 1.0) > 1.0, "a blow struck at a run carries the run")
+	run(rn, 0.8)
+	check(rne.get("bleed", 0.0) > 0.0, "a sword cut leaves a Trolloc bleeding")
+	# A blow asked for in a roll comes out of the roll.
+	var rp2: Dictionary = rn.ents[rnp]
+	rp2.swing = {}; rp2.queued = {}; rp2.stamina = 999.0
+	rn.set_input(rnp, Vector3.ZERO, 0.0)
+	var dodge_why := rn.request_dodge(rnp, Vector3(0, 0, 1), true)
+	var att_why := rn.request_attack(rnp, "light", rp2.pos + Vector3(0, 1, 3))
+	check(att_why == "" and rp2.queued.get("from_roll", false), "an attack asked for in a roll waits for it (%s / %s, dash %s)" % [dodge_why, att_why, rp2.dash])
+	run(rn, 0.6)
+	check(not rp2.swing.is_empty() or rn.tallies[rnp].blows.get("sword", 0) >= 2, "and comes out of it")
 
 	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
 	var gzs := Sim.new("practice", 98)

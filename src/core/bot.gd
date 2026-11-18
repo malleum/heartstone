@@ -18,10 +18,17 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 	if me.weapon == "":
 		return
 	var yaw := atan2(to.x, to.z)
-	# Badly hurt, break off and outrun them until breath comes back, as a person would.
-	if me.hp < me.max_hp * 0.35:
+	# Badly hurt and pressed by several, break off and outrun them, as a person would;
+	# back to it once half mended, or when only one or two are left to deal with
+	# (healing on your own is slow: a long chase only ends one way).
+	var pressing := 0
+	for k in sim.ents:
+		var o: Dictionary = sim.ents[k]
+		if o.alive and o.team != me.team and o.pos.distance_to(me.pos) < 9.0:
+			pressing += 1
+	if me.hp < me.max_hp * 0.35 and pressing >= 3:
 		me.bot_flee = true
-	elif me.hp > me.max_hp * 0.8:
+	elif me.hp > me.max_hp * 0.5 or pressing <= 2:
 		me.bot_flee = false
 	if me.get("bot_flee", false) and near.speed > 0.0:
 		sim.set_guard(id, false)

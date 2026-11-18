@@ -364,6 +364,12 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		# draw it had when the string was let go).
 		p.queued = {kind = kind, aim = aim, charge = charge, draw_since = p.get("draw_since", t) if p.get("draw_held", false) else -1.0}
 		return ""
+	# Asked for in a roll: it comes out of the roll, harder for it.
+	var aim_dir: Vector3 = ((aim - p.pos) * Vector3(1, 0, 1)).normalized()
+	if not p.dash.is_empty() and not p.dash.has("lunge") and not p.dash.get("vault", false) and kind in ["light", "heavy"] and p.forming.is_empty() \
+			and p.dash.get("vel", Vector3.ZERO).normalized().dot(aim_dir) > 0.3:
+		p.queued = {kind = kind, aim = aim, charge = charge, draw_since = -1.0, from_roll = true}
+		return ""
 	if p.reel_until > t or not p.forming.is_empty() or not p.dash.is_empty():
 		return "busy"
 	var w: Dictionary = Rules.weapons[p.weapon]
@@ -420,6 +426,12 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	# The wait before a bow looses is the draw, and is seen as one.
 	p.drawing = m.get("missile", false) and w.has("shot") and not w.shot.get("crank", false) and wind > 0.15
 	p.swing = {move = move_id, weapon = p.weapon, left = wind, struck = false, recover = times[1], dir = dir, aim = aim, charge = charge}
+	# A blow struck at a run carries the run into it; one out of a roll, the roll.
+	if not m.get("missile", false):
+		if t - p.get("rolled_at", -9.0) < 0.15:
+			p.swing.bonus = 1.3
+		elif p.move.length() > 0.8 and p.move.normalized().dot(dir) > 0.7 and not p.duck:
+			p.swing.bonus = 1.2
 	if m.has("lunge"):
 		p.dash = {vel = dir * (m.lunge / maxf(wind, 0.05)), left = wind, lunge = true}
 	var tl: Dictionary = tallies[id]
@@ -606,6 +618,9 @@ func step(dt: float) -> void:
 		if e.get("fester", 0.0) > 0.0:
 			e.fester -= dt
 			_hurt(e, e.fester_dps * dt, 0, "", true)
+		if e.get("bleed", 0.0) > 0.0:
+			e.bleed -= dt
+			_hurt(e, e.bleed_dps * dt, e.get("bleed_by", 0), "", true)
 	_path_field(players)
 	_step_enemies(foes, players, dt)
 	_step_effects(dt)
@@ -1127,6 +1142,12 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		p.dash.left -= dt
 		if p.dash.left <= 0.0:
 			p.dash = {}
+			# A blow asked for in the roll comes out of it now.
+			if p.get("queued", {}).get("from_roll", false) and p.swing.is_empty():
+				var q: Dictionary = p.queued
+				p.queued = {}
+				p.rolled_at = t
+				request_attack(p.id, q.kind, q.aim, q.charge)
 	if p.get("bound_by", 0) != 0 or p.chained > t:
 		step = Vector3.ZERO
 	elif p.get("mired", 0.0) > t:
@@ -1237,6 +1258,12 @@ func _strike(p: Dictionary) -> void:
 	var imp: Dictionary = w.get("impact", {})
 	for key in imp:
 		on[key] = maxf(float(on.get(key, 0.0)), float(imp[key]) * minf(float(m.get("dmg", 1.0)), 1.6))
+	dmg *= float(sw.get("bonus", 1.0))
+	if sw.has("push"):
+		on.push = maxf(float(on.get("push", 0.0)), float(sw.push))
+	# An edge opens a wound that goes on bleeding; blunt weapons do not.
+	if w.family in ["sword", "knife", "axe", "spear"] and not m.get("blunt", false):
+		on.bleed = dmg * 0.2
 	var n := 0
 	for e in found:
 		if n >= int(m.get("hits", 1)):
@@ -1274,6 +1301,9 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 		if e.kind == "player":
 			# (Players are moved by their own feet, not by vel: a shove is its own thing.)
 			e.shove = dir * float(on.push)
+	if on.has("bleed") and e.kind == "enemy" and not e.get("row", {}).get("steady", false):
+		# Bleeding: a quarter of the blow again, over four seconds.
+		e.bleed = maxf(e.get("bleed", 0.0), 4.0); e.bleed_dps = maxf(e.get("bleed_dps", 0.0), float(on.bleed) / 4.0); e.bleed_by = by
 	# How hard it was knocked, for the view: a hammer blow should look like one.
 	e.knock = float(on.get("push", 0.0)) + float(on.get("stagger", 0.0)) * 4.0
 	_hurt(e, dmg, by, weapon)
