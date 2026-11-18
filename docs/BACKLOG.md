@@ -289,8 +289,8 @@ are what the 4:44 review, or the next session, should pick up.
   books. In a fight the least-read player's limit applies to everyone (Sim
   `_share_story`): later weaves and Talents cannot be used or picked, and vanish
   from every chart and bar; only a channeller's starter weave is kept. Hidden past
-  book 6: Arrows of Fire, Blossoms of Fire, the Deathgate (11), Heave the Ground
-  (14, kept as Earth's starter); Talents Unweaving, Reading Residues, Cloud
+  book 6: Arrows of Fire, Blossoms of Fire, the Deathgate (11) (Heave the Ground is
+  book 1 by the user's ruling: Moiraine does it against Trollocs in TEotW); Talents Unweaving, Reading Residues, Cloud
   Dancing, Travelling (Androl's). `Rules.TALENT_BOOK` holds the Talents' books.
 
 ## Super backlog (only these two; everything above is to be worked through)

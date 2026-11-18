@@ -120,7 +120,7 @@ cannot make the weaves they could that morning.
 | **Deathgates** | Spirit + Fire + Earth | Rolling gateways that kill whatever they pass through. | KoD ch.19 / Vows | 11 | Canon |
 | Exploding / pulverising | Fire + Earth | Blow objects apart or grind them to dust. | LoC, Lessons and Teachers | 6 | Canon |
 | **Rolling ring of earth** | Earth + Fire | The earth wave that broke the Shaido at Dumai's Wells. | Depository (no chapter) | 6 | Wiki |
-| **Heave the ground** | Earth | Earth threads driven down to throw the ground up. | AMoL, What Must Be Done | 14 | Canon |
+| **Heave the ground** | Earth | Earth threads driven down to throw the ground up. | AMoL, What Must Be Done; Moiraine heaves the ground against Trollocs in TEotW (user's ruling, 18 Nov: book 1 for the spoiler limit) | 1 | Canon |
 | Red filaments & balls of fire | Fire + Air | Burning threads and fireballs. | TPoD, A Cup of Sleep | 8 | Canon |
 | Weapons of Air | Air | Hardened Air to hit, cut, stab or slice. | ToM, Gateways | 13 | Canon |
 | Bind / lift with Air | Air | Restrain, lift, carry; strength-limited. | LoC, Summoned in Haste | 6 | Canon |
