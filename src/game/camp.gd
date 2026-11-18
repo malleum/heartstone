@@ -435,6 +435,9 @@ func _doors() -> void:
 	for id in Rules.activities:
 		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false):
 			ids.append(id)
+	# One doorway per mode, in this order (training first, the duel last).
+	var order := ["camp_training", "holdout", "darkfriend_door", "endless_door", "team_battle", "dream_spar"]
+	ids.sort_custom(func(x: String, y: String) -> bool: return (order.find(x) if order.has(x) else 50) < (order.find(y) if order.has(y) else 50))
 	var open := Rules.available(profile)
 	for i in ids.size():
 		var a: Dictionary = Rules.activities[ids[i]]
@@ -450,7 +453,9 @@ func _doors() -> void:
 			for dn in a.requires.get("done", []):
 				if not profile.done.has(dn): need.append(Rules.activities[dn].name)
 			sub = "Closed to you: needs " + ", ".join(need)
-		var name_: String = a.name + ("  ✓" if profile.done.has(ids[i]) else "")
+		# A mode's doorway is done if any of its setups has been won.
+		var won_here: bool = profile.done.keys().any(func(x: String) -> bool: return x == ids[i] or x.begins_with(ids[i] + "@"))
+		var name_: String = a.name + ("  ✓" if won_here else "")
 		var node := Scenery.doorway(self, _ground(at), -ang, DOOR_TINT.get(a.kind, Color.WHITE), ids[i] in open, name_, "" if ids[i] in open else "(closed)",
 			{tarwins_gap = 1, wagon_ring = 2}.get(a.get("map", ""), 4 if a.kind == "spar" else 3))
 		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub})
@@ -904,7 +909,7 @@ func _go(extra: Dictionary) -> void:
 		multiplayer.multiplayer_peer = null
 		s.free()
 	Launch.args = extra.merged({name = profile.name})
-	Launch.last_activity = extra.get("activity", "")
+	Launch.last_activity = Rules.activities.get(extra.get("activity", ""), {}).get("door", extra.get("activity", ""))
 	Launch.report = []
 	get_tree().change_scene_to_file("res://src/game/game.tscn")
 
@@ -1460,13 +1465,18 @@ func _open_way(d: Dictionary) -> void:
 	add_child(vp)
 	# One game at a time on the server, everyone in it: whichever doorway you take
 	# joins the fight already running, if there is one. Offline if it won't answer.
-	var a := {activity = d.id, name = profile.name, preview = "1"}
+	# A mode's doorway opens onto a setup chosen now: a different place and foes
+	# each time you walk up to it.
+	var act := Rules.pick_setup(d.id)
+	var a := {activity = act, name = profile.name, preview = "1"}
+	if act != d.id:
+		Toast.say(Rules.activities[act].name, Rules.activities[act].blurb, "info", 5.0)
 	if (reachable or cl.has("ghost")) and not cl.has("offline"):
 		a.join = Launch.server(); a.word = online.get("word", "")
 	if cl.has("stroll"):
 		a.walk_in = "1"
 	Launch.args = a
-	Launch.last_activity = d.id
+	Launch.last_activity = d.id    # the doorway, so you step back out of it
 	Launch.report = []
 	Launch.left_camp = Time.get_ticks_msec()
 	var t0 := Time.get_ticks_msec()

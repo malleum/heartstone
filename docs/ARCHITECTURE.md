@@ -620,6 +620,18 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
 Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
 (`endless_won`), and the fight goes on for as long as anyone lasts.
 
+## One doorway per mode (18 Nov, the user's ask)
+- The hub has a doorway per mode: training, Hold the line (`holdout`), A Darkfriend
+  among us (`darkfriend_door`), The endless night (`endless_door`), Two banners, and
+  the dream duel. A mode row with a `pool` names setups from `_setups` in
+  activities.json (a map, night or not, the special enemies and the last wave):
+  Tarwin's Gap by day and by night, the wagon ring, the Wild Hunt.
+- `Rules._expand_setups` makes a hidden activity "<mode>@<setup>" for each, the mode's
+  rules with the setup's place and foes (endless adds its own extra specials), so
+  every machine has the same ids. Walking up to the doorway picks one at random
+  (`Rules.pick_setup`) and a notice names it; `--activity=holdout` does the same.
+- The old per-place rows stay, hidden, for the tests and tour stations.
+
 ## Two banners: team battle (`team_battle`; Sim `battle`, built 18 Nov)
 - Two sides of players. Each player joins the side with fewer on it, at that side's
   end of the field (outside the wagon ring, 21 m out). A few seconds in, bots fill

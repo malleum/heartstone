@@ -218,6 +218,13 @@ are what the 4:44 review, or the next session, should pick up.
   G press (tie off the dome) reaches the game but no tie happens, and the presses
   after it go astray. Passes when run again. The suite now retries once; find it.
 
+- 2026-11-18, asked by the user:
+  - **A collection of screenshots of characters posing**, especially in the middle of
+    attacks: weaves being made and loosed, and melee blows, for every class and look.
+  - (Done 18 Nov.) **Fewer doorways:** one per mode (training, hold the line,
+    Darkfriend, endless, the dream duel, plus Two banners), each picking a random
+    place and enemy mix as you walk up; Darkfriend and endless use the same setups.
+
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
 - Drawing to weave: tracing a weave's shape to make it.

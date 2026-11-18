@@ -105,6 +105,7 @@ static func load_data() -> void:
 	weaves = _json("res://data/weaves.json")
 	enemies = _json("res://data/enemies.json")
 	activities = _json("res://data/activities.json")
+	_expand_setups()
 	weapons = _json("res://data/weapons.json")
 	moves = weapons["_moves"]
 	forms = weapons["_forms"]
@@ -114,6 +115,48 @@ static func load_data() -> void:
 	# A form is a move like any other once it is in the hand.
 	for f in forms:
 		moves[f] = forms[f]
+
+## A doorway with a `pool` is a mode, not a place: one hidden activity is made for
+## each setup in its pool ("<door>@<setup>": the setup's map, light and enemies with
+## the door's rules), and walking up to the doorway picks one (`pick_setup`). Every
+## machine makes the same rows, so a server and its players agree on the ids.
+static var setups := {}
+
+static func _expand_setups() -> void:
+	setups = activities.get("_setups", {})
+	activities.erase("_setups")
+	for door in activities.keys():
+		var d: Dictionary = activities[door]
+		if not d.has("pool"):
+			continue
+		for sid in d.pool:
+			var st: Dictionary = setups[sid]
+			var v: Dictionary = d.duplicate(true)
+			v.erase("pool")
+			v.hidden = true
+			v.door = door
+			v.setup = sid
+			if st.get("map", "open") != "open":
+				v.map = st.map
+			if st.get("night", false):
+				v.night = true
+			v.name = "%s: %s" % [d.name, st.label]
+			v.blurb = st.blurb
+			var specials: Array = (st.specials as Array).duplicate()
+			for x in d.get("extra_specials", []):
+				if not specials.has(x): specials.append(x)
+			v.round.specials = specials
+			v.round.boss = (st.boss as Dictionary).duplicate()
+			activities["%s@%s" % [door, sid]] = v
+
+## Which setup a doorway opens onto this time (an activity id that can be hosted).
+static func pick_setup(id: String, rng: RandomNumberGenerator = null) -> String:
+	var d: Dictionary = activities.get(id, {})
+	if not d.has("pool"):
+		return id
+	var pool: Array = d.pool
+	var k: int = (rng.randi() if rng else randi()) % pool.size()
+	return "%s@%s" % [id, pool[k]]
 
 static func _json(path: String) -> Dictionary:
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))

@@ -1241,6 +1241,15 @@ func _rounds() -> void:
 	gzs._gaze(gze)
 	check(gze.get("afraid", 0.0) <= gzs.t, "looking away, it does not")
 
+	# Every setup of every mode's doorway can be fought.
+	var variants := Rules.activities.keys().filter(func(k: String) -> bool: return k.contains("@"))
+	check(variants.size() == 12, "three modes of four setups each (%d)" % variants.size())
+	for vid in variants:
+		var vs2 := Sim.new(vid, 5)
+		vs2.add_player(Profile.make({name = "Setup " + vid, power = "saidar"}))
+		for k in 300: vs2.step(1.0 / 30.0)
+		check(not vs2.ents.is_empty() and vs2.t > 9.0, vid + " runs")
+
 	# Team battle: sides filled with bots, kills scored, one side wins.
 	var tbs := Sim.new("team_battle", 97)
 	var tbp := tbs.add_player(Profile.make({name = "Banner", power = "saidin"}))

@@ -164,6 +164,9 @@ func _begin() -> void:
 		if _started and not _done:
 			_done = true
 			Toast.say("Lost the server", "The fight cannot go on without it. Enter: back to the camp.", "warn", 15.0))
+	# --activity=holdout (a mode's doorway): pick its setup here, as the camp does.
+	if args.has("activity") and Rules.activities.get(args.activity, {}).has("pool"):
+		args.activity = Rules.pick_setup(args.activity)
 	if args.has("join"):
 		session.join(args.join, profile, args.get("activity", ""), args.get("word", ""), args.get("room", ""), previewing)
 		# ENet can take half a minute to give up on a server that is not there.
