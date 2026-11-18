@@ -1006,6 +1006,25 @@ func _rounds() -> void:
 	gc._gate_cut(Vector3(0, 0, 10), gcp)
 	check(tc.hp <= tc.max_hp - Rules.TUNE.gate_cut + 0.1 or not tc.alive, "a gateway opening on a Trolloc cuts it badly")
 
+	# Rope: a fighter ties a downed player; they cannot walk or strike; anyone unties.
+	var rs := Sim.new("darkfriend", 61)
+	rs._waves = []; rs._add_enemy("dummy", Vector3(0, 0, -90))
+	var rw := rs.add_player(Profile.create({name = "Roper", cls = "warder", stat_pts = {might = 3}}), Vector3(0, 0, 0))
+	var rv := rs.add_player(Profile.create({name = "Roped", power = "saidin"}), Vector3(1.0, 0, 0))
+	check(rs.set_tying(rw, true) != "", "a standing player cannot be tied")
+	rs.ents[rv].downed = true; rs.ents[rv].down_left = 99.0; rs.ents[rv].down_hp = 50.0
+	check(rs.set_tying(rw, true) == "", "a fighter can begin tying someone who is down")
+	run(rs, Rules.TUNE.rope_secs + 0.2)
+	check(rs.ents[rv].get("tied", false), "after a few seconds they are tied")
+	rs.ents[rv].downed = false; rs.ents[rv].hp = 50.0
+	rs.set_input(rv, Vector3.FORWARD, 0.0)
+	check(rs.ents[rv].move == Vector3.ZERO and rs.request_dodge(rv, Vector3.FORWARD) == "tied with rope", "tied, you cannot walk or roll")
+	rs.ents[rw].darkfriend = false; rs.ents[rv].darkfriend = true; rs._df_assigned = true
+	check(not rs._df_free(), "a tied Darkfriend counts as held")
+	check(rs.set_tying(rw, true) == "", "and can be untied")
+	run(rs, Rules.TUNE.rope_secs + 0.2)
+	check(not rs.ents[rv].get("tied", false), "untied after a few seconds")
+
 	# A round leaves only what a win pays.
 	var keep := her.duplicate(true)
 	var lines := Progression.award(her, {seconds = 600.0}, "tarwins_gap_watch", false)

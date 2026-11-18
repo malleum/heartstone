@@ -14,7 +14,7 @@ const ACTIONS := [
 	[KEY_W, "Walk forward"], [KEY_S, "Walk back"], [KEY_A, "Walk left"], [KEY_D, "Walk right"],
 	[KEY_SPACE, "Roll"], [KEY_CTRL, "Duck"], [KEY_F, "Throw"], [KEY_G, "Tie off a held weave"],
 	[KEY_Q, "Previous on the bar"], [KEY_E, "Next on the bar"], [KEY_TAB, "Choose at a level-up"],
-	[KEY_J, "The Darkfriend's gateway"], [KEY_H, "Hide the camp sheet"],
+	[KEY_J, "The Darkfriend's gateway"], [KEY_K, "Tie or untie with rope (hold)"], [KEY_H, "Hide the camp sheet"],
 	[KEY_1, "Bar slot 1"], [KEY_2, "Bar slot 2"], [KEY_3, "Bar slot 3"], [KEY_4, "Bar slot 4"], [KEY_5, "Bar slot 5"],
 	[KEY_6, "Bar slot 6"], [KEY_7, "Bar slot 7"], [KEY_8, "Bar slot 8"], [KEY_9, "Bar slot 9"]]
 static var _map := {}

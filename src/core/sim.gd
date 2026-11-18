@@ -116,7 +116,45 @@ func _add_enemy(type: String, pos: Vector3) -> void:
 
 func set_input(id: int, move: Vector3, yaw: float) -> void:
 	var p: Dictionary = ents[id]
-	p.move = move.limit_length(1.0); p.yaw = yaw
+	p.move = Vector3.ZERO if p.get("tied", false) else move.limit_length(1.0); p.yaw = yaw
+
+## Rope (a fighter's way to hold someone): stand over a player who is down or
+## knocked off their feet and keep at it for ROPE_SECS, and they are tied: no
+## walking, no blows, no rolls. Rope does not stop channelling (the Power needs no
+## hands): that takes a Shield as well. Anyone can untie a tied player the same way,
+## and fire burns the ropes off. A tied Darkfriend counts as held.
+func set_tying(id: int, on: bool) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or not p.alive or p.get("downed", false) or p.get("tied", false):
+		return "busy"
+	if not on:
+		p.tying = 0; p.tie_t = 0.0
+		return ""
+	var best := {}
+	for k in ents:
+		var o: Dictionary = ents[k]
+		if o.kind == "player" and o.alive and k != id and o.pos.distance_to(p.pos) < 1.6:
+			var can_tie: bool = p.profile.get("cls", "channeller") != "channeller" and not o.get("tied", false) and (o.get("downed", false) or o.down > 0.0 or o.stagger > 0.0)
+			if can_tie or o.get("tied", false):
+				best = o
+	if best.is_empty():
+		return "no one here to tie (they must be down) or untie" if p.profile.get("cls", "channeller") != "channeller" else "no one here to untie"
+	p.tying = best.id; p.tie_t = 0.0
+	return ""
+
+func _step_tying(p: Dictionary, dt: float) -> void:
+	var o: Dictionary = ents.get(p.get("tying", 0), {})
+	if o.is_empty() or not o.alive or o.pos.distance_to(p.pos) > 1.8:
+		p.tying = 0
+		return
+	p.move = Vector3.ZERO
+	p.tie_t += dt
+	if p.tie_t >= Rules.TUNE.rope_secs:
+		o.tied = not o.get("tied", false)
+		if o.tied:
+			o.swing = {}; o.queued = {}; o.guard = false; o.move = Vector3.ZERO
+		events.append({e = "tied" if o.tied else "untied", id = o.id, by = p.id})
+		p.tying = 0
 
 ## Flows not taken up by weaves being held. A weave that has been tied off holds
 ## itself, and costs none.
@@ -243,6 +281,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 		return "chained"
 	if p.get("downed", false):
 		return "you are down"
+	if p.get("tied", false):
+		return "tied with rope"
 	if not p.swing.is_empty():
 		p.queued = {kind = kind, aim = aim, charge = charge}
 		return ""
@@ -352,6 +392,8 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 		return "chained"
 	if p.get("downed", false):
 		return "you are down"
+	if p.get("tied", false):
+		return "tied with rope"
 	dir.y = 0.0
 	# With no direction given it is a step back, out of reach, still facing them.
 	var back := dir.length() <= 0.1
@@ -518,7 +560,7 @@ func _assign_darkfriends() -> void:
 func _df_free() -> bool:
 	for id in ents:
 		var p: Dictionary = ents[id]
-		if p.get("darkfriend", false) and p.alive and p.get("severed", 0.0) <= t and p.get("bound_by", 0) == 0:
+		if p.get("darkfriend", false) and p.alive and p.get("severed", 0.0) <= t and p.get("bound_by", 0) == 0 and not p.get("tied", false):
 			return true
 	return false
 
@@ -570,9 +612,10 @@ func _step_downed(p: Dictionary, dt: float) -> void:
 	var helped := false
 	for id in ents:
 		var o: Dictionary = ents[id]
-		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and not o.get("downed", false) and o.pos.distance_to(p.pos) < Round.REVIVE_REACH:
+		# (Someone tying you up is not helping you up.)
+		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and not o.get("downed", false) and o.get("tying", 0) != p.id and o.pos.distance_to(p.pos) < Round.REVIVE_REACH:
 			helped = true
-	p.revive_t = p.revive_t + dt if helped else maxf(p.revive_t - dt, 0.0)
+	p.revive_t = p.get("revive_t", 0.0) + dt if helped else maxf(p.get("revive_t", 0.0) - dt, 0.0)
 	if p.revive_t >= Round.REVIVE_SECS:
 		p.downed = false
 		p.hp = p.max_hp * 0.25
@@ -702,6 +745,8 @@ func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 
 func _step_player(p: Dictionary, dt: float) -> void:
 	tallies[p.id].seconds += dt
+	if p.get("tying", 0) != 0:
+		_step_tying(p, dt)
 	if p.get("downed", false):
 		_step_downed(p, dt)
 		return
@@ -1164,6 +1209,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		var kr: float = Rules.reach(src.profile, weave, src.stamina) if src.get("kind", "") == "player" and src.profile.weaves.has(weave) else 1.0
 		if on.has("burn"):
 			e.burn = maxf(e.burn, on.burn * kr); e.burn_dps = on.get("burn_dps", 6.0); e.burn_by = by
+			if e.get("tied", false):
+				e.tied = false
+				events.append({e = "untied", id = e.id, by = by, burnt = true})
 		if on.has("stun"):
 			e.stagger = maxf(e.stagger, on.stun * kr)
 		# Lightning leaves what survives it charged: it runs wild and faster, and the

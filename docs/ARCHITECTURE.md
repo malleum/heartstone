@@ -512,8 +512,11 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
 - Ends: every loyal player dead, the Darkfriend wins. The waves outlasted, the loyal
   win only if every Darkfriend is dead, Shielded or bound in Air at that moment;
   otherwise the Darkfriend wins. `Sim.won(id)` gives each side its own result.
-- Not built: physical restraint for fighters (rope, a hold); talking happens over the
-  group's own voice chat.
+- **Rope** (K, held; `Sim.set_tying`): a fighter standing over a player who is down,
+  knocked over or staggering ties them in 3 s: no walking, blows or rolls (channelling
+  still works, as in the books, so a channeller also needs a Shield). Anyone unties
+  them the same way; fire burns the rope off. A tied Darkfriend counts as held.
+- Talking happens over the group's own voice chat.
 
 ## Gateways (17 Nov, the user's rulings)
 - The Shadow's creatures (Trollocs, Myrddraal, Darkhounds, Draghkar: `_is_shadowspawn`)

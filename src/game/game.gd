@@ -187,6 +187,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == Keys.k(KEY_K):
+			session.tie_rope(true)
 		elif ev.physical_keycode == Keys.k(KEY_J) and darkfriend:
 			session.df_gate()
 		elif ev.physical_keycode == Keys.k(KEY_TAB) and not team_meter.is_empty():
@@ -210,6 +212,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		var n: int = Keys.slot_of(ev.physical_keycode)
 		if n >= 0 and n < known.size():
 			_select(n)
+	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode == Keys.k(KEY_K):
+		session.tie_rope(false)
 	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
 		session.duck(false)
 	elif ev is InputEventMouseButton:
@@ -937,6 +941,12 @@ func _on_events(list: Array) -> void:
 				var g := Weavefx.gate(self, _ground(e.pos), _ground(e.pos) + Vector3(sin(e.yaw), 0, cos(e.yaw)))
 				get_tree().create_timer(4.0).timeout.connect(func() -> void: if is_instance_valid(g): g.queue_free())
 				_banner("A gateway opens\nDarkfriends pour through. Someone opened it for them…", 6.0, "shadow")
+			"tied", "untied":
+				var who: String = "You are" if e.id == session.my_id else "%s is" % (actors[e.id].get("name", "Someone") if actors.has(e.id) else "Someone")
+				if e.e == "tied":
+					_banner("%s tied with rope\nNo walking, no blows. Rope does not stop the Power: Shield a channeller too." % who, 5.0, "warn")
+				else:
+					_banner("%s free of the rope%s" % [who, " (burnt off)" if e.get("burnt", false) else ""], 3.0, "info")
 			"endless_won":
 				_banner("Thirty minutes held\nThe win is yours. They keep coming: hold as long as you like.", 7.0, "good")
 			"picked":
