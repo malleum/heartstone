@@ -535,7 +535,7 @@ outlasts it.
   own affinity (up to 9), Talents, weaves; into a game they take at most 2 Talents,
   3 weaves besides the one they were born with, and 5 affinity points plus 2 per
   empty Talent slot. Between games affinity moves two-for-one, also into might,
-  quickness and endurance. A fighter spends 6 points: weapon 1, form 2, stat 1 (2 at
+  quickness and endurance. (The loadout page also moves owned points, two for one: one page, 17 Nov.) A fighter spends 6 points: weapon 1, form 2, stat 1 (2 at
   most), and takes up to 3 weapons and 3 forms. A won round owes one unlock: three
   offers (Talents, weaves, +1 affinity; weapons, forms), one kept. Practice and spars
   no longer grow a character at all.

@@ -109,6 +109,8 @@ func _ready() -> void:
 		_show_tree(true)
 	elif cl.get("show", "") == "menu":
 		_show_menu(true)
+	elif cl.get("show", "") == "loadout":
+		_loadout()
 	# Home from a fight: the doorway's light is still up; let the camp through
 	# once it has been drawn.
 	get_tree().create_timer(0.15).timeout.connect(func() -> void: Veil.lift(0.8))
@@ -533,9 +535,7 @@ func _sheet() -> void:
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
-	_button(side, "Loadout: choose what you take", _loadout)
-	if channels:
-		_button(side, "Retrain: move affinity (two for one)", _retrain)
+	_button(side, "Loadout: what you own and what you take", _loadout)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
 		_section(side, "Last time out")
@@ -611,11 +611,33 @@ func _loadout() -> void:
 			wv[w] = _check(menu_box, Rules.weaves[w].name, profile.weaves.has(w))
 		if wv.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
-		_section(menu_box, "Affinity taken in")
-		var aff := {}
-		for e in Rules.ELEMENTS:
-			aff[e] = _spin(menu_box, "%s (own %d)" % [e.capitalize(), int(profile.aff_owned.get(e, 0))], int(profile.aff_owned.get(e, 0)), int(profile.aff_pts.get(e, 0)))
+		_section(menu_box, "Affinity: what you own, and what you take in")
+		_text(menu_box, "Own: move points between Powers (and into your body), two out for each one in. Take: what goes into the next fight (5, plus 2 for each Talent left out).", 13, Color(0.66, 0.67, 0.72))
+		var before := {}
+		for e in Rules.ELEMENTS: before[e] = int(profile.aff_owned.get(e, 0))
+		for st in ["might", "quickness", "endurance"]: before[st] = int(Rules.stat(profile, st))
+		var own := {}; var aff := {}
+		for k in before:
+			var row := HBoxContainer.new(); menu_box.add_child(row)
+			var l := Label.new(); l.text = k.capitalize(); row.add_child(l); l.custom_minimum_size.x = 96
+			l.add_theme_color_override("font_color", Glyph.TINT.get(k, Glyph.GOLD).lerp(Color.WHITE, 0.35))
+			var ol := Label.new(); ol.text = "own"; row.add_child(ol); ol.add_theme_font_size_override("font_size", 12)
+			var os := SpinBox.new(); os.max_value = Profile.AFF_OWN_MAX; os.value = before[k]; row.add_child(os)
+			own[k] = os
+			if Rules.ELEMENTS.has(k):
+				var tl := Label.new(); tl.text = "take"; row.add_child(tl); tl.add_theme_font_size_override("font_size", 12)
+				var ts := SpinBox.new(); ts.max_value = Profile.AFF_OWN_MAX; ts.value = int(profile.aff_pts.get(k, 0)); row.add_child(ts)
+				aff[k] = ts
 		_button(menu_box, "Take these", func() -> void:
+			var after := {}
+			for k in own: after[k] = int(own[k].value)
+			var asum := 0
+			for e in Rules.ELEMENTS: asum += after[e]
+			for st in ["might", "quickness", "endurance"]: asum += after[st]
+			if Profile.trade_left(before, after) < 0: note.text = "Too many points added: every point costs two taken from elsewhere."; return
+			if asum > Profile.AFF_OWN_MAX: note.text = "You can own at most %d points in all." % Profile.AFF_OWN_MAX; return
+			for e in Rules.ELEMENTS:
+				if int(aff[e].value) > after[e]: note.text = "You cannot take more %s than you own." % e.capitalize(); return
 			var t := tal.keys().filter(func(k: String) -> bool: return tal[k].button_pressed)
 			var w := wv.keys().filter(func(k: String) -> bool: return wv[k].button_pressed)
 			var total := 0
@@ -628,6 +650,8 @@ func _loadout() -> void:
 			profile.weaves = {profile.starter: {known = true, xp = 0.0}}
 			for k in w: profile.weaves[k] = {known = true, xp = 0.0}
 			for e in aff: profile.aff_pts[e] = int(aff[e].value)
+			for e in Rules.ELEMENTS: profile.aff_owned[e] = after[e]
+			for st in ["might", "quickness", "endurance"]: profile.stats[st] = after[st]
 			Profile.apply_affinity(profile)
 			Profile.save(profile)
 			menu.visible = false
