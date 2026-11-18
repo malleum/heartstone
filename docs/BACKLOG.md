@@ -153,8 +153,10 @@ are what the 4:44 review, or the next session, should pick up.
   the clip's arm movement suggests.
 
 ## Combat feel and rules
-- [ ] Effects per Power are all built (see Done). Not seen in a render: the
-  charge arc between Trollocs, the daze motes, stun sparks, the thrown slide.
+- [x] Effects per Power are all built (see Done). Seen in renders 18 Nov: lightning's
+  charge sparks and stun flash on struck Trollocs, Blade of Spirit's daze motes
+  (faint), Hammer of Air throwing them into a tumbling slide. Lightning also sets
+  the grass alight; its flames were solid orange cones in daylight, now fainter.
 - [x] Trolloc attacks (15 Nov): each weapon has its own two blows (scythe-sword
   sweeps and chops, axe chops hard and sweeps, spear thrusts long and shoves with the
   haft, club smashes and shoves), chosen by what is in front of it, and a blow that

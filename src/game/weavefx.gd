@@ -99,13 +99,15 @@ static func flame(amount: int, size: float, rise: float, box := Vector3.ZERO) ->
 		pm.emission_sphere_radius = size * 0.35
 	pm.damping_min = 0.0; pm.damping_max = rise * 0.3
 	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.72, 0.3, 0.85)); ramp.set_color(1, Color(0.5, 0.06, 0.02, 0.0))
-	ramp.add_point(0.3, Color(1.0, 0.45, 0.1, 0.8)); ramp.add_point(0.7, Color(0.8, 0.16, 0.04, 0.45))
+	# (Kept well short of opaque: added over sunlit ground, fuller tongues read as
+	# solid orange cones.)
+	ramp.set_color(0, Color(1.0, 0.72, 0.3, 0.55)); ramp.set_color(1, Color(0.5, 0.06, 0.02, 0.0))
+	ramp.add_point(0.3, Color(1.0, 0.45, 0.1, 0.5)); ramp.add_point(0.7, Color(0.8, 0.16, 0.04, 0.25))
 	(pm.color_ramp as GradientTexture1D).gradient = ramp
 	var sc := Curve.new(); sc.add_point(Vector2(0, 0.7)); sc.add_point(Vector2(0.25, 1.0)); sc.add_point(Vector2(1, 0.1))
 	(pm.scale_curve as CurveTexture).curve = sc
 	var q := f.draw_pass_1 as QuadMesh
-	(q.material as StandardMaterial3D).albedo_color = Color(1.1, 1.1, 1.1)
+	(q.material as StandardMaterial3D).albedo_color = Color(0.95, 0.95, 0.95)
 	(q.material as StandardMaterial3D).albedo_texture = _flame_tex()
 	# Upright quads, a third as wide as they are tall: the round sprite stretches
 	# into a tongue (square ones read as a heap of glowing orbs).
@@ -124,7 +126,7 @@ static func _flame_tex() -> ImageTexture:
 		var w := 0.46 * pow(v, 0.75) * (1.0 - 0.55 * smoothstep(0.82, 1.0, v))
 		for x in 32:
 			var d := absf(x / 31.0 - 0.5)
-			var a := (1.0 - smoothstep(w * 0.15, w, d)) * smoothstep(0.0, 0.3, v) * (1.0 - smoothstep(0.9, 1.0, v) * 0.7)
+			var a := (1.0 - smoothstep(0.0, w, d)) * smoothstep(0.0, 0.3, v) * (1.0 - smoothstep(0.9, 1.0, v) * 0.7)
 			var hot := (1.0 - smoothstep(0.0, w * 0.6, d)) * smoothstep(0.4, 0.95, v)
 			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0).lerp(Color(1.0, 0.85, 0.6, 1.0), 1.0 - hot) * Color(1, 1, 1, a))
 	_flame = ImageTexture.create_from_image(img)
