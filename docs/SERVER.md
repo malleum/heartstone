@@ -118,3 +118,8 @@ a release changes the data files, update the server to the same commit: in the n
 repo, `nix flake update heartstone`, commit, push, then on minimus `git pull && nh os switch`.
 
 To release: `git tag v0.2.0 && git push origin v0.2.0`.
+
+## Who is in camp (18 Nov, PROTO 9)
+A camp's lobby question now carries its character's name; the server remembers
+names heard in the last 40 s and answers with the others in a `_camp` entry. The
+camp lists them under Playing now and says when one arrives.

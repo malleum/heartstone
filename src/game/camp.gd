@@ -790,6 +790,7 @@ func _ghost_flow() -> void:
 var fights: Array = []
 static var reachable := true   # the server answered the last time it was asked
 static var server_stamp := {}  # the server's build stamp (commit, date), from its lobby answer
+static var in_camp: Array = []   # others in their camps just now (names), from the server
 static var server_version := ""
 var _lobby_t := 0.0
 func _poll_lobby(dt: float) -> void:
@@ -811,6 +812,12 @@ func _poll_lobby(dt: float) -> void:
 		for f in list:
 			if f.get("room", "") == "_server":
 				server_stamp = f.get("stamp", {}); server_version = f.get("version", "")
+			elif f.get("room", "") == "_camp":
+				# A friend just come to their camp: say so, once.
+				for n in f.get("players", []):
+					if not in_camp.has(n) and not cl.has("ghost"):
+						Toast.say("%s is in their camp" % n, "A doorway you both walk through puts you in the same fight.", "good", 6.0)
+				in_camp = f.get("players", [])
 			else:
 				fights.append(f)
 		# Say once when the server stops (or starts) answering.
@@ -824,7 +831,7 @@ func _poll_lobby(dt: float) -> void:
 			_menu_fill()
 	s.lobby.connect(func(list: Array) -> void: done.call(list, true))
 	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights, false))
-	s.ask_lobby(Launch.server(), online.get("word", ""))
+	s.ask_lobby(Launch.server(), online.get("word", ""), profile.get("name", ""))
 
 func _lobby_text() -> String:
 	if not reachable:
@@ -849,6 +856,8 @@ func _menu_fill() -> void:
 		_button(menu_box, "New character…", func() -> void: menu.visible = false; _creation())
 	_section(menu_box, "Playing now")
 	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8) if reachable else Color(1.0, 0.7, 0.45))
+	if not in_camp.is_empty():
+		_text(menu_box, "In their camps: " + ", ".join(in_camp), 14, Color(0.75, 0.9, 0.8))
 	# Which build each side is, and whether they can play together.
 	var mine := Updater.label(Updater.stamp())
 	_row(menu_box, "This game", mine)

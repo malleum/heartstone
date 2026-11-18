@@ -38,7 +38,7 @@ func _init() -> void:
 		_vault(a[1], a[2])
 	elif role == "lobby":
 		s.lobby.connect(func(fights: Array) -> void:
-			var real := fights.filter(func(f: Dictionary) -> bool: return f.get("room", "") != "_server")
+			var real := fights.filter(func(f: Dictionary) -> bool: return not f.get("room", "") in ["_server", "_camp"])
 			print("NET lobby %d fights: %s (server says it is %s)" % [real.size(), JSON.stringify(real), JSON.stringify(fights.filter(func(f: Dictionary) -> bool: return f.get("room", "") == "_server"))]); quit())
 		s.ask_lobby(a[1], a[2])
 	else:

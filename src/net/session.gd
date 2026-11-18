@@ -20,7 +20,7 @@ signal lobby(fights: Array)                     # the server said who is playing
 signal lost                                    # the server went away mid-fight
 
 const PORT := 24690
-const PROTO := 8               # bump when an RPC or the snapshot format changes
+const PROTO := 9               # bump when an RPC or the snapshot format changes
 const SNAP_EVERY := 2          # physics ticks between snapshots (30 Hz sim -> 15 Hz)
 
 const MAX_ROOMS := 8
@@ -183,8 +183,8 @@ func vault_sync(address: String, name_: String, key: String, local: Dictionary, 
 
 ## Ask a server who is playing what, answered through `lobby`: a list of
 ## {room, activity, players [names], t (seconds in)}. Empty if nobody, or no answer.
-func ask_lobby(address: String, their_word := "") -> void:
-	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce)), func() -> void: lobby.emit([]))
+func ask_lobby(address: String, their_word := "", me := "") -> void:
+	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce), me.left(32)), func() -> void: lobby.emit([]))
 
 # --- intent: called locally, routed to the host --------------------------------
 
@@ -369,11 +369,24 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 	# A latecomer missed the events that introduced everyone already on the field.
 	_events.rpc_id(peer, r.sim.roster())
 
+var _in_camp := {}     # name -> when last heard asking from a camp (dedicated server)
+
 @rpc("any_peer", "reliable")
-func _who(proof: String) -> void:
+func _who(proof: String, me := "") -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	var out := []
 	if dedicated and proof == _proof(word, _nonces.get(peer, "")):
+		# Whoever asks from a camp is in their camp: others are told who is about.
+		var now := Time.get_ticks_msec() / 1000.0
+		if me.strip_edges() != "":
+			_in_camp[me.strip_edges()] = now
+		var about := []
+		for n in _in_camp.keys():
+			if now - float(_in_camp[n]) > 40.0:
+				_in_camp.erase(n)
+			elif n != me.strip_edges():
+				about.append(n)
+		out.append({room = "_camp", players = about})
 		for room in _rooms:
 			var r: Dictionary = _rooms[room]
 			var names := []

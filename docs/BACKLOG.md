@@ -184,7 +184,9 @@ are what the 4:44 review, or the next session, should pick up.
   Josh's step, because it changes his server.
 - [ ] Server follow-ups: reconnecting after a dropped connection (18 Nov: losing the
   server mid-fight now says so and Enter goes home; no rejoin yet); proof that the
-  server is the real one; friends seen walking in the camp.
+  server is the real one; friends seen walking in the camp (18 Nov: the camp's
+  menu names who else is in their camp, and a notice says when one arrives; not
+  seen walking).
 
 ## Found by looking (Claude)
 - [x] Gateway: the edges cut (17 Nov) and Darkfriends open one (17 Nov).
