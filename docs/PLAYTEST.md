@@ -144,3 +144,6 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    rolls you up and away, right click rises behind your guard. Assumed: jump 0.55 s
    for 12 breath, trips at a little over half the weight of their other blows. Is
    the jump key (V) comfortable, and is a trip readable in time?
+13. (18 Nov) Sword and round shield (a Warder's kit item): hold right click with the
+   shield toward an archer and arrows glance off; the heavy blow is a shield bash
+   that shoves. Assumed: turns anything within about 70 degrees of where you face.

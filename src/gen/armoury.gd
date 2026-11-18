@@ -114,6 +114,17 @@ static func build(weapon_id: String) -> Dictionary:
 	var steel := _mat(STEEL, 0.85)
 	match weapon_id:
 		"sword": _hilt(n, 0.16, 0.2); _blade(n, 0.09, 0.82, 0.05, steel)
+		"sword_shield":
+			_hilt(n, 0.16, 0.2); _blade(n, 0.09, 0.78, 0.05, steel)
+			# A round shield of boards, rimmed in iron with a boss, on the forearm.
+			var sh := Node3D.new()
+			var face := MeshInstance3D.new(); var fc := CylinderMesh.new(); fc.top_radius = 0.36; fc.bottom_radius = 0.37; fc.height = 0.04; fc.radial_segments = 24
+			face.mesh = fc; face.material_override = _mat(Color(0.34, 0.22, 0.12)); sh.add_child(face)
+			var rim := MeshInstance3D.new(); var tor := TorusMesh.new(); tor.inner_radius = 0.34; tor.outer_radius = 0.385; tor.rings = 24; tor.ring_segments = 6
+			rim.mesh = tor; rim.material_override = _mat(STEEL, 0.6); sh.add_child(rim)
+			var boss := MeshInstance3D.new(); var bs := SphereMesh.new(); bs.radius = 0.08; bs.height = 0.09
+			boss.mesh = bs; boss.material_override = _mat(STEEL, 0.85); boss.position.y = 0.025; sh.add_child(boss)
+			out.off = sh; out.off_bone = "lowerarm_l"
 		"bastard_sword": _hilt(n, 0.26, 0.24); _blade(n, 0.14, 1.0, 0.055, steel)
 		"heron_blade": _hilt(n, 0.28, 0.12); _blade(n, 0.15, 0.95, 0.04, steel)
 		"short_sword": _hilt(n, 0.14, 0.14); _blade(n, 0.08, 0.55, 0.055, steel)

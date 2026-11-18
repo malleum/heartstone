@@ -1657,6 +1657,12 @@ func _on_events(list: Array) -> void:
 							shake = minf(shake + 0.35, 1.0)
 						if e.e == "parry":
 							punch = 1.0
+			"deflect":
+				# An arrow off a shield: a spark and a knock of wood.
+				Weavefx.sparks(self, e.pos, false)
+				Sfx.play(self, "clang", e.pos, -4.0, 0.6)
+				if e.id == session.my_id:
+					flash_t = 0.6; flash_text = "Turned on the shield"
 			"evade":
 				if e.id == session.my_id:
 					flash_t = 0.7; flash_text = "Ducked under it" if e.duck else "Missed you"

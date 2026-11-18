@@ -166,8 +166,10 @@ Bows and missiles
 
 Shields and the off hand
 - [x] Aiel buckler (hide; light; parries well)
-- [ ] Round shield; Borderland kite shield
-- [ ] Shield bash; dash behind the shield
+- [~] Round shield (18 Nov: "Sword and round shield", one kit item: guard 0.95,
+      a little slower and heavier); Borderland kite shield not made.
+- [~] Shield bash (18 Nov: the round shield's heavy blow, a short shove that
+      staggers); dash behind the shield not made.
 - [ ] A second weapon in the off hand (sword and knife)
 
 Bare hands
@@ -205,7 +207,8 @@ Bare hands
 - [x] Jump, for low sweeps (18 Nov: V; 0.55 s clear of the ground for 12 breath;
       a trip passes under. Bots jump a trip and roll up at once when tripped.)
 - [x] Riposte after a parry
-- [ ] Deflecting arrows with a shield
+- [x] Deflecting arrows with a shield (18 Nov: a round shield held up turns
+      whatever flies at it from the front; the buckler does not)
 - [x] Getting up from a knockdown: roll away or rise guarding (18 Nov, above)
 
 ### 6. Seeing it

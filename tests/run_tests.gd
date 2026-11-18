@@ -1149,6 +1149,20 @@ func _rounds() -> void:
 	ks._enemy_blow(tk, [ke])
 	check(not ke.get("lying", false) and ks.events.any(func(e: Dictionary) -> bool: return e.e == "evade"), "and the trip passes under it")
 
+	# A round shield: held up, it turns arrows from the front (not from behind),
+	# and its heavy blow is a bash that shoves.
+	var shs := Sim.new("practice", 97)
+	shs._waves = []
+	var shp := shs.add_player(Profile.create({name = "Shieldman", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword_shield", "horse_bow", "belt_knife"]}))
+	var she: Dictionary = shs.ents[shp]
+	shs.equip(shp, "sword_shield"); she.yaw = PI   # facing -z
+	shs.set_guard(shp, true)
+	var from_front := Vector3(0, 0, 30)    # flying toward +z, at the face of one looking -z
+	check(shs._shield_turns(she, from_front) and not shs._shield_turns(she, -from_front), "a round shield held up turns an arrow from the front, not from behind")
+	shs.set_guard(shp, false)
+	check(not shs._shield_turns(she, from_front), "and only while it is held")
+	check(Rules.weapons.sword_shield.heavy == "shield_bash" and Rules.moves.shield_bash.on_hit.push >= 6.0, "its heavy blow is a shield bash")
+
 	# The ground changes for the round: fire catches, water douses, air blows out,
 	# earth throws down stone and leaves rubble.
 	var grs := Sim.new("short_watch", 96)

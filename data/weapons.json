@@ -8,6 +8,7 @@
     "jab": {"name": "Jab", "wind": 0.2, "recover": 0.22, "arc": 16, "reach": 1.1, "dmg": 0.8, "cost": 5, "hits": 1, "clip": "Punch_Jab", "at": 0.35, "trail": "lance"},
     "stab": {"name": "Stab", "wind": 0.16, "recover": 0.2, "arc": 22, "reach": 1.0, "dmg": 1.0, "cost": 4, "hits": 1, "clip": "Punch_Cross", "at": 0.35, "trail": "lance"},
     "slash": {"name": "Slash", "wind": 0.18, "recover": 0.22, "arc": 45, "reach": 1.0, "dmg": 0.9, "cost": 4, "hits": 2, "clip": "Sword_Regular_B", "at": 0.35},
+    "shield_bash": {"name": "Shield bash", "wind": 0.25, "recover": 0.45, "arc": 50, "reach": 0.85, "dmg": 0.4, "cost": 12, "hits": 1, "on_hit": {"push": 7, "stagger": 0.8}, "clip": "Shield_OneShot", "at": 0.3, "trail": "fan"},
     "overhead": {"name": "Overhead blow", "wind": 0.55, "recover": 0.6, "arc": 25, "reach": 1.0, "dmg": 2.3, "cost": 16, "hits": 1, "on_hit": {"stagger": 1.0, "down": 1.0}, "clip": "Sword_Attack", "at": 0.45, "trail": "down"},
     "great_sweep": {"name": "Great sweep", "wind": 0.6, "recover": 0.65, "arc": 110, "reach": 1.1, "dmg": 1.6, "cost": 18, "hits": 6, "on_hit": {"push": 6, "stagger": 0.5}, "clip": "Sword_Heavy_Combo", "at": 0.3, "trail": "wide"},
     "lunge": {"name": "Lunge", "wind": 0.42, "recover": 0.55, "arc": 12, "reach": 1.45, "dmg": 2.0, "cost": 14, "hits": 3, "lunge": 2.2, "on_hit": {"stagger": 0.5}, "clip": "Sword_Dash", "at": 0.5, "trail": "lance"},
@@ -46,6 +47,7 @@
     "knife_flurry": {"name": "Flurry", "family": "knife", "skill": 2, "cooldown": 9, "needs": [], "study": 600, "note": "game. Inside their guard, four wounds before they can answer.", "wind": 0.14, "recover": 0.35, "arc": 30, "reach": 1.0, "dmg": 1.0, "cost": 14, "hits": 1, "clip": "Punch_Jab", "at": 0.3, "trail": "lance", "tint": [1.0, 0.3, 0.3], "repeat": 4, "gap": 0.1, "on_hit": {"stagger": 0.35}}
   },
 
+  "sword_shield": {"name": "Sword and round shield", "family": "sword", "hands": 1, "reach": 1.9, "dmg": 30, "speed": 0.95, "weight": 1.3, "impact": {"push": 2, "stagger": 0.25}, "guard": 0.95, "light": ["cut", "backcut", "finisher"], "heavy": "shield_bash", "low": "leg_sweep", "never": ["aiel"], "shield": "round"},
   "sword": {"name": "Sword", "family": "sword", "hands": 1, "reach": 1.9, "dmg": 34, "speed": 1.0, "weight": 1.0, "impact": {"push": 2, "stagger": 0.25}, "guard": 0.8, "light": ["cut", "backcut", "finisher"], "heavy": "overhead", "low": "leg_sweep", "never": ["aiel"]},
   "bastard_sword": {"name": "Hand-and-a-half sword", "family": "sword", "hands": 2, "reach": 2.2, "dmg": 44, "speed": 0.85, "weight": 1.3, "impact": {"push": 4, "stagger": 0.45}, "guard": 0.85, "light": ["cut", "backcut", "finisher"], "heavy": "great_sweep", "low": "leg_sweep", "never": ["aiel"], "note": "Borderlands"},
   "heron_blade": {"name": "Heron-mark blade", "family": "sword", "hands": 2, "reach": 2.1, "dmg": 48, "speed": 1.05, "weight": 1.0, "impact": {"push": 2, "stagger": 0.3}, "guard": 0.9, "light": ["cut", "backcut", "thrust", "finisher"], "heavy": "lunge", "low": "leg_sweep", "never": ["aiel"], "earned": true},

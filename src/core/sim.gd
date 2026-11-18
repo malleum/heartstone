@@ -449,6 +449,9 @@ func request_dream(id: int, move: String, aim: Vector3) -> String:
 
 func set_guard(id: int, on: bool) -> void:
 	var p: Dictionary = ents[id]
+	# Held or let go: a shield is up only while it is held (_shield_turns); the
+	# parry itself is the press.
+	p.guard_held = on and p.alive
 	if not on or not p.alive or t < p.parry_free or p.reel_until > t or Rules.guard_share(p.profile, p.weapon) <= 0.0:
 		return
 	# Knocked down: rise behind the guard, a moment slower than rolling up.
@@ -1429,6 +1432,17 @@ func _wound(e: Dictionary, dmg: float, by: int, weapon: String, on: Dictionary, 
 	_hurt(e, dmg, by, weapon)
 	e.knock = 0.0
 
+## A shield (a weapon row with "shield": "round") raised against something flying
+## at the front of whoever holds it.
+func _shield_turns(e: Dictionary, vel: Vector3) -> bool:
+	if e.kind != "player" or not e.get("guard_held", false) or e.get("down", 0.0) > 0.0:
+		return false
+	if Rules.weapons.get(e.get("weapon", ""), {}).get("shield", "") != "round":
+		return false
+	var facing := Vector3(sin(e.yaw), 0, cos(e.yaw))
+	var from := -(vel * Vector3(1, 0, 1)).normalized()
+	return facing.dot(from) > 0.35
+
 ## What is left of a blow after the target's guard. -1: it never landed (parried).
 func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3) -> float:
 	var since: float = t - target.parry_at
@@ -2113,6 +2127,11 @@ func _step_effects(dt: float) -> void:
 					alive = fx.left > 0.0
 				if hit:
 					alive = false
+					# A shield held up turns what flies at it from the front.
+					if fx.has("struck") and _shield_turns(ents[fx.struck], fx.vel):
+						events.append({e = "deflect", id = fx.struck, pos = fx.pos})
+						fx.erase("struck")
+						fx.lit = false
 					if fx.has("struck"):
 						var flat: Vector3 = fx.vel * Vector3(1, 0, 1)
 						var mon := {}
