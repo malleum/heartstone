@@ -532,8 +532,15 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
   die passing through a gateway. They keep off one, unless shoved in (moving faster
   than 2 m/s) or caught by it in its first 0.6 s. Darkfriends and Dreadlords are men
   and pass.
-- Missiles and woven bolts that reach a gateway's mouth come out of the far side,
-  going on as they were (`_fly`). Blows, cones and beams do not pass yet.
+- **Windows.** Both ends stand the same way, so going through is moving by the
+  offset between them (`_gate_step`: crossing an upright end's plane within its
+  width; standing on a flat end). Each face shows a SubViewport rendered from the main
+  camera moved by that offset (`game.gd` `_open_window`), untoned so the main view
+  tones it once, never drawing the faces themselves, near plane just short of the far
+  face. When your body crosses, the camera stays on its side (`cam_shift`) until it
+  reaches the plane too, so you are seen through the window and nothing jumps.
+- Missiles and woven bolts crossing a mouth go on out of the other end by the same
+  offset (`_fly`). Blows, cones and beams do not pass yet.
 - A gateway's edge cuts as it opens and as it folds shut: anything standing where
   either end forms or closes takes `TUNE.gate_cut` (120) and staggers (`_gate_cut`).
 - Either end can lie flat: aimed at the ground within 4 m, the near end is a hole at

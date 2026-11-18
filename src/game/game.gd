@@ -391,6 +391,14 @@ func _process(dt: float) -> void:
 			Bot.drive(session.sim, session.my_id)
 		if args.has("stand"):
 			session.sim.set_input(session.my_id, Vector3.ZERO, session.sim.ents[session.my_id].yaw)
+		# --walkgate: once a gateway is open, walk straight through it (for a render).
+		if args.has("walkgate") and session.is_host:
+			for g in session.sim.effects:
+				if g.kind == "gate" and g.age > 0.8:
+					var mep: Dictionary = session.sim.ents[session.my_id]
+					var n: Vector3 = session.sim._gate_normal(g)
+					session.sim.set_input(session.my_id, n, atan2(n.x, n.z))
+					cam_yaw = lerp_angle(cam_yaw, atan2(n.x, n.z) + PI, 0.2)
 		# --camyaw=deg swings the bot's camera round it, to look at it from the side.
 		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI + deg_to_rad(float(args.get("camyaw", "0"))), 2.0 * dt)
 		if args.has("camdist"):
@@ -460,9 +468,14 @@ func _process(dt: float) -> void:
 		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
 		# looking down the ground at your feet. The shoulder offset keeps the character
 		# off the crosshair.
-		var pivot := me.position + Vector3(0, 1.55, 0)
+		var pivot := me.position - cam_shift + Vector3(0, 1.55, 0)
 		var view := Basis(Vector3.UP, cam_yaw + cam_swing) * Basis(Vector3.RIGHT, cam_pitch)
 		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist + cam_swing * 0.6))
+		if cam_shift != Vector3.ZERO and not cam_gate.is_empty():
+			# The camera reaching the gateway's plane: now it goes through as well.
+			if signf((want - (cam_gate.origin as Vector3)).dot(cam_gate.n)) != float(cam_gate.s):
+				want += cam_shift
+				cam_shift = Vector3.ZERO; cam_gate = {}
 		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
 		# Trauma-squared shake: small hits barely register, big ones kick.
 		shake = maxf(shake - dt * 1.8, 0.0)
@@ -477,6 +490,7 @@ func _process(dt: float) -> void:
 		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
 		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
+	_update_windows()
 
 ## `--auto --join=...`: a bot that knows only what a client is told, for trying a
 ## server without hands.
@@ -635,6 +649,63 @@ func _on_started(_my_id: int, activity: String) -> void:
 		tour_card.visible = true
 
 var _ally := 0
+
+# --- gateways as windows -----------------------------------------------------------
+# Each face of a gateway shows the world from where the camera would be at the other
+# end (the same world, moved by the offset between the ends), so it reads as a hole
+# onto that place; crossing it moves you by that same offset, and nothing jumps.
+var windows: Array = []           # {node, views: [{mesh, vp, cam, off, dest}]}
+var cam_shift := Vector3.ZERO     # my body went through; the camera has not yet
+var cam_gate := {}                # {origin, n, s}: the plane it must cross to follow
+var _window_env: Environment
+
+func _open_window(g: Node3D) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var meshes := []
+	for c in g.get_children():
+		if c is MeshInstance3D:
+			meshes.append(c)
+	if meshes.size() != 2:
+		return
+	if _window_env == null:
+		for c in get_children():
+			if c is WorldEnvironment:
+				# Untoned and unglowing: the main view tones the window once, as it does
+				# the rest of the screen.
+				_window_env = (c.environment as Environment).duplicate()
+				_window_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+				_window_env.glow_enabled = false
+	var w := {node = g, views = []}
+	for i in 2:
+		var mesh: MeshInstance3D = meshes[i]
+		var dest: MeshInstance3D = meshes[1 - i]
+		mesh.layers = 2; dest.layers = 2
+		var vp := SubViewport.new(); vp.world_3d = get_world_3d(); vp.use_hdr_2d = true
+		vp.size = get_viewport().get_visible_rect().size
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		g.add_child(vp)
+		var c := Camera3D.new(); vp.add_child(c)
+		c.cull_mask = 0xFFFFF & ~2    # never the gateway's own faces
+		c.environment = _window_env
+		(mesh.material_override as ShaderMaterial).set_shader_parameter("view", vp.get_texture())
+		(mesh.material_override as ShaderMaterial).set_shader_parameter("live", 1.0)
+		w.views.append({mesh = mesh, vp = vp, cam = c, dest = dest})
+	windows.append(w)
+
+func _update_windows() -> void:
+	windows = windows.filter(func(w: Dictionary) -> bool: return is_instance_valid(w.node))
+	for w in windows:
+		for v in w.views:
+			var off: Vector3 = (v.dest as Node3D).global_position - (v.mesh as Node3D).global_position
+			var c: Camera3D = v.cam
+			c.global_transform = Transform3D(cam.global_transform.basis, cam.global_position + off)
+			c.fov = cam.fov
+			# Nothing between that camera and the far face may get in the picture.
+			var face: Node3D = v.dest
+			var n: Vector3 = face.global_transform.basis.z
+			c.near = maxf(0.05, absf((c.global_position - face.global_position).dot(n)) * 0.6)
+			(v.vp as SubViewport).size = get_viewport().get_visible_rect().size
 
 # --- the round, as this player sees it -------------------------------------------
 var darkfriend := false          # told in secret: this player serves the Shadow
@@ -1302,6 +1373,7 @@ func _on_events(list: Array) -> void:
 					_banner("A gateway kills the Shadow's creatures\nShove them through it.", 4.0, "good")
 			"gate_open":
 				fx[e.id] = Weavefx.gate(self, e.a, e.b, e.get("flat_a", false), e.get("sky", 0.0))
+				_open_window(fx[e.id])
 			"shift":
 				# Tel'aran'rhiod: simply somewhere else.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -1349,7 +1421,14 @@ func _on_events(list: Array) -> void:
 			"pit_open":
 				Sfx.play(self, "rumble", _ground(e.pos), 0.0, 1.3)
 			"gate_pass":
-				# Through the gateway: there, not walked there.
+				# Through the gateway: there, not walked there. My camera stays where it
+				# was (seeing me through the window) until it crosses the plane too.
+				if e.id == session.my_id and float(e.get("s", 0.0)) != 0.0:
+					var to := _ground(e.pos)
+					cam_shift = to - _ground(e.pos - (e.by as Vector3))
+					cam_gate = {origin = _ground(e.origin), n = e.n, s = e.s}
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].has("pred"):
+					actors[e.id].pred = e.pos; actors[e.id].srv = e.pos
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
 					a.target = e.pos

@@ -331,6 +331,5 @@ are what the 4:44 review, or the next session, should pick up.
   recent deaths, the character screen made beautiful, origin mattering, and walking
   back to the camp through a portal.
 - 2026-11-17, asked by the user:
-  - **Gateways as live windows:** every gateway shows the far side seamlessly, and you
-    walk through with no cut, as the camp doorways now do.
+  - **Gateways as live windows:** done (17 Nov).
   - **Gateways cut:** done (17 Nov), 120 damage opening or closing on you.

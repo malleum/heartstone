@@ -1240,6 +1240,63 @@ func _struck(p: Dictionary) -> Array:
 			out.append(e)
 	return out
 
+## The plane of a gateway: both ends stand the same way (facing along the line from
+## one to the other), so going through is simply moving by the offset between them.
+## That is what lets the view show each end as a window onto the other.
+func _gate_normal(fx: Dictionary) -> Vector3:
+	var n: Vector3 = (fx.to - fx.pos) * Vector3(1, 0, 1)
+	return n.normalized() if n.length() > 0.01 else Vector3.FORWARD
+
+## One body and one gateway: crossing an upright end's plane within its width moves
+## them by exactly the offset to the other end (out on the matching side, going the
+## same way); standing on a flat end drops them through. Shadowspawn keep off unless
+## thrown in, and die if they go through; out of a sky end is a fall.
+func _gate_step(fx: Dictionary, e: Dictionary) -> void:
+	var n := _gate_normal(fx)
+	var across := Vector3(n.z, 0, -n.x)
+	var sides := [[fx.pos, fx.to - fx.pos, fx.get("flat_a", false), 0], [fx.to, fx.pos - fx.to, fx.get("sky", 0.0) > 0.0, 1]]
+	for side in sides:
+		if side[3] == 1 and fx.get("sky", 0.0) > 0.0:
+			continue   # a sky end cannot be walked into from below
+		var o: Vector3 = side[0]
+		var rel: Vector3 = (e.pos - o) * Vector3(1, 0, 1)
+		var key := "gd%d_%d" % [fx.id, side[3]]
+		var through := false
+		if side[2]:
+			through = rel.length() < 1.0     # a hole at your feet: you drop in
+		else:
+			var d := rel.dot(n)
+			var lat := absf(rel.dot(across))
+			var before: float = e.get(key, d)
+			e[key] = d
+			through = lat < 0.95 and absf(d) < 1.5 and before * d < 0.0
+		if not through:
+			# The Shadow's creatures keep off it (they are not thrown in).
+			if _is_shadowspawn(e) and e.vel.length() < 2.0 and fx.age > 0.6 and rel.length() < 1.3:
+				e.pos = o + (rel.normalized() if rel.length() > 0.01 else -n) * 1.35
+			continue
+		var spawn := _is_shadowspawn(e)
+		if spawn and e.vel.length() < 2.0 and fx.age > 0.6:
+			e.pos = o + (rel.normalized() if rel.length() > 0.01 else -n) * 1.35
+			continue
+		e.pos = Map.clamp_pos(e.pos + side[1] * Vector3(1, 0, 1))
+		if side[2]:
+			e.pos += n * 1.4                # out of a hole, a step clear of the far end
+		e.gated = t + 0.35
+		# Seen from the far end now: no immediate crossing back.
+		var other := "gd%d_%d" % [fx.id, 1 - side[3]]
+		e[other] = ((e.pos - (fx.to if side[3] == 0 else fx.pos)) * Vector3(1, 0, 1)).dot(n)
+		var before_side: float = -signf(rel.dot(n)) if not side[2] else 0.0   # the side they came from
+		events.append({e = "gate_pass", id = e.id, pos = e.pos, by = (side[1] as Vector3), origin = o, n = n, s = before_side})
+		if spawn:
+			events.append({e = "gate_kill", id = e.id})
+			_hurt(e, e.hp + 9999.0, fx.owner, "gateway", true)
+		elif side[3] == 0 and fx.get("sky", 0.0) > 0.0:
+			# Out of the sky: a fall, and a hard landing.
+			e.down = maxf(e.down, 1.4)
+			_hurt(e, fx.sky * 3.5, 0, "", true)
+		return
+
 ## A gateway's edge, as it opens or folds shut: whatever stands in it is cut, badly.
 ## (The weaver is spared at their own near end.)
 func _gate_cut(at: Vector3, weaver: int) -> void:
@@ -1444,12 +1501,17 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 		for g in effects:
 			if g.kind != "gate":
 				continue
+			var n := _gate_normal(g)
+			var across := Vector3(n.z, 0, -n.x)
 			for side in [[g.pos, g.to, 0.0], [g.to, g.pos, g.get("sky", 0.0)]]:
-				var mouth: Vector3 = side[0] + Vector3(0, Terrain.height(side[0].x, side[0].z) + 1.5 + side[2], 0)
-				if fx.pos.distance_to(mouth) < 1.3:
-					var out: Vector3 = side[1]
-					fx.pos = Vector3(out.x, Terrain.height(out.x, out.z) + 1.5, out.z) + fx.vel.normalized() * 1.4
-					fx.gated = t + 0.5
+				var base: Vector3 = side[0] + Vector3(0, Terrain.height(side[0].x, side[0].z) + side[2], 0)
+				var now: Vector3 = fx.pos - base
+				var was: Vector3 = now - stepv
+				# Through the mouth's plane, within its width and height: on out of the other end.
+				if signf(now.dot(n)) != signf(was.dot(n)) and absf(now.dot(across)) < 0.95 and now.y > -0.2 and now.y < 3.3:
+					var far_base: Vector3 = side[1] + Vector3(0, Terrain.height(side[1].x, side[1].z) + (g.get("sky", 0.0) if side[1] == g.to else 0.0), 0)
+					fx.pos = far_base + now
+					fx.gated = t + 0.3
 					events.append({e = "fx_gate", id = fx.get("id", 0), pos = fx.pos})
 					break
 	for e in _struck(owner):
@@ -1533,31 +1595,7 @@ func _step_effects(dt: float) -> void:
 					var e: Dictionary = ents[id]
 					if not alive or not e.alive or e.get("gated", 0.0) > t or e.get("row", {}).get("speed", 1.0) == 0.0:
 						continue
-					for side in [[fx.pos, fx.to, false], [fx.to, fx.pos, true]]:
-						# A sky end cannot be walked into from below.
-						if side[2] and fx.get("sky", 0.0) > 0.0:
-							continue
-						if e.pos.distance_to(side[0]) < 1.1:
-							var spawn: bool = _is_shadowspawn(e)
-							# The Shadow's creatures will not go through: a gateway kills them.
-							# They keep off it, unless thrown into it or caught by it opening.
-							if spawn and e.vel.length() < 2.0 and fx.age > 0.6:
-								var away: Vector3 = (e.pos - side[0]) * Vector3(1, 0, 1)
-								e.pos = side[0] + (away.normalized() if away.length() > 0.01 else Vector3.FORWARD) * 1.15
-								break
-							# Out the far side, a step clear of it, the way you were going.
-							var onward := Vector3(sin(e.yaw), 0, cos(e.yaw)) * 1.3
-							e.pos = Map.clamp_pos(Map.unblock(side[1] + onward, e.radius))
-							e.gated = t + 2.0
-							events.append({e = "gate_pass", id = e.id, pos = e.pos})
-							if spawn:
-								events.append({e = "gate_kill", id = e.id})
-								_hurt(e, e.hp + 9999.0, fx.owner, "gateway", true)
-							elif not side[2] and fx.get("sky", 0.0) > 0.0:
-								# Out of the sky: a fall, and a hard landing.
-								e.down = maxf(e.down, 1.4)
-								_hurt(e, fx.sky * 3.5, 0, "", true)
-							break
+					_gate_step(fx, e)
 			"dream_bolt", "dream_chain", "dream_pit", "dream_wall":
 				alive = Dream.step_effect(self, fx, owner, dt)
 			"doom":

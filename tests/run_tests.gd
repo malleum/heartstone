@@ -984,15 +984,17 @@ func _rounds() -> void:
 	var tr: Dictionary = gs.ents[gs._next - 1]
 	gs.step(1.0 / 30.0); gs.events.clear()
 	check(tr.alive and tr.pos.distance_to(Vector3.ZERO) >= 1.1, "a Trolloc will not walk into a gateway")
-	tr.pos = Vector3(0.3, 0, 0); tr.vel = Vector3(6, 0, 0)
-	gs.step(1.0 / 30.0); gs.events.clear()
+	tr.pos = Vector3(-1.2, 0, 0.2); tr.vel = Vector3(9, 0, 0)
+	run(gs, 0.5)
 	check(not tr.alive, "shoved through a gateway, a Trolloc dies")
-	gs.ents[gp].pos = Vector3(0.2, 0, 0.2)
-	gs.step(1.0 / 30.0); gs.events.clear()
-	check(gs.ents[gp].pos.distance_to(Vector3(20, 0, 0)) < 3.0, "a person steps through and out of the far side")
+	gs.ents[gp].pos = Vector3(-1.0, 0, 0.3)
+	run(gs, 0.05)
+	gs.ents[gp].pos = Vector3(0.2, 0, 0.3)
+	run(gs, 0.05)
+	check(gs.ents[gp].pos.distance_to(Vector3(20.2, 0, 0.3)) < 0.5, "a person crossing a gateway is simply on the other side, moved by its offset")
 	gs.ents[gp].pos = Vector3(0, 0, 30)
 	gs.effects.append({kind = "projectile", owner = gp, weave = "fireball", pos = Vector3(-1.5, Terrain.height(0, 0) + 1.5, 0), vel = Vector3(20, 0, 0), dmg = 10.0, radius = 0.3, left = 30.0, gravity = 0.0, pierce = 0, passed = [], id = 901})
-	gs.step(1.0 / 30.0); gs.step(1.0 / 30.0)
+	run(gs, 0.2)
 	var moved := false
 	for fx in gs.effects:
 		if fx.get("id", 0) == 901 and fx.pos.x > 18.0: moved = true
