@@ -129,3 +129,8 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 9. (18 Nov) Wounds: 30% of every hurt stays as a wound (up to 60% of your health),
    shown as the dark end of the health bar; rest only mends up to it; Healing closes
    it; dying clears it. Too punishing without a Healer in the party?
+10. (18 Nov) More arms: the bandleader guards against blades from the front (65% turned;
+   heavy blows or forms break it); bandleader and Myrddraal armour turns cuts (30%,
+   35%) but not thrusts; Trollocs sometimes seize you (Space twists free); a spear
+   held still stops whatever runs onto it; fire arrows drawn beside a fire. Lightning
+   now lands as a white strike with arcs along the ground.

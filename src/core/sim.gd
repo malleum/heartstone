@@ -1073,6 +1073,33 @@ func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 				dir = Vector3(g.x0 + (ix + 0.5) * g.cell, 0, g.z0 + (iz + 0.5) * g.cell) - e.pos
 	return dir.normalized() if dir != Vector3.ZERO else to.normalized()
 
+## A spear held still, point out: whatever runs onto it from the front meets the
+## point first (once each, every two seconds), and is stopped.
+func _spear_set(p: Dictionary) -> void:
+	if p.weapon == "" or Rules.weapons[p.weapon].family != "spear" or p.move.length() > 0.1 or not p.swing.is_empty() or not p.dash.is_empty():
+		p.set_in = {}
+		return
+	var reach: float = Rules.weapons[p.weapon].reach
+	var facing := Vector3(sin(p.yaw), 0, cos(p.yaw))
+	var was: Dictionary = p.get("set_in", {})
+	var now := {}
+	for e in _targets(p):
+		if e.kind != "enemy" or e.row.get("speed", 1.0) <= 0.0:
+			continue
+		var to: Vector3 = (e.pos - p.pos) * Vector3(1, 0, 1)
+		var d := to.length()
+		if d < reach + e.radius and d > 0.1 and facing.dot(to / d) > 0.6:
+			now[e.id] = true
+			if not was.has(e.id) and t >= float(p.get("set_hit", {}).get(e.id, -9.0)):
+				if not p.has("set_hit"): p.set_hit = {}
+				p.set_hit[e.id] = t + 2.0
+				e.stagger = maxf(e.stagger, 0.6)
+				e.vel = to / d * 3.0
+				e.atk = 0.0
+				events.append({e = "set_spear", id = p.id, on = e.id})
+				_wound(e, Rules.blow(p.profile, p.weapon, Rules.weapons[p.weapon].light[0], p.stamina) * 1.2, p.id, p.weapon, {}, to / d)
+	p.set_in = now
+
 ## The Eyeless gaze: meet a Myrddraal's eyeless stare up close and fear grips you:
 ## weaving comes slowly and the feet drag. Those who fight with their hands have
 ## schooled themselves against it and feel it for half as long.
@@ -1114,6 +1141,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 			# Let go: it died, reeled, or you were held as long as it could.
 			p.grabbed_by = 0; p.chained = minf(p.chained, t)
 	_gaze(p)
+	_spear_set(p)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
 		# Rest mends bruises, not wounds: those wait for a Healer.

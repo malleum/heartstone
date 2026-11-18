@@ -1215,6 +1215,18 @@ func _rounds() -> void:
 	var after_thrust: float = 9999.0 - are.hp - after_cut
 	check(after_cut < 80.0 and after_thrust > 95.0, "armour turns a cut (%.0f) but not a thrust (%.0f)" % [after_cut, after_thrust])
 
+	# A spear held still stops what runs onto it.
+	var sps := Sim.new("practice", 104)
+	sps._waves = [{t = 999.0, spawn = {}}]
+	var spp := sps.add_player(Profile.create({name = "Spearman", cls = "aiel", stat_pts = {might = 2, quickness = 2, endurance = 2}, kit = ["aiel_spear"]}), Vector3.ZERO)
+	sps.ents[spp].yaw = 0.0
+	sps.equip(spp, "aiel_spear")
+	sps._add_enemy("trolloc", Vector3(0, 0, 8))
+	var spe: Dictionary = sps.ents[spp + 1]
+	spe.hp = 9999.0; spe.max_hp = 9999.0
+	var sp_ev := run(sps, 4.0)
+	check(sp_ev.has("set_spear") and spe.hp < 9999.0, "a Trolloc running onto a set spear meets the point")
+
 	# The Eyeless gaze: facing a Myrddraal close by, weaving comes slowly.
 	var gzs := Sim.new("practice", 98)
 	gzs._waves = []
