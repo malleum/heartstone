@@ -882,7 +882,10 @@ func _heard(list: Array, answered: bool) -> void:
 		else:
 			Toast.say("Can't reach the server", "Fights will be played offline until it answers.", "warn", 8.0)
 	reachable = answered
-	if menu.visible and not creating and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
+	# (Not while something is being typed into the menu: rebuilding it would take
+	# the box away from under the keys.)
+	var typing := get_viewport().gui_get_focus_owner() is LineEdit
+	if menu.visible and not creating and not typing and menu_box.get_child_count() > 0 and (menu_box.get_child(0) as Label).text == "Heartstone":
 		_menu_fill()
 
 ## The camp link: a connection of its own to the server for as long as the camp is
@@ -1060,6 +1063,12 @@ func _menu_fill() -> void:
 		var e := LineEdit.new(); e.placeholder_text = f[1]; e.text = online.get(f[0], ""); menu_box.add_child(e)
 		e.secret = f[0] in ["word", "key"]
 		fields[f[0]] = e
+		# Kept as it is typed: the menu is rebuilt whenever the server answers, and
+		# a box that only saved on the button lost what was typed into it.
+		var ff: String = f[0]
+		e.text_changed.connect(func(t: String) -> void:
+			online[ff] = t.strip_edges()
+			FileAccess.open(ONLINE, FileAccess.WRITE).store_string(JSON.stringify(online)))
 	var keep := func() -> void:
 		for f in fields:
 			online[f] = fields[f].text.strip_edges()
