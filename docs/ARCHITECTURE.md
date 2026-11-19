@@ -758,17 +758,36 @@ CC0 or permissive only, unless Josh buys a pack. Every asset is listed here.
 | `assets/quaternius/ual2.glb` | Quaternius: Universal Animation Library 2 (Standard), from quaternius.itch.io | CC0 1.0 (`ual2_License.txt` beside it) | Sword cuts, block, shield, throw and knockback clips for player characters |
 | `assets/quaternius/animation_library.glb` | Quaternius: Universal Animation Library, older rig, from opengameart.org | CC0 1.0 (`LICENSE.txt` beside it) | Skeleton and clips for generated humans |
 
+## Spoilers shared in a fight (18 Nov)
+`Settings.story` (per machine; through book 6 unless opened by ten clicks on the camp
+menu's title) becomes each character's `book_limit` in the camp and the game. In a
+fight `Sim._share_story` takes the lowest limit among the human players and applies
+it to everyone; an event `story` (also first in `roster()`) tells each machine, which
+drops later weaves from the chart and bar. Talents' books: `Rules.TALENT_BOOK`
+(Travelling 12, Unweaving 7, Reading Residues 8, Cloud Dancing 8). Weaves past book 6:
+Arrows of Fire, Blossoms of Fire, the Deathgate (11). Heave the Ground is book 1 by
+the user's ruling.
+
+## Weave strength (18-19 Nov)
+`Rules.scale` multiplies every weave's effect by `TUNE.weave_scale` (0.8): a new
+channeller near rank 30 was clearing hordes. 0.7 made the bot channeller lose its
+trial watch. The fireball's burst is 1.3 m (was 1.6). Tune further by play.
+
+## Arms added 18 Nov (evening)
+Trolloc trips (a low blow, yellow wedge, knocks you down), jumping (V, 0.55 s), getting
+up (Space rolls up, guard rises behind it), Sword and round shield (turns arrows while
+the guard is held, `guard_held`; heavy blow a shield bash). Bots jump trips, roll up,
+and drop a bow draw for the blade within 2.5 m. See MELEE.md.
+
 ## Next steps, in order
 0. `BACKLOG.md` is the full list of what Josh has asked for; this is only an order.
-1. Fight feel: clearer status effects and effects for the weaves beyond
-   fireball. (Flows while forming and a view-only hit-stop are built: the struck
-   body freezes, never the sim, so co-op is unaffected.)
-2. More to hold and more techniques: inverting, cutting another's weave,
-   linking. (Holding, upkeep and tying off are built.)
-3. Co-op: friends visible in the camp, reconnecting. (The server with rooms and
-   a lobby, prediction, looks and latecomer joins are built.)
-4. More enemies (Draghkar, Darkhounds, Darkfriend channellers) and a third map.
-   (Archers, the Myrddraal, pathing round walls and the wagon ring are built.)
-5. One linear mission; then casting by drawing (see VISION.md).
-6. From `WEAVES.md`, not built: Delving, Illusion and the weather weave; Skimming;
-   techniques (tie off, invert, cut); linking; angreal. Gateway does nothing yet.
+   Its top section lists well-defined tasks for a lighter model, with briefs.
+1. The doorway world mismatch (camp picks its own setup; the server room runs the
+   first arrival's): it breaks fights.
+2. The camp link's lifecycle (errors when the camp leaves the tree).
+3. Performance, Windows first: measure, then frame cap, quality setting, cheaper
+   doorway views, shadows.
+4. Prepared and multiple weaves, and a better weave bar (design with the user).
+5. Balance by play: weave_scale, Rolling Ring, health, Healing's cost.
+6. Water from map water (design in WEAVES.md), the wall weave, gateway placement.
+7. The super backlog: multi-stage runs; casting by drawing (see VISION.md).

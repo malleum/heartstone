@@ -106,18 +106,19 @@ with Godot 4.7.2's official templates (any hardware: Vulkan, D3D12, then OpenGL)
 publishes a GitHub release with `heartstone-linux-x86_64.zip`, `heartstone-windows.zip`
 and the game data alone, `heartstone-engine-4.7.2.pck`.
 
-Installed games update themselves (`src/game/updater.gd`): from the camp they ask the
-GitHub API for the latest release, download that pack to `user://update`, and restart
-into it with `--main-pack` (straight away if nobody has stepped through a doorway yet,
-else on the next start). A release on a different engine version cannot be swapped in:
-the game says to download the new build. The API needs the repository to be public.
+Installed games do **not** update themselves any more (19 Nov). The updater used to
+download the new pack and restart with `--main-pack`, but Godot's official release
+builds refuse that flag and abort, so after one download every launch died within a
+second (seen on Windows). `Updater.boot` now clears any downloaded pack and returns;
+`Updater.check` only says a newer release is out and where to download it.
 
 Online, the server refuses a client whose handshake version differs (`Session.version`:
-protocol number plus a hash of `data/*.json`); the client then says to update. So when
-a release changes the data files, update the server to the same commit: in the nixos
-repo, `nix flake update heartstone`, commit, push, then on minimus `git pull && nh os switch`.
+protocol number plus a hash of `data/*.json`); the client then says which side is
+behind. The server follows `master` by itself (below, "Keeping itself up to date"); to
+make it move at once: `ssh minimus sudo systemctl restart heartstone` (ends any fight).
+Players need the matching build: tag a release and have them download it.
 
-To release: `git tag v0.2.0 && git push origin v0.2.0`.
+To release: `git tag -a v0.2.5 -m "..." && git push origin v0.2.5` (latest: v0.2.4).
 
 ## Who is in camp (18 Nov, PROTO 9)
 A camp's lobby question now carries its character's name; the server remembers
@@ -181,3 +182,17 @@ NixOS switch, and keeps it there:
   it never stops the server.
 - Logs: `journalctl -u heartstone` shows `UPDATER running <commit>`, `<commit> is
   waiting: N fight(s) going` and `<commit> is out: restarting onto it`.
+
+## Doorways and rooms on the server (19 Nov)
+- Each camp doorway has its own room, named for its mode (`camp_training`,
+  `holdout`, `darkfriend_door`, `endless_door`, `team_battle`, `dream_spar`): the
+  practice yard never shares the wave fight's room.
+- Walking up to a doorway joins its room with `hold`. If nobody is fighting there
+  the room is held (drawn, not stepped). If a fight is already running, the
+  looker's body is added but kept `away` (not stepped, not hunted, not drawn to
+  others, not in the party bars) until they step through (`_go_from`).
+- Only those who stepped through (or joined directly) are `entered`; only they keep
+  their place for 90 s when the connection drops. A preview that closes leaves at
+  once. (Before this, previews left "clones" standing in the fight.)
+- Known open bug: each camp picks a random setup per walk-up, so a player can be
+  shown a different map from the one the room runs (BACKLOG, first evening).

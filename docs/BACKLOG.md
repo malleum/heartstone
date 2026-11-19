@@ -5,6 +5,42 @@ The order is free: he said to pick whatever makes sense and to guess when unsure
 Move an item to "Done" with the date when it is built, and say what was assumed in
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
+
+## For a lighter model (19 Nov): well-defined tasks, with briefs
+Each is local, has a pattern to copy, and is easy to check. Follow CLAUDE.md: check,
+`tools/test.sh`, render and look, update the docs, commit and push, rebuild `dist/`.
+Ask the user before anything outward-facing (tags, the server).
+1. **Rolling Ring: less area and damage** (both forms). `data/weaves.json` row
+   `rolling_ring`: lower its width/range and damage (try two-thirds); render it
+   with `tools/weave.sh rolling_ring` (DEMO=14) and look.
+2. **Double starting health.** `Rules.CLASSES` hp (channeller 100, warder 180, aiel
+   150, hunter 160): double them; run `tools/test.sh` (fighter trials should get
+   easier, not break); check the downed and death thresholds still read right.
+3. **Healing costs the patient less.** Find where Healing takes stamina from the one
+   Healed (`Sim`, the heal kind); make it small (or none) and keep the Healer's
+   cost; say so on the weave card (weavetree `_card`).
+4. **Show a weave's area on the ground while it is being woven.** Reuse
+   `Armsfx.telegraph`-style ground marks: while the player holds a weave (game.gd,
+   `my_form` / `_aim_point()`), draw its burst radius (projectiles: `base.radius`),
+   a wedge (Rolling Ring), a line (Heave, Lash) at the aim; only for the player's
+   own weave; hidden with `--clean`. Render it.
+5. **Target other players in every mode.** Holding weaves (Shield, Bonds of Air)
+   only fasten on foes outside PvP/Darkfriend (`Sim._aimed` uses `_targets` unless
+   `df_mode`). Let them fasten on players in any mode; add a rules test.
+6. **Performance settings.** A frame cap (`Engine.max_fps`, default 60) and vsync on;
+   a quality choice in the camp menu (Settings: low/medium/high: render scale
+   `get_viewport().scaling_3d_scale`, shadow distance, glow, grass density); the
+   camp's doorway views (`camp.gd` `_portal` SubViewports) render only the nearest
+   at half resolution and a lower update rate. Measure fps before and after
+   (`NOMOVIE=1 tools/render.sh`, see CLAUDE.md).
+7. **Water from water**, per the design in `docs/WEAVES.md` ("Design, not built"):
+   map water first (data, drawing, walking), then Torrent, then Wall of Water. Ask
+   the user to rule on the book numbers and where the water goes on each map.
+8. **Screenshots on request** with the picture flags in CLAUDE.md.
+Not for a lighter model (kept for Opus): the doorway world mismatch, the camp link
+lifecycle, prepared/multiple weaves and the weave bar, gateway placement, held
+Balefire, diagnosing Windows performance, balance by play.
+
 ## Josh's notes, 15 Nov
 - [x] "all the skirts and dresses need something because they don't quite look
   right": the skirt's waist had been cut to shoulder width, so it stood off the body
@@ -341,7 +377,7 @@ are what the 4:44 review, or the next session, should pick up.
     on the ground, with the same toggling as the wall weave above.
   - **Water from water:** rivers, lakes and ponds on the maps, and Water weaves
     that draw on them: an attack (a surge pulled from the water) and a defensive
-    barrier of water.
+    barrier of water. Design: `docs/WEAVES.md`, "Design, not built: water from water".
   - **Other players can always be targeted** by holding weaves (Shield, Bonds of
     Air and the like) in every mode, not only PvP or Darkfriend ones.
   - **Show where a weave will land while it is being woven:** its area drawn on
@@ -479,7 +515,7 @@ are what the 4:44 review, or the next session, should pick up.
     (face, default dress) or remove it.
 - 2026-11-17, built since: key rebinding and the bar's order; the Darkfriend round;
   the endless night; friendly fire; gateways that kill Shadowspawn and pass weaves,
-  with flat ends; releases for Linux and Windows with self-updating. Still to do from
+  with flat ends; releases for Linux and Windows (self-updating removed 19 Nov: official builds refuse --main-pack). Still to do from
   the multiplayer list: multi-stage runs joined by a gateway, canon linking, team PvP
   with levels (done 18 Nov: "Two banners", see ARCHITECTURE), a fighter's physical restraint (for Darkfriends), balefire undoing
   recent deaths, the character screen made beautiful, origin mattering, and walking

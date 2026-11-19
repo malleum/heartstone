@@ -322,3 +322,48 @@ better and, for Travelling, removes the strength gate.
 - Arrows of Fire are piercing darts. Blossoms of Fire is a pillar that opens into a
   slow wheel of fire 10 to 30 ft across (Josh's description). The Rolling Ring rolls
   out as a wedge under 90 degrees wide, not a full circle (Josh's ruling for the game).
+
+## Design, not built: water from water (19 Nov, the user's ask)
+The user wants Water weaves that pull water from rivers, lakes and ponds on the
+maps, one to attack and one to defend. A game design, not a canon table row: book
+numbers below are proposals for the user to rule on (both kept at 6 or under so the
+spoiler limit does not hide them).
+
+**Map water.** `Map` gains water bodies: `{kind: pond|lake|river, shape: circle
+{x, z, r} | polyline {points, width}, depth: shallow|deep}`. Shallow water slows
+(like mire, 0.6) and soaks (`wet`); deep water is solid to walking, like a wall, and
+pathing goes round it. `Scenery` draws a flat water surface (a small water shader:
+dark, reflective, wind ripples from the `wind_vec` global) with a muddy shore.
+Placement, to agree with the user: Tarwin's Gap, a stream down one side of the pass;
+the wagon ring, a pond outside the ring; the training yard, a horse pond; the Wild
+Hunt's open ground, a river across one corner. `Sim._water_near(pos, reach)` gives
+the nearest water's distance and whether any is in reach.
+
+**The rule both weaves share.** Water drawn from a body of water is plentiful: full
+strength within 25 m of one. Away from water the weave pulls what it can from the air
+and ground: half strength, smaller, shorter (a channeller far from water feels it).
+
+**Attack: Torrent** (Water, with Air to carry it; proposed book 1, a cousin of the
+Lash). Woven at a target in range: a surge rises from the nearest water's edge (or
+from the ground at the channeller's feet, weakly, if none is in reach) and runs along
+the ground to the aim as a travelling wave, like Heave the Ground's line: it knocks
+down and pushes along its path, soaks everyone it touches (`wet`, so Lightning bites
+harder), puts out burning ground and burning bodies, and leaves puddles behind it
+(`Sim._puddle`). Damage below Fireball's; its worth is control. Visual: a rolling
+crest of water with spray (the Lash's ribbons and drops, scaled up), the water body
+visibly drawn down where it was taken from.
+
+**Defence: Wall of Water** (Water and Air; proposed book 6). A held weave, tied off
+like the Dome, with the same shape toggle the user wants for the Air wall: a flat
+wall ahead or a quarter circle round the channeller. Not solid: arrows and thrown
+weapons that cross it fall short, a fireball crossing it is put out (no burst),
+burning things passing through stop burning, and enemies wading through are slowed
+and soaked. Near water it is taller, wider and lasts longer. Visual: a standing
+curtain of falling water (a scrolling transparent sheet with foam at the foot).
+
+**Building it, data first.** Two rows in `data/weaves.json` with new kinds
+(`surge`, `curtain`); the map water in `Map` per map; the sim pieces (`_water_near`,
+the surge as a travelling line effect, the curtain as a held effect that missiles
+test against, like the gateway's plane); the visuals in `weavefx`/`flowfx`; tests
+(a torrent from a pond is stronger than one far from water; a wall stops an arrow
+and drowns a fireball; deep water blocks walking); renders at night by the water.

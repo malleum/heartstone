@@ -89,6 +89,13 @@ working on abilities; the user's rulings there are final).
   a fight spends its time. Notices go through `Toast.say`, never text across the screen.
 - `tools/poses.sh [warder|aiel|hunter|weaves]`: characters caught mid-blow and mid-weave,
   no HUD (`-- --clean`), sheets in `renders/poses_*.jpg`.
+- Pictures: `--clean` (no HUD, notices, blow warnings or hit flash), `--cloak=<Hero.CLOAKS id>`,
+  `--demo=weave:12@-28,20@22` (woven in turn at several spots, metres@degrees). The user's
+  taste: night (`--activity=holdout@tarwins_night`), capes in the wind, weaves lighting the
+  enemies; pick frames by brightness after the cast, not over the whole run.
+- Several renders may run at once: `tools/place.py` (started by render.sh) keeps their
+  windows apart in the 5120x2880 invisible compositor.
+- Work list for a lighter model (well-defined tasks with briefs): top of `docs/BACKLOG.md`.
 - `tools/check.sh` syntax-checks all scripts (do this before rendering: a script error
   gives a grey frame). `tools/sheet.sh <dir> <nth> <cols> [crop]` makes a contact sheet.
 
@@ -100,7 +107,11 @@ working on abilities; the user's rulings there are final).
 
 ## Git
 - Releases: push a `v*` tag and GitHub Actions builds Linux and Windows and publishes them
-  (`.github/workflows/release.yml`); installed games update themselves (`updater.gd`). See SERVER.md.
+  (`.github/workflows/release.yml`). Installed games no longer update themselves (official
+  builds refuse `--main-pack`; `updater.gd` only announces a newer release). The server on
+  minimus updates itself from `master` (flake `autoUpdate`). See SERVER.md.
+- After every commit that touches game code or data, rebuild and commit `dist/` (the user
+  and friends play the standalone against the self-updating server).
 - Branch is `master` (not `main`). Commit directly and push at natural finishing points.
   No pull requests unless asked. Don't commit large render outputs.
 
