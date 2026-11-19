@@ -326,6 +326,27 @@ are what the 4:44 review, or the next session, should pick up.
     make it general and visible); weave two at once by splitting flows (canon), at
     a cost in speed. **And a better weave bar and inventory:** clearer slots, what
     is ready, held, tied or cooling, and arranging them.
+  - **Performance, Windows above all:** decent GPUs sit at 100% on Windows
+    desktops. Look at: a frame cap / vsync on by default; the camp's live doorway
+    portals (each a SubViewport rendering a whole fight every frame: render only
+    the nearest, at lower resolution and rate); shadow distance and cascades (now
+    100 m, blended); the procedural ground shader's noise per pixel; grass and
+    particle counts; glow; an in-game quality setting (low/medium/high, render
+    scale). Measure first (NOMOVIE=1 fps runs, Godot's profiler), then on Windows.
+    Generally more performant everywhere.
+  - **Seeing through gateways:** a gateway's surface should show the far side as
+    a live window (it was built that way 17 Nov: check it actually shows, in
+    renders and on Windows).
+  - **Placing gateways:** choose where both ends go and turn each, including flat
+    on the ground, with the same toggling as the wall weave above.
+  - **Water from water:** rivers, lakes and ponds on the maps, and Water weaves
+    that draw on them: an attack (a surge pulled from the water) and a defensive
+    barrier of water.
+  - **Other players can always be targeted** by holding weaves (Shield, Bonds of
+    Air and the like) in every mode, not only PvP or Darkfriend ones.
+  - **Show where a weave will land while it is being woven:** its area drawn on
+    the ground at the aim (the radius of a fireball's burst, a wedge for the
+    Rolling Ring, a line for Heave and Lash).
 
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
