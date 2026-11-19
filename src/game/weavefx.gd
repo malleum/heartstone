@@ -153,6 +153,64 @@ static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
 	g.add_child(p); p.position = at; p.emitting = true
 	g.get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
 
+## Torrent: a crest of water runs from where it was drawn out to the aim, throwing
+## spray, and the water it was taken from is churned where it left.
+static func surge(g: Node3D, e: Dictionary) -> void:
+	var water := TINT.water.lerp(Color(0.5, 0.8, 1.0), 0.35)
+	var o: Vector3 = g._ground(e.origin)
+	var secs: float = maxf(float(e.len) / maxf(float(e.speed), 1.0), 0.1)
+	var sm := SphereMesh.new(); sm.radius = 1.0; sm.height = 2.0; sm.radial_segments = 14; sm.rings = 7
+	var crest := MeshInstance3D.new(); crest.mesh = sm
+	var cm := StandardMaterial3D.new()
+	cm.albedo_color = Color(water.r * 0.7, water.g * 0.85, water.b, 0.5); cm.roughness = 0.08; cm.metallic = 0.3
+	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; cm.emission_enabled = true; cm.emission = water * 0.25
+	crest.material_override = cm
+	crest.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(crest)
+	crest.scale = Vector3(1.3, 0.75, 1.6)
+	crest.look_at_from_position(o + Vector3(0, 0.6, 0), o + Vector3(0, 0.6, 0) + e.dir, Vector3.UP)
+	_once(_particles(water.lerp(Color.WHITE, 0.4), 80, 0.9, 0.22, 7.0, -9.0, 70.0, false), g, o + Vector3(0, 0.5, 0))
+	Sfx.play(g, "rumble", o, 2.0)
+	var tw := g.create_tween()
+	tw.tween_method(func(f: float) -> void:
+		if not is_instance_valid(crest):
+			return
+		var p: Vector3 = g._ground(e.origin + e.dir * float(e.len) * f)
+		crest.position = p + Vector3(0, 0.55 + 0.15 * sin(f * 40.0), 0)
+		crest.scale = Vector3(1.3, 0.7 + 0.15 * sin(f * 31.0), 1.5 + 0.3 * sin(f * 23.0))
+		if int(f * 40.0) != int((f - 0.03) * 40.0):
+			_once(_particles(water.lerp(Color.WHITE, 0.5), 22, 0.6, 0.16, 3.5, -8.0, 110.0, false), g, p + Vector3(0, 0.7, 0)), 0.0, 1.0, secs)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(crest): crest.queue_free())
+
+## A Wall of Water standing: a falling sheet along each stretch of its line.
+static func curtain(g: Node3D, pts: Array, height: float) -> Node3D:
+	var root := Node3D.new(); g.add_child(root)
+	var sh := load("res://shaders/curtain.gdshader")
+	var mats := []
+	for i in pts.size() - 1:
+		var a: Vector2 = pts[i]; var b: Vector2 = pts[i + 1]
+		var mid := Vector3((a.x + b.x) * 0.5, 0, (a.y + b.y) * 0.5)
+		var q := QuadMesh.new(); q.size = Vector2(a.distance_to(b) + 0.05, height)
+		var mi := MeshInstance3D.new(); mi.mesh = q
+		var sm := ShaderMaterial.new(); sm.shader = sh
+		mi.material_override = sm; mats.append(sm)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+		var base: Vector3 = g._ground(mid) + Vector3(0, height * 0.5, 0)
+		mi.look_at_from_position(base, base + Vector3(b.y - a.y, 0, -(b.x - a.x)), Vector3.UP)
+	root.set_meta("mats", mats)
+	return root
+
+static func curtain_end(root: Node3D) -> void:
+	if not is_instance_valid(root):
+		return
+	var tw := root.create_tween()
+	tw.tween_method(func(f: float) -> void:
+		for m in root.get_meta("mats", []):
+			(m as ShaderMaterial).set_shader_parameter("fade", f), 1.0, 0.0, 0.8)
+	tw.tween_callback(root.queue_free)
+
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
 static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 	if kind.begins_with("dream_"):

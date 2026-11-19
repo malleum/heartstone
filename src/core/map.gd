@@ -20,6 +20,10 @@ static var _trees: Array = []
 static var _walls: Array = []
 static var _grid := {}
 static var _next_wid := 1
+## Water: ponds, streams and rivers, each a capsule {x1, z1, x2, z2, r, deep, y}
+## (a circle when both ends are one point). Shallow water slows and soaks; the
+## deep middle (deep ones only) cannot be walked. `y` is the surface.
+static var _water: Array = []
 
 static func use(map_id: String, activity := "") -> void:
 	id = map_id if MAPS.has(map_id) else "open"
@@ -28,6 +32,8 @@ static func use(map_id: String, activity := "") -> void:
 	_walls = []
 	_grid = {}
 	_next_wid = 1
+	_water = []
+	_waters(activity)
 	var wr := RandomNumberGenerator.new(); wr.seed = 11
 	if m.get("breastwork", false):
 		# The defenders' line: a drystone breastwork across the pass behind the
@@ -282,6 +288,19 @@ static func unblock(p: Vector3, radius: float, walls := true) -> Vector3:
 				l.y = (w.hz + radius) * (1.0 if l.y >= 0.0 else -1.0)
 			var out := _world(w, l)
 			p.x = out.x; p.z = out.y
+	# Deep water is not walked: out by the nearest way.
+	for w: Dictionary in _water:
+		if not w.deep:
+			continue
+		var a := Vector2(w.x1, w.z1); var ab := Vector2(w.x2, w.z2) - a
+		var q := Vector2(p.x, p.z)
+		var u := 0.0 if ab.length_squared() < 1e-6 else clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		var c := a + ab * u
+		var core: float = w.r * 0.6 + radius
+		if q.distance_to(c) < core:
+			var out := (q - c).normalized() if q.distance_to(c) > 0.01 else Vector2(1, 0)
+			q = c + out * core
+			p.x = q.x; p.z = q.y
 	for t in _trees:
 		var d := Vector2(p.x - t.x, p.z - t.z)
 		var min_d: float = t.r + radius
@@ -335,3 +354,65 @@ static func state() -> Dictionary:
 
 static func set_state(s: Dictionary) -> void:
 	id = s.id; m = s.m; _trees = s.trees; _walls = s.walls; _grid = s.grid; Terrain.amp = s.amp
+
+
+## Water on each map (drawn by Scenery.water; the ground is dipped to hold it, see
+## Terrain.height). Placed where it is never in the way of the line being held.
+static func _waters(activity: String) -> void:
+	var list := []
+	if activity == "camp_training":
+		list = [[31.0, -6.0, 31.0, -6.0, 4.5, true]]      # the horse pond beyond the yard
+	elif id == "tarwins_gap":
+		list = [[-17.0, 30.0, -15.0, 2.0, 2.4, false], [-17.0, 12.0, -17.0, 12.0, 4.5, true]]   # a stream down the left of the pass, with a pool
+	elif id == "wagon_ring":
+		list = [[27.0, -14.0, 27.0, -14.0, 6.0, true]]
+	elif activity == "wild_hunt":
+		list = [[22.0, -44.0, 46.0, -12.0, 3.2, false]]    # a river across one corner
+	for w in list:
+		var y: float = Terrain.dry((w[0] + w[2]) * 0.5, (w[1] + w[3]) * 0.5) - 0.1
+		_water.append({x1 = w[0], z1 = w[1], x2 = w[2], z2 = w[3], r = w[4], deep = w[5], y = y})
+
+static func water() -> Array:
+	return _water
+
+## Distance from (x, z) to the middle line of a body of water.
+static func _wdist(w: Dictionary, x: float, z: float) -> float:
+	var a := Vector2(w.x1, w.z1); var b := Vector2(w.x2, w.z2); var p := Vector2(x, z)
+	var ab := b - a
+	var t := 0.0 if ab.length_squared() < 1e-6 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+## 0 dry, 1 shallow (slows, soaks), 2 deep (not to be walked).
+static func water_depth(x: float, z: float) -> int:
+	for w: Dictionary in _water:
+		var d: float = _wdist(w, x, z)
+		if d < w.r:
+			return 2 if (w.deep and d < w.r * 0.6) else 1
+	return 0
+
+## The nearest water to a point: {dist (from its edge, 0 inside), at (the nearest
+## point on its edge, on the ground plane)}; empty when the map has none.
+static func water_near(p: Vector3) -> Dictionary:
+	var best := {}
+	for w: Dictionary in _water:
+		var d: float = _wdist(w, p.x, p.z) - w.r
+		if best.is_empty() or d < best.dist:
+			var a := Vector2(w.x1, w.z1); var b := Vector2(w.x2, w.z2); var q := Vector2(p.x, p.z)
+			var ab := b - a
+			var t := 0.0 if ab.length_squared() < 1e-6 else clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			var c := a + ab * t
+			var out := (q - c).normalized() if q.distance_to(c) > 0.01 else Vector2(1, 0)
+			var edge: Vector2 = c + out * w.r
+			best = {dist = maxf(d, 0.0), at = Vector3(edge.x, w.y, edge.y), y = w.y}
+	return best
+
+## How much the ground is reshaped by water at (x, z): {w: 0..1 how far into the
+## basin, bed: the height of the bed}; w 0 means untouched.
+static func basin(x: float, z: float) -> Dictionary:
+	for wt: Dictionary in _water:
+		var d: float = _wdist(wt, x, z)
+		if d < wt.r * 1.5:
+			var depth: float = 0.9 if wt.deep else 0.3
+			var bed: float = wt.y - depth * (1.0 - smoothstep(0.35 * wt.r, wt.r, d))
+			return {w = 1.0 - smoothstep(wt.r * 0.9, wt.r * 1.5, d), bed = bed}
+	return {}

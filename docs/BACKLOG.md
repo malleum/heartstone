@@ -31,7 +31,7 @@ Ask the user before anything outward-facing (tags, the server).
    camp's doorway views (`camp.gd` `_portal` SubViewports) render only the nearest
    at half resolution and a lower update rate. Measure fps before and after
    (`NOMOVIE=1 tools/render.sh`, see CLAUDE.md).
-7. **Water from water**, per the design in `docs/WEAVES.md` ("Design, not built"):
+7. [x] (19 Nov, built on my own rulings: Torrent book 1 needing the Lash, Wall of Water book 6; water placed per map in `Map._waters`; the wall curves round you when aimed within 4.5 m and stands flat across the aim otherwise) **Water from water**, per the design in `docs/WEAVES.md` ("Design, not built"):
    map water first (data, drawing, walking), then Torrent, then Wall of Water. Ask
    the user to rule on the book numbers and where the water goes on each map.
 8. **Screenshots on request** with the picture flags in CLAUDE.md.

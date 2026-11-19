@@ -7,6 +7,15 @@ static var _n: FastNoiseLite
 static var amp := 1.0
 
 static func height(x: float, z: float) -> float:
+	var h := dry(x, z)
+	# Water sits in a dip in the ground (Map.water).
+	var bs := Map.basin(x, z)
+	if not bs.is_empty():
+		h = lerpf(h, bs.bed, bs.w)
+	return h
+
+## The ground before any water has been dug into it.
+static func dry(x: float, z: float) -> float:
 	if _n == null:
 		_n = FastNoiseLite.new()
 		_n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH

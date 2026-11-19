@@ -323,7 +323,20 @@ better and, for Travelling, removes the strength gate.
   slow wheel of fire 10 to 30 ft across (Josh's description). The Rolling Ring rolls
   out as a wedge under 90 degrees wide, not a full circle (Josh's ruling for the game).
 
-## Design, not built: water from water (19 Nov, the user's ask)
+## Water from water (built 19 Nov; the design below, with these choices)
+Built: `Map._waters` (per map: the training yard's horse pond, a stream and pool in
+Tarwin's Gap, a pond outside the wagon ring, a river across the Wild Hunt's corner),
+`Terrain.height` dips the ground to hold it, `Scenery.water` and `water.gdshader`
+draw it, shallow water slows and soaks, deep cores are not walked (`Map.unblock`).
+Torrent (`surge`, book 1, needs Lash of Water) and Wall of Water (`curtain`, book 6,
+held; needs Lash and Hammer of Air). `Sim.WATER_REACH` 25 m: full strength near water,
+half away from it. The wall curves round the caster when aimed within 4.5 m and
+stands flat across the aim otherwise (no toggle key yet). Tests: `_water` in
+`tests/run_tests.gd`. Left: a toggle key for the wall's shape, a wall weave of Air,
+water seen in the doorway views, puddles reading on the ground at night, per-map
+placement for the user to rule on.
+
+## (Original design) water from water (19 Nov, the user's ask)
 The user wants Water weaves that pull water from rivers, lakes and ponds on the
 maps, one to attack and one to defend. A game design, not a canon table row: book
 numbers below are proposals for the user to rule on (both kept at 6 or under so the

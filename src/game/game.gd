@@ -501,6 +501,10 @@ func _process(dt: float) -> void:
 	if _foe != 0 and session.sim.ents.has(_foe):
 		Bot.dream(session.sim, _foe)
 		Bot.drive(session.sim, _foe)
+	# --at=x,z: put the bot there once (pictures of one place).
+	if args.has("at") and frame == 3 and session.is_host:
+		var xz: PackedStringArray = String(args.at).split(",")
+		session.sim.ents[session.my_id].pos = Vector3(float(xz[0]), 0, float(xz[1]))
 	if args.has("auto") and not session.is_host:
 		_client_bot()
 	elif args.has("auto"):
@@ -737,6 +741,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 		World.build(self)
 		if activity == "camp_training":
 			Scenery.yard(self)
+	Scenery.water(self)
 	_stamp("terrain, sky, map scenery")
 	await Scenery.scatter(self, spread)
 	_stamp("grass and stones")
@@ -1771,6 +1776,15 @@ func _on_events(list: Array) -> void:
 				if not told.has("gate_kill"):
 					told.gate_kill = true
 					_banner("A gateway kills the Shadow's creatures\nShove them through it.", 4.0, "good")
+			"surge":
+				Weavefx.surge(self, e)
+			"curtain":
+				fx[e.fx] = Weavefx.curtain(self, e.pts, e.height)
+			"curtain_end":
+				if fx.has(e.fx):
+					Weavefx.curtain_end(fx[e.fx]); fx.erase(e.fx)
+			"drowned":
+				Weavefx._once(Weavefx._particles(Color(0.7, 0.85, 1.0), 40, 0.7, 0.2, 3.0, -4.0, 120.0, false), self, e.pos)
 			"gate_open":
 				fx[e.id] = Weavefx.gate(self, e.a, e.b, e.get("flat_a", false), e.get("sky", 0.0))
 				_open_window(fx[e.id])
@@ -2122,7 +2136,7 @@ func _on_snapshot(s: Dictionary) -> void:
 			if e.size() > 7: my_will = e[7]
 	for f in s.fx:
 		# A gateway is drawn from its own event, which carries both its ends.
-		if f[1] == "gate":
+		if f[1] in ["gate", "surge", "curtain"]:
 			continue
 		if not fx.has(f[0]):
 			fx[f[0]] = Weavefx.live(self, f[1], f[6])

@@ -612,6 +612,11 @@ func release(id: int, weave: String, target := -1) -> void:
 		events.append({e = "release", id = id, weave = weave, target = h.target})
 	if kind == "barrier":
 		p.barrier = 0.0
+	if kind == "curtain":
+		for fx in effects:
+			if fx.kind == "curtain" and fx.owner == id and not fx.get("gone", false):
+				fx.gone = true
+				events.append({e = "curtain_end", fx = fx.id})
 	if kind == "gate":
 		for fx in effects:
 			if fx.kind == "gate" and fx.owner == id and not fx.get("gone", false):
@@ -1272,6 +1277,10 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		step = Vector3.ZERO
 	elif p.get("mired", 0.0) > t:
 		step *= p.mire
+	# Wading: shallow water slows and soaks.
+	if Map.water_depth(p.pos.x, p.pos.z) > 0:
+		step *= 0.6
+		p.wet = maxf(p.get("wet", 0.0), 3.0)
 	if dream:
 		Dream.step_player(self, p, dt)
 	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius, not p.dash.get("vault", false)))
@@ -1613,6 +1622,41 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					dps = b.dps * k, radius = b.radius * kr, left = b.duration * kr, id = _fx_id()})
 		"barrier":
 			p.barrier = b.absorb * k
+		"surge":
+			# Torrent: a wave drawn from the nearest water, within 25 m of the caster
+			# at full strength; far from water only what can be pulled from the air
+			# and ground, at half strength, from the caster's own feet.
+			var wn := Map.water_near(p.pos)
+			var near_water: bool = not wn.is_empty() and wn.dist <= WATER_REACH
+			var origin: Vector3 = Vector3(wn.at.x, 0, wn.at.z) if near_water else Vector3(p.pos.x, 0, p.pos.z) + dir * 1.5
+			var sk: float = k if near_water else k * 0.5
+			var sdir := (Vector3(at.x, 0, at.z) - origin)
+			sdir.y = 0.0
+			var slen := minf(sdir.length(), b.range * kr * (1.0 if near_water else 0.6) + (wn.dist if near_water else 0.0))
+			sdir = sdir.normalized() if sdir.length() > 0.1 else dir
+			effects.append({kind = "surge", owner = p.id, weave = weave, pos = origin, dir = sdir, len = slen, head = 0.0, speed = b.speed, dmg = b.damage * sk,
+				width = b.width * kr * (1.0 if near_water else 0.7), push = b.push * sk, hit = [], puddled = 0.0, id = _fx_id()})
+			events.append({e = "surge", id = p.id, from = Map.water_near(origin).get("at", origin) if near_water else origin, origin = origin, dir = sdir, len = slen, speed = b.speed, full = near_water})
+		"curtain":
+			# Wall of Water: held. Aimed near you it curves round you (a quarter
+			# circle); aimed further, it stands flat across the aim.
+			var wn2 := Map.water_near(p.pos)
+			var full: bool = not wn2.is_empty() and wn2.dist <= WATER_REACH
+			var ck: float = 1.0 if full else 0.6
+			var wid: float = b.width * kr * ck
+			var pts := []
+			if dist < 4.5:
+				for i in 7:
+					var a := dir.rotated(Vector3.UP, deg_to_rad(-45.0 + i * 15.0)) * 3.2
+					pts.append(Vector2(p.pos.x + a.x, p.pos.z + a.z))
+			else:
+				var c3 := Vector3(at.x, 0, at.z)
+				var side := dir.cross(Vector3.UP)
+				for i in 2:
+					var q := c3 + side * (wid * 0.5) * (1.0 if i == 0 else -1.0)
+					pts.append(Vector2(q.x, q.z))
+			effects.append({kind = "curtain", owner = p.id, weave = weave, pts = pts, pos = Vector3(pts[0].x, 0, pts[0].y), height = b.height * ck, slow = b.slow, gone = false, age = 0.0, id = _fx_id()})
+			events.append({e = "curtain", id = p.id, fx = effects[-1].id, pts = pts, height = b.height * ck})
 		"gate":
 			# A gateway: a hole from here to there, open while it is held (or tied).
 			# Anyone who steps into one side steps out of the other: friend or not.
@@ -1942,6 +1986,25 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			tl.kills[weave] = tl.kills.get(weave, 0) + 1
 
 ## Advance a projectile one hop; true if it struck an enemy, a tree or the ground.
+## Within this of water, a water weave draws on it and is at full strength.
+const WATER_REACH := 25.0
+
+## Does the step a → b (ground plane) cross the curtain's line?
+func _crosses_curtain(cu: Dictionary, a: Vector2, b: Vector2) -> bool:
+	var pts: Array = cu.pts
+	for i in pts.size() - 1:
+		if Geometry2D.segment_intersects_segment(a, b, pts[i], pts[i + 1]) != null:
+			return true
+	return false
+
+func _near_curtain(cu: Dictionary, p: Vector2, r: float) -> bool:
+	var pts: Array = cu.pts
+	for i in pts.size() - 1:
+		var q := Geometry2D.get_closest_point_to_segment(p, pts[i], pts[i + 1])
+		if q.distance_to(p) < r:
+			return true
+	return false
+
 func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 	fx.vel.y -= fx.gravity * dt
 	var stepv: Vector3 = fx.vel * dt
@@ -1964,6 +2027,12 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 					fx.gated = t + 0.3
 					events.append({e = "fx_gate", id = fx.get("id", 0), pos = fx.pos})
 					break
+	# A Wall of Water: arrows fall short in it and fire is put out.
+	for cu in effects:
+		if cu.kind == "curtain" and not cu.gone and fx.pos.y < Terrain.height(fx.pos.x, fx.pos.z) + cu.height and _crosses_curtain(cu, Vector2(fx.pos.x - stepv.x, fx.pos.z - stepv.z), Vector2(fx.pos.x, fx.pos.z)):
+			fx.drowned = true; fx.lit = false; fx.blast = 0.0
+			events.append({e = "drowned", pos = fx.pos})
+			return true
 	for e in _struck(owner):
 		var f := _feet(e)
 		if not fx.get("passed", []).has(e.id) and Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + (1.3 if e.get("duck", false) else 2.4) and e.get("safe_until", 0.0) <= t:
@@ -2219,6 +2288,40 @@ func _step_effects(dt: float) -> void:
 					fx.pos.y = Terrain.height(fx.pos.x, fx.pos.z)
 					_blast(fx.owner, fx.weave, fx.pos, fx.radius, fx.dmg)
 					alive = false
+			"surge":
+				var h0: float = fx.head
+				fx.head = minf(fx.head + fx.speed * dt, fx.len)
+				# It leaves the ground wet behind it, and puts out what burns there.
+				while fx.puddled < fx.head:
+					var pp: Vector3 = fx.pos + fx.dir * fx.puddled
+					_puddle(pp, 1.7)
+					fx.puddled += 4.0
+				for e in _struck(owner):
+					if fx.hit.has(e.id):
+						continue
+					var off: Vector3 = e.pos - fx.pos
+					var along: float = off.dot(fx.dir)
+					if along > h0 - e.radius and along <= fx.head + e.radius and (off - fx.dir * along).length() < fx.width + e.radius:
+						fx.hit.append(e.id)
+						e.vel += fx.dir * fx.push
+						e.stagger = maxf(e.stagger, 0.7)
+						e.down = maxf(e.down, float(Rules.weaves[fx.weave].on_hit.down)) if e.kind == "enemy" and e.get("row", {}).get("tier", 1) < 3 else e.down
+						e.wet = maxf(e.get("wet", 0.0), float(Rules.weaves[fx.weave].on_hit.wet))
+						e.burn = 0.0
+						_hurt(e, fx.dmg, fx.owner, fx.weave)
+				alive = fx.head < fx.len
+			"curtain":
+				fx.age += dt
+				alive = not fx.gone and owner.alive
+				# Waded through, it slows and soaks.
+				for id in ents:
+					var e: Dictionary = ents[id]
+					if e.alive and _near_curtain(fx, Vector2(e.pos.x, e.pos.z), e.radius + 0.5):
+						# (Soaked, an enemy drags; a player in it is slowed by mire.)
+						e.wet = maxf(e.get("wet", 0.0), 2.5)
+						e.burn = 0.0
+						if e.kind == "player":
+							e.mired = t + 0.2; e.mire = fx.slow
 			"ring":
 				var r0: float = fx.r
 				fx.r += fx.speed * dt
@@ -2412,7 +2515,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		# Charged by lightning, it runs half again as fast.
 		if e.get("charge", 0.0) > 0.0:
 			want *= 1.5
-		# Soaked, it drags.
+		# Wading soaks it, and soaked, it drags.
+		if Map.water_depth(e.pos.x, e.pos.z) > 0:
+			e.wet = maxf(e.get("wet", 0.0), 3.0)
 		if e.get("wet", 0.0) > 0.0 and e.get("mode", "") == "":
 			want *= 0.6
 		e.move = want

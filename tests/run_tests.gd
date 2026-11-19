@@ -115,6 +115,64 @@ func _powers() -> void:
 	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].fester == 0.0, "it mends them and ends the festering")
 	check(sim.ents[friend].stamina < st0 - 100.0, "and wears the one Healed: they lose stamina")
 
+func _water() -> void:
+	print("== water: wading, deep water, Torrent and the Wall of Water")
+	var sim := Sim.new("camp_training", 5)
+	sim._waves = []
+	var pond: Dictionary = Map.water()[0]
+	var mid := Vector3(pond.x1, 0, pond.z1)
+	check(Map.water_depth(mid.x, mid.z) == 2, "the pond's middle is deep")
+	check(Map.water_depth(mid.x + pond.r * 0.8, mid.z) == 1, "its rim is shallow")
+	check(Map.unblock(Vector3(mid.x, 0, mid.z), 0.4).distance_to(mid) > pond.r * 0.55, "deep water is not walked: a body in it is put out")
+	# A Torrent from near water outdoes one far from it.
+	var prof := Profile.create({name = "Wet", cls = "channeller"})
+	prof.weaves["torrent"] = {known = true, xp = 0.0}
+	var id := sim.add_player(prof, Vector3(mid.x - pond.r - 5.0, 0, mid.z))
+	sim._add_enemy("dummy", Vector3(mid.x - pond.r - 5.0 - 12.0, 0, mid.z))
+	var foe: int = sim._next - 1
+	sim.ents[id].yaw = -PI * 0.5
+	var e0: Dictionary = sim.ents[foe]
+	var hp0: float = e0.hp
+	sim.request_cast(id, "torrent", e0.pos)
+	run(sim, 3.5)
+	var near_loss: float = hp0 - e0.hp
+	check(near_loss > 0.0 and e0.wet > 0.0, "a Torrent hurts and soaks (near water: %.1f)" % near_loss)
+	# Far from water: half strength.
+	var sim2 := Sim.new("tarwins_gap_watch", 5)
+	sim2._waves = []
+	var id2 := sim2.add_player(prof, Vector3(14, 0, 20))
+	sim2._add_enemy("dummy", Vector3(14, 0, 8))
+	var foe2: int = sim2._next - 1
+	sim2.ents[id2].yaw = PI
+	var e2: Dictionary = sim2.ents[foe2]
+	var hp2: float = e2.hp
+	sim2.request_cast(id2, "torrent", e2.pos)
+	run(sim2, 3.5)
+	check(Map.water_near(sim2.ents[id2].pos).dist > Sim.WATER_REACH and hp2 - e2.hp < near_loss, "far from water a Torrent is weaker (%.1f)" % (hp2 - e2.hp))
+	# A Wall of Water drowns a fireball and is let go.
+	var sim3 := Sim.new("practice", 5)
+	sim3._waves = []
+	var pw := Profile.create({name = "Wall"})
+	pw.weaves["wall_of_water"] = {known = true, xp = 0.0}
+	pw.weaves["fireball"] = {known = true, xp = 0.0}
+	var id3 := sim3.add_player(pw, Vector3(0, 0, 0))
+	sim3._add_enemy("dummy", Vector3(0, 0, -20))
+	var foe3: int = sim3._next - 1
+	check(sim3.request_cast(id3, "wall_of_water", Vector3(0, 0, -8)) == "", "the wall can be woven")
+	run(sim3, 3.0)
+	var curtain := false
+	for fx in sim3.effects:
+		if fx.kind == "curtain": curtain = true
+	check(curtain, "and stands")
+	sim3.effects.append({kind = "projectile", owner = id3, weave = "fireball", pos = Vector3(0, 1.4, -6.0), vel = Vector3(0, 0, -28), dmg = 30.0, radius = 1.3, left = 45.0, gravity = 0.0, pierce = 0, passed = [], id = 9999})
+	var drowned := false
+	for i in 60:
+		sim3.step(0.05)
+		for ev in sim3.events:
+			if ev.e == "drowned": drowned = true
+		sim3.events.clear()
+	check(drowned and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
+
 func _fasten_players() -> void:
 	print("== Bonds of Air can fasten on a player in any mode")
 	var sim := Sim.new("practice", 3)
@@ -1445,6 +1503,7 @@ func _init() -> void:
 
 	_arms()
 	_holds()
+	_water()
 	_fasten_players()
 	_foes()
 	_powers()

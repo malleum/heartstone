@@ -375,6 +375,24 @@ static func wagon_ring(g: Node3D) -> void:
 	walls(g)
 	props(g)
 
+## The ponds and streams of the map (Map.water): a flat sheet of water at each one's
+## surface, a disc at each end and a strip between for a stream.
+static func water(g: Node3D) -> void:
+	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/water.gdshader")
+	for w: Dictionary in Map.water():
+		var a := Vector3(w.x1, w.y, w.z1); var b := Vector3(w.x2, w.y, w.z2)
+		for c in [a, b] if a.distance_to(b) > 0.1 else [a]:
+			var cm := CylinderMesh.new(); cm.top_radius = w.r; cm.bottom_radius = w.r; cm.height = 0.02; cm.radial_segments = 40; cm.rings = 1
+			var mi := MeshInstance3D.new(); mi.mesh = cm; mi.material_override = sm; mi.position = c
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			g.add_child(mi)
+		if a.distance_to(b) > 0.1:
+			var qm := BoxMesh.new(); qm.size = Vector3(w.r * 2.0, 0.02, a.distance_to(b))
+			var mi2 := MeshInstance3D.new(); mi2.mesh = qm; mi2.material_override = sm
+			mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			g.add_child(mi2)
+			mi2.look_at_from_position((a + b) * 0.5, b, Vector3.UP)
+
 static func tarwins_gap(g: Node3D, night := false) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 11
 	var stone := _mat(Color(0.2, 0.19, 0.18))
@@ -471,7 +489,7 @@ static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 		# Keep a clearing where the camp's character stands.
 		if not gap and Vector2(x, z).length() < 3.0:
 			continue
-		if patch.get_noise_2d(x, z) < -0.05 or Terrain.normal(x, z).y < 0.9:
+		if patch.get_noise_2d(x, z) < -0.05 or Terrain.normal(x, z).y < 0.9 or Map.water_depth(x, z) > 0:
 			continue
 		var s := rng.randf_range(0.7, 1.5)
 		grass.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.7, 1.3), s)), _ground(x, z)))

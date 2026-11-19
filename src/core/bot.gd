@@ -168,7 +168,7 @@ static func drive(sim: Sim, id: int) -> void:
 	var reach := 0.0
 	for w in me.profile.weaves:
 		var row: Dictionary = Rules.weaves[w]
-		if row.kind in ["barrier", "heal", "sever", "utility", "bind", "gate"]:
+		if row.kind in ["barrier", "heal", "sever", "utility", "bind", "gate", "curtain"]:
 			continue
 		var rng: float = row.base.get("range", row.base.get("radius", 99.0))
 		reach = maxf(reach, rng)
