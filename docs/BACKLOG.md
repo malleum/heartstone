@@ -293,6 +293,40 @@ are what the 4:44 review, or the next session, should pick up.
   book 1 by the user's ruling: Moiraine does it against Trollocs in TEotW); Talents Unweaving, Reading Residues, Cloud
   Dancing, Travelling (Androl's). `Rules.TALENT_BOOK` holds the Talents' books.
 
+- 2026-11-18 night, from the first evening of play with friends (for next week):
+  - **Camp link errors in the terminal** ("Node not found: /root/Camp/CampLink",
+    "Invalid packet received", "p_child->data.parent != this"). Likely: the link's
+    branch hangs under the camp node, and when the camp leaves the tree (a doorway
+    taken) packets still arrive for a path that is gone, and the branch is freed
+    while still parented oddly. Plan: put the link at a fixed path under /root,
+    close it (peer.close, set_multiplayer null) before any scene change, and only
+    then free it.
+  - **Being Healed by someone costs stamina.** Healing draws on the patient's
+    strength (canon), which reads as a penalty for being helped. Plan: much smaller,
+    or none when Healed by another (keep the cost on the Healer), and say it in the
+    weave's card.
+  - **Through a doorway the world shown is not the fight's** (Trollocs come from
+    elsewhere; invisible things block you). Likely: each camp picks its own random
+    setup as you walk up (`Rules.pick_setup`), and the preview builds that map,
+    while the server room was started on the first arrival's setup. Plan: the camp
+    asks which setup a doorway's room is running (the lobby answer has each room's
+    activity) and uses it; and the game rebuilds the world if `_welcome` names a
+    different activity from the one it built.
+  - **Rolling Ring: less area and less damage** (both its earth and fire forms).
+    Data: its width/range and damage in weaves.json.
+  - **Balefire held and aimed while it burns:** a beam that lasts while the button
+    is held and follows the aim, paid for per second, instead of one instant bar.
+  - **Double everyone's starting health** (Rules.CLASSES hp; check enemy damage and
+    the downed threshold keep their sense).
+  - **A defensive wall weave**, switchable between a quarter circle round you and a
+    flat wall ahead. Built on the ground system's walls (Map.add_wall /
+    remove_wall, as Heave's rubble), held or tied off; a key toggles the shape.
+  - **Holding and preparing weaves; several at once.** Weave one ahead and keep it
+    ready in the hands to loose when wanted (the hold-click "ready" state exists:
+    make it general and visible); weave two at once by splitting flows (canon), at
+    a cost in speed. **And a better weave bar and inventory:** clearer slots, what
+    is ready, held, tied or cooling, and arranging them.
+
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
 - Drawing to weave: tracing a weave's shape to make it.
