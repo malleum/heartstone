@@ -1683,9 +1683,12 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					best.hp = 0.0
 					best.safe_until = t + 1.0
 					events.append({e = "revived", id = best.id, healed = true})
+				var hp_before: float = best.hp
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
-				# In the books Healing wears out the one healed: it is paid from what they have left.
-				best.stamina = maxf(best.get("stamina", 0.0) - float(b.get("drain", 0.0)) * k, 0.0)
+				# In the books Healing wears out the one healed, in proportion to what was
+				# mended; a Healer with the Talent spares them.
+				if not Rules.has_talent(p.profile, w):
+					best.stamina = maxf(best.get("stamina", 0.0) - float(b.get("drain", 0.0)) * (best.hp - hp_before), 0.0)
 				best.fester = 0.0
 				# Healing closes wounds, as rest cannot.
 				best.wound = maxf(best.get("wound", 0.0) - b.heal * k * 1.5, 0.0)

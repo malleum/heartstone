@@ -34,7 +34,7 @@ static func apply() -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.0001)))
 	AudioServer.set_bus_mute(0, volume <= 0.001)
 	var uncap := "--uncap" in OS.get_cmdline_user_args()
-	Engine.max_fps = 0 if uncap else 60
+	Engine.max_fps = 0   # vsync holds it to the monitor's refresh rate; no cap of our own
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED if uncap else DisplayServer.VSYNC_ENABLED)
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree and tree.root:

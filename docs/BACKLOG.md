@@ -16,7 +16,7 @@ Ask the user before anything outward-facing (tags, the server).
 2. [x] (19 Nov) **Double starting health.** Done: classes and endurance doubled, Healing's heal doubled to match, snapshots carry max hp so other players' bars read right. `Rules.CLASSES` hp (channeller 100, warder 180, aiel
    150, hunter 160): double them; run `tools/test.sh` (fighter trials should get
    easier, not break); check the downed and death thresholds still read right.
-3. [x] (19 Nov) **Healing costs the patient** (corrected by Josh: in the books it is physically draining on the one healed): Healing takes `base.drain` (250 of 1500) stamina from the patient, scaled by weave strength; the Healer's cost is unchanged; on the weave card.
+3. [x] (19 Nov) **Healing costs the patient** (Josh: in the books it is physically draining on the one healed): Healing takes `base.drain` (2 stamina per hp mended) from the patient, none if the Healer has the Healing Talent; the Healer's cost is unchanged; on the weave card.
 4. [x] (19 Nov) **Show a weave's area on the ground while it is being woven.** Reuse
    `Armsfx.telegraph`-style ground marks: while the player holds a weave (game.gd,
    `my_form` / `_aim_point()`), draw its burst radius (projectiles: `base.radius`),
@@ -35,6 +35,7 @@ Ask the user before anything outward-facing (tags, the server).
    map water first (data, drawing, walking), then Torrent, then Wall of Water. Ask
    the user to rule on the book numbers and where the water goes on each map.
 8. **Screenshots on request** with the picture flags in CLAUDE.md.
+**For Opus, later: review the water weaves** (Torrent, Wall of Water, map water; built by Sonnet 19 Nov, see WEAVES.md "Water from water"): the look of the crest, wall and water at night, strength and balance, the wall's shape toggle, water seen in doorway views, where the water sits on each map, the book numbers.
 Not for a lighter model (kept for Opus): the doorway world mismatch, the camp link
 lifecycle, prepared/multiple weaves and the weave bar, gateway placement, held
 Balefire, diagnosing Windows performance, balance by play.

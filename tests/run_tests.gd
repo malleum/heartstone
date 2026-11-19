@@ -113,7 +113,12 @@ func _powers() -> void:
 	check(sim.request_cast(id, "healing", sim.ents[friend].pos) == "", "Healing a friend is allowed")
 	run(sim, 3.5)   # weak in Spirit, the weaving takes longer
 	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].fester == 0.0, "it mends them and ends the festering")
-	check(sim.ents[friend].stamina < st0 - 100.0, "and wears the one Healed: they lose stamina")
+	check(sim.ents[friend].stamina < st0 - 50.0, "and wears the one Healed: they lose stamina by what was mended")
+	sim.ents[id].profile.talents = ["healing"]
+	sim.ents[id].stamina = sim.ents[id].stamina_max
+	sim.ents[friend].hp = 20.0; sim.ents[friend].stamina = 1000.0
+	sim.request_cast(id, "healing", sim.ents[friend].pos); run(sim, 3.5)
+	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].stamina >= 1000.0, "a Healer with the Talent spares them")
 
 func _water() -> void:
 	print("== water: wading, deep water, Torrent and the Wall of Water")
