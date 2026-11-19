@@ -417,6 +417,13 @@ static func _tuft_mesh() -> ArrayMesh:
 	return m
 
 static func _multi(g: Node3D, mesh: Mesh, xfs: Array, shadows := false) -> void:
+	# Quality: grass is thinned by taking every other (or every third) tuft.
+	var mat0 := mesh.surface_get_material(0) if mesh is ArrayMesh and mesh.get_surface_count() > 0 else null
+	if mat0 is ShaderMaterial and (mat0 as ShaderMaterial).shader.resource_path.ends_with("grass.gdshader") and Settings.grass_stride() > 1:
+		var keep := []
+		for i in range(0, xfs.size(), Settings.grass_stride()):
+			keep.append(xfs[i])
+		xfs = keep
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = mesh
 	mm.instance_count = xfs.size()
 	for i in xfs.size():

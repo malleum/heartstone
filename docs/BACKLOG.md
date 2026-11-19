@@ -25,7 +25,7 @@ Ask the user before anything outward-facing (tags, the server).
 5. [x] (19 Nov) **Target other players in every mode.** Holding weaves (Shield, Bonds of Air)
    only fasten on foes outside PvP/Darkfriend (`Sim._aimed` uses `_targets` unless
    `df_mode`). Let them fasten on players in any mode; add a rules test.
-6. **Performance settings.** A frame cap (`Engine.max_fps`, default 60) and vsync on;
+6. [x] (19 Nov; fps not measured, only built and looked at) **Performance settings.** Done: 60 fps cap and vsync on (`--uncap` lifts them), camp menu "Picture quality" low/medium/high (render scale, shadow map, grass thinned), doorway view at half-ish size and refreshed every other frame when you are not close. Still to do: measure on Windows. A frame cap (`Engine.max_fps`, default 60) and vsync on;
    a quality choice in the camp menu (Settings: low/medium/high: render scale
    `get_viewport().scaling_3d_scale`, shadow distance, glow, grass density); the
    camp's doorway views (`camp.gd` `_portal` SubViewports) render only the nearest

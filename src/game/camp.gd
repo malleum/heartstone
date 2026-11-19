@@ -1048,6 +1048,9 @@ func _menu_fill() -> void:
 				Settings.story_open = true; Settings.save()
 				Toast.say("Later books opened", "Story so far can now be set past book 6, below.", "info", 5.0)
 				_menu_fill())
+	_button(menu_box, "Picture quality: %s" % Settings.QUALITY_NAMES[Settings.quality], func() -> void:
+		Settings.quality = (Settings.quality + 1) % 3
+		Settings.save(); Settings.apply(); _menu_fill())
 	if Settings.story_open:
 		_button(menu_box, "Story so far: %s" % ("all books" if Settings.story >= 14 else "through book 6"), func() -> void:
 			Settings.story = 6 if Settings.story >= 14 else 99
@@ -1667,10 +1670,14 @@ func _door_mat(d: Dictionary) -> ShaderMaterial:
 			return (c as MeshInstance3D).material_override
 	return null
 
+## The doorway view is drawn smaller than the screen (it is only a window).
+func _portal_scale() -> float:
+	return [0.5, 0.65, 0.8][clampi(Settings.quality, 0, 2)]
+
 func _open_way(d: Dictionary) -> void:
 	_close_way()
 	var vp := SubViewport.new(); vp.own_world_3d = true; vp.use_hdr_2d = true
-	vp.size = get_viewport().get_visible_rect().size
+	vp.size = Vector2i(get_viewport().get_visible_rect().size * _portal_scale())
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
 	# One game at a time on the server, everyone in it: whichever doorway you take
@@ -1733,7 +1740,9 @@ func _portal(dt: float) -> void:
 	if _pre.is_empty():
 		return
 	var g: Node3D = _pre.game
-	_pre.vp.size = get_viewport().get_visible_rect().size
+	_pre.vp.size = Vector2i(get_viewport().get_visible_rect().size * _portal_scale())
+	# Seen from afar the view is small and slow to notice: refresh it every other frame.
+	_pre.vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if (Engine.get_process_frames() % 2 == 0 or pos.distance_to(_pre.door.at) < 6.0) else SubViewport.UPDATE_DISABLED
 	if not g.portal_ready():
 		return
 	_pre.live = move_toward(_pre.live, 1.0, dt * 2.5)
