@@ -11,6 +11,7 @@ const TUNE := {
 	# Weave base numbers are written for this power: re-anchored when the scale went to
 	# 5% a level (17 Nov) so a typical starting roll (26) hits as hard as before.
 	ref_power = 10.64,
+	weave_scale = 0.8,
 	min_affinity = 0.12,       # per-flow floor to be able to form a weave at all
 	mastery_xp = 150.0,        # level = floor(sqrt(xp / this)), capped
 	mastery_cap = 10,
@@ -276,7 +277,9 @@ static func power(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
 
 ## Multiplier applied to a weave's base damage/heal/absorb numbers.
 static func scale(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
-	return power(p, weave_id, stamina) / TUNE.ref_power
+	# weave_scale: every weave's whole effect, turned down (18 Nov: a starting
+	# channeller near rank 30 was mowing down hordes).
+	return power(p, weave_id, stamina) / TUNE.ref_power * TUNE.weave_scale
 
 ## How readily the weave's Powers answer this character: affinity averaged over its
 ## flows by how many of each it uses (0.5 is ordinary).

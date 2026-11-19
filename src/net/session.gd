@@ -294,6 +294,17 @@ func _go_from(peer: int) -> void:
 	var r: Dictionary = _rooms.get(_room_of.get(peer, ""), {})
 	if not r.is_empty():
 		r.hold = false
+		# Through the doorway: this one is in the fight now (a body that was
+		# kept out of it while only looked at wakes), and keeps its place if
+		# the connection drops.
+		if not r.has("entered"): r.entered = {}
+		r.entered[peer] = true
+		if r.peers.has(peer) and r.sim.ents.has(r.peers[peer]):
+			r.sim.ents[r.peers[peer]].away = false
+		# Anyone else still only looking in stays out of it.
+		for other in r.peers:
+			if other != peer and not r.entered.has(other) and r.sim.ents.has(r.peers[other]):
+				r.sim.ents[r.peers[other]].away = true
 
 ## Spend a level-up on the tree: kind is weave, skill, form or weapon.
 func pick(kind: String, choice: String) -> void:
@@ -408,6 +419,14 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 	var spot := Vector3((r.peers.size() % 5 - 2) * 2.0, 0, 2.0)
 	r.peers[peer] = r.sim.add_player(their_profile, spot)
 	_room_of[peer] = room
+	# Only looking through a doorway at a fight already going: the body is there to
+	# be drawn from, but out of it (not hunted, not counted) until they step through.
+	if hold and not r.get("hold", false):
+		r.sim.ents[r.peers[peer]].away = true
+	elif not hold:
+		# Joined straight into the fight (no doorway to look through first): in it.
+		if not r.has("entered"): r.entered = {}
+		r.entered[peer] = true
 	_welcome.rpc_id(peer, r.peers[peer], r.activity)
 	# A latecomer missed the events that introduced everyone already on the field.
 	_events.rpc_id(peer, r.sim.roster())
@@ -581,7 +600,7 @@ func _on_left(peer: int) -> void:
 	var r: Dictionary = _rooms[room]
 	if r.peers.has(peer):
 		var ent: Dictionary = r.sim.ents[r.peers[peer]]
-		if not r.sim.over and ent.alive:
+		if not r.sim.over and ent.alive and r.get("entered", {}).has(peer):
 			# A dropped connection is not leaving: the body stands, out of reach,
 			# for AWAY_SECS, and the same name coming back takes it up again.
 			ent.away = true; ent.move = Vector3.ZERO
@@ -591,6 +610,7 @@ func _on_left(peer: int) -> void:
 		else:
 			ent.alive = false
 		r.peers.erase(peer)
+		r.get("entered", {}).erase(peer)
 	if dedicated and r.peers.is_empty() and not _awaited(room):
 		# Nobody is left in it: the next to ask for that room starts something fresh.
 		print("SERVER empty, %s abandoned" % r.activity)

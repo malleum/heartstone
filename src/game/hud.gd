@@ -225,7 +225,7 @@ func _draw() -> void:
 	var row := 0
 	for id in g.actors:
 		var a: Dictionary = g.actors[id]
-		if a.kind != "player" or id == g.session.my_id:
+		if a.kind != "player" or id == g.session.my_id or int(a.get("status", 0)) & 1048576:
 			continue
 		# On the left under your own name: the top right is where notices arrive,
 		# and "X is down" landed on top of X's own bar. In a battle, named in their

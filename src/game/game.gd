@@ -2091,6 +2091,10 @@ func _status(a: Dictionary, bits: int) -> void:
 	a.status = bits
 	if not is_instance_valid(a.node):
 		return
+	# Away (only looking in through a doorway, or dropped): not in the fight, not
+	# shown to the others.
+	if a.kind == "player" and a.get("id", -1) != session.my_id:
+		a.node.visible = not (bits & 1048576)
 	# Gone into shadow: not there to be seen.
 	# (A Draghkar out of reach is on the wing, and very much to be seen.)
 	if a.kind == "enemy" and not a.get("dead", false) and not a.has("wings"):

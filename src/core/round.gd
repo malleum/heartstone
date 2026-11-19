@@ -188,6 +188,9 @@ static func pick(p: Dictionary, choice_kind: String, id: String) -> String:
 		"weave":
 			if not p.weaves.has(id):
 				return "not a weave you know"
+			# Already mastered as far as it goes: no pick is spent on it.
+			if Rules.mastery_level(p, id) >= Rules.TUNE.mastery_cap:
+				return "already mastered"
 			# One level of mastery: the xp for the next level.
 			var lv := Rules.mastery_level(p, id) + 1
 			p.weaves[id].xp = maxf(p.weaves[id].xp, float(lv * lv) * Rules.TUNE.mastery_xp)

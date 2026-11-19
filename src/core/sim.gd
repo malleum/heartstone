@@ -2787,7 +2787,7 @@ func snapshot() -> Dictionary:
 				| (512 if e.get("charge", 0.0) > 0.0 else 0) | (1024 if e.get("daze", 0.0) > 0.0 else 0) \
 				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
 				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0) \
-				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t or e.get("afraid", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0)
+				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t or e.get("afraid", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0) | (1048576 if e.get("away", false) else 0)
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
 	var fx := []
 	for f in effects:

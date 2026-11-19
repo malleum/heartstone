@@ -436,9 +436,9 @@ func _enter(id: String) -> void:
 	# the same one. If the server cannot be reached the game says so and plays offline.
 	if reachable or cl.has("ghost"):
 		Toast.say("Joining the server…", "", "info", 3.0)
-		# One game at a time on the server, everyone in it: whichever doorway you
-		# take, you join the fight already running, if there is one.
-		_go({activity = id, join = Launch.server(), word = online.get("word", "")})
+		# One fight per doorway on the server (its room is the doorway's mode): the
+		# practice yard never shares a room with a wave fight.
+		_go({activity = id, join = Launch.server(), word = online.get("word", ""), room = String(id).split("@")[0]})
 	else:
 		Toast.say("Playing offline", "The server isn't answering, so this fight is on your machine alone.", "warn", 7.0)
 		_go({activity = id})
@@ -1682,7 +1682,7 @@ func _open_way(d: Dictionary) -> void:
 	if act != d.id:
 		Toast.say(Rules.activities[act].name, Rules.activities[act].blurb, "info", 5.0)
 	if (reachable or cl.has("ghost")) and not cl.has("offline"):
-		a.join = Launch.server(); a.word = online.get("word", "")
+		a.join = Launch.server(); a.word = online.get("word", ""); a.room = d.id
 	if cl.has("stroll"):
 		a.walk_in = "1"
 	Launch.args = a
