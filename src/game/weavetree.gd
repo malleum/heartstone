@@ -292,6 +292,8 @@ func _card(id: String) -> void:
 			lines.append(["You have seen it woven: half the work.", Color(0.7, 0.9, 0.75)])
 	if w.has("level"):
 		lines.append(["Needs strength %s, or the Talent" % Rules.level_name(int(w.level)), Color(0.7, 0.72, 0.8)])
+	if w.get("base", {}).has("drain"):
+		lines.append(["Drains the one Healed of stamina", Color(0.7, 0.72, 0.8)])
 	if w.get("hold", false):
 		lines.append(["Held: it occupies its flows while it lasts", Color(0.7, 0.72, 0.8)])
 	for l in lines:

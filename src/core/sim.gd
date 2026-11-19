@@ -204,7 +204,15 @@ func free_slots(p: Dictionary) -> int:
 func _aimed(p: Dictionary, w: Dictionary, aim: Vector3) -> int:
 	var best := 0; var best_d := 3.0
 	# With a Darkfriend among them, players can Shield and bind one another.
-	for e in (_struck(p) if df_mode else _targets(p)):
+	# Shielding and Bonds can fasten on anyone but yourself, friends included, in any mode.
+	var pool: Array = _struck(p) if df_mode else _targets(p)
+	if w.kind in ["sever", "bind"]:
+		pool = []
+		for id in ents:
+			var o: Dictionary = ents[id]
+			if o.alive and o.id != p.id and not o.get("gone", false):
+				pool.append(o)
+	for e in pool:
 		# (A Dreadlord channels, and can be cut off like anyone who does.)
 		if w.kind == "sever" and e.kind != "player" and not e.get("row", {}).get("channels", false):
 			continue
@@ -1630,11 +1638,10 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					best.downed = false
 					best.hp = 0.0
 					best.safe_until = t + 1.0
-					# Downing leaves a body at a fifth of its stamina; a Healing should not
-					# also leave the patient too winded to act.
-					best.stamina = maxf(best.get("stamina", 0.0), best.get("stamina_max", Rules.TUNE.stamina) * 0.6)
 					events.append({e = "revived", id = best.id, healed = true})
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
+				# In the books Healing wears out the one healed: it is paid from what they have left.
+				best.stamina = maxf(best.get("stamina", 0.0) - float(b.get("drain", 0.0)) * k, 0.0)
 				best.fester = 0.0
 				# Healing closes wounds, as rest cannot.
 				best.wound = maxf(best.get("wound", 0.0) - b.heal * k * 1.5, 0.0)

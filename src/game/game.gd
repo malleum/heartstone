@@ -391,9 +391,11 @@ func _aim_point() -> Vector3:
 	var best_miss := 1.4
 	# Healing is aimed at a friend; everything else at the Shadow.
 	var friendly: bool = not known.is_empty() and Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind == "heal"
+	# Shielding and Bonds may be fastened on anyone, players too.
+	var any_body: bool = not known.is_empty() and Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind in ["sever", "bind"]
 	for id in actors:
 		var a: Dictionary = actors[id]
-		if (a.kind == "player") != friendly or id == session.my_id or a.get("dead", false) or not is_instance_valid(a.node):
+		if ((a.kind == "player") != friendly and not any_body) or id == session.my_id or a.get("dead", false) or not is_instance_valid(a.node):
 			continue
 		var c: Vector3 = a.node.position + Vector3(0, 1.2, 0)
 		var along := (c - from).dot(dir)
@@ -411,7 +413,57 @@ func _aim_point() -> Vector3:
 	# Aiming at the sky is allowed: that is how a lofted weave is thrown far.
 	return from + dir * 60.0
 
+## The ground a weave will touch, drawn at the aim while it is being made: a disc
+## for what bursts, a strip for a line or lash, a wedge for a cone or a ring. Only
+## for my own weave, and not in pictures taken with --clean.
+var _area: MeshInstance3D
+var _area_key := ""
+func _area_preview() -> void:
+	var w: Dictionary = Rules.weaves.get(my_form.get("weave", ""), {}) if not my_form.is_empty() and me else {}
+	if w.is_empty() or args.has("clean"):
+		if _area: _area.visible = false
+		return
+	var b: Dictionary = w.base
+	var at := _aim_point()
+	var to := Vector2(at.x - me.position.x, at.z - me.position.z)
+	var yaw := atan2(to.x, to.y)
+	var mesh: Mesh = null
+	var origin := _ground(at)
+	var key := "%s" % w.get("name", "")
+	match w.kind:
+		"projectile", "strike", "blossom":
+			if not (b.has("radius") and float(b.radius) > 0.6):
+				if _area: _area.visible = false
+				return
+			mesh = Armsfx._band(-PI, PI, 0.0, float(b.radius), false, 32)
+		"line", "lash":
+			var span := minf(to.length(), float(b.range))
+			var pm := PlaneMesh.new(); pm.size = Vector2(float(b.width), span)
+			pm.center_offset = Vector3(0, 0, span * 0.5)
+			mesh = pm; origin = _ground(me.position); key += "%d" % int(span)
+		"cone":
+			mesh = Armsfx._band(-deg_to_rad(float(b.arc)), deg_to_rad(float(b.arc)), 0.5, float(b.range), false, 24)
+			origin = _ground(me.position)
+		"ring":
+			mesh = Armsfx._band(-deg_to_rad(float(b.arc)), deg_to_rad(float(b.arc)), 0.5, float(b.radius), false, 24)
+			origin = _ground(me.position)
+		_:
+			if _area: _area.visible = false
+			return
+	if _area == null:
+		_area = MeshInstance3D.new()
+		var sm := ShaderMaterial.new(); sm.shader = Armsfx.WARN
+		sm.set_shader_parameter("tint", Color(0.45, 0.75, 1.0)); sm.set_shader_parameter("fill", 1.0)
+		_area.material_override = sm
+		_area.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_area)
+	if key != _area_key or w.kind == "line" or w.kind == "lash":
+		_area.mesh = mesh; _area_key = key
+	_area.visible = true
+	_area.transform = Transform3D(Basis(Vector3.UP, yaw), origin + Vector3(0, 0.12, 0))
+
 func _process(dt: float) -> void:
+	_area_preview()
 	if controlled:
 		Wind.step(dt)
 		Debris.step(dt)

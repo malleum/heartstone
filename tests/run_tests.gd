@@ -109,9 +109,20 @@ func _powers() -> void:
 	var friend := sim.add_player(Profile.create({name = "Friend"}), Vector3(3, 0, 0))
 	sim._add_enemy("dummy", Vector3(60, 0, -60))
 	sim.ents[friend].hp = 20.0; sim.ents[friend].fester = 9.0; sim.ents[friend].fester_dps = 0.0
+	var st0: float = sim.ents[friend].stamina
 	check(sim.request_cast(id, "healing", sim.ents[friend].pos) == "", "Healing a friend is allowed")
 	run(sim, 3.5)   # weak in Spirit, the weaving takes longer
 	check(sim.ents[friend].hp > 50.0 and sim.ents[friend].fester == 0.0, "it mends them and ends the festering")
+	check(sim.ents[friend].stamina < st0 - 100.0, "and wears the one Healed: they lose stamina")
+
+func _fasten_players() -> void:
+	print("== Bonds of Air can fasten on a player in any mode")
+	var sim := Sim.new("practice", 3)
+	sim._waves = []
+	var a := sim.add_player(Profile.create({name = "A"}), Vector3(0, 0, 0))
+	var b := sim.add_player(Profile.create({name = "B"}), Vector3(5, 0, 0))
+	check(sim._aimed(sim.ents[a], Rules.weaves.bonds_of_air, sim.ents[b].pos) == b, "a held weave fastens on another player outside a Darkfriend round")
+	check(sim._aimed(sim.ents[a], Rules.weaves.fireball, sim.ents[b].pos) == 0, "but a striking weave does not")
 
 func _foes() -> void:
 	print("== walls, archers and the Eyeless")
@@ -1434,6 +1445,7 @@ func _init() -> void:
 
 	_arms()
 	_holds()
+	_fasten_players()
 	_foes()
 	_powers()
 	_playtest()

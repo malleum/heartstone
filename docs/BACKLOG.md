@@ -16,15 +16,13 @@ Ask the user before anything outward-facing (tags, the server).
 2. [x] (19 Nov) **Double starting health.** Done: classes and endurance doubled, Healing's heal doubled to match, snapshots carry max hp so other players' bars read right. `Rules.CLASSES` hp (channeller 100, warder 180, aiel
    150, hunter 160): double them; run `tools/test.sh` (fighter trials should get
    easier, not break); check the downed and death thresholds still read right.
-3. [x] (19 Nov) **Healing costs the patient less.** Done differently: Healing took nothing from the patient; a revived body kept the 20% stamina of being downed. A Healing now restores it to at least 60%. Find where Healing takes stamina from the one
-   Healed (`Sim`, the heal kind); make it small (or none) and keep the Healer's
-   cost; say so on the weave card (weavetree `_card`).
-4. **Show a weave's area on the ground while it is being woven.** Reuse
+3. [x] (19 Nov) **Healing costs the patient** (corrected by Josh: in the books it is physically draining on the one healed): Healing takes `base.drain` (250 of 1500) stamina from the patient, scaled by weave strength; the Healer's cost is unchanged; on the weave card.
+4. [x] (19 Nov) **Show a weave's area on the ground while it is being woven.** Reuse
    `Armsfx.telegraph`-style ground marks: while the player holds a weave (game.gd,
    `my_form` / `_aim_point()`), draw its burst radius (projectiles: `base.radius`),
    a wedge (Rolling Ring), a line (Heave, Lash) at the aim; only for the player's
    own weave; hidden with `--clean`. Render it.
-5. **Target other players in every mode.** Holding weaves (Shield, Bonds of Air)
+5. [x] (19 Nov) **Target other players in every mode.** Holding weaves (Shield, Bonds of Air)
    only fasten on foes outside PvP/Darkfriend (`Sim._aimed` uses `_targets` unless
    `df_mode`). Let them fasten on players in any mode; add a rules test.
 6. **Performance settings.** A frame cap (`Engine.max_fps`, default 60) and vsync on;
