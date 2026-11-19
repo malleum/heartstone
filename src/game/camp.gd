@@ -493,11 +493,16 @@ func _doors() -> void:
 func _sync(name_: String, local: Dictionary) -> void:
 	if online.get("key", "") == "":
 		return
-	var old := get_tree().root.get_node_or_null("Session")
-	if old:
-		old.free()
+	# One connection at a time, and never by freeing another's: a doorway's fight
+	# loaded just now is left alone, and the character is kept a little later.
+	if get_tree().root.get_node_or_null("Session") != null:
+		get_tree().create_timer(5.0).timeout.connect(func() -> void: _sync(name_, local))
+		return
 	var s := Session.new()
-	get_tree().root.add_child(s)
+	# (Deferred, and waited for: at start the root may still be setting up its
+	# children, and a Session outside the tree has no multiplayer to connect with.)
+	get_tree().root.add_child.call_deferred(s)
+	await get_tree().process_frame
 	# The lambdas below may run after the Session is gone (the time-out always
 	# does), so they hold its id, not the node.
 	var sid := s.get_instance_id()
@@ -826,11 +831,19 @@ func _poll_lobby(dt: float) -> void:
 		return
 	# Quick while a friend is about, so they are seen walking, not jumping; slow
 	# otherwise, just to notice someone arriving.
-	_lobby_t = 1.5 if not others.is_empty() or not in_camp.is_empty() else 4.0
+	# Over the camp link when it is up (no new connection at all); a connection of
+	# its own only when it is down, and rarely: one built and thrown away every few
+	# seconds is what crashed the camp after a few minutes.
+	_lobby_t = 4.0 if _linked() else 12.0
 	var where := {}
 	if model and not creating:
 		where = {x = pos.x, z = pos.z, yaw = face, kind = String(model.get_meta("kind", "")), style = profile.get("style", {})}
 	var word: String = online.get("word", "")
+	if _linked():
+		if _link.ask_here(word, profile.get("name", ""), where):
+			if not _link.lobby.is_connected(_heard_link):
+				_link.lobby.connect(_heard_link)
+		return
 	var busy := get_tree().root.get_node_or_null("Session") as Session
 	if busy != null:
 		# A doorway's fight is loaded. Joined to the server, it asks over that
@@ -846,12 +859,17 @@ func _poll_lobby(dt: float) -> void:
 		var live := instance_from_id(sid) as Session
 		if live == null:
 			return
+		if live.multiplayer.multiplayer_peer:
+			live.multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = null
 		live.queue_free()
 		_heard(list, answered)
 	s.lobby.connect(func(list: Array) -> void: done.call(list, true))
 	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights, false))
 	s.ask_lobby(Launch.server(), word, profile.get("name", ""), where)
+
+func _heard_link(list: Array) -> void:
+	_heard(list, true)
 
 ## The server's answer: who it is, who is fighting what, who is in their camp and
 ## where they stand.

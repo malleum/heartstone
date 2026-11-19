@@ -57,6 +57,14 @@ static func engine() -> String:
 ## At start: a newer downloaded pack waiting, and not already running it? Restart
 ## into it. True if the game is restarting (the caller should stop).
 static func boot(tree: SceneTree) -> bool:
+	# Off: Godot's official release builds refuse --main-pack ("compiled without
+	# support for path overrides") and abort, so a downloaded pack made every
+	# launch die within a second. A pack left from before is cleared, and newer
+	# versions are announced instead (check) for a fresh download.
+	if FileAccess.file_exists(DIR + "/current.json"):
+		DirAccess.remove_absolute(DIR + "/current.json")
+	return false
+	@warning_ignore("unreachable_code")
 	if tag() == "" or OS.get_cmdline_args().has("--main-pack"):
 		return false
 	var meta := _meta()
@@ -100,10 +108,8 @@ static func check(host: Node, idle: Callable) -> void:
 		for a in rel.get("assets", []):
 			if a.get("name", "") == want:
 				url = a.browser_download_url
-		if url == "":
-			Toast.say("A new version: %s" % newest, "It needs a fresh download: github.com/%s/releases" % REPO, "warn", 12.0)
-			return
-		_download(host, url, newest, idle))
+		# (Not downloaded and swapped in: see boot. Said, with where to get it.)
+		Toast.say("A new version: %s" % newest, "Download it from github.com/%s/releases/latest and replace this one." % REPO, "warn", 14.0))
 	req.request("https://api.github.com/repos/%s/releases/latest" % REPO, ["User-Agent: heartstone-updater", "Accept: application/vnd.github+json"])
 
 static func _download(host: Node, url: String, new_tag: String, idle: Callable) -> void:
