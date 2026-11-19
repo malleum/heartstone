@@ -10,13 +10,13 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 Each is local, has a pattern to copy, and is easy to check. Follow CLAUDE.md: check,
 `tools/test.sh`, render and look, update the docs, commit and push, rebuild `dist/`.
 Ask the user before anything outward-facing (tags, the server).
-1. **Rolling Ring: less area and damage** (both forms). `data/weaves.json` row
+1. [x] (19 Nov, Sonnet) **Rolling Ring: less area and damage** (both forms). `data/weaves.json` row
    `rolling_ring`: lower its width/range and damage (try two-thirds); render it
    with `tools/weave.sh rolling_ring` (DEMO=14) and look.
-2. **Double starting health.** `Rules.CLASSES` hp (channeller 100, warder 180, aiel
+2. [x] (19 Nov) **Double starting health.** Done: classes and endurance doubled, Healing's heal doubled to match, snapshots carry max hp so other players' bars read right. `Rules.CLASSES` hp (channeller 100, warder 180, aiel
    150, hunter 160): double them; run `tools/test.sh` (fighter trials should get
    easier, not break); check the downed and death thresholds still read right.
-3. **Healing costs the patient less.** Find where Healing takes stamina from the one
+3. [x] (19 Nov) **Healing costs the patient less.** Done differently: Healing took nothing from the patient; a revived body kept the 20% stamina of being downed. A Healing now restores it to at least 60%. Find where Healing takes stamina from the one
    Healed (`Sim`, the heal kind); make it small (or none) and keep the Healer's
    cost; say so on the weave card (weavetree `_card`).
 4. **Show a weave's area on the ground while it is being woven.** Reuse

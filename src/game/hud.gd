@@ -235,7 +235,7 @@ func _draw() -> void:
 		if g.in_battle:
 			col = Color(0.55, 0.75, 1.0) if int(a.get("team", 0)) == g.my_team else Color(1.0, 0.5, 0.45)
 		Glyph.text(self, serif, at, a.get("name", "?"), 17, col if not a.get("dead", false) else Color(0.6, 0.5, 0.5))
-		Glyph.bar(self, at + Vector2(0, 8), 200, 8, 0.0 if a.get("dead", false) else a.get("hp", 100.0) / 100.0, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
+		Glyph.bar(self, at + Vector2(0, 8), 200, 8, 0.0 if a.get("dead", false) else a.get("hp", 100.0) / a.get("max_hp", 100.0), Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
 		row += 1
 
 func _vignette(col: Color, depth: float) -> void:

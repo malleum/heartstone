@@ -82,15 +82,15 @@ const TUNE := {
 ## dodge_cost, safe (untouchable time) and speed are multipliers. kit: what a new
 ## character of the class carries unless they choose otherwise.
 const CLASSES := {
-	channeller = {name = "Channeller", skill_cap = 4, guard = 0.8, dodge_cost = 1.6, safe = 0.75, speed = 1.0, carry = 1, kit = [], hp = 100.0, armour = 0.0},
-	warder = {name = "Warder", skill_cap = 10, guard = 1.15, dodge_cost = 1.0, safe = 1.0, speed = 1.0, carry = 3, kit = ["sword", "horse_bow", "belt_knife"], hp = 180.0, armour = 0.3},
-	aiel = {name = "Aiel", skill_cap = 10, guard = 1.0, dodge_cost = 0.75, safe = 1.2, speed = 1.12, carry = 3, kit = ["aiel_spear", "aiel_knife", "horn_bow"], hp = 150.0, armour = 0.1},
-	hunter = {name = "Hunter of the Horn", skill_cap = 9, guard = 0.95, dodge_cost = 0.9, safe = 1.0, speed = 1.04, carry = 3, kit = ["quarterstaff", "longbow", "throwing_knives"], hp = 160.0, armour = 0.2},
+	channeller = {name = "Channeller", skill_cap = 4, guard = 0.8, dodge_cost = 1.6, safe = 0.75, speed = 1.0, carry = 1, kit = [], hp = 200.0, armour = 0.0},
+	warder = {name = "Warder", skill_cap = 10, guard = 1.15, dodge_cost = 1.0, safe = 1.0, speed = 1.0, carry = 3, kit = ["sword", "horse_bow", "belt_knife"], hp = 360.0, armour = 0.3},
+	aiel = {name = "Aiel", skill_cap = 10, guard = 1.0, dodge_cost = 0.75, safe = 1.2, speed = 1.12, carry = 3, kit = ["aiel_spear", "aiel_knife", "horn_bow"], hp = 300.0, armour = 0.1},
+	hunter = {name = "Hunter of the Horn", skill_cap = 9, guard = 0.95, dodge_cost = 0.9, safe = 1.0, speed = 1.04, carry = 3, kit = ["quarterstaff", "longbow", "throwing_knives"], hp = 320.0, armour = 0.2},
 }
 ## hp: how much a body of that calling can take. armour: share of every blow
 ## turned by what they wear (a Warder's mail, a Hunter's leather, cadin'sor).
 static func max_hp(p: Dictionary) -> float:
-	return cls(p).hp + 6.0 * stat(p, "endurance")
+	return cls(p).hp + 12.0 * stat(p, "endurance")
 const FAMILIES: Array[String] = ["sword", "knife", "spear", "staff", "axe", "bow", "thrown", "hand"]
 
 static var weaves: Dictionary = {}

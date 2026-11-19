@@ -2062,6 +2062,7 @@ func _on_snapshot(s: Dictionary) -> void:
 			_ghost_st = int(e[6]) & (16 | 32)
 			print("GHOST %d status guard=%s duck=%s" % [frame, _ghost_st & 16 != 0, _ghost_st & 32 != 0])
 		a.hp = e[4]
+		if e.size() > 8: a.max_hp = e[8]
 		if id == session.my_id:
 			if e[4] < my_hp - 0.5:
 				hurt_t = 1.0
@@ -2315,7 +2316,7 @@ func _draw_heal_mark() -> void:
 		for id in actors:
 			var a: Dictionary = actors[id]
 			if a.kind == "player" and id != session.my_id and not a.get("dead", false) and is_instance_valid(a.node) and Vector2(a.node.position.x - at.x, a.node.position.z - at.z).length() < reach:
-				var share: float = a.get("hp", 100.0) / 100.0
+				var share: float = a.get("hp", 100.0) / a.get("max_hp", 100.0)
 				if share < worst:
 					worst = share; who = id
 	if who == 0:

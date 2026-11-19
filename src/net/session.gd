@@ -778,8 +778,8 @@ func _welcome(ent: int, activity_id: String) -> void:
 @rpc("authority", "unreliable_ordered")
 func _snap(t: float, flat: PackedFloat32Array, fx: Array, meter: Array = []) -> void:
 	var es := []
-	for i in range(0, flat.size(), 8):
-		es.append([int(flat[i]), flat[i + 1], flat[i + 2], flat[i + 3], flat[i + 4], flat[i + 5], int(flat[i + 6]), flat[i + 7]])
+	for i in range(0, flat.size(), 9):
+		es.append([int(flat[i]), flat[i + 1], flat[i + 2], flat[i + 3], flat[i + 4], flat[i + 5], int(flat[i + 6]), flat[i + 7], flat[i + 8]])
 	snapshot.emit({t = t, ents = es, fx = fx, round = meter})
 
 @rpc("authority", "reliable")

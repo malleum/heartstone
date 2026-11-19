@@ -1630,6 +1630,9 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					best.downed = false
 					best.hp = 0.0
 					best.safe_until = t + 1.0
+					# Downing leaves a body at a fifth of its stamina; a Healing should not
+					# also leave the patient too winded to act.
+					best.stamina = maxf(best.get("stamina", 0.0), best.get("stamina_max", Rules.TUNE.stamina) * 0.6)
 					events.append({e = "revived", id = best.id, healed = true})
 				best.hp = minf(best.hp + b.heal * k, best.max_hp)
 				best.fester = 0.0
@@ -2788,7 +2791,7 @@ func snapshot() -> Dictionary:
 				| (2048 if not e.get("forming", {}).is_empty() else 0) | (4096 if e.get("wet", 0.0) > 0.0 else 0) | (8192 if e.get("gone", false) else 0) | (16384 if e.get("drawing", false) else 0) \
 				| (32768 if e.get("entranced", 0.0) > t else 0) | (65536 if e.get("severed", 0.0) > t and e.kind == "enemy" else 0) \
 				| (131072 if e.get("chained", 0.0) > t else 0) | (262144 if e.get("shaken", 0.0) > t or e.get("afraid", 0.0) > t else 0) | (524288 if e.get("downed", false) else 0) | (1048576 if e.get("away", false) else 0)
-			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0)])
+			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0), e.max_hp])
 	var fx := []
 	for f in effects:
 		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0)])
