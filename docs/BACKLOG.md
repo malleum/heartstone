@@ -244,6 +244,9 @@ are what the 4:44 review, or the next session, should pick up.
 - [x] Gateway: the edges cut (17 Nov) and Darkfriends open one (17 Nov).
 - [x] Healing with two people (18 Nov): tested in the rules; Healing a downed friend
   brings them back up.
+- [ ] (21 Nov) `tools/ghost.sh` place: the check that the wheel turned a gateway's far end
+  (`gate_open turn=0.2x`) failed once in a full run and passed alone: the turn depends on
+  how many wheel notches land before the end is set. Make the script wait for the turn.
 - [ ] Movement prediction is built but has only run on one machine, where there
   is no delay to hide. It needs a real connection to judge.
 - [x] Darkhounds, Draghkar and Dreadlords (15 Nov): see ARCHITECTURE "More
