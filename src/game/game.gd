@@ -414,53 +414,100 @@ func _aim_point() -> Vector3:
 	return from + dir * 60.0
 
 ## The ground a weave will touch, drawn at the aim while it is being made: a disc
-## for what bursts, a strip for a line or lash, a wedge for a cone or a ring. Only
-## for my own weave, and not in pictures taken with --clean.
+## for what bursts, a strip for a line or lash, a wedge for a cone or a ring. Sized
+## as the sim sizes it (grows with the weave's strength), laid over the ground's
+## own bumps, in the weave's colours. Only my own weave; not in --clean pictures.
 var _area: MeshInstance3D
-var _area_key := ""
+var _area_mat: ShaderMaterial
 func _area_preview() -> void:
 	var w: Dictionary = Rules.weaves.get(my_form.get("weave", ""), {}) if not my_form.is_empty() and me else {}
 	if w.is_empty() or args.has("clean"):
 		if _area: _area.visible = false
 		return
 	var b: Dictionary = w.base
+	var k := Rules.scale(profile, my_form.weave, my_stamina) if not profile.is_empty() else 1.0
+	var kr := clampf(sqrt(k), 0.5, 2.2)
 	var at := _aim_point()
-	var to := Vector2(at.x - me.position.x, at.z - me.position.z)
-	var yaw := atan2(to.x, to.y)
-	var mesh: Mesh = null
-	var origin := _ground(at)
-	var key := "%s" % w.get("name", "")
+	var feet := Vector3(me.position.x, 0, me.position.z)
+	var to := Vector3(at.x, 0, at.z) - feet
+	var yaw := atan2(to.x, to.z) if to.length() > 0.1 else me.rotation.y
+	var mesh: ArrayMesh
+	var sides := 1.0
 	match w.kind:
-		"projectile", "strike", "blossom":
-			if not (b.has("radius") and float(b.radius) > 0.6):
+		"projectile", "strike":
+			if float(b.get("radius", 0.0)) < 0.6:
 				if _area: _area.visible = false
 				return
-			mesh = Armsfx._band(-PI, PI, 0.0, float(b.radius), false, 32)
+			var reach: float = float(b.get("range", 1e9)) * kr
+			var c := feet + to.limit_length(reach)
+			mesh = _ground_sector(c, 0.0, float(b.radius) * kr, -PI, PI, 0.0, 40)
+			sides = 0.0
+		"blossom":
+			var c := feet + to.limit_length(float(b.range))
+			mesh = _ground_sector(c, 0.0, clampf(float(b.radius) * sqrt(k), float(b.radius_min), float(b.radius_max)), -PI, PI, 0.0, 48)
+			sides = 0.0
 		"line", "lash":
-			var span := minf(to.length(), float(b.range))
-			var pm := PlaneMesh.new(); pm.size = Vector2(float(b.width), span)
-			pm.center_offset = Vector3(0, 0, span * 0.5)
-			mesh = pm; origin = _ground(me.position); key += "%d" % int(span)
+			mesh = _ground_strip(feet, yaw, float(b.width) * kr * 2.0, float(b.range) * kr)
+		"surge":
+			mesh = _ground_strip(feet, yaw, float(b.width) * kr * 2.0, minf(to.length(), float(b.range) * kr))
 		"cone":
-			mesh = Armsfx._band(-deg_to_rad(float(b.arc)), deg_to_rad(float(b.arc)), 0.5, float(b.range), false, 24)
-			origin = _ground(me.position)
+			var arc := deg_to_rad(float(b.arc))
+			mesh = _ground_sector(feet, 0.6, float(b.range) * kr, -arc, arc, yaw, 24)
 		"ring":
-			mesh = Armsfx._band(-deg_to_rad(float(b.arc)), deg_to_rad(float(b.arc)), 0.5, float(b.radius), false, 24)
-			origin = _ground(me.position)
+			var arc := deg_to_rad(float(b.get("arc", 180.0)))
+			mesh = _ground_sector(feet, 0.6, float(b.radius) * kr, -arc, arc, yaw, 28)
 		_:
 			if _area: _area.visible = false
 			return
 	if _area == null:
 		_area = MeshInstance3D.new()
-		var sm := ShaderMaterial.new(); sm.shader = Armsfx.WARN
-		sm.set_shader_parameter("tint", Color(0.45, 0.75, 1.0)); sm.set_shader_parameter("fill", 1.0)
-		_area.material_override = sm
+		_area_mat = ShaderMaterial.new(); _area_mat.shader = load("res://shaders/aim.gdshader")
+		_area.material_override = _area_mat
 		_area.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_area)
-	if key != _area_key or w.kind == "line" or w.kind == "lash":
-		_area.mesh = mesh; _area_key = key
+	var col := Weavefx.colour(my_form.weave).lerp(Color.WHITE, 0.12)
+	_area_mat.set_shader_parameter("tint", col)
+	_area_mat.set_shader_parameter("sides", sides)
+	_area_mat.set_shader_parameter("dashes", 32.0 if sides == 0.0 else 14.0)
+	_area_mat.set_shader_parameter("ready", 1.0 if my_form.get("ready", false) else 0.0)
+	_area.mesh = mesh
 	_area.visible = true
-	_area.transform = Transform3D(Basis(Vector3.UP, yaw), origin + Vector3(0, 0.12, 0))
+
+## A ring sector laid on the ground (world space, a little above it): r0..r1 out
+## from c, angles a0..a1 about `yaw`. UV.x across the angle, UV.y outward.
+func _ground_sector(c: Vector3, r0: float, r1: float, a0: float, a1: float, yaw: float, segs: int) -> ArrayMesh:
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var base := Terrain.height(c.x, c.z)
+	var rings := maxi(int((r1 - r0) / 1.2), 3)
+	for i in segs:
+		for j in rings:
+			var q := []
+			for d in [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+				var u: float = float(d[0]) / segs; var v: float = float(d[1]) / rings
+				var a: float = yaw + lerpf(a0, a1, u); var r: float = lerpf(r0, r1, v)
+				var p := c + Vector3(sin(a) * r, 0, cos(a) * r)
+				var gy := Terrain.height(p.x, p.z)
+				q.append([Vector3(p.x, gy + 0.1, p.z), Vector2(u, v), 1.0 - smoothstep(1.2, 2.6, gy - base)])
+			for n in [0, 1, 2, 0, 2, 3]:
+				st.set_color(Color(1, 1, 1, q[n][2])); st.set_uv(q[n][1]); st.add_vertex(q[n][0])
+	return st.commit()
+
+## A strip of ground from `from` along `yaw`, `width` across and `length` long.
+func _ground_strip(from: Vector3, yaw: float, width: float, length: float) -> ArrayMesh:
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var fwd := Vector3(sin(yaw), 0, cos(yaw)); var side := Vector3(fwd.z, 0, -fwd.x)
+	var base := Terrain.height(from.x, from.z)
+	var steps := maxi(int(length / 0.8), 2)
+	for j in steps:
+		var q := []
+		for d in [[0, j], [1, j], [1, j + 1], [0, j + 1]]:
+			var u: float = d[0]; var v: float = float(d[1]) / steps
+			var p := from + fwd * lerpf(0.6, length, v) + side * (u - 0.5) * width
+			var gy := Terrain.height(p.x, p.z)
+			q.append([Vector3(p.x, gy + 0.1, p.z), Vector2(u, v), 1.0 - smoothstep(1.2, 2.6, gy - base)])
+		for n in [0, 1, 2, 0, 2, 3]:
+			st.set_color(Color(1, 1, 1, q[n][2])); st.set_uv(q[n][1]); st.add_vertex(q[n][0])
+	return st.commit()
 
 func _process(dt: float) -> void:
 	_area_preview()
@@ -576,6 +623,13 @@ func _process(dt: float) -> void:
 		var dyaw: float = dp.yaw + deg_to_rad(float(spot[1]) if spot.size() > 1 else 0.0)
 		if Rules.weaves.has(dweave):
 			session.sim._cast(dp, dweave, dp.pos + Vector3(sin(dyaw), 0, cos(dyaw)) * float(spot[0]) + Vector3(0, 1.0, 0))
+	# --demo2=weave:metres: a second weave, woven 40 frames after each --demo one (a
+	# fireball at a Wall of Water, say).
+	if args.has("demo2") and frame % dgap == (140) % dgap and session.is_host and me:
+		var dp2: Dictionary = session.sim.ents[session.my_id]
+		var d2: PackedStringArray = String(args.demo2).split(":")
+		if Rules.weaves.has(d2[0]):
+			session.sim._cast(dp2, d2[0], dp2.pos + Vector3(sin(dp2.yaw), 0, cos(dp2.yaw)) * float(d2[1] if d2.size() > 1 else "16") + Vector3(0, 1.0, 0))
 	# --dreamdemo: the player works through the dream moves one after another at
 	# whoever is nearest, so each can be looked at in a render.
 	if args.has("dreamdemo") and frame % 75 == 40 and session.is_host and me and session.sim.dream:
@@ -615,6 +669,8 @@ func _process(dt: float) -> void:
 				want += cam_shift
 				cam_shift = Vector3.ZERO; cam_gate = {}
 		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
+		# Never under a pond's surface (the ground is dipped beneath it).
+		want.y = maxf(want.y, Map.water_y(want.x, want.z) + 0.4)
 		# Trauma-squared shake: small hits barely register, big ones kick.
 		shake = maxf(shake - dt * 1.8, 0.0)
 		var k := shake * shake
@@ -1784,7 +1840,7 @@ func _on_events(list: Array) -> void:
 				if fx.has(e.fx):
 					Weavefx.curtain_end(fx[e.fx]); fx.erase(e.fx)
 			"drowned":
-				Weavefx._once(Weavefx._particles(Color(0.7, 0.85, 1.0), 40, 0.7, 0.2, 3.0, -4.0, 120.0, false), self, e.pos)
+				Weavefx.drowned(self, e.pos)
 			"gate_open":
 				fx[e.id] = Weavefx.gate(self, e.a, e.b, e.get("flat_a", false), e.get("sky", 0.0))
 				_open_window(fx[e.id])

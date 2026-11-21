@@ -35,7 +35,7 @@ Ask the user before anything outward-facing (tags, the server).
    map water first (data, drawing, walking), then Torrent, then Wall of Water. Ask
    the user to rule on the book numbers and where the water goes on each map.
 8. **Screenshots on request** with the picture flags in CLAUDE.md.
-**For Opus, later: review the water weaves** (Torrent, Wall of Water, map water; built by Sonnet 19 Nov, see WEAVES.md "Water from water"): the look of the crest, wall and water at night, strength and balance, the wall's shape toggle, water seen in doorway views, where the water sits on each map, the book numbers.
+[x] (20 Nov, Opus) **Review of Sonnet's visuals**: the weave area mark rebuilt (follows the ground, fades up cliffs, sized by strength as the sim sizes it, the weave's colours, marching rim; a line weave's strip runs its full range); water redone (depth-faded soft edge and foam, deeper is darker, ripples no longer a checkerboard, the wet bank drawn by the ground shader, the camera kept above the surface, no trees or stones in water); Torrent is a curling white-capped wave with fine spray that breaks at the end; Wall of Water is a refracting falling sheet with threads and splash at its foot; a fireball in the wall goes out in steam with a hiss (it had still been bursting: the sim's skip never applied, and the test now checks for no burst); new sounds hiss and surge. Still open for water: the wall's shape toggle key, balance by play, the user's ruling on books and placement.
 Not for a lighter model (kept for Opus): the doorway world mismatch, the camp link
 lifecycle, prepared/multiple weaves and the weave bar, gateway placement, held
 Balefire, diagnosing Windows performance, balance by play.

@@ -2,6 +2,11 @@ shader_type spatial;
 // Borderland ground, entirely from world-space noise (no UVs, no textures): dry and
 // sickly grass over dirt, a trampled road, layered cliff rock, snow on the heights.
 uniform float road = 0.0;   // half-width of the worn track along z through x = 0; 0 for none
+// Water on the map (Map.water, up to four): each a capsule x1, z1, x2, z2 and its
+// radius. The bank round it is dark and wet, glossier, fading out over two metres.
+uniform vec4 water_seg[4];
+uniform float water_r[4];
+uniform int water_n = 0;
 varying vec3 wp;
 varying vec3 wn;
 
@@ -75,8 +80,17 @@ void fragment() {
 	float snow = smoothstep(24.0, 34.0, wp.y + fbm(wp.xz * 0.2) * 9.0) * (1.0 - smoothstep(0.35, 0.7, slope + (fine - 0.5) * 0.2));
 	c = mix(c, vec3(0.78, 0.8, 0.84), snow);
 
+	float wet = 0.0;
+	for (int i = 0; i < water_n; i++) {
+		vec2 a = water_seg[i].xy; vec2 b = water_seg[i].zw;
+		vec2 ab = b - a;
+		float tt = dot(ab, ab) < 1e-4 ? 0.0 : clamp(dot(wp.xz - a, ab) / dot(ab, ab), 0.0, 1.0);
+		float d = length(wp.xz - (a + ab * tt)) - water_r[i];
+		wet = max(wet, 1.0 - smoothstep(-0.2, 2.2 + (fine - 0.5) * 1.2, d));
+	}
+	c = mix(c, c * vec3(0.42, 0.4, 0.36), wet);
 	ALBEDO = c;
-	ROUGHNESS = mix(0.96, 0.7, snow);
+	ROUGHNESS = mix(mix(0.96, 0.7, snow), 0.45, wet);
 	float h = fine - rmk * (ledge * 0.5 + crack * 0.8 - strata * 0.8);
 	vec3 dpx = dFdx(VERTEX), dpy = dFdy(VERTEX);
 	vec3 r1 = cross(dpy, NORMAL), r2 = cross(NORMAL, dpx);

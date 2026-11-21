@@ -54,6 +54,14 @@ static func build_mesh(size: float, step: float, tree: SceneTree = null) -> Mesh
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/ground.gdshader")
+	# The wet banks round the map's water (the ground shader darkens them).
+	var segs := []; var rs := []
+	for w: Dictionary in Map.water().slice(0, 4):
+		segs.append(Vector4(w.x1, w.z1, w.x2, w.z2)); rs.append(w.r)
+	while segs.size() < 4:
+		segs.append(Vector4.ZERO); rs.append(0.0)
+	mat.set_shader_parameter("water_seg", segs); mat.set_shader_parameter("water_r", PackedFloat32Array(rs))
+	mat.set_shader_parameter("water_n", mini(Map.water().size(), 4))
 	mesh.surface_set_material(0, mat)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh

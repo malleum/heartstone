@@ -28,6 +28,10 @@ static func load_and_apply() -> void:
 			volume = clampf(float(d.get("volume", volume)), 0.0, 1.0)
 			quality = clampi(int(d.get("quality", quality)), 0, 2)
 			story = int(d.get("story", story)); story_open = bool(d.get("story_open", story_open))
+	# --quality=0|1|2 for a picture of one level, without touching the saved choice.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--quality="):
+			quality = clampi(int(a.get_slice("=", 1)), 0, 2)
 	apply()
 
 static func apply() -> void:

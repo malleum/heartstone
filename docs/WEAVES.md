@@ -332,7 +332,9 @@ Torrent (`surge`, book 1, needs Lash of Water) and Wall of Water (`curtain`, boo
 held; needs Lash and Hammer of Air). `Sim.WATER_REACH` 25 m: full strength near water,
 half away from it. The wall curves round the caster when aimed within 4.5 m and
 stands flat across the aim otherwise (no toggle key yet). Tests: `_water` in
-`tests/run_tests.gd`. Left: a toggle key for the wall's shape, a wall weave of Air,
+`tests/run_tests.gd`. Visuals reviewed 20 Nov: `water.gdshader` (depth-faded edge,
+foam), wet banks in `ground.gdshader`, `wave.gdshader` (Torrent), `curtain.gdshader`
+(the wall, refracting), `Weavefx.drowned`. Left: a toggle key for the wall's shape, a wall weave of Air,
 water seen in the doorway views, puddles reading on the ground at night, per-map
 placement for the user to rule on.
 

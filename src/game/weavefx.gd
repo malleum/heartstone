@@ -153,63 +153,121 @@ static func _once(p: GPUParticles3D, g: Node3D, at: Vector3) -> void:
 	g.add_child(p); p.position = at; p.emitting = true
 	g.get_tree().create_timer(p.lifetime + 0.3).timeout.connect(p.queue_free)
 
-## Torrent: a crest of water runs from where it was drawn out to the aim, throwing
-## spray, and the water it was taken from is churned where it left.
+## Torrent: a wave of water rises where it was drawn from (the pond's edge, or the
+## caster's feet, thinly, far from water) and runs along the ground to the aim,
+## curling over at the top, throwing fine spray, and breaks at the end of its run.
 static func surge(g: Node3D, e: Dictionary) -> void:
-	var water := TINT.water.lerp(Color(0.5, 0.8, 1.0), 0.35)
 	var o: Vector3 = g._ground(e.origin)
-	var secs: float = maxf(float(e.len) / maxf(float(e.speed), 1.0), 0.1)
-	var sm := SphereMesh.new(); sm.radius = 1.0; sm.height = 2.0; sm.radial_segments = 14; sm.rings = 7
-	var crest := MeshInstance3D.new(); crest.mesh = sm
-	var cm := StandardMaterial3D.new()
-	cm.albedo_color = Color(water.r * 0.7, water.g * 0.85, water.b, 0.5); cm.roughness = 0.08; cm.metallic = 0.3
-	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; cm.emission_enabled = true; cm.emission = water * 0.25
-	crest.material_override = cm
-	crest.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	g.add_child(crest)
-	crest.scale = Vector3(1.3, 0.75, 1.6)
-	crest.look_at_from_position(o + Vector3(0, 0.6, 0), o + Vector3(0, 0.6, 0) + e.dir, Vector3.UP)
-	_once(_particles(water.lerp(Color.WHITE, 0.4), 80, 0.9, 0.22, 7.0, -9.0, 70.0, false), g, o + Vector3(0, 0.5, 0))
-	Sfx.play(g, "rumble", o, 2.0)
+	var secs: float = maxf(float(e.len) / maxf(float(e.speed), 1.0), 0.15)
+	var hgt: float = 1.7 if e.get("full", true) else 1.0
+	var wid: float = 6.0 if e.get("full", true) else 3.6
+	var wave := MeshInstance3D.new(); wave.mesh = _wave_mesh(wid, hgt)
+	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/wave.gdshader")
+	wave.material_override = sm
+	wave.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(wave)
+	var yaw := atan2(e.dir.x, e.dir.z)
+	var spray := Color(0.75, 0.88, 0.95)
+	# Drawn up out of the water: a column of it lifts where it is taken from.
+	_once(_particles(spray, 120, 1.1, 0.07, 6.5, -9.0, 35.0), g, o + Vector3(0, 0.3, 0))
+	Sfx.play(g, "surge", o, 3.0)
 	var tw := g.create_tween()
 	tw.tween_method(func(f: float) -> void:
-		if not is_instance_valid(crest):
+		if not is_instance_valid(wave):
 			return
 		var p: Vector3 = g._ground(e.origin + e.dir * float(e.len) * f)
-		crest.position = p + Vector3(0, 0.55 + 0.15 * sin(f * 40.0), 0)
-		crest.scale = Vector3(1.3, 0.7 + 0.15 * sin(f * 31.0), 1.5 + 0.3 * sin(f * 23.0))
-		if int(f * 40.0) != int((f - 0.03) * 40.0):
-			_once(_particles(water.lerp(Color.WHITE, 0.5), 22, 0.6, 0.16, 3.5, -8.0, 110.0, false), g, p + Vector3(0, 0.7, 0)), 0.0, 1.0, secs)
+		# Rises in the first fifth of its run, holds, and breaks over at the end.
+		var rise := smoothstep(0.0, 0.18, f) * (1.0 - smoothstep(0.82, 1.0, f) * 0.85)
+		wave.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(1.0, maxf(rise, 0.05), 0.7 + 0.3 * rise)), p)
+		sm.set_shader_parameter("fade", 1.0 - smoothstep(0.9, 1.0, f))
+		if int(f * 30.0) != int((f - 0.035) * 30.0):
+			var side := Vector3(e.dir.z, 0, -e.dir.x)
+			_once(_particles(spray, 30, 0.7, 0.05, 4.0, -9.0, 50.0), g, p + Vector3(0, hgt * rise, 0) + e.dir * 0.4 + side * randf_range(-wid, wid) * 0.4), 0.0, 1.0, secs)
 	tw.tween_callback(func() -> void:
-		if is_instance_valid(crest): crest.queue_free())
+		if not is_instance_valid(g):
+			return
+		# It breaks: a burst of white water where it ends.
+		var end: Vector3 = g._ground(e.origin + e.dir * float(e.len))
+		_once(_particles(spray, 160, 1.0, 0.08, 7.0, -10.0, 70.0), g, end + Vector3(0, 0.6, 0))
+		Sfx.play(g, "thud", end, -2.0, 0.6)
+		if is_instance_valid(wave): wave.queue_free())
 
-## A Wall of Water standing: a falling sheet along each stretch of its line.
+## The wave's shape: a profile rising from a long back to a lip that leans forward
+## over its foot, swept across `width`, lower at the two ends.
+static func _wave_mesh(width: float, hgt: float) -> ArrayMesh:
+	# (z forward, y up) at v = 0 .. 1, foot to lip.
+	var prof := [Vector2(-2.0, 0.0), Vector2(-1.2, 0.3), Vector2(-0.55, 0.85), Vector2(-0.15, 1.35), Vector2(0.25, 1.6), Vector2(0.6, 1.45), Vector2(0.75, 1.1)]
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nu := 16
+	for i in nu:
+		for j in prof.size() - 1:
+			var q := []
+			for d in [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+				var u: float = float(d[0]) / nu
+				var pr: Vector2 = prof[d[1]]
+				var end_k := sqrt(smoothstep(0.0, 0.38, u) * smoothstep(1.0, 0.62, u))
+				q.append([Vector3((u - 0.5) * width, pr.y * hgt * end_k, pr.x * (0.6 + 0.4 * end_k)), Vector2(u, float(d[1]) / (prof.size() - 1))])
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_uv(q[k][1]); st.add_vertex(q[k][0])
+	st.generate_normals()
+	return st.commit()
+
+## A Wall of Water standing: a falling sheet along each stretch of its line, and
+## water splashing up along its foot.
 static func curtain(g: Node3D, pts: Array, height: float) -> Node3D:
 	var root := Node3D.new(); g.add_child(root)
 	var sh := load("res://shaders/curtain.gdshader")
 	var mats := []
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += (pts[i] as Vector2).distance_to(pts[i + 1])
+	var along := 0.0
 	for i in pts.size() - 1:
 		var a: Vector2 = pts[i]; var b: Vector2 = pts[i + 1]
+		var len := a.distance_to(b)
 		var mid := Vector3((a.x + b.x) * 0.5, 0, (a.y + b.y) * 0.5)
-		var q := QuadMesh.new(); q.size = Vector2(a.distance_to(b) + 0.05, height)
+		var q := QuadMesh.new(); q.size = Vector2(len + 0.04, height)
 		var mi := MeshInstance3D.new(); mi.mesh = q
 		var sm := ShaderMaterial.new(); sm.shader = sh
+		sm.set_shader_parameter("u0", along); sm.set_shader_parameter("ulen", len)
+		sm.set_shader_parameter("height", height); sm.set_shader_parameter("total", total)
 		mi.material_override = sm; mats.append(sm)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
-		var base: Vector3 = g._ground(mid) + Vector3(0, height * 0.5, 0)
-		mi.look_at_from_position(base, base + Vector3(b.y - a.y, 0, -(b.x - a.x)), Vector3.UP)
+		var base: Vector3 = g._ground(mid) + Vector3(0, height * 0.5 - 0.05, 0)
+		var dir3 := Vector3(b.x - a.x, 0, b.y - a.y).normalized()
+		mi.transform = Transform3D(Basis(dir3, Vector3.UP, dir3.cross(Vector3.UP)), base)
+		# Splash along the foot, all the while it stands.
+		var sp := _particles(Color(0.5, 0.62, 0.7), int(len * 10.0), 0.5, 0.05, 2.2, -9.0, 30.0)
+		var pm: ParticleProcessMaterial = sp.process_material
+		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		pm.emission_box_extents = Vector3(len * 0.5, 0.05, 0.12)
+		sp.one_shot = false; sp.explosiveness = 0.0
+		root.add_child(sp)
+		sp.transform = Transform3D(Basis(dir3, Vector3.UP, dir3.cross(Vector3.UP)), g._ground(mid) + Vector3(0, 0.1, 0))
+		sp.emitting = true
+		along += len
 	root.set_meta("mats", mats)
+	Sfx.play(g, "surge", g._ground(Vector3(pts[0].x, 0, pts[0].y)), 0.0, 0.8)
 	return root
 
 static func curtain_end(root: Node3D) -> void:
 	if not is_instance_valid(root):
 		return
+	for c in root.get_children():
+		if c is GPUParticles3D: (c as GPUParticles3D).emitting = false
 	var tw := root.create_tween()
 	tw.tween_method(func(f: float) -> void:
 		for m in root.get_meta("mats", []):
 			(m as ShaderMaterial).set_shader_parameter("fade", f), 1.0, 0.0, 0.8)
 	tw.tween_callback(root.queue_free)
+
+## Fire put out in a Wall of Water: a burst of steam, a spit of droplets, a hiss.
+static func drowned(g: Node3D, at: Vector3) -> void:
+	_once(_particles(Color(0.62, 0.64, 0.66), 26, 1.8, 0.9, 1.6, 0.9, 60.0, false), g, at)
+	_once(_particles(Color(0.8, 0.9, 1.0), 40, 0.5, 0.05, 5.0, -9.0, 120.0), g, at)
+	_once(_particles(Color(1.0, 0.55, 0.15), 10, 0.25, 0.12, 2.0, 0.0, 180.0), g, at)
+	Sfx.play(g, "hiss", at, 0.0)
 
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
 static func live(g: Node3D, kind: String, weave := "") -> Node3D:

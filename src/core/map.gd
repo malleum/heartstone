@@ -64,7 +64,10 @@ static func use(map_id: String, activity := "") -> void:
 		var z := rng.randf_range(-95.0, 30.0) if not m.is_empty() else rng.randf_range(-60.0, 30.0)
 		var side := -1.0 if rng.randf() < 0.5 else 1.0
 		var x := side * (half_width(z) + rng.randf_range(-2.5, 2.0)) if not m.is_empty() else side * rng.randf_range(9.0, 45.0)
-		_trees.append({x = x, z = z, r = 0.38, h = rng.randf_range(3.5, 6.5)})
+		var th := rng.randf_range(3.5, 6.5)
+		# (No tree in a pond.)
+		if water_y(x, z) == -INF and water_y(x + 1.5, z) == -INF and water_y(x - 1.5, z) == -INF:
+			_trees.append({x = x, z = z, r = 0.38, h = th})
 	_props(activity)
 	for w in _walls:
 		w.wid = _next_wid; _next_wid += 1
@@ -389,6 +392,13 @@ static func water_depth(x: float, z: float) -> int:
 		if d < w.r:
 			return 2 if (w.deep and d < w.r * 0.6) else 1
 	return 0
+
+## The surface height of the water at (x, z), or -INF where there is none.
+static func water_y(x: float, z: float) -> float:
+	for w: Dictionary in _water:
+		if _wdist(w, x, z) < w.r:
+			return w.y
+	return -INF
 
 ## The nearest water to a point: {dist (from its edge, 0 inside), at (the nearest
 ## point on its edge, on the ground plane)}; empty when the map has none.

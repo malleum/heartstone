@@ -93,6 +93,10 @@ working on abilities; the user's rulings there are final).
   `--demo=weave:12@-28,20@22` (woven in turn at several spots, metres@degrees). The user's
   taste: night (`--activity=holdout@tarwins_night`), capes in the wind, weaves lighting the
   enemies; pick frames by brightness after the cast, not over the whole run.
+- `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
+  weaves a second thing 40 frames after each `--demo` (a fireball at a Wall of Water);
+  `--quality=0|1|2` renders one picture-quality level without changing the saved one.
+  Camera pitch for the bot is negative to look down (`--campitch=-20`).
 - Several renders may run at once: `tools/place.py` (started by render.sh) keeps their
   windows apart in the 5120x2880 invisible compositor.
 - Work list for a lighter model (well-defined tasks with briefs): top of `docs/BACKLOG.md`.

@@ -375,19 +375,20 @@ static func wagon_ring(g: Node3D) -> void:
 	walls(g)
 	props(g)
 
-## The ponds and streams of the map (Map.water): a flat sheet of water at each one's
-## surface, a disc at each end and a strip between for a stream.
+## The ponds and streams of the map (Map.water): a flat sheet of water at each
+## one's surface, a disc at each end and a strip between for a stream. (The wet
+## bank round each is the ground shader's: Terrain.build_mesh tells it where.)
 static func water(g: Node3D) -> void:
 	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/water.gdshader")
 	for w: Dictionary in Map.water():
 		var a := Vector3(w.x1, w.y, w.z1); var b := Vector3(w.x2, w.y, w.z2)
 		for c in [a, b] if a.distance_to(b) > 0.1 else [a]:
-			var cm := CylinderMesh.new(); cm.top_radius = w.r; cm.bottom_radius = w.r; cm.height = 0.02; cm.radial_segments = 40; cm.rings = 1
+			var cm := CylinderMesh.new(); cm.top_radius = w.r + 0.3; cm.bottom_radius = w.r + 0.3; cm.height = 0.02; cm.radial_segments = 48; cm.rings = 1
 			var mi := MeshInstance3D.new(); mi.mesh = cm; mi.material_override = sm; mi.position = c
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			g.add_child(mi)
 		if a.distance_to(b) > 0.1:
-			var qm := BoxMesh.new(); qm.size = Vector3(w.r * 2.0, 0.02, a.distance_to(b))
+			var qm := BoxMesh.new(); qm.size = Vector3((w.r + 0.3) * 2.0, 0.02, a.distance_to(b))
 			var mi2 := MeshInstance3D.new(); mi2.mesh = qm; mi2.material_override = sm
 			mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			g.add_child(mi2)
@@ -498,7 +499,7 @@ static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 	stone.material = _mat(Color(0.23, 0.22, 0.2))
 	for i in 900:
 		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0)
-		if gap and absf(x) > Map.half_width(z) + 4.0:
+		if (gap and absf(x) > Map.half_width(z) + 4.0) or Map.water_depth(x, z) > 0:
 			continue
 		# Bigger stones gather at the foot of the cliffs; the road is kept clear.
 		var edge := 0.0 if not gap else smoothstep(Map.half_width(z) - 6.0, Map.half_width(z), absf(x))

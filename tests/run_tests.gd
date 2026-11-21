@@ -170,13 +170,14 @@ func _water() -> void:
 		if fx.kind == "curtain": curtain = true
 	check(curtain, "and stands")
 	sim3.effects.append({kind = "projectile", owner = id3, weave = "fireball", pos = Vector3(0, 1.4, -6.0), vel = Vector3(0, 0, -28), dmg = 30.0, radius = 1.3, left = 45.0, gravity = 0.0, pierce = 0, passed = [], id = 9999})
-	var drowned := false
+	var drowned := false; var burst := false
 	for i in 60:
 		sim3.step(0.05)
 		for ev in sim3.events:
 			if ev.e == "drowned": drowned = true
+			if ev.e == "blast": burst = true
 		sim3.events.clear()
-	check(drowned and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
+	check(drowned and not burst and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
 
 func _fasten_players() -> void:
 	print("== Bonds of Air can fasten on a player in any mode")

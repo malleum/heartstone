@@ -47,6 +47,13 @@ static func build() -> void:
 	# A bowstring: a low pluck that drops in pitch, and the slap of the string.
 	bank.twang = _render(0.35, func(t: float) -> float:
 		return sin(TAU * (210.0 * t - 160.0 * t * t)) * exp(-t * 14.0) * 0.7 + _noise(b, 0.7) * exp(-t * 70.0) * 0.5)
+	# Fire put out in water: a bright hiss that falls away.
+	bank.hiss = _render(0.9, func(t: float) -> float:
+		return _noise(a, 0.85) * exp(-t * 3.5) * minf(t * 40.0, 1.0) * 0.8)
+	# Water on the move: a deep rush with a frothing top, swelling and gone.
+	bank.surge = _render(1.6, func(t: float) -> float:
+		var e := sin(PI * minf(t / 1.6, 1.0))
+		return (_noise(a, 0.07) * 2.2 + _noise(b, 0.5) * 0.45) * e)
 	# Wind: low noise swelling and falling, a seamless loop (whole periods only).
 	var wl := 6.0
 	bank.wind = _render(wl, func(t: float) -> float:

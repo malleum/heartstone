@@ -2212,8 +2212,10 @@ func _step_effects(dt: float) -> void:
 						fx.dmg *= 0.75
 						fx.erase("struck")
 						hit = false
-				if hit or not alive:
+				# Put out in a Wall of Water: no burst.
+				if (hit or not alive) and not fx.get("drowned", false):
 					_blast(fx.owner, fx.weave, fx.pos, fx.radius, fx.dmg)
+				if hit or not alive:
 					alive = false
 			"missile":
 				# An arrow, a knife, a javelin: it wounds the one body it meets.
