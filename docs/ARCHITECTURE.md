@@ -596,6 +596,16 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
   them the same way; fire burns the rope off. A tied Darkfriend counts as held.
 - Talking happens over the group's own voice chat.
 
+## Seeing the flows (21 Nov, the user's rule)
+Only a channeller sees flows, and only those of their own half of the Power; anyone sees
+what a weave does. `Weavefx.sees` is set from the one watching (`game.gd` `_set_sight`), and
+each visual says which it is: `Weavefx.flows(node, power)` hides a node of flows, and
+`cast()` puts flows under `_flow_parent`. The weaver's power comes from the player's spawn
+row (`power`), and the snapshot's fx rows carry their owner (index 8) for things in flight.
+Hiding is per machine, by visibility, so the gateway windows follow it too. `--sight=all`
+shows everything (pictures); `--sex=m|f` and `--allysex` choose throwaway channellers'
+halves (women unless told).
+
 ## Gateways (17 Nov, the user's rulings)
 - The Shadow's creatures (Trollocs, Myrddraal, Darkhounds, Draghkar: `_is_shadowspawn`)
   die passing through a gateway. They keep off one, unless shoved in (moving faster

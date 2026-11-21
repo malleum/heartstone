@@ -3219,5 +3219,5 @@ func snapshot() -> Dictionary:
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0), e.max_hp])
 	var fx := []
 	for f in effects:
-		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0)])
+		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0), f.get("owner", 0)])
 	return {t = t, ents = es, fx = fx, round = round_meter()}

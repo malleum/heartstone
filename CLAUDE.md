@@ -101,6 +101,9 @@ working on abilities; the user's rulings there are final).
 - Camp pictures: `--campos=x,z` stands you there, `--show=none` hides the sheet. Game: `--hideme`
   (your own figure not drawn). `tools/postcards.sh [setup..]` re-renders the doorways' pictures
   (`assets/postcards/`, imported with `godot --headless --import`); rerun after a map changes.
+- Flows are seen only by channellers of the weaver's sex (`Weavefx.sees`, `Weavefx.flows`): a
+  fighter bot's render shows no weaving. `--sight=all` shows every flow; `--sex=m` makes a
+  throwaway channeller a man (women by default), `--allysex=m` the `--ally`.
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
   weaves a second thing 40 frames after each `--demo` (a fireball at a Wall of Water);
   `--quality=0|1|2` renders one picture-quality level without changing the saved one.

@@ -5,6 +5,28 @@ extends RefCounted
 
 const TINT := {fire = Color(1.0, 0.42, 0.1), earth = Color(0.75, 0.5, 0.2), air = Color(0.7, 0.85, 1.0), water = Color(0.25, 0.5, 1.0), spirit = Color(0.95, 0.95, 1.0)}
 
+## Who is watching decides what of a weave they see. The flows (the threads, a shield, bands
+## of Air, a Wall of Air, a Blade of Spirit) are seen only by a channeller of the weaver's
+## half of the Power; what a weave does (fire, stone, water, lightning, a gateway, dust
+## thrown up) is there for anyone. The game sets this from the one watching.
+static var sees := {saidar = true, saidin = true}
+
+## Hide `n` from this watcher if its flows are not theirs to see ("" is always seen).
+static func flows(n: Node3D, power: String) -> Node3D:
+	if n != null and power != "" and not sees.get(power, false):
+		n.visible = false
+	return n
+
+## Where to put flows drawn straight into the world: `g` itself if they are seen, or an
+## unseen holder that goes away once they are done.
+static func _flow_parent(g: Node3D, power: String) -> Node3D:
+	if power == "" or sees.get(power, false):
+		return g
+	var h := Node3D.new(); h.visible = false; g.add_child(h)
+	g.get_tree().create_timer(4.0).timeout.connect(func() -> void:
+		if is_instance_valid(h): h.queue_free())
+	return h
+
 static func colour(weave: String) -> Color:
 	# What the Shadow's channellers throw is not in the book of weaves.
 	if not Rules.weaves.has(weave):
@@ -216,8 +238,11 @@ static func _wave_mesh(width: float, hgt: float) -> ArrayMesh:
 ## water splashing up along its foot.
 ## A standing sheet along `pts` (ground points): a Wall of Water, or with `air` a
 ## Wall of Air (the same sheet as a faint ripple in the light, solid to the touch).
-static func curtain(g: Node3D, pts: Array, height: float, air := false) -> Node3D:
+static func curtain(g: Node3D, pts: Array, height: float, air := false, power := "") -> Node3D:
 	var root := Node3D.new(); g.add_child(root)
+	# A Wall of Air is nothing but flows; a Wall of Water is water anyone can see.
+	if air:
+		flows(root, power)
 	var sh := load("res://shaders/curtain.gdshader")
 	var mats := []
 	var total := 0.0
@@ -276,7 +301,7 @@ static func drowned(g: Node3D, at: Vector3) -> void:
 	Sfx.play(g, "hiss", at, 0.0)
 
 ## A persistent effect the sim is tracking (projectile, gate, ring, pending blast).
-static func live(g: Node3D, kind: String, weave := "") -> Node3D:
+static func live(g: Node3D, kind: String, weave := "", power := "") -> Node3D:
 	if kind.begins_with("dream_"):
 		var dn := Dreamfx.live(kind, weave)
 		g.add_child(dn)
@@ -307,6 +332,8 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 					w.add_child(Flowfx.Ribbon.new(col, 0.1, 14, 2.5, 0.2))
 				n.add_child(_light(col, 1.5, 6.0))
 				n.set_meta("aimed", true)
+				# Spirit alone: a weave, not a thing, so only flows.
+				flows(n, power)
 			else:
 				# A ball of fire: it boils, and drags flame behind it.
 				n.add_child(Flowfx.ball(0.42, col, 1.5, 0.35))
@@ -332,6 +359,7 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			for c in [Vector3(-1.2, 1.6, 0), Vector3(1.2, 1.6, 0), Vector3(-1.2, -1.5, 0), Vector3(1.2, -1.5, 0)]:
 				var w := Node3D.new(); w.position = c; n.add_child(w)
 				w.add_child(Flowfx.Ribbon.new(Color(0.6, 0.35, 1.0), 0.22, 22, 2.0, 0.5))
+				flows(w, power)
 			n.add_child(_light(Color(0.6, 0.4, 1.0), 2.5, 8.0))
 		"ring":
 			n.free()
@@ -396,11 +424,12 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 ## The flows themselves, seen while a weave is made: one thread for each flow, and
 ## each Power moves in its own way (see FormFx). It lasts until the game frees it,
 ## because a finished weave can be held back in the hands.
-static func forming(_g: Node3D, who: Node3D, weave: String, secs: float) -> Node3D:
+static func forming(_g: Node3D, who: Node3D, weave: String, secs: float, power := "") -> Node3D:
 	var fx := FormFx.new()
 	fx.secs = maxf(secs, 0.15)
 	fx.weave = weave
 	who.add_child(fx)
+	flows(fx, power)
 	return fx
 
 ## Weaving, made visible. Fire climbs from the feet in a tight flickering helix;
@@ -687,9 +716,10 @@ class Wedge extends Node3D:
 ## bands of Air on the one it binds, a mark over the one it shields; and a thread
 ## from the weaver's hand to it, which is what tying off cuts. The game moves
 ## "Body" to whoever it sits on and stretches "Tether" between the two.
-static func hold(g: Node3D, weave: String) -> Node3D:
+static func hold(g: Node3D, weave: String, power := "") -> Node3D:
 	var n := Node3D.new()
 	g.add_child(n)
+	flows(n, power)
 	var kind: String = Rules.weaves[weave].kind
 	var col := colour(weave)
 	var body := Node3D.new(); body.name = "Body"; n.add_child(body)
@@ -1030,6 +1060,8 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 	var feet: Vector3 = g._ground(e.pos)
 	var from := feet + Vector3(0, 1.4, 0)
 	var b: Dictionary = Rules.weaves[e.weave].base
+	# The flows of it go here; what it does goes into `g` for everyone.
+	var fg := _flow_parent(g, e.get("power", ""))
 	Sfx.play(g, "whoosh", from, -6.0)
 	match e.kind:
 		"beam" when Rules.weaves[e.weave].get("sweep", false):
@@ -1118,7 +1150,7 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			# Hammer of Air: a pressure ring thrown forward, widening as it goes.
 			var ring := TorusMesh.new(); ring.inner_radius = 0.85; ring.outer_radius = 1.0
 			var mi := _mesh(ring, Color(col.lerp(Color.WHITE, 0.35), 0.5), 2.5)
-			g.add_child(mi)
+			fg.add_child(mi)
 			mi.position = from + e.dir * 0.8
 			mi.basis = Basis.looking_at(e.dir, Vector3.UP) * Basis(Vector3.RIGHT, PI * 0.5)
 			mi.scale = Vector3.ONE * 0.4
@@ -1134,14 +1166,14 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 				var ang := (i - 4) * 0.11
 				var d: Vector3 = (e.dir * cos(ang) + sd * sin(ang)).normalized()
 				var lift := Vector3(0, randf_range(-0.5, 0.9), 0)
-				Flowfx.streak(g, from + sd * (i - 4) * 0.08, from + d * b.range + lift, 0.2 + randf() * 0.1, col.lerp(Color.WHITE, 0.3), 0.3, (sd * randf_range(-1, 1) + up * randf_range(-0.4, 0.6)) * 0.8, 1.6, 0.6)
+				Flowfx.streak(fg, from + sd * (i - 4) * 0.08, from + d * b.range + lift, 0.2 + randf() * 0.1, col.lerp(Color.WHITE, 0.3), 0.3, (sd * randf_range(-1, 1) + up * randf_range(-0.4, 0.6)) * 0.8, 1.6, 0.6)
 			# Water goes out as spray; Air only lifts the dust.
 			var wet: bool = Rules.weaves[e.weave].flows.has("water")
 			_once(_particles(TINT.water.lerp(Color.WHITE, 0.3) if wet else Color(0.6, 0.56, 0.5), 70 if wet else 40, 0.7, 0.35 if wet else 0.4, 9.0 if wet else 8.0, -6.0 if wet else 0.5, 30.0, wet), g, feet + e.dir * 2.0 + Vector3(0, 0.6, 0))
 			Sfx.play(g, "thud", from, 4.0, 0.7)
 		"barrier":
 			var mi := Flowfx.shell(1.0, Color(0.7, 0.85, 1.0), 2.5)
-			g.add_child(mi); mi.position = feet + Vector3(0, 1.0, 0); mi.scale = Vector3.ONE * 0.5
+			fg.add_child(mi); mi.position = feet + Vector3(0, 1.0, 0); mi.scale = Vector3.ONE * 0.5
 			var tw := g.create_tween().set_parallel()
 			tw.tween_property(mi, "scale", Vector3.ONE * 1.6, 0.25).set_ease(Tween.EASE_OUT)
 			tw.tween_property(mi.material_override, "shader_parameter/fade", 0.0, 0.9)
@@ -1153,10 +1185,10 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			var who: Vector3 = g._ground(e.at)
 			var gold := Color(0.75, 1.0, 0.7)
 			for i in 3:
-				Flowfx.streak(g, from, who + Vector3(0, 1.2, 0), 0.25 + 0.06 * i, [TINT.spirit, TINT.water, TINT.air][i], 0.1, Vector3(randf_range(-0.6, 0.6), 0.5 + 0.3 * i, randf_range(-0.6, 0.6)), 2.5, 0.2)
+				Flowfx.streak(fg, from, who + Vector3(0, 1.2, 0), 0.25 + 0.06 * i, [TINT.spirit, TINT.water, TINT.air][i], 0.1, Vector3(randf_range(-0.6, 0.6), 0.5 + 0.3 * i, randf_range(-0.6, 0.6)), 2.5, 0.2)
 			for i in 3:
 				var r := Flowfx.Ribbon.new(gold, 0.12, 26, 2.2, 0.25)
-				r.follow = false; g.add_child(r)
+				r.follow = false; fg.add_child(r)
 				var tw := g.create_tween()
 				tw.tween_interval(0.25)
 				tw.tween_method(func(f: float) -> void:
@@ -1165,7 +1197,7 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 						r.push(who + Vector3(cos(a) * 0.55, 0.1 + 2.1 * f, sin(a) * 0.55)), 0.0, 1.0, 1.0)
 				tw.tween_property(r, "gain", 0.0, 0.4)
 				tw.tween_callback(r.queue_free)
-			var hl := _light(gold, 0.0, 5.0); g.add_child(hl); hl.position = who + Vector3(0, 1.2, 0)
+			var hl := _light(gold, 0.0, 5.0); fg.add_child(hl); hl.position = who + Vector3(0, 1.2, 0)
 			var tl := g.create_tween()
 			tl.tween_property(hl, "light_energy", 3.0, 0.4); tl.tween_property(hl, "light_energy", 0.0, 1.0); tl.tween_callback(hl.queue_free)
 			_once(_particles(Color(0.5, 1.0, 0.7), 24, 1.4, 0.08, 0.8, 1.2, 40.0), g, who + Vector3(0, 0.4, 0))
@@ -1174,9 +1206,9 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			# A shield: Spirit thrown across and closed round them like a hand.
 			var tgt: Vector3 = g._ground(e.at) + Vector3(0, 1.3, 0)
 			for i in 4:
-				Flowfx.streak(g, from, tgt, 0.16 + 0.03 * i, TINT.spirit, 0.09, Vector3(randf_range(-1, 1), randf_range(-0.3, 1), randf_range(-1, 1)) * 0.9, 2.5, 0.1)
+				Flowfx.streak(fg, from, tgt, 0.16 + 0.03 * i, TINT.spirit, 0.09, Vector3(randf_range(-1, 1), randf_range(-0.3, 1), randf_range(-1, 1)) * 0.9, 2.5, 0.1)
 			var sh := Flowfx.shell(1.0, TINT.spirit, 2.5)
-			g.add_child(sh); sh.position = tgt; sh.scale = Vector3.ONE * 2.6
+			fg.add_child(sh); sh.position = tgt; sh.scale = Vector3.ONE * 2.6
 			var ts := g.create_tween().set_parallel()
 			ts.tween_property(sh, "scale", Vector3.ONE * 1.05, 0.3).set_ease(Tween.EASE_IN).set_delay(0.15)
 			ts.tween_property(sh.material_override, "shader_parameter/fade", 0.0, 0.5).set_delay(0.45)

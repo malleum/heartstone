@@ -76,7 +76,7 @@ func _ready() -> void:
 	profile = {} if args.has("tour") else Profile.load_profile(name_)
 	if profile.is_empty():
 		# --aff=water makes a throwaway character strong in that Power, to try its weaves.
-		profile = Profile.create({name = name_, potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
+		profile = Profile.create({name = name_, power = "saidin" if args.get("sex", "f") == "m" else "saidar", potential_pts = 8, affinity_pts = {args.aff: 6} if args.has("aff") else {fire = 4, earth = 2}})
 	# How far this player has read (Settings): a real player's own choice; a test
 	# or a render keeps the character's (all books for throwaways).
 	if not Launch.dev():
@@ -112,7 +112,7 @@ func _ready() -> void:
 		profile.channelled = Rules.TUNE.flow_steps[clampi(int(args.flows), 2, 10)]
 	# --class=warder|aiel|hunter makes a throwaway fighter, to try arms in a render.
 	if args.has("class") and profile.get("cls", "channeller") != args.class:
-		profile = Profile.create({name = name_, cls = args.class, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
+		profile = Profile.create({name = name_, cls = args.class, sex = args.get("sex", "m"), stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
 		# --forms: the throwaway fighter knows every form its weapons allow.
 		if args.has("forms"):
 			for f in Rules.forms:
@@ -1035,8 +1035,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 	# --ally=warder|channeller: a bot friend at your side (--ally_hp=45 starts them hurt),
 	# for the things that need someone else: Healing, a Warder's ward, the bond.
 	if args.has("ally") and session.is_host:
-		var ap: Dictionary = Profile.create({name = "Friend", potential_pts = 8, affinity_pts = {fire = 4, earth = 2}}) if args.ally == "channeller" \
-			else Profile.create({name = "Friend", cls = args.ally, stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Rules.CLASSES[args.ally].kit})
+		# --allysex=m makes the friend a man (channellers here are women unless told).
+		var ap: Dictionary = Profile.create({name = "Friend", power = "saidin" if args.get("allysex", "f") == "m" else "saidar", potential_pts = 8, affinity_pts = {fire = 4, earth = 2}}) if args.ally == "channeller" \
+			else Profile.create({name = "Friend", cls = args.ally, sex = args.get("allysex", "m"), stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Rules.CLASSES[args.ally].kit})
 		_ally = session.sim.add_player(ap, Vector3(2.5, 0, 1.0))
 		if args.has("ally_hp"):
 			session.sim.ents[_ally].hp = float(args.ally_hp)
@@ -1780,7 +1781,7 @@ func _on_events(list: Array) -> void:
 					_stamp("hero model made")
 					add_child(rig)
 					rig.position = _ground(e.pos)
-					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI, team = int(e.get("team", 0))}
+					actors[e.id] = {node = rig, kind = "player", target = rig.position, busy = 0.0, name = e.name, yaw = PI, team = int(e.get("team", 0)), power = e.get("power", "saidin"), cls = e.get("cls", "channeller")}
 					# In a battle, a ring of your banner's colour at everyone's feet:
 					# blue for your side, red for theirs, so a glance tells friend from foe.
 					if in_battle:
@@ -1792,6 +1793,7 @@ func _on_events(list: Array) -> void:
 						Hero.veil(rig, true)
 					if e.id == session.my_id:
 						me = rig
+						_set_sight(e.get("cls", "channeller"), e.get("power", "saidin"))
 						banner.text = ""
 						my_team = int(e.get("team", 0))
 						_paint_rings()
@@ -1867,7 +1869,7 @@ func _on_events(list: Array) -> void:
 					a.busy = 0.0; a.erase("gesture"); a.forming = true
 					if is_instance_valid(a.node):
 						_end_form(a)
-						a.form_fx = Weavefx.forming(self, a.node, e.weave, e.time)
+						a.form_fx = Weavefx.forming(self, a.node, e.weave, e.time, _power_of(e.id))
 						a.form_since = clock
 					Sfx.play(self, "hum", _ground(a.target) + Vector3(0, 1.4, 0), -8.0, clampf(1.6 / maxf(e.time, 0.4), 0.5, 1.6))
 					if e.id == session.my_id:
@@ -1900,7 +1902,7 @@ func _on_events(list: Array) -> void:
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a2: Dictionary = actors[e.id]
 					_end_form(a2)
-					a2.form_fx = Weavefx.forming(self, a2.node, e.weave, maxf(float(e.left), 0.05))
+					a2.form_fx = Weavefx.forming(self, a2.node, e.weave, maxf(float(e.left), 0.05), _power_of(e.id))
 					a2.form_since = clock
 			"kept_lost":
 				if e.id == session.my_id:
@@ -1968,7 +1970,7 @@ func _on_events(list: Array) -> void:
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
 					_end_form(a)
-					a.form_fx = Weavefx.forming(self, a.node, "fireball", e.time)
+					a.form_fx = Weavefx.forming(self, a.node, "fireball", e.time, _power_of(e.id))
 					a.form_since = clock + e.time
 					if a.node is Walker:
 						(a.node as Walker).attack("chop")
@@ -2002,7 +2004,7 @@ func _on_events(list: Array) -> void:
 			"hold":
 				var key := "%d/%s/%d" % [e.id, e.weave, e.target]
 				if not holds.has(key):
-					holds[key] = {node = Weavefx.hold(self, e.weave), id = e.id, weave = e.weave, target = e.target, tied = false}
+					holds[key] = {node = Weavefx.hold(self, e.weave, _power_of(e.id)), id = e.id, weave = e.weave, target = e.target, tied = false}
 			"release":
 				var key := "%d/%s/%d" % [e.id, e.weave, e.get("target", 0)]
 				if holds.has(key):
@@ -2184,7 +2186,7 @@ func _on_events(list: Array) -> void:
 				if not session.is_host:
 					for w in e.walls:
 						Map.add_wall(w)
-				fx[e.fx] = Weavefx.curtain(self, e.pts, e.height, true)
+				fx[e.fx] = Weavefx.curtain(self, e.pts, e.height, true, _power_of(e.id))
 			"airwall_end":
 				if not session.is_host:
 					for wid in e.wids:
@@ -2317,6 +2319,7 @@ func _on_events(list: Array) -> void:
 					_play(actors[e.id], Hero.cast_clip(actors[e.id].get("name", ""), e.weave), true)
 				if e.id == session.my_id:
 					my_form = {}
+				e.power = _power_of(e.id)
 				Weavefx.cast(self, e)
 				# A weave mostly of Air blows outward from the one who made it.
 				var wflows: Dictionary = Rules.weaves.get(e.weave, {}).get("flows", {})
@@ -2475,6 +2478,23 @@ func _patch(e: Dictionary) -> void:
 	patches[e.id] = n
 
 ## The weave someone was making has left their hands (or come to nothing).
+## Which half of the Power an actor's weaves are made with: a player's own; anything else
+## that channels (a Dreadlord) is a man, since there are no women Dreadlords yet.
+func _power_of(id: int) -> String:
+	if actors.has(id) and actors[id].kind == "player":
+		return actors[id].get("power", "saidin")
+	return "saidin"
+
+## What the one watching can see of weaves: a channeller sees the flows of their own half of
+## the Power, a fighter none; everyone sees what weaves do. `--sight=all` shows every flow
+## (pictures and checking).
+func _set_sight(cls: String, power: String) -> void:
+	if args.get("sight", "") == "all":
+		Weavefx.sees = {saidar = true, saidin = true}
+		return
+	var ch := cls == "channeller"
+	Weavefx.sees = {saidar = ch and power == "saidar", saidin = ch and power == "saidin"}
+
 func _end_form(a: Dictionary) -> void:
 	a.forming = false
 	if a.has("form_fx"):
@@ -2573,7 +2593,7 @@ func _on_snapshot(s: Dictionary) -> void:
 		if f[1] in ["gate", "surge", "curtain", "airwall"]:
 			continue
 		if not fx.has(f[0]):
-			fx[f[0]] = Weavefx.live(self, f[1], f[6])
+			fx[f[0]] = Weavefx.live(self, f[1], f[6], _power_of(int(f[8])) if f.size() > 8 else "")
 		var n: Node3D = fx[f[0]]
 		var was := n.position
 		n.position = _ground(Vector3(f[2], 0, f[3])) + Vector3(0, 1.2, 0)
