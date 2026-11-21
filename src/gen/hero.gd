@@ -19,6 +19,11 @@ const HAIR_COLOURS := [["Dark brown", Color(0.16, 0.1, 0.06)], ["Brown", Color(0
 const SKINS := [["Fair", Color(1.0, 1.0, 1.0)], ["Pale", Color(1.2, 1.17, 1.15)], ["Sun-browned", Color(0.86, 0.76, 0.68)], ["Copper", Color(0.9, 0.66, 0.52)], ["Brown", Color(0.62, 0.48, 0.4)], ["Dark", Color(0.42, 0.32, 0.27)]]
 const EYES := [["Brown", Color(1, 1, 1)], ["Blue", Color(0.55, 0.8, 1.6)], ["Grey", Color(0.8, 0.9, 1.05)], ["Green", Color(0.6, 1.25, 0.7)], ["Dark", Color(0.45, 0.4, 0.4)], ["Hazel", Color(1.1, 1.0, 0.6)]]
 const HEIGHTS := [["Short", 0.93], ["Below middling", 0.965], ["Middling", 1.0], ["Tall", 1.035], ["Very tall", 1.07]]
+## The face's shape (Hero.FACE): each -2 to 2 on the character's style, 0 as made.
+const FACE := [["f_width", "Face", ["Narrow", "Lean", "Middling", "Full", "Broad"]], ["f_jaw", "Jaw", ["Fine", "Light", "Middling", "Strong", "Heavy"]],
+	["f_chin", "Chin", ["Receding", "Soft", "Middling", "Firm", "Jutting"]], ["f_nose", "Nose", ["Small", "Short", "Middling", "Long", "Large"]],
+	["f_cheek", "Cheeks", ["Hollow", "Lean", "Middling", "High", "Full"]], ["f_brow", "Brow", ["Smooth", "Soft", "Middling", "Strong", "Heavy"]]]
+const FACE_SHADER := preload("res://shaders/face.gdshader")
 const BUILDS := [["Slight", 0.92], ["Lean", 0.96], ["Middling", 1.0], ["Sturdy", 1.05], ["Broad", 1.1]]
 ## Cloaks anyone may choose over any dress: id -> [label, colour, garment style, trim].
 ## "" keeps whatever the dress comes with. Lengths cut the same cloak short in the shader.
@@ -53,6 +58,8 @@ const LOOKS := {
 		skirt = [Color(0.86, 0.86, 0.84), 0, Color.WHITE]},
 	accepted = {label = "Accepted (banded hem)", sex = "f", bodice = Color(0.84, 0.84, 0.82), base = "female_peasant", p = Color(0.88, 0.88, 0.86), s = Color(0.8, 0.8, 0.78),
 		skirt = [Color(0.86, 0.86, 0.84), 1, Color.WHITE]},
+	armswoman_f = {label = "Borderland plate", sex = "f", base = "female_ranger", hide = ["Hood"], p = Color(0.32, 0.32, 0.35), s = Color(0.1, 0.09, 0.08), plate = true,
+		cloak = [Color(0.18, 0.2, 0.26), 0, Color.WHITE]},
 	aiel_f = {label = "Aiel cadin'sor", sex = "f", base = "female_ranger", hide = ["Pauldron"], hood = true, p = Color(0.4, 0.35, 0.26), s = Color(0.27, 0.24, 0.19)},
 	hunter_f = {label = "Traveller's cloak", sex = "f", base = "female_ranger", hide = ["Hood", "Pauldron"], p = Color(0.2, 0.24, 0.38), s = Color(0.08, 0.08, 0.1),
 		cloak = [Color(0.12, 0.1, 0.09), 0, Color.WHITE]},
@@ -70,9 +77,11 @@ const LOOKS := {
 		coat = [Color(0.46, 0.33, 0.07), 6, Color(0.05, 0.04, 0.05)], sheen = 0.5},
 	noble_m = {label = "Lord's silk coat", sex = "m", base = "male_peasant", p = Color(0.08, 0.14, 0.42), s = Color(0.04, 0.04, 0.06), sheen = 1.0,
 		coat = [Color(0.07, 0.12, 0.38), 6, Color(0.8, 0.65, 0.25)]},
-	queens_guard = {label = "Queen's Guard (Andor)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.55, 0.06, 0.05), s = Color(0.7, 0.7, 0.68), mail = false,
+	queens_guard = {label = "Queen's Guard (Andor)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.55, 0.06, 0.05), s = Color(0.7, 0.7, 0.68), plate = true,
 		cloak = [Color(0.6, 0.07, 0.06), 4, Color(0.85, 0.85, 0.82)]},
 	shienaran = {label = "Shienaran mail", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.08, 0.07, 0.06), mail = true, hair = "Hair_Buzzed"},
+	whitecloak = {label = "Children of the Light (plate, white cloak)", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.85, 0.84, 0.8), s = Color(0.55, 0.55, 0.58), plate = true,
+		mark = Color(0.85, 0.65, 0.15, 1.0), cloak = [Color(0.9, 0.9, 0.87), 4, Color(0.85, 0.65, 0.15)], hair = "Hair_Buzzed"},
 	armsman_m = {label = "Armsman's mail and cloak", sex = "m", base = "male_ranger", hide = ["Hood"], p = Color(0.3, 0.3, 0.32), s = Color(0.12, 0.1, 0.08), mail = true,
 		cloak = [Color(0.16, 0.2, 0.3), 0, Color.WHITE]},
 	gleeman = {label = "Gleeman's cloak", sex = "m", base = "male_peasant", p = Color(0.7, 0.66, 0.55), s = Color(0.2, 0.14, 0.1),
@@ -466,6 +475,8 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 					om.set_shader_parameter("sleeve", look.get("sleeve", Color(0, 0, 0, 0)))
 					om.set_shader_parameter("sheen", float(look.get("sheen", 0.0)))
 					om.set_shader_parameter("mail", bool(look.get("mail", false)))
+					om.set_shader_parameter("plate", bool(look.get("plate", false)))
+					om.set_shader_parameter("mark", look.get("mark", Color(0, 0, 0, 0)))
 					# Only the torso piece: boots and bracers stay leather.
 					if look.has("bodice") and n.ends_with("_Body"):
 						om.set_shader_parameter("bodice", look.bodice)
@@ -490,6 +501,7 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 					var mat: BaseMaterial3D = src.duplicate()
 					mat.albedo_color = col
 					m.set_surface_override_material(i, mat)
+	_shape_face(root, style)
 	# Height and build: the whole figure, so clothes and weapons keep their fit.
 	var tall: float = HEIGHTS[clampi(int(style.get("height", 2)), 0, HEIGHTS.size() - 1)][1]
 	var wide: float = BUILDS[clampi(int(style.get("build", 2)), 0, BUILDS.size() - 1)][1]
@@ -497,6 +509,52 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 	if int(look.get("pins", 0)) > 0:
 		_pins(root, int(look.pins))
 	return root
+
+## The face shaped as the style says (FACE), on the head, eyes, brows and beard
+## together. Nothing is changed for a face left as made.
+static func _shape_face(root: Node3D, style: Dictionary) -> void:
+	var vals := {}
+	for f in FACE:
+		var v := int(style.get(f[0], 0))
+		if v != 0:
+			vals[f[0]] = clampf(v / 2.0, -1.0, 1.0)
+	if vals.is_empty():
+		return
+	var meshes: Array = root.find_children("*", "MeshInstance3D", true, false)
+	var eyes: MeshInstance3D = null; var head: MeshInstance3D = null
+	for m: MeshInstance3D in meshes:
+		if m.name == "Eyes": eyes = m
+		elif String(m.name).to_lower().begins_with("superhero"): head = m
+	if eyes == null or head == null:
+		return
+	var ea := eyes.mesh.get_aabb(); var ha := head.mesh.get_aabb()
+	var at := Vector2(ea.get_center().y, ha.get_center().z)
+	var front := ea.end.z
+	var set_face := func(mat: ShaderMaterial) -> void:
+		mat.set_shader_parameter("face_at", at); mat.set_shader_parameter("face_front", front)
+		for k in vals: mat.set_shader_parameter(k, vals[k])
+	for m: MeshInstance3D in meshes:
+		var n := String(m.name)
+		if not (m == eyes or m == head or n == "Eyebrows" or n == "Hair_Beard"):
+			continue
+		_bake_rest(m)
+		for i in m.mesh.get_surface_count():
+			var cur := m.get_active_material(i)
+			if cur is ShaderMaterial:
+				set_face.call(cur)     # the beard: the hair shader shapes it too
+				continue
+			var src := cur as BaseMaterial3D
+			if src == null:
+				continue
+			var fm := ShaderMaterial.new(); fm.shader = FACE_SHADER
+			fm.set_shader_parameter("albedo_tex", src.albedo_texture)
+			fm.set_shader_parameter("tint", src.albedo_color)
+			fm.set_shader_parameter("normal_tex", src.normal_texture)
+			fm.set_shader_parameter("has_normal", src.normal_texture != null)
+			fm.set_shader_parameter("rough", src.roughness)
+			fm.set_shader_parameter("cutout", src.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED)
+			set_face.call(fm)
+			m.set_surface_override_material(i, fm)
 
 ## The Aiel veil: a dark band over the lower face, put on before killing. Shown or
 ## hidden with `veiled` (the camp shows faces; a fight shows the veil).

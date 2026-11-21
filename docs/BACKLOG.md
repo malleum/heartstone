@@ -208,9 +208,14 @@ are what the 4:44 review, or the next session, should pick up.
   the tailor (a rail of clothes and a long mirror) and the study (books and a lantern:
   the loadout) stand on the open side of the camp: walk up and press E. The sheet's
   buttons still work.
-- [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
-  have no shape keys; only skin, eyes, hair and beard change). Armour is mail
-  drawn on cloth, not plate. (The women's bodice is now cloth on gowns, 15 Nov.)
+- [x] Looks (21 Nov): the face can be shaped: face width, jaw, chin, nose, cheeks and brow,
+  five steps each (`Hero.FACE`, `shaders/face_deform.gdshaderinc`: soft regions of the head
+  found from the eyes on the rest pose and moved a few millimetres, head, eyes, brows and
+  beard together, since the sourced heads have no shape keys). Plate: a breastplate,
+  lames and shoulder plates (`plate` on a look): the Queen's Guard now wear it, and new
+  looks the Children of the Light (white cloak, golden sunburst) and Borderland plate (a
+  woman's). Clothes (21 Nov): Cairhienin and Tairen patterns no longer slide as you run,
+  hair no longer lifts off the head, cloaks, coats and skirts are pushed out of the legs.
 - [ ] **Casting by drawing** a shape after choosing the Powers (see VISION.md).
 
 ## Other classes and arms

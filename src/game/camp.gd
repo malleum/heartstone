@@ -1482,6 +1482,12 @@ func _style_options(parent: Control, style: Dictionary, man: bool) -> Dictionary
 			items[i] = row[2][i][0]
 		out[row[0]] = _option(parent, row[1], items)
 		out[row[0]].select(maxi(items.keys().find(int(style.get(row[0], row[3]))), 0))
+	for f in Hero.FACE:
+		var items := {}
+		for i in 5:
+			items[i - 2] = f[2][i]
+		out[f[0]] = _option(parent, f[1], items)
+		out[f[0]].select(clampi(int(style.get(f[0], 0)) + 2, 0, 4))
 	var cloaks := {"": "As the dress wears it"}
 	for id in Hero.CLOAKS:
 		cloaks[id] = Hero.CLOAKS[id][0]
@@ -1505,6 +1511,9 @@ func _style_of(w: Dictionary) -> Dictionary:
 		st.hair_col = int(w.hair_col.get_selected_metadata())
 	for k in ["skin", "eyes", "height", "build"]:
 		st[k] = int(w[k].get_selected_metadata())
+	for f in Hero.FACE:
+		if int(w[f[0]].get_selected_metadata()) != 0:
+			st[f[0]] = int(w[f[0]].get_selected_metadata())
 	if w.cloak.get_selected_metadata() != "":
 		st.cloak = w.cloak.get_selected_metadata()
 	if int(w.cloak_len.get_selected_metadata()) > 0:

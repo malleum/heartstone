@@ -254,6 +254,13 @@ func _mode_heroes() -> void:
 				Hero.stroke(rigs[i], strokes[i], _f("land", 0.5), _f("after", 0.5))
 	for i in ids.size():
 		var st := {} if cloaks.is_empty() else {cloak = cloaks[i], cloak_len = int(_f("len", -1)) if args.has("len") else i % 4}
+		# --style=key:v,key:v (e.g. f_jaw:2,f_nose:-2): the same style for each figure;
+		# --styles=a;b;c gives each figure its own, in turn.
+		var sty: String = args.get("style", "")
+		if args.has("styles"):
+			sty = String(args.styles).split(";")[i % String(args.styles).split(";").size()]
+		for kv in sty.split(",", false):
+			st[kv.get_slice(":", 0)] = int(kv.get_slice(":", 1))
 		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i, st)
 		r.position = Vector3((i - (ids.size() - 1) * 0.5) * 1.0, 0, 0)
 		add_child(r); rigs.append(r); hero_rigs.append(r)

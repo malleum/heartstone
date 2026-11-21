@@ -22,6 +22,11 @@ uniform vec4 sleeve : source_color = vec4(0.0);
 // Silk catches the light; mail is rings of steel where the cloth would be.
 uniform float sheen = 0.0;
 uniform bool mail = false;
+// Plate: a smooth breastplate over the chest, lames below it, plates on the
+// shoulders, steel where the cloth would be; `mark` (alpha above 0) is a golden
+// sunburst on the breast (the Children of the Light).
+uniform bool plate = false;
+uniform vec4 mark : source_color = vec4(0.0);
 varying vec3 rest;
 
 // The rest pose, baked into CUSTOM0 by Hero._bake_rest: VERTEX here is already posed.
@@ -80,6 +85,39 @@ void fragment() {
 		o = mix(o, vec3(steel) * min(lum / 0.2, 1.4), body);
 		METALLIC = body * 0.85;
 		rough = mix(rough, 0.42, body);
+	}
+	if (plate) {
+		// Worked on the rest pose, so the plates ride the body.
+		float y = rest.y; float ax = abs(rest.x);
+		float torso = step(ax, 0.2) * step(0.92, y) * step(y, 1.5);
+		float shoulder = smoothstep(0.15, 0.18, ax) * (1.0 - smoothstep(0.34, 0.38, ax)) * step(1.28, y);
+		float steel_here = max(torso, shoulder) * body;
+		// The breastplate: one curved piece, brighter where it faces up.
+		float lit = 0.32 + 0.22 * smoothstep(1.2, 1.45, y);
+		if (y < 1.16) {
+			// Lames below it: overlapping bands, each bright at its top edge, dark at the seam.
+			float b = fract((1.16 - y) / 0.06);
+			lit = 0.24 + 0.22 * (1.0 - b) - 0.18 * smoothstep(0.9, 1.0, b);
+		}
+		if (shoulder > 0.5) {
+			float b2 = fract((ax - 0.16) / 0.055);
+			lit = 0.3 + 0.2 * (1.0 - b2) - 0.15 * smoothstep(0.88, 1.0, b2);
+		}
+		vec3 st = vec3(lit) * vec3(0.95, 0.97, 1.0) * min(lum / 0.15 + 0.5, 1.3);
+		// Rivets along the breastplate's edge.
+		float rv = step(length(vec2(fract(rest.x * 25.0) - 0.5, (y - 1.17) * 25.0)), 0.25) * step(ax, 0.18);
+		st = mix(st, vec3(0.75), rv);
+		if (mark.a > 0.0 && rest.z > 0.0) {
+			// A sunburst: a disc with rays, over the heart (beside the coat's placket).
+			vec2 q = vec2(rest.x - 0.075, y - 1.445);
+			float rr = length(q);
+			float ray = step(0.5, fract(atan(q.y, q.x) * 16.0 / 6.2831853));
+			float sun = step(rr, 0.017) + step(rr, 0.045) * step(0.02, rr) * ray;
+			st = mix(st, mark.rgb, clamp(sun, 0.0, 1.0) * mark.a);
+		}
+		o = mix(o, st, steel_here);
+		METALLIC = steel_here * 0.9;
+		rough = mix(rough, 0.28, steel_here);
 	}
 	ALBEDO = o;
 	ROUGHNESS = mix(rough, 0.34, sheen * body);

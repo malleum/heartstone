@@ -1,4 +1,5 @@
 shader_type spatial;
+#include "res://shaders/face_deform.gdshaderinc"
 // Hair that moves: its colour as the pack's material had it, and the lower it hangs
 // from the crown the more it drifts back and stirs (Hero.cloak_motion sets gust).
 uniform sampler2D tex : source_color, filter_linear_mipmap;
@@ -22,6 +23,8 @@ void vertex() {
 	float w = hang * back;
 	vec3 stir = vec3(sin(TIME * 3.1 + r.x * 20.0), 0.0, sin(TIME * 2.3 + r.z * 17.0 + 1.3));
 	VERTEX += (wind * 0.03 + stir * 0.008) * min(gust, 1.6) * w;
+	// A beard follows the jaw and chin it grows on (zero for the hair of the head).
+	VERTEX += face_shape(r);
 }
 
 void fragment() {
