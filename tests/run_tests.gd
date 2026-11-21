@@ -189,6 +189,104 @@ func _water() -> void:
 		sim3.events.clear()
 	check(drowned and not burst and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
 
+func _placed() -> void:
+	print("== Placed weaves: the shape key, the Wall of Air, gateways placed end by end and turned")
+	# The shape key: flat across the aim, or round the weaver; turned by the wheel.
+	var flat := Sim.wall_pts(Vector3.ZERO, 0.0, Vector3(0, 0, 10), false, 0.0, 8.0, 25.0)
+	var round := Sim.wall_pts(Vector3.ZERO, 0.0, Vector3(0, 0, 10), true, 0.0, 8.0, 25.0)
+	check(flat.size() == 2 and absf((flat[0] as Vector2).y - 10.0) < 0.01 and absf((flat[0] as Vector2).x) > 3.9, "a flat wall stands across the aim")
+	check(round.size() == 7 and absf((round[3] as Vector2).length() - 3.2) < 0.01, "the other shape curves round the weaver")
+	var turned := Sim.wall_pts(Vector3.ZERO, 0.0, Vector3(0, 0, 10), false, PI * 0.5, 8.0, 25.0)
+	check(absf((turned[0] as Vector2).x) < 0.01 and absf((turned[0] as Vector2).y - 10.0) > 3.9, "turned a quarter, it runs along the aim")
+	# Wall of Air: solid while held, from either side, and gone when let go.
+	var sim := Sim.new("practice", 9)
+	sim._waves = []
+	var p := Profile.create({name = "Airwall"})
+	p.weaves["wall_of_air"] = {known = true, xp = 0.0}
+	var id := sim.add_player(p, Vector3(0, 0, 0))
+	sim._add_enemy("dummy", Vector3(40, 0, 40))
+	var me: Dictionary = sim.ents[id]
+	me.yaw = 0.0
+	var walls_before := Map.walls().size()
+	check(sim.request_cast(id, "wall_of_air", Vector3(0, 0, 6)) == "", "the Wall of Air can be woven")
+	run(sim, 2.5)
+	check(Map.walls().size() > walls_before, "and stands as walls on the ground")
+	sim.set_input(id, Vector3(0, 0, 1), 0.0)
+	run(sim, 3.0)
+	check(me.pos.z < 6.0, "nothing walks through it (z=%.1f)" % me.pos.z)
+	sim.set_input(id, Vector3.ZERO, 0.0)
+	sim.effects.append({kind = "projectile", owner = id, weave = "fireball", pos = Vector3(0, Terrain.height(0, 8) + 1.2, 9.0), vel = Vector3(0, 0, -25), dmg = 30.0, radius = 0.3, left = 40.0, gravity = 0.0, pierce = 0, passed = [], id = 9998})
+	run(sim, 0.4)
+	var past := false
+	for fx in sim.effects:
+		if fx.get("id", 0) == 9998 and fx.pos.z < 5.0: past = true
+	check(not past, "nothing thrown low gets through it")
+	sim.release(id, "wall_of_air")
+	run(sim, 0.1)
+	check(Map.walls().size() == walls_before, "let go, the walls are gone")
+	# Round you: the shape key reaches the cast.
+	sim.set_place(id, true, 0.0)
+	sim.request_cast(id, "wall_of_air", me.pos + Vector3(0, 0, 8))
+	run(sim, 2.5)
+	var n_pts := 0
+	for fx in sim.effects:
+		if fx.kind == "airwall": n_pts = fx.pts.size()
+	check(n_pts == 7, "with the other shape it curves round you")
+	sim.release(id, "wall_of_air")
+	# A gateway held until whole: let go for the near end, press and let go again for the far.
+	var gs := Sim.new("practice", 11)
+	gs._waves = []
+	var gp := Profile.create({name = "Placer", potential_pts = 14, affinity_pts = {spirit = 2, air = 2}})
+	gp.weaves["gateway"] = {known = true, xp = 0.0}
+	gp.channelled = Rules.TUNE.flow_steps[4]
+	var gid := gs.add_player(gp, Vector3(0, 0, 0))
+	gs._add_enemy("dummy", Vector3(60, 0, -60))
+	var g: Dictionary = gs.ents[gid]
+	g.yaw = 0.0
+	check(gs.request_cast(gid, "gateway", Vector3(0, 0, 6), true) == "", "a gateway can be held while it is made")
+	run(gs, 5.0)
+	gs.aim_cast(gid, Vector3(3, 0, 6), false)
+	run(gs, 0.5)
+	check(gs.effects.is_empty() and not g.forming.is_empty() and g.forming.has("end_a"), "let go when whole, it marks the near end and waits")
+	gs.aim_cast(gid, Vector3(0, 0, 30), false)
+	run(gs, 0.5)
+	check(gs.effects.is_empty(), "the next aim without a press does not open it")
+	gs.set_place(gid, false, PI * 0.5)
+	gs.aim_cast(gid, Vector3(0, 0, 30), true)
+	gs.aim_cast(gid, Vector3(0, 0, 30), false)
+	run(gs, 0.2)
+	var gate: Dictionary = {}
+	for fx in gs.effects:
+		if fx.kind == "gate": gate = fx
+	check(not gate.is_empty() and gate.pos.distance_to(Vector3(3, 0, 6)) < 1.0 and gate.to.distance_to(Vector3(0, 0, 30)) < 1.0, "the press and release sets the far end: both ends where they were aimed")
+	# Turned a quarter: walk straight into the near end, come out of the far one going the turned way.
+	var ya: float = gate.ya; var yb: float = gate.yb
+	var na := Vector3(sin(ya), 0, cos(ya))
+	g.pos = gate.pos + na * 1.0
+	gs.step(1.0 / 30.0)
+	gs.events.clear()
+	var dir := -na
+	gs.set_input(gid, dir, atan2(dir.x, dir.z))
+	var passed := {}
+	for i in 30:
+		gs.step(1.0 / 30.0)
+		for ev in gs.events:
+			if ev.e == "gate_pass": passed = ev
+		gs.events.clear()
+		if not passed.is_empty(): break
+	gs.set_input(gid, Vector3.ZERO, g.yaw)
+	var nb := Vector3(sin(yb), 0, cos(yb))
+	check(not passed.is_empty() and g.pos.distance_to(gate.to) < 2.0 and ((g.pos - gate.to) * Vector3(1, 0, 1)).dot(nb) > 0.0, "in at the front of one end, out at the front of the other")
+	check(absf(wrapf(float(passed.get("dyaw", 0.0)) - wrapf(yb + PI - ya, -PI, PI), -PI, PI)) < 0.05, "and turned as the ends are turned")
+	# A missile through a turned gateway is turned with it.
+	var f0 := gs.gate_frame(gate, 0)
+	gs.effects.append({kind = "projectile", owner = gid, weave = "fireball", pos = f0.origin + na * 1.5, vel = -na * 20.0, dmg = 1.0, radius = 0.3, left = 30.0, gravity = 0.0, pierce = 0, passed = [], id = 9997})
+	run(gs, 0.15)
+	var turned_ok := false
+	for fx in gs.effects:
+		if fx.get("id", 0) == 9997 and fx.pos.distance_to(gate.to) < 6.0 and (fx.vel as Vector3).normalized().dot(nb) > 0.95: turned_ok = true
+	check(turned_ok, "a weave thrown into it comes out of the far end, going the far end's way")
+
 func _held_balefire() -> void:
 	print("== Balefire held: burns while held, follows the aim, costs breath, goes out when let go")
 	var sim := Sim.new("practice", 7)
@@ -1562,6 +1660,7 @@ func _init() -> void:
 	_holds()
 	_water()
 	_held_balefire()
+	_placed()
 	_fasten_players()
 	_foes()
 	_powers()

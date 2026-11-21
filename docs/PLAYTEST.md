@@ -148,4 +148,6 @@ continue; play it and change the number if it feels wrong. Tick items off here.
    shield toward an archer and arrows glance off; the heavy blow is a shield bash
    that shoves. Assumed: turns anything within about 70 degrees of where you face.
 
+- Placing (20 Nov): T switches walls between flat ahead and round you (gateway ends: upright or laid flat), the wheel turns them 15 degrees a notch while you weave; the shape stays chosen, the turn goes back to straight for each new weave and after a gateway's near end. A gateway held until whole is placed end by end (near end within 10 m, far end within 70 m times the root of strength); a tap opens it the old quick way. Are T and the wheel natural, and is placing two ends too slow in a fight?
+- Wall of Air (20 Nov): Air 2, 1.6 s to weave, 7 m by 2.6 m, solid both ways while held (your own fire stops on it too), costs the usual hold upkeep. Assumed book 6 (rule on it). Is it too strong against archers and melee alike? Is it visible enough (a faint ripple and a thin top line) when a friend raises it?
 - Held Balefire (20 Nov): turns after the crosshair at 75 degrees a second, burns up to 3 s (times the root of strength), at least 0.6 s on a click, costs half its draw each second. Assumed: a slow, heavy sweep you steer, not a laser pointer; it burns each body once. Feel the turn rate and whether 3 s is too much.

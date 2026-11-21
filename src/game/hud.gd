@@ -194,7 +194,15 @@ func _draw() -> void:
 		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 40, Glyph.GOLD if f >= 1.0 else col, 3.0, true)
 		if f >= 1.0:
 			draw_arc(cc, 20.0 + 2.0 * sin(t * 12.0), 0, TAU, 40, Color(Glyph.GOLD, 0.55), 1.5, true)
-			Glyph.text(self, sans, cc + Vector2(0, 44), "let go to loose" if g.weaving else "", 13, Color(Glyph.GOLD, 0.9), 0)
+			var say := "let go to loose" if g.weaving else ""
+			if g.my_form.get("marked", false):
+				say = "click for the far end"
+			elif g.weaving and Rules.weaves[g.my_form.weave].kind == "gate":
+				say = "let go: the near end"
+			Glyph.text(self, sans, cc + Vector2(0, 44), say, 13, Color(Glyph.GOLD, 0.9), 0)
+		if g._placing():
+			# A wall or a gateway end: how it will stand, and the keys that change it.
+			Glyph.text(self, sans, cc + Vector2(0, 62), "%s   ·   %s: shape   ·   wheel: turn" % [g._shape_name(), Keys.name(KEY_T)], 12, Color(1, 1, 1, 0.75), 0)
 	elif n > 0 and Rules.forms.has(known[g.selected]) and g.held_since < 0.0:
 		var id: String = known[g.selected]
 		var total: float = float(Rules.forms[id].cooldown)

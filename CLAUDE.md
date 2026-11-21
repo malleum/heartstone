@@ -93,6 +93,10 @@ working on abilities; the user's rulings there are final).
   `--demo=weave:12@-28,20@22` (woven in turn at several spots, metres@degrees). The user's
   taste: night (`--activity=holdout@tarwins_night`), capes in the wind, weaves lighting the
   enemies; pick frames by brightness after the cast, not over the whole run.
+- `--shape=alt --turn=deg` (the bot's walls round it, gateway far ends flat; turned) and
+  `--gate=metres@degrees` (where `--gate` opens its far end); `--walkgate` walks in at the
+  near end's front and out of the far end's. `tools/ghost.sh` has a `place` script (T, the
+  wheel, a gateway set end by end).
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
   weaves a second thing 40 frames after each `--demo` (a fireball at a Wall of Water);
   `--quality=0|1|2` renders one picture-quality level without changing the saved one.

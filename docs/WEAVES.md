@@ -268,10 +268,25 @@ woven halves the work. "Work" is in the game's draw units: a bot channels about
 | Spirit | Dazes: no attack and no pursuit for three seconds. A Myrddraal cannot step aside from it | Blade of Spirit |
 
 ### Gateway and Healing in play (game choice, on canon rules)
-- **A gateway** is held like a dome: two doorways, one a step in front of you and
-  one where you aimed (up to 70 paces). Whoever walks into either comes out of
-  the other, friend or Shadowspawn. Weaving it again closes it; it can be tied
-  off. It still needs strength 19(7) or the Talent.
+- **A gateway** is held like a dome: two doorways. Tapped, one opens a step in front
+  of you and one where you aimed (up to 70 paces, times the root of strength).
+  Held until whole, it is placed end by end (20 Nov, the user's ask): let go to set
+  the near end where you look (within 10 m), press and let go again for the far
+  end. T lays the end being placed flat (a hole in the ground; aimed 4 m or more
+  into the air, a far end opens flat in the sky and what comes out falls); the
+  wheel turns it. In at the front of one end, out at the front of the other, turned
+  as the ends are turned: people, missiles, the windows and the camera all go
+  through the same way. Whoever walks into either comes out of the other, friend
+  or Shadowspawn. Weaving it again closes it; it can be tied off. It still needs
+  strength 19(7) or the Talent.
+- **Wall of Air** (game row, book 6 assumed; Air 2; held, tied off like the Dome):
+  hardened Air standing 2.6 m high and 7 m long (times the root of strength), as
+  solid as stone while it is held: nothing walks through it and nothing thrown or
+  woven below its top gets past, from either side (your own fire too). T switches
+  it between flat ahead (2.5 to 25 m out) and a quarter circle 3.2 m round you, as
+  for the Wall of Water; the wheel turns it. Built on the ground's walls
+  (`Map.add_wall`, look `air`). Drawn as a faint ripple in the light with a thin
+  bright line along its top.
 - **Healing** must reach someone else: with nobody in reach of where you aim it
   is refused before it costs anything. A ring marks who it will reach. It ends a
   Myrddraal's festering wound.
@@ -337,8 +352,8 @@ Tarwin's Gap, a pond outside the wagon ring, a river across the Wild Hunt's corn
 draw it, shallow water slows and soaks, deep cores are not walked (`Map.unblock`).
 Torrent (`surge`, book 1, needs Lash of Water) and Wall of Water (`curtain`, book 6,
 held; needs Lash and Hammer of Air). `Sim.WATER_REACH` 25 m: full strength near water,
-half away from it. The wall curves round the caster when aimed within 4.5 m and
-stands flat across the aim otherwise (no toggle key yet). Tests: `_water` in
+half away from it. The wall stands flat across the aim, or round the caster with
+the T key (20 Nov; it had chosen by distance before), turned by the wheel. Tests: `_water` in
 `tests/run_tests.gd`. Visuals reviewed 20 Nov: `water.gdshader` (depth-faded edge,
 foam), wet banks in `ground.gdshader`, `wave.gdshader` (Torrent), `curtain.gdshader`
 (the wall, refracting), `Weavefx.drowned`. Left: a toggle key for the wall's shape, a wall weave of Air,
@@ -364,6 +379,9 @@ the nearest water's distance and whether any is in reach.
 **The rule both weaves share.** Water drawn from a body of water is plentiful: full
 strength within 25 m of one. Away from water the weave pulls what it can from the air
 and ground: half strength, smaller, shorter (a channeller far from water feels it).
+
+(Built 19-20 Nov. The shape toggle is the T key: flat ahead or round you, the wheel
+turning it while it is woven; shared with the Wall of Air and gateway ends.)
 
 **Attack: Torrent** (Water, with Air to carry it; proposed book 1, a cousin of the
 Lash). Woven at a target in range: a surge rises from the nearest water's edge (or

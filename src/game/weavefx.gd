@@ -214,7 +214,9 @@ static func _wave_mesh(width: float, hgt: float) -> ArrayMesh:
 
 ## A Wall of Water standing: a falling sheet along each stretch of its line, and
 ## water splashing up along its foot.
-static func curtain(g: Node3D, pts: Array, height: float) -> Node3D:
+## A standing sheet along `pts` (ground points): a Wall of Water, or with `air` a
+## Wall of Air (the same sheet as a faint ripple in the light, solid to the touch).
+static func curtain(g: Node3D, pts: Array, height: float, air := false) -> Node3D:
 	var root := Node3D.new(); g.add_child(root)
 	var sh := load("res://shaders/curtain.gdshader")
 	var mats := []
@@ -231,14 +233,15 @@ static func curtain(g: Node3D, pts: Array, height: float) -> Node3D:
 		var sm := ShaderMaterial.new(); sm.shader = sh
 		sm.set_shader_parameter("u0", along); sm.set_shader_parameter("ulen", len)
 		sm.set_shader_parameter("height", height); sm.set_shader_parameter("total", total)
+		sm.set_shader_parameter("air", 1.0 if air else 0.0)
 		mi.material_override = sm; mats.append(sm)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
 		var base: Vector3 = g._ground(mid) + Vector3(0, height * 0.5 - 0.05, 0)
 		var dir3 := Vector3(b.x - a.x, 0, b.y - a.y).normalized()
 		mi.transform = Transform3D(Basis(dir3, Vector3.UP, dir3.cross(Vector3.UP)), base)
-		# Splash along the foot, all the while it stands.
-		var sp := _particles(Color(0.5, 0.62, 0.7), int(len * 10.0), 0.5, 0.05, 2.2, -9.0, 30.0)
+		# Splash along the foot, all the while it stands (Air: dust stirred, slowly).
+		var sp := _particles(Color(0.5, 0.62, 0.7), int(len * 10.0), 0.5, 0.05, 2.2, -9.0, 30.0) if not air else _particles(Color(0.55, 0.52, 0.46, 0.5), int(len * 3.0), 1.2, 0.18, 0.5, 0.3, 40.0, false)
 		var pm: ParticleProcessMaterial = sp.process_material
 		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 		pm.emission_box_extents = Vector3(len * 0.5, 0.05, 0.12)
@@ -248,7 +251,10 @@ static func curtain(g: Node3D, pts: Array, height: float) -> Node3D:
 		sp.emitting = true
 		along += len
 	root.set_meta("mats", mats)
-	Sfx.play(g, "surge", g._ground(Vector3(pts[0].x, 0, pts[0].y)), 0.0, 0.8)
+	if air:
+		Sfx.play(g, "whoosh", g._ground(Vector3(pts[0].x, 0, pts[0].y)), 0.0, 0.6)
+	else:
+		Sfx.play(g, "surge", g._ground(Vector3(pts[0].x, 0, pts[0].y)), 0.0, 0.8)
 	return root
 
 static func curtain_end(root: Node3D) -> void:
@@ -767,24 +773,27 @@ static func arc(g: Node3D, a: Vector3, b: Vector3) -> void:
 	_once(_particles(Color(0.8, 0.88, 1.0), 20, 0.3, 0.08, 5.0, -4.0, 90.0), g, b)
 	Sfx.play(g, "crack", b, -6.0, 1.8)
 
-## Both sides of a gateway: a slash of light that turns open into a doorway. The
-## returned node holds the two, and is freed when the weave is let go.
-static func gate(g: Node3D, a: Vector3, b: Vector3, flat_a := false, sky := 0.0) -> Node3D:
+## Both sides of a gateway (the sim's gate_open event: a, b, ya, yb, flat_a,
+## flat_b, sky): a slash of light that turns open into a doorway, each end standing
+## or lying as placed (Sim.gate_frame_of). The returned node holds the two, with
+## their frames as meta "frames" for the windows, and is freed when let go.
+static func gate(g: Node3D, e: Dictionary) -> Node3D:
 	var n := Node3D.new(); g.add_child(n)
-	for side in [[a, b, flat_a, 0.0], [b, a, sky > 0.0, sky]]:
+	var a: Vector3 = e.a; var b: Vector3 = e.b
+	var d := (b - a) * Vector3(1, 0, 1)
+	var yd := atan2(d.x, d.z) if d.length() > 0.01 else 0.0
+	var sky: float = float(e.get("sky", 0.0))
+	var frames := [Sim.gate_frame_of(a, float(e.get("ya", yd + PI)), e.get("flat_a", false), 0.0),
+		Sim.gate_frame_of(b, float(e.get("yb", yd)), e.get("flat_b", false) or sky > 0.0, sky)]
+	n.set_meta("frames", frames)
+	for i in (1 if e.get("one", false) else 2):
 		var q := QuadMesh.new(); q.size = Vector2(1.9, 2.9)
 		var mi := MeshInstance3D.new(); mi.mesh = q
 		var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
 		sm.set_shader_parameter("tint", Color(0.75, 0.85, 1.0)); sm.set_shader_parameter("lit", 1.0)
 		mi.material_override = sm; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(mi)
-		mi.position = g._ground(side[0]) + Vector3(0, 1.5, 0)
-		var away: Vector3 = (side[1] - side[0]) * Vector3(1, 0, 1)
-		mi.rotation.y = atan2(away.x, away.z)
-		if side[2]:
-			# Laid flat: a hole in the ground, or an opening in the sky.
-			mi.rotation = Vector3(-PI * 0.5, mi.rotation.y, 0)
-			mi.position = g._ground(side[0]) + Vector3(0, 0.04 + side[3], 0)
+		mi.transform = frames[i]
 		# It opens from a line: narrow, then wide.
 		mi.scale = Vector3(0.02, 1.0, 1.0)
 		g.create_tween().tween_property(mi, "scale", Vector3.ONE, 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)

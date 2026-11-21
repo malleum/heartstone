@@ -3,7 +3,7 @@ extends RefCounted
 ## A scripted pair of hands: feeds real key and mouse events into the engine on
 ## given frames, so the path a person's input takes (not a bot's direct calls into
 ## the sim) can be exercised in a render or a test.
-##   -- --ghost=arms | weaves | camp | dream
+##   -- --ghost=arms | weaves | place | camp | dream
 ## Each script is a list of [frame, what, ...]: "key" keycode down?, "mouse"
 ## button down?, "tap" keycode (down and up).
 
@@ -31,6 +31,13 @@ const SCRIPTS := {
 		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
 		[420, "tap", KEY_E], [430, "tap", KEY_Q], [436, "tap", KEY_1],
 		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE]],
+	# Placing: the other shape, a Wall of Air round you; then a gateway held until
+	# whole, let go for the near end, the wheel turning the far end, a click for it.
+	place = [[60, "tap", KEY_T], [80, "mouse", MOUSE_BUTTON_LEFT, true], [150, "mouse", MOUSE_BUTTON_LEFT, false],
+		[180, "tap", KEY_2], [190, "tap", KEY_T],
+		[200, "mouse", MOUSE_BUTTON_LEFT, true], [350, "mouse", MOUSE_BUTTON_LEFT, false],
+		[370, "mouse", MOUSE_BUTTON_WHEEL_UP, true], [371, "mouse", MOUSE_BUTTON_WHEEL_UP, false],
+		[390, "mouse", MOUSE_BUTTON_LEFT, true], [392, "mouse", MOUSE_BUTTON_LEFT, false]],
 	# A duel in the dream: every dream key once, most of them before the shade
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],

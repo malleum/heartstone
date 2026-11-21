@@ -266,6 +266,11 @@ func jump() -> void:
 	if is_host: _do_arms(1, "jump", [])
 	else: _arms.rpc_id(1, "jump", [])
 
+## How the next wall or gateway end stands (Sim.set_place): the other shape, and a turn.
+func place(alt: bool, turn: float) -> void:
+	if is_host: _do_arms(1, "place", [alt, turn])
+	else: _arms.rpc_id(1, "place", [alt, turn])
+
 ## Drop the weave being made, unloosed (Sim.cancel_weave).
 func cancel_weave() -> void:
 	if is_host: _do_arms(1, "cancel", [])
@@ -358,6 +363,8 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			why = sim.request_link(ent)
 		"cancel":
 			why = sim.cancel_weave(ent)
+		"place":
+			if a.size() == 2 and a[0] is bool and (a[1] is float or a[1] is int): sim.set_place(ent, a[0], float(a[1]))
 		"rope":
 			if a.size() == 1 and a[0] is bool: why = sim.set_tying(ent, a[0])
 		"jump":

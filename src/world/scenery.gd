@@ -448,6 +448,8 @@ static func _multi(g: Node3D, mesh: Mesh, xfs: Array, shadows := false) -> void:
 	for i in xfs.size():
 		mm.set_instance_transform(i, xfs[i])
 	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
+	if mat0 is ShaderMaterial and (mat0 as ShaderMaterial).shader.resource_path.ends_with("grass.gdshader"):
+		mi.layers = 1 | 4    # the ground's layer (Terrain.build_mesh)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(mi)
 

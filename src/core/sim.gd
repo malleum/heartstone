@@ -240,6 +240,16 @@ func tie(id: int, weave: String) -> String:
 			events.append({e = "tie", id = id, weave = weave, target = h.target})
 	return "" if any else "you are not holding that"
 
+## How the next placed weave stands: `alt` is the other shape (a wall round you
+## instead of flat ahead; a gateway end laid flat instead of upright), `turn`
+## turns it (radians) from facing the weaver.
+func set_place(id: int, alt: bool, turn: float) -> void:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty():
+		return
+	p.shape_alt = alt
+	p.turn = wrapf(turn, -PI, PI)
+
 ## Let go of a weave being made, or made and held back, without loosing it.
 func cancel_weave(id: int) -> String:
 	var p: Dictionary = ents.get(id, {})
@@ -351,8 +361,22 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 func aim_cast(id: int, aim: Vector3, hold: bool) -> void:
 	var p: Dictionary = ents[id]
 	if not p.forming.is_empty():
-		p.forming.aim = aim
-		p.forming.hold = hold
+		var f: Dictionary = p.forming
+		f.aim = aim
+		if f.get("wait_b", false):
+			# A gateway's near end is set: it stays in the hands until the next press
+			# and release, which sets the far end.
+			if hold:
+				f.wait_b = false
+			return
+		var let_go: bool = f.get("hold", false) and not hold
+		f.hold = hold
+		# A gateway held until whole is placed one end at a time: this release sets
+		# the near end where the crosshair is, shaped and turned as chosen.
+		if let_go and f.get("ready", false) and Rules.weaves[f.weave].kind == "gate" and not f.has("end_a"):
+			f.end_a = gate_end(p.pos, p.yaw, aim, true, p.get("shape_alt", false), p.get("turn", 0.0), 0.0)
+			f.hold = true; f.wait_b = true
+			events.append({e = "gate_mark", id = id, end = f.end_a})
 		return
 	# Balefire burning: it follows the aim, and goes out when let go.
 	for fx in effects:
@@ -627,6 +651,10 @@ func release(id: int, weave: String, target := -1) -> void:
 			if fx.kind == "curtain" and fx.owner == id and not fx.get("gone", false):
 				fx.gone = true
 				events.append({e = "curtain_end", fx = fx.id})
+	if kind == "airwall":
+		for fx in effects:
+			if fx.kind == "airwall" and fx.owner == id and not fx.get("gone", false):
+				_airwall_down(fx)
 	if kind == "gate":
 		for fx in effects:
 			if fx.kind == "gate" and fx.owner == id and not fx.get("gone", false):
@@ -1327,6 +1355,8 @@ func _step_player(p: Dictionary, dt: float) -> void:
 			p.forming = {}
 			events.append({e = "fizzle", id = p.id, weave = weave})
 			return
+	# A gateway placed end by end: its near end goes with it into the cast.
+	p.gate_a = p.forming.get("end_a", {})
 	p.forming = {}
 	var cost := Rules.draw_of(p.profile, weave, p.stamina)
 	p.stamina = maxf(p.stamina - cost, 0.0)
@@ -1658,41 +1688,55 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				width = b.width * kr * (1.0 if near_water else 0.7), push = b.push * sk, hit = [], puddled = 0.0, id = _fx_id()})
 			events.append({e = "surge", id = p.id, from = Map.water_near(origin).get("at", origin) if near_water else origin, origin = origin, dir = sdir, len = slen, speed = b.speed, full = near_water})
 		"curtain":
-			# Wall of Water: held. Aimed near you it curves round you (a quarter
-			# circle); aimed further, it stands flat across the aim.
+			# Wall of Water: held. Flat across the aim, or (the shape key) a quarter
+			# circle round the weaver; either turned with the wheel.
 			var wn2 := Map.water_near(p.pos)
 			var full: bool = not wn2.is_empty() and wn2.dist <= WATER_REACH
 			var ck: float = 1.0 if full else 0.6
-			var wid: float = b.width * kr * ck
-			var pts := []
-			if dist < 4.5:
-				for i in 7:
-					var a := dir.rotated(Vector3.UP, deg_to_rad(-45.0 + i * 15.0)) * 3.2
-					pts.append(Vector2(p.pos.x + a.x, p.pos.z + a.z))
-			else:
-				var c3 := Vector3(at.x, 0, at.z)
-				var side := dir.cross(Vector3.UP)
-				for i in 2:
-					var q := c3 + side * (wid * 0.5) * (1.0 if i == 0 else -1.0)
-					pts.append(Vector2(q.x, q.z))
+			var pts := wall_pts(p.pos, p.yaw, aim, p.get("shape_alt", false), p.get("turn", 0.0), b.width * kr * ck, WALL_REACH)
 			effects.append({kind = "curtain", owner = p.id, weave = weave, pts = pts, pos = Vector3(pts[0].x, 0, pts[0].y), height = b.height * ck, slow = b.slow, gone = false, age = 0.0, id = _fx_id()})
 			events.append({e = "curtain", id = p.id, fx = effects[-1].id, pts = pts, height = b.height * ck})
+		"airwall":
+			# Wall of Air: hardened Air, as solid as stone while it is held. Nothing
+			# walks through it and nothing thrown or woven low gets past, from
+			# either side; it is laid out like the Wall of Water.
+			var pts := wall_pts(p.pos, p.yaw, aim, p.get("shape_alt", false), p.get("turn", 0.0), b.width * kr, WALL_REACH)
+			var walls := []
+			for i in pts.size() - 1:
+				var a2: Vector2 = pts[i]; var b2: Vector2 = pts[i + 1]
+				var seg := b2 - a2
+				walls.append(Map.add_wall({x = (a2.x + b2.x) * 0.5, z = (a2.y + b2.y) * 0.5, hx = 0.22, hz = seg.length() * 0.5 + 0.12, h = float(b.height), yaw = 0.0, rot = atan2(seg.x, seg.y), look = "air"}))
+			effects.append({kind = "airwall", owner = p.id, weave = weave, pts = pts, pos = Vector3(pts[0].x, 0, pts[0].y), height = float(b.height), walls = walls, gone = false, age = 0.0, id = _fx_id()})
+			events.append({e = "airwall", id = p.id, fx = effects[-1].id, pts = pts, height = float(b.height), walls = walls})
 		"gate":
 			# A gateway: a hole from here to there, open while it is held (or tied).
-			# Anyone who steps into one side steps out of the other: friend or not.
-			# Either end can lie flat: aimed at the ground close by, the near end is a
-			# hole at your feet; aimed high into the air, the far end opens in the sky
-			# and what comes through it falls.
-			var ground_at := Terrain.height(at.x, at.z)
-			var flat_a: bool = Vector2(at.x - p.pos.x, at.z - p.pos.z).length() < 4.0
-			var sky: float = clampf(at.y - ground_at, 0.0, 30.0) if at.y - ground_at > 4.0 else 0.0
-			var near_side: Vector3 = Map.clamp_pos(Map.unblock(p.pos + dir * (2.0 if flat_a else 1.6), 0.6))
-			var far_side: Vector3 = Map.clamp_pos(Map.unblock(Vector3(at.x, 0, at.z) + (dir * 6.0 if flat_a else Vector3.ZERO), 0.6))
+			# Anyone who steps into the front of one end steps out of the front of
+			# the other: friend or not. Held until whole and let go, it is placed end
+			# by end (aim_cast): each where the crosshair was, upright or flat, turned
+			# as chosen. Let go before it is whole, it opens quickly: the near end by
+			# you (a hole at your feet if aimed close), the far end at the aim, in the
+			# sky if aimed high (what comes through falls).
+			var ea: Dictionary = p.get("gate_a", {})
+			p.gate_a = {}
+			var eb: Dictionary
+			var reach: float = float(b.range) * kr
+			if ea.is_empty():
+				var flat_a: bool = dist < 4.0
+				var near_side: Vector3 = Map.clamp_pos(Map.unblock(p.pos + dir * (2.0 if flat_a else 1.6), 0.6))
+				eb = gate_end(p.pos, p.yaw, aim + (dir * 6.0 if flat_a else Vector3.ZERO), false, p.get("shape_alt", false), p.get("turn", 0.0), reach)
+				var d: Vector3 = (eb.pos - near_side) * Vector3(1, 0, 1)
+				var yd := atan2(d.x, d.z)
+				ea = {pos = near_side, yaw = yd + PI, flat = flat_a, sky = 0.0}
+				eb.yaw = yd + p.get("turn", 0.0)
+			else:
+				eb = gate_end(p.pos, p.yaw, aim, false, p.get("shape_alt", false), p.get("turn", 0.0), reach)
 			var gid := _fx_id()
-			effects.append({kind = "gate", owner = p.id, weave = weave, pos = near_side, to = far_side, id = gid, flat_a = flat_a, sky = sky, age = 0.0})
-			events.append({e = "gate_open", id = gid, a = near_side, b = far_side, by = p.id, flat_a = flat_a, sky = sky})
+			var g := {kind = "gate", owner = p.id, weave = weave, pos = ea.pos, to = eb.pos, ya = ea.yaw, yb = eb.yaw, id = gid,
+				flat_a = ea.flat, flat_b = eb.flat and eb.sky <= 0.0, sky = eb.sky, age = 0.0}
+			effects.append(g)
+			events.append({e = "gate_open", id = gid, a = g.pos, b = g.to, ya = g.ya, yb = g.yb, by = p.id, flat_a = g.flat_a, flat_b = g.flat_b, sky = g.sky})
 			# Opening, its edge slices through whatever is where it forms.
-			_gate_cut(near_side, p.id); _gate_cut(far_side, p.id)
+			_gate_cut(g.pos, p.id); _gate_cut(g.to, p.id)
 		"heal":
 			# Canon: you cannot Heal yourself.
 			var best := _heal_target(p, at, b.range)
@@ -1746,36 +1790,120 @@ func _struck(p: Dictionary) -> Array:
 			out.append(e)
 	return out
 
-## The plane of a gateway: both ends stand the same way (facing along the line from
-## one to the other), so going through is simply moving by the offset between them.
-## That is what lets the view show each end as a window onto the other.
+## The way from one gateway end to the other (for --walkgate pictures).
 func _gate_normal(fx: Dictionary) -> Vector3:
 	var n: Vector3 = (fx.to - fx.pos) * Vector3(1, 0, 1)
 	return n.normalized() if n.length() > 0.01 else Vector3.FORWARD
 
-## One body and one gateway: crossing an upright end's plane within its width moves
-## them by exactly the offset to the other end (out on the matching side, going the
-## same way); standing on a flat end drops them through. Shadowspawn keep off unless
-## thrown in, and die if they go through; out of a sky end is a fall.
+## A placed wall's line (Wall of Water, Wall of Air) as ground points: flat across
+## the aim, `width` long, 2.5 to `reach` metres out; or with `round`, a quarter
+## circle 3.2 m round the weaver centred on the aim's bearing. `turn` turns either
+## (the flat one about its middle). Static: the view draws it before it is made.
+static func wall_pts(from: Vector3, yaw: float, aim: Vector3, round: bool, turn: float, width: float, reach: float) -> Array:
+	var to := (aim - from) * Vector3(1, 0, 1)
+	var dir := to.normalized() if to.length() > 0.1 else Vector3(sin(yaw), 0, cos(yaw))
+	var pts := []
+	if round:
+		var d := dir.rotated(Vector3.UP, turn)
+		for i in 7:
+			var a := d.rotated(Vector3.UP, deg_to_rad(-45.0 + i * 15.0)) * 3.2
+			pts.append(Vector2(from.x + a.x, from.z + a.z))
+	else:
+		var c := from + dir * clampf(to.length(), 2.5, reach)
+		var side := dir.rotated(Vector3.UP, turn).cross(Vector3.UP)
+		for s in [0.5, -0.5]:
+			var q: Vector3 = c + side * width * s
+			pts.append(Vector2(q.x, q.z))
+	return pts
+const WALL_REACH := 25.0
+
+## One end of a gateway placed at the aim: {pos, yaw, flat, sky}. The near end
+## (within 10 m) faces the weaver, the far end (within `reach`) faces away, so
+## walking straight in carries on straight out; `turn` turns it from there. Aimed
+## high (4 m and more over the ground), a far end opens flat in the sky.
+static func gate_end(from: Vector3, yaw: float, aim: Vector3, near: bool, flat: bool, turn: float, reach: float) -> Dictionary:
+	var to := (aim - from) * Vector3(1, 0, 1)
+	var face := atan2(to.x, to.z) if to.length() > 0.1 else yaw
+	var d := to.limit_length(10.0 if near else reach)
+	if d.length() < 1.6:
+		d = Vector3(sin(face), 0, cos(face)) * 1.6
+	var pos: Vector3 = Map.clamp_pos(Map.unblock(from + d, 0.6))
+	var sky := 0.0
+	if not near:
+		var over := aim.y - Terrain.height(aim.x, aim.z)
+		if over > 4.0:
+			sky = minf(over, 30.0)
+	return {pos = pos, yaw = face + (PI if near else 0.0) + turn, flat = flat or sky > 0.0, sky = sky}
+
+## A gateway end's frame: origin at the middle of its face, +Z out of its front.
+## Upright, it stands on the ground; flat on the ground it faces up (a hole you drop
+## into); flat in the sky it faces down (what comes out falls).
+static func gate_frame_of(o: Vector3, yaw: float, flat: bool, sky: float) -> Transform3D:
+	var b := Basis(Vector3.UP, yaw)
+	var y := Terrain.height(o.x, o.z)
+	if not flat:
+		return Transform3D(b, Vector3(o.x, y + 1.5, o.z))
+	if sky > 0.0:
+		return Transform3D(b * Basis(Vector3.RIGHT, PI * 0.5), Vector3(o.x, y + sky, o.z))
+	# On a slope the opening is lifted to the highest ground under it, not half buried.
+	var fwd := Vector3(sin(yaw), 0, cos(yaw)); var side := Vector3(fwd.z, 0, -fwd.x)
+	for c in [fwd * 1.45 + side * 0.95, fwd * 1.45 - side * 0.95, -fwd * 1.45 + side * 0.95, -fwd * 1.45 - side * 0.95]:
+		y = maxf(y, Terrain.height(o.x + c.x, o.z + c.z))
+	return Transform3D(b * Basis(Vector3.RIGHT, -PI * 0.5), Vector3(o.x, y + 0.04, o.z))
+
+## From one end's side of the world to the other's: in at the front of one, out at
+## the front of the other (and in at the back, out at the back). The camera, the
+## windows, bodies and missiles all go through by this.
+static func gate_through(from_end: Transform3D, to_end: Transform3D) -> Transform3D:
+	return to_end * Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) * from_end.affine_inverse()
+
+func _gate_yaw(fx: Dictionary, i: int) -> float:
+	var key := "ya" if i == 0 else "yb"
+	if fx.has(key):
+		return float(fx[key])
+	# Made without turns (old saves, tests): the ends face along the line between them.
+	var d: Vector3 = (fx.to - fx.pos) * Vector3(1, 0, 1)
+	var yd := atan2(d.x, d.z) if d.length() > 0.01 else 0.0
+	return yd + PI if i == 0 else yd
+
+func _gate_flat(fx: Dictionary, i: int) -> bool:
+	return fx.get("flat_a", false) if i == 0 else (fx.get("flat_b", false) or fx.get("sky", 0.0) > 0.0)
+
+func gate_frame(fx: Dictionary, i: int) -> Transform3D:
+	return gate_frame_of(fx.pos if i == 0 else fx.to, _gate_yaw(fx, i), _gate_flat(fx, i), 0.0 if i == 0 else float(fx.get("sky", 0.0)))
+
+## One body and one gateway: crossing an upright end's face within its width takes
+## them out of the other end's matching face, turned as the ends are turned; standing
+## on a flat end drops them through. Shadowspawn keep off unless thrown in, and die
+## if they go through; out of a sky end is a fall.
 func _gate_step(fx: Dictionary, e: Dictionary) -> void:
-	var n := _gate_normal(fx)
-	var across := Vector3(n.z, 0, -n.x)
-	var sides := [[fx.pos, fx.to - fx.pos, fx.get("flat_a", false), 0], [fx.to, fx.pos - fx.to, fx.get("sky", 0.0) > 0.0, 1]]
-	for side in sides:
-		if side[3] == 1 and fx.get("sky", 0.0) > 0.0:
+	for i in 2:
+		var j := 1 - i
+		if i == 1 and fx.get("sky", 0.0) > 0.0:
 			continue   # a sky end cannot be walked into from below
-		var o: Vector3 = side[0]
+		var fi := gate_frame(fx, i)
+		var flat_i := _gate_flat(fx, i)
+		var o: Vector3 = fx.pos if i == 0 else fx.to
+		var n := Vector3(sin(_gate_yaw(fx, i)), 0, cos(_gate_yaw(fx, i)))
+		var across := Vector3(n.z, 0, -n.x)
 		var rel: Vector3 = (e.pos - o) * Vector3(1, 0, 1)
-		var key := "gd%d_%d" % [fx.id, side[3]]
+		var key := "gd%d_%d" % [fx.id, i]
 		var through := false
-		if side[2]:
+		var going := Vector3.DOWN          # the way they go in
+		if flat_i:
 			through = rel.length() < 1.0     # a hole at your feet: you drop in
 		else:
 			var d := rel.dot(n)
 			var lat := absf(rel.dot(across))
-			var before: float = e.get(key, d)
-			e[key] = d
-			through = lat < 0.95 and absf(d) < 1.5 and before * d < 0.0
+			# Only a crossing from just in front of (or behind) the mouth counts: not a
+			# body that was off to the side, or put down beside it.
+			if lat >= 0.95 or absf(d) >= 1.5:
+				e.erase(key)
+			else:
+				var before: float = e.get(key, d)
+				e[key] = d
+				through = before * d < 0.0
+				going = -n * signf(before)
 		if not through:
 			# The Shadow's creatures keep off it (they are not thrown in).
 			if _is_shadowspawn(e) and e.vel.length() < 2.0 and fx.age > 0.6 and rel.length() < 1.3:
@@ -1785,23 +1913,48 @@ func _gate_step(fx: Dictionary, e: Dictionary) -> void:
 		if spawn and e.vel.length() < 2.0 and fx.age > 0.6:
 			e.pos = o + (rel.normalized() if rel.length() > 0.01 else -n) * 1.35
 			continue
-		e.pos = Map.clamp_pos(e.pos + side[1] * Vector3(1, 0, 1))
-		if side[2]:
-			e.pos += n * 1.4                # out of a hole, a step clear of the far end
+		var fj := gate_frame(fx, j)
+		var flat_j := _gate_flat(fx, j)
+		var oj: Vector3 = fx.to if j == 1 else fx.pos
+		var xf := gate_through(fi, fj)
+		var out: Vector3 = (xf.basis * going) * Vector3(1, 0, 1)
+		var yaw_was: float = e.yaw
+		if not flat_i and not flat_j:
+			# Upright to upright: exactly where they were, as seen from the other end.
+			var q := xf * Vector3(e.pos.x, fi.origin.y, e.pos.z)
+			e.pos = Map.clamp_pos(Vector3(q.x, 0, q.z))
+			e.yaw += xf.basis.get_euler().y
+		elif out.length() > 0.5:
+			e.pos = Map.clamp_pos(oj + out.normalized() * 1.4)    # out of an upright end, a step clear
+			e.yaw = atan2(out.x, out.z)
+		elif fx.get("sky", 0.0) > 0.0 and j == 1:
+			e.pos = oj                                            # out of the sky
+		else:
+			var fwd := Vector3(sin(_gate_yaw(fx, j)), 0, cos(_gate_yaw(fx, j)))
+			e.pos = Map.clamp_pos(oj + fwd * 1.4)                 # up out of a hole, beside it
+		e.vel = xf.basis * e.vel * Vector3(1, 0, 1)
 		e.gated = t + 0.35
 		# Seen from the far end now: no immediate crossing back.
-		var other := "gd%d_%d" % [fx.id, 1 - side[3]]
-		e[other] = ((e.pos - (fx.to if side[3] == 0 else fx.pos)) * Vector3(1, 0, 1)).dot(n)
-		var before_side: float = -signf(rel.dot(n)) if not side[2] else 0.0   # the side they came from
-		events.append({e = "gate_pass", id = e.id, pos = e.pos, by = (side[1] as Vector3), origin = o, n = n, s = before_side})
+		var nj := Vector3(sin(_gate_yaw(fx, j)), 0, cos(_gate_yaw(fx, j)))
+		e["gd%d_%d" % [fx.id, j]] = ((e.pos - oj) * Vector3(1, 0, 1)).dot(nj)
+		# For the camera following through: which side of the far face they came out on.
+		var s: float = signf(((e.pos - oj) * Vector3(1, 0, 1)).dot(nj)) if not (flat_i or flat_j) else 0.0
+		events.append({e = "gate_pass", id = e.id, pos = e.pos, gate = fx.id, side = i, s = s, dyaw = wrapf(e.yaw - yaw_was, -PI, PI)})
 		if spawn:
 			events.append({e = "gate_kill", id = e.id})
 			_hurt(e, e.hp + 9999.0, fx.owner, "gateway", true)
-		elif side[3] == 0 and fx.get("sky", 0.0) > 0.0:
+		elif j == 1 and fx.get("sky", 0.0) > 0.0:
 			# Out of the sky: a fall, and a hard landing.
 			e.down = maxf(e.down, 1.4)
 			_hurt(e, fx.sky * 3.5, 0, "", true)
 		return
+
+## A Wall of Air let go: its stretches of hardened Air are gone from the ground.
+func _airwall_down(fx: Dictionary) -> void:
+	fx.gone = true
+	for w in fx.walls:
+		Map.remove_wall(int(w.wid))
+	events.append({e = "airwall_end", fx = fx.id, wids = fx.walls.map(func(w: Dictionary) -> int: return int(w.wid))})
 
 ## A gateway's edge, as it opens or folds shut: whatever stands in it is cut, badly.
 ## (The weaver is spared at their own near end.)
@@ -2038,19 +2191,24 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 		for g in effects:
 			if g.kind != "gate":
 				continue
-			var n := _gate_normal(g)
-			var across := Vector3(n.z, 0, -n.x)
-			for side in [[g.pos, g.to, 0.0], [g.to, g.pos, g.get("sky", 0.0)]]:
-				var base: Vector3 = side[0] + Vector3(0, Terrain.height(side[0].x, side[0].z) + side[2], 0)
-				var now: Vector3 = fx.pos - base
-				var was: Vector3 = now - stepv
-				# Through the mouth's plane, within its width and height: on out of the other end.
-				if signf(now.dot(n)) != signf(was.dot(n)) and absf(now.dot(across)) < 0.95 and now.y > -0.2 and now.y < 3.3:
-					var far_base: Vector3 = side[1] + Vector3(0, Terrain.height(side[1].x, side[1].z) + (g.get("sky", 0.0) if side[1] == g.to else 0.0), 0)
-					fx.pos = far_base + now
+			var passed := false
+			for i in 2:
+				var fi := gate_frame(g, i)
+				var inv := fi.affine_inverse()
+				var now: Vector3 = inv * fx.pos
+				var was: Vector3 = inv * (fx.pos - stepv)
+				# Through the mouth, within its width and height: on out of the other end,
+				# turned as the ends are turned.
+				if signf(now.z) != signf(was.z) and absf(now.x) < 0.95 and absf(now.y) < 1.45:
+					var xf := gate_through(fi, gate_frame(g, 1 - i))
+					fx.pos = xf * fx.pos
+					fx.vel = xf.basis * fx.vel
 					fx.gated = t + 0.3
 					events.append({e = "fx_gate", id = fx.get("id", 0), pos = fx.pos})
+					passed = true
 					break
+			if passed:
+				break
 	# A Wall of Water: arrows fall short in it and fire is put out.
 	for cu in effects:
 		if cu.kind == "curtain" and not cu.gone and fx.pos.y < Terrain.height(fx.pos.x, fx.pos.z) + cu.height and _crosses_curtain(cu, Vector2(fx.pos.x - stepv.x, fx.pos.z - stepv.z), Vector2(fx.pos.x, fx.pos.z)):
@@ -2361,6 +2519,11 @@ func _step_effects(dt: float) -> void:
 						e.burn = 0.0
 						_hurt(e, fx.dmg, fx.owner, fx.weave)
 				alive = fx.head < fx.len
+			"airwall":
+				fx.age += dt
+				alive = not fx.gone and owner.alive
+				if not alive and not fx.gone:
+					_airwall_down(fx)
 			"curtain":
 				fx.age += dt
 				alive = not fx.gone and owner.alive

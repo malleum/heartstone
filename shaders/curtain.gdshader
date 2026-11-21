@@ -11,6 +11,9 @@ uniform float u0 = 0.0;
 uniform float ulen = 1.0;
 uniform float height = 3.6;
 uniform float total = 8.0;
+// 1: a Wall of Air instead: no water, only the light bent through hardened Air,
+// in slow ripples rising, with a faint pale shimmer and a bright line at the top.
+uniform float air = 0.0;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 
 float hash(float n) { return fract(sin(n) * 43758.5453); }
@@ -32,6 +35,19 @@ void fragment() {
 	vec2 bend = vec2((th - 0.5) * 0.025, (noise(vec2(s * 5.0, y * 3.0 - TIME * 5.0)) - 0.5) * 0.012);
 	vec3 behind = textureLod(screen_tex, SCREEN_UV + bend, 0.0).rgb;
 	vec3 water = mix(behind * 0.55 + tint.rgb * 0.3, vec3(0.8, 0.9, 0.95), thread * 0.4 + foot * 0.5);
-	ALBEDO = water;
-	ALPHA = clamp((0.7 + thread * 0.2 + foot * 0.2) * top * ends * fade, 0.0, 0.92);
+	if (air > 0.5) {
+		float rip = noise(vec2(s * 1.6, y * 1.4 + TIME * 0.9)) + 0.5 * noise(vec2(s * 4.0 - TIME * 0.4, y * 3.5 + TIME * 1.6));
+		vec2 bend2 = vec2(sin(rip * 6.2832) * 0.012, cos(rip * 5.0) * 0.008);
+		vec3 seen = textureLod(screen_tex, SCREEN_UV + bend2, 0.0).rgb;
+		// A faint sheen drifting up through it, and the thinnest line along the top:
+		// enough to see where it stands, not a pane of glass.
+		float sheen = smoothstep(0.7, 1.0, noise(vec2(s * 1.3, y * 1.1 - TIME * 0.5))) * 0.1;
+		float edge = smoothstep(0.08, 0.0, y) * 0.45 + smoothstep(height - 0.6, height, y) * 0.1;
+		float sharp = smoothstep(0.0, 0.05, y) * smoothstep(0.0, 0.6, s) * smoothstep(total, total - 0.6, s) * smoothstep(height, height - 0.3, y);
+		ALBEDO = seen * 1.04 + vec3(0.75, 0.85, 1.0) * (sheen + edge);
+		ALPHA = clamp(sharp * fade * 0.95, 0.0, 0.95);
+	} else {
+		ALBEDO = water;
+		ALPHA = clamp((0.7 + thread * 0.2 + foot * 0.2) * top * ends * fade, 0.0, 0.92);
+	}
 }

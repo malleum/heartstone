@@ -263,6 +263,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 			session.dodge(_move_dir(), false)
 		elif ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
 			session.duck(true)
+		elif ev.physical_keycode == Keys.k(KEY_T):
+			# The other shape for walls and gateway ends: round you or flat, upright or laid down.
+			place_alt = not place_alt
+			session.place(place_alt, place_turn)
+			if _placing():
+				Toast.say(_shape_name(), "", "info", 1.2)
 		elif ev.physical_keycode == Keys.k(KEY_G) and selected < known.size() and Rules.weaves.has(known[selected]):
 			session.tie(known[selected])
 		elif ev.physical_keycode == Keys.k(KEY_F) and _armed() and me:
@@ -324,6 +330,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			else:
 				_face(_aim_point())
 				session.guard(true)
+		elif ev.button_index in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP] and _placing():
+			# Weaving a wall or a gateway: the wheel turns it.
+			place_turn = wrapf(place_turn + deg_to_rad(15.0) * (1.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0), -PI, PI)
+			session.place(place_alt, place_turn)
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_select(posmod(selected + 1, n_known))
 		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -376,12 +386,38 @@ func _cast_selected() -> void:
 	if known.is_empty() or me == null:
 		return
 	var at := _aim_point()
+	if my_form.get("marked", false):
+		# A gateway's near end is set: this press and release sets the far end.
+		session.aim(at, true)
+		weaving = true
+		return
+	if Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind in PLACED and place_turn != 0.0:
+		place_turn = 0.0
+		session.place(place_alt, place_turn)
+	if Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind in PLACED and not told.has("placing"):
+		told.placing = true
+		Toast.say("Walls and gateways", "%s: the other shape (round or flat; upright or laid flat). Wheel: turn it. A gateway held until whole is placed end by end: let go for the near end, click again for the far." % Keys.name(KEY_T), "info", 8.0)
 	# The weave is begun now and held back for as long as the button is: it goes
 	# where the crosshair is when it is let go, not where it was when it was begun.
 	session.cast(known[selected], at, true)
 	weaving = true
 	face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
 	aim_t = 1.2
+
+const PLACED := ["curtain", "airwall", "gate"]
+var place_alt := false           # the other shape for walls and gateway ends (T)
+var place_turn := 0.0            # turned with the wheel while weaving one (radians)
+
+## Am I weaving something that is placed (a wall, a gateway)?
+func _placing() -> bool:
+	return not my_form.is_empty() and Rules.weaves.has(my_form.get("weave", "")) and Rules.weaves[my_form.weave].kind in PLACED
+
+func _shape_name() -> String:
+	if not _placing():
+		return ""
+	if Rules.weaves[my_form.weave].kind == "gate":
+		return "Laid flat" if place_alt else "Upright"
+	return "Round you" if place_alt else "Flat ahead"
 
 ## What the crosshair means: the enemy nearest the view ray if one is close to it,
 ## otherwise the ground the ray lands on. Players aim at Trollocs, not at dirt.
@@ -457,6 +493,25 @@ func _area_preview() -> void:
 		"ring":
 			var arc := deg_to_rad(float(b.get("arc", 180.0)))
 			mesh = _ground_sector(feet, 0.6, float(b.radius) * kr, -arc, arc, yaw, 28)
+		"curtain", "airwall":
+			# The wall's line, as it will stand (shape and turn as chosen).
+			var wn := Map.water_near(feet)
+			var ck: float = 1.0 if w.kind == "airwall" or (not wn.is_empty() and wn.dist <= Sim.WATER_REACH) else 0.6
+			var pts := Sim.wall_pts(feet, me.rotation.y, at, place_alt, place_turn, float(b.width) * kr * ck, Sim.WALL_REACH)
+			var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			for i in pts.size() - 1:
+				var a2: Vector2 = pts[i]; var b2: Vector2 = pts[i + 1]
+				_strip_into(st, Vector3(a2.x, 0, a2.y), atan2(b2.x - a2.x, b2.y - a2.y), 0.6, a2.distance_to(b2), 0.0)
+			mesh = st.commit()
+		"gate":
+			# Where each end will stand: the near end first, then (once it is set) the far.
+			var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			if my_form.get("marked", false) and not gate_mark.is_empty():
+				_gate_mark_into(st, gate_mark)
+				_gate_mark_into(st, Sim.gate_end(feet, me.rotation.y, at, false, place_alt, place_turn, float(b.range) * kr))
+			else:
+				_gate_mark_into(st, Sim.gate_end(feet, me.rotation.y, at, true, place_alt, place_turn, 0.0))
+			mesh = st.commit()
 		_:
 			if _area: _area.visible = false
 			return
@@ -496,6 +551,10 @@ func _ground_sector(c: Vector3, r0: float, r1: float, a0: float, a1: float, yaw:
 ## A strip of ground from `from` along `yaw`, `width` across and `length` long.
 func _ground_strip(from: Vector3, yaw: float, width: float, length: float) -> ArrayMesh:
 	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_strip_into(st, from, yaw, width, length, 0.6)
+	return st.commit()
+
+func _strip_into(st: SurfaceTool, from: Vector3, yaw: float, width: float, length: float, start: float) -> void:
 	var fwd := Vector3(sin(yaw), 0, cos(yaw)); var side := Vector3(fwd.z, 0, -fwd.x)
 	var base := Terrain.height(from.x, from.z)
 	var steps := maxi(int(length / 0.8), 2)
@@ -503,12 +562,23 @@ func _ground_strip(from: Vector3, yaw: float, width: float, length: float) -> Ar
 		var q := []
 		for d in [[0, j], [1, j], [1, j + 1], [0, j + 1]]:
 			var u: float = d[0]; var v: float = float(d[1]) / steps
-			var p := from + fwd * lerpf(0.6, length, v) + side * (u - 0.5) * width
+			var p := from + fwd * lerpf(start, length, v) + side * (u - 0.5) * width
 			var gy := Terrain.height(p.x, p.z)
 			q.append([Vector3(p.x, gy + 0.1, p.z), Vector2(u, v), 1.0 - smoothstep(1.2, 2.6, gy - base)])
 		for n in [0, 1, 2, 0, 2, 3]:
 			st.set_color(Color(1, 1, 1, q[n][2])); st.set_uv(q[n][1]); st.add_vertex(q[n][0])
-	return st.commit()
+
+## A gateway end's mark on the ground (Sim.gate_end's {pos, yaw, flat}): upright, a
+## sill across it with a stroke out of its front; flat, the opening itself.
+func _gate_mark_into(st: SurfaceTool, end: Dictionary) -> void:
+	var o: Vector3 = end.pos
+	var y: float = end.yaw
+	var n := Vector3(sin(y), 0, cos(y)); var across := Vector3(n.z, 0, -n.x)
+	if end.get("flat", false):
+		_strip_into(st, o - n * 1.45, y, 1.9, 2.9, 0.0)
+	else:
+		_strip_into(st, o - across * 0.95, atan2(across.x, across.z), 0.35, 1.9, 0.0)
+		_strip_into(st, o, y, 0.14, 1.4, 0.0)
 
 func _process(dt: float) -> void:
 	_area_preview()
@@ -567,10 +637,12 @@ func _process(dt: float) -> void:
 		if args.has("walkgate") and session.is_host:
 			for g in session.sim.effects:
 				if g.kind == "gate" and g.age > 0.8:
+					# Into the near end's front, then on out of the far end's front.
 					var mep: Dictionary = session.sim.ents[session.my_id]
-					var n: Vector3 = session.sim._gate_normal(g)
+					var ya: float = session.sim._gate_yaw(g, 0); var yb: float = session.sim._gate_yaw(g, 1)
+					var out: bool = mep.pos.distance_to(g.to) < mep.pos.distance_to(g.pos)
+					var n := Vector3(sin(yb), 0, cos(yb)) if out else -Vector3(sin(ya), 0, cos(ya))
 					session.sim.set_input(session.my_id, n, atan2(n.x, n.z))
-					cam_yaw = lerp_angle(cam_yaw, atan2(n.x, n.z) + PI, 0.2)
 		# --camyaw=deg swings the bot's camera round it, to look at it from the side.
 		cam_yaw = lerp_angle(cam_yaw, session.sim.ents[session.my_id].yaw + PI + deg_to_rad(float(args.get("camyaw", "0"))), 2.0 * dt)
 		if args.has("camdist"):
@@ -609,9 +681,19 @@ func _process(dt: float) -> void:
 		_fx_demo(dt)
 	# --gate: open a gateway ahead early on, whatever the character's strength, so
 	# it can be looked at in a render.
+	# --shape=alt (the other shape: round walls, flat gateway ends) and --turn=deg:
+	# how the bot's walls and gateway far ends stand, for pictures.
+	if (args.has("shape") or args.has("turn")) and frame == 3 and session.is_host:
+		session.sim.set_place(session.my_id, args.get("shape", "") == "alt", deg_to_rad(float(args.get("turn", "0"))))
+	# --gate=metres[@degrees]: where the far end opens (default 14 m, a little right).
 	if args.has("gate") and frame == 150 and session.is_host and me:
 		var p: Dictionary = session.sim.ents[session.my_id]
-		session.sim._cast(p, "gateway", p.pos + Vector3(sin(p.yaw), 0, cos(p.yaw)) * 14.0 + Vector3(6, 0, 0))
+		var fwd := Vector3(sin(p.yaw), 0, cos(p.yaw))
+		var to: Vector3 = p.pos + fwd * 14.0 + Vector3(6, 0, 0)
+		if String(args.gate) not in ["", "1", "true"]:
+			var gm: PackedStringArray = String(args.gate).split("@")
+			to = p.pos + fwd.rotated(Vector3.UP, deg_to_rad(float(gm[1]) if gm.size() > 1 else 0.0)) * float(gm[0])
+		session.sim._cast(p, "gateway", to)
 	# --demo=weave[:metres]: weave it ahead again and again, whoever the character is,
 	# so one weave can be looked at in a render.
 	# Several places, --demo=weave:12@-30,22@25 (metres@degrees off ahead), are woven
@@ -669,17 +751,23 @@ func _process(dt: float) -> void:
 		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
 		# looking down the ground at your feet. The shoulder offset keeps the character
 		# off the crosshair.
-		var pivot := me.position - cam_shift + Vector3(0, 1.55, 0)
+		var pivot := me.position + Vector3(0, 1.55, 0)
 		var view := Basis(Vector3.UP, cam_yaw + cam_swing) * Basis(Vector3.RIGHT, cam_pitch)
 		# Guarding, the camera draws in a little: the fight narrows to the blade.
 		var guarding: bool = actors.has(session.my_id) and int(actors[session.my_id].get("status", 0)) & 16 != 0
 		_guard_pull = lerpf(_guard_pull, 0.8 if guarding else 0.0, minf(6.0 * dt, 1.0))
 		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist - _guard_pull + cam_swing * 0.6))
-		if cam_shift != Vector3.ZERO and not cam_gate.is_empty():
-			# The camera reaching the gateway's plane: now it goes through as well.
-			if signf((want - (cam_gate.origin as Vector3)).dot(cam_gate.n)) != float(cam_gate.s):
-				want += cam_shift
-				cam_shift = Vector3.ZERO; cam_gate = {}
+		var view_b := view
+		if not cam_gate.is_empty():
+			# Through a gateway ahead of my camera: it is drawn where it would be on
+			# the near side (seeing me through the window) until it too reaches the
+			# far face, or the gateway closes.
+			if not is_instance_valid(cam_gate.node) or signf((want - (cam_gate.origin as Vector3)).dot(cam_gate.n)) == float(cam_gate.s):
+				cam_gate = {}
+			else:
+				var back: Transform3D = cam_gate.back
+				want = back * want
+				view_b = back.basis * view
 		want.y = maxf(want.y, Terrain.height(want.x, want.z) + 0.35)
 		# Never under a pond's surface (the ground is dipped beneath it).
 		want.y = maxf(want.y, Map.water_y(want.x, want.z) + 0.4)
@@ -693,8 +781,8 @@ func _process(dt: float) -> void:
 			# running body a little) and let it go, so there is no jump.
 			smooth_cam -= dt
 			want = cam.position.lerp(want, minf((14.0 if smooth_cam > 0.5 else 30.0) * dt, 1.0))
-		cam.position = want + view * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
-		cam.basis = view * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
+		cam.position = want + view_b * Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.12 * k
+		cam.basis = view_b * Basis.from_euler(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * k)
 	_draw_hud()
 	_update_windows()
 	_step_home(dt)
@@ -976,11 +1064,11 @@ func _go_home(M: Transform3D) -> void:
 
 # --- gateways as windows -----------------------------------------------------------
 # Each face of a gateway shows the world from where the camera would be at the other
-# end (the same world, moved by the offset between the ends), so it reads as a hole
-# onto that place; crossing it moves you by that same offset, and nothing jumps.
+# end (Sim.gate_through: moved and turned as the ends are), so it reads as a hole
+# onto that place; crossing it takes you by that same move, and nothing jumps.
 var windows: Array = []           # {node, views: [{mesh, vp, cam, off, dest}]}
-var cam_shift := Vector3.ZERO     # my body went through; the camera has not yet
-var cam_gate := {}                # {origin, n, s}: the plane it must cross to follow
+var cam_gate := {}                # {back, origin, n, s, node}: my body went through, the camera has not yet
+var gate_mark := {}               # my gateway's near end, set and waiting for the far end
 var _window_env: Environment
 
 func _open_window(g: Node3D) -> void:
@@ -990,7 +1078,7 @@ func _open_window(g: Node3D) -> void:
 	for c in g.get_children():
 		if c is MeshInstance3D:
 			meshes.append(c)
-	if meshes.size() != 2:
+	if meshes.size() != 2 or not g.has_meta("frames"):
 		return
 	if _window_env == null:
 		for c in get_children():
@@ -1011,24 +1099,28 @@ func _open_window(g: Node3D) -> void:
 		g.add_child(vp)
 		var c := Camera3D.new(); vp.add_child(c)
 		c.cull_mask = 0xFFFFF & ~2    # never the gateway's own faces
+		# Looking out of a hole in the ground (its far end lies flat on it, facing up):
+		# from below, without the ground in the way.
+		var far: Transform3D = (g.get_meta("frames") as Array)[1 - i]
+		if far.basis.z.y > 0.9:
+			c.cull_mask &= ~4
 		c.environment = _window_env
 		(mesh.material_override as ShaderMaterial).set_shader_parameter("view", vp.get_texture())
 		(mesh.material_override as ShaderMaterial).set_shader_parameter("live", 1.0)
-		w.views.append({mesh = mesh, vp = vp, cam = c, dest = dest})
+		w.views.append({mesh = mesh, vp = vp, cam = c, dest = dest, i = i})
 	windows.append(w)
 
 func _update_windows() -> void:
 	windows = windows.filter(func(w: Dictionary) -> bool: return is_instance_valid(w.node))
 	for w in windows:
+		var fr: Array = (w.node as Node3D).get_meta("frames")
 		for v in w.views:
-			var off: Vector3 = (v.dest as Node3D).global_position - (v.mesh as Node3D).global_position
+			var far: Transform3D = fr[1 - int(v.i)]
 			var c: Camera3D = v.cam
-			c.global_transform = Transform3D(cam.global_transform.basis, cam.global_position + off)
+			c.global_transform = Sim.gate_through(fr[v.i], far) * cam.global_transform
 			c.fov = cam.fov
 			# Nothing between that camera and the far face may get in the picture.
-			var face: Node3D = v.dest
-			var n: Vector3 = face.global_transform.basis.z
-			c.near = maxf(0.05, absf((c.global_position - face.global_position).dot(n)) * 0.6)
+			c.near = maxf(0.05, absf((c.global_position - far.origin).dot(far.basis.z)) * 0.6)
 			(v.vp as SubViewport).size = get_viewport().get_visible_rect().size
 
 # --- the round, as this player sees it -------------------------------------------
@@ -1285,7 +1377,7 @@ func _arrive(rig: Node3D) -> void:
 	if not Veil.up():
 		return
 	var back := Vector3(-sin(rig.rotation.y), 0, -cos(rig.rotation.y))
-	var g := Weavefx.gate(self, rig.position + back * 0.9, rig.position + back * 0.9 + back)
+	var g := Weavefx.gate(self, {a = rig.position + back * 0.9, b = rig.position + back * 0.9 + back})
 	# Seen from the front first, you with the gateway at your back, then the
 	# camera comes round behind you as it closes.
 	cam_swing = PI * 0.9
@@ -1362,6 +1454,12 @@ func _on_events(list: Array) -> void:
 		# --ghost: say what the sim made of the scripted hands, for a test to read.
 		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike", "dream", "shift", "deny"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
+		if args.has("ghost") and e.e == "airwall" and e.id == session.my_id:
+			print("GHOST %d airwall pts=%d" % [frame, e.pts.size()])
+		if args.has("ghost") and e.e == "gate_mark" and e.id == session.my_id:
+			print("GHOST %d gate_mark" % frame)
+		if args.has("ghost") and e.e == "gate_open" and e.get("by", 0) == session.my_id and me:
+			print("GHOST %d gate_open turn=%.2f" % [frame, wrapf(float(e.yb) - atan2(e.b.x - me.position.x, e.b.z - me.position.z), -PI, PI)])
 		# --log: say when my weaves form, fly and land, so a render's frames can be picked.
 		if args.has("log") and e.e in ["form", "ready", "cast", "loose", "blast", "hold", "gate_open", "jump", "knocked_down", "rise"] and e.get("id", session.my_id) == session.my_id:
 			print("EV %d %s %s" % [frame, e.e, e.get("weave", "")])
@@ -1445,7 +1543,7 @@ func _on_events(list: Array) -> void:
 				else:
 					_banner("You are loyal\nThere may be a Darkfriend among you. Shield or bind a traitor, or kill them, and live to the end.", 9.0, "info")
 			"df_gate":
-				var g := Weavefx.gate(self, _ground(e.pos), _ground(e.pos) + Vector3(sin(e.yaw), 0, cos(e.yaw)))
+				var g := Weavefx.gate(self, {a = e.pos, b = e.pos + Vector3(sin(e.yaw), 0, cos(e.yaw)) * 0.01, ya = e.yaw, yb = e.yaw, one = true})
 				get_tree().create_timer(4.0).timeout.connect(func() -> void: if is_instance_valid(g): g.queue_free())
 				_banner("A gateway opens\nDarkfriends pour through. Someone opened it for them…", 6.0, "shadow")
 			"link_open":
@@ -1862,8 +1960,28 @@ func _on_events(list: Array) -> void:
 			"drowned":
 				Weavefx.drowned(self, e.pos)
 			"gate_open":
-				fx[e.id] = Weavefx.gate(self, e.a, e.b, e.get("flat_a", false), e.get("sky", 0.0))
+				fx[e.id] = Weavefx.gate(self, e)
 				_open_window(fx[e.id])
+				if e.get("by", 0) == session.my_id:
+					gate_mark = {}
+			"gate_mark":
+				if e.id == session.my_id:
+					my_form.marked = true
+					gate_mark = e.end
+					place_turn = 0.0
+					session.place(place_alt, place_turn)
+					Sfx.play(self, "chime", _ground(e.end.pos) + Vector3(0, 1.0, 0), -8.0, 0.8)
+			"airwall":
+				if not session.is_host:
+					for w in e.walls:
+						Map.add_wall(w)
+				fx[e.fx] = Weavefx.curtain(self, e.pts, e.height, true)
+			"airwall_end":
+				if not session.is_host:
+					for wid in e.wids:
+						Map.remove_wall(int(wid))
+				if fx.has(e.fx):
+					Weavefx.curtain_end(fx[e.fx]); fx.erase(e.fx)
 			"shift":
 				# Tel'aran'rhiod: simply somewhere else.
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -1913,10 +2031,16 @@ func _on_events(list: Array) -> void:
 			"gate_pass":
 				# Through the gateway: there, not walked there. My camera stays where it
 				# was (seeing me through the window) until it crosses the plane too.
-				if e.id == session.my_id and float(e.get("s", 0.0)) != 0.0:
-					var to := _ground(e.pos)
-					cam_shift = to - _ground(e.pos - (e.by as Vector3))
-					cam_gate = {origin = _ground(e.origin), n = e.n, s = e.s}
+				if e.id == session.my_id:
+					# The way I face turns with the ends; the camera is drawn on the near
+					# side, through the window, until it crosses as well.
+					cam_yaw += float(e.get("dyaw", 0.0))
+					var gn: Node3D = fx.get(e.get("gate", -1), null)
+					if float(e.get("s", 0.0)) != 0.0 and gn != null and is_instance_valid(gn) and gn.has_meta("frames"):
+						var fr: Array = gn.get_meta("frames")
+						var i: int = int(e.side)
+						var xf := Sim.gate_through(fr[i], fr[1 - i])
+						cam_gate = {back = xf.affine_inverse(), origin = (fr[1 - i] as Transform3D).origin, n = (fr[1 - i] as Transform3D).basis.z, s = e.s, node = gn}
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].has("pred"):
 					actors[e.id].pred = e.pos; actors[e.id].srv = e.pos
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -2212,7 +2336,7 @@ func _on_snapshot(s: Dictionary) -> void:
 			if e.size() > 7: my_will = e[7]
 	for f in s.fx:
 		# A gateway is drawn from its own event, which carries both its ends.
-		if f[1] in ["gate", "surge", "curtain"]:
+		if f[1] in ["gate", "surge", "curtain", "airwall"]:
 			continue
 		if not fx.has(f[0]):
 			fx[f[0]] = Weavefx.live(self, f[1], f[6])

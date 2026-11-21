@@ -36,9 +36,10 @@ Ask the user before anything outward-facing (tags, the server).
    the user to rule on the book numbers and where the water goes on each map.
 8. **Screenshots on request** with the picture flags in CLAUDE.md.
 [x] (20 Nov, Opus) **Review of Sonnet's visuals**: the weave area mark rebuilt (follows the ground, fades up cliffs, sized by strength as the sim sizes it, the weave's colours, marching rim; a line weave's strip runs its full range); water redone (depth-faded soft edge and foam, deeper is darker, ripples no longer a checkerboard, the wet bank drawn by the ground shader, the camera kept above the surface, no trees or stones in water); Torrent is a curling white-capped wave with fine spray that breaks at the end; Wall of Water is a refracting falling sheet with threads and splash at its foot; a fireball in the wall goes out in steam with a hiss (it had still been bursting: the sim's skip never applied, and the test now checks for no burst); new sounds hiss and surge. Still open for water: the wall's shape toggle key, balance by play, the user's ruling on books and placement.
-Not for a lighter model (kept for Opus): the doorway world mismatch, the camp link
-lifecycle, prepared/multiple weaves and the weave bar, gateway placement, held
-Balefire, diagnosing Windows performance, balance by play.
+Not for a lighter model (kept for Opus): prepared/multiple weaves and the weave bar,
+diagnosing Windows performance, balance by play. (Done 20 Nov: the doorway world
+mismatch, the camp link, held Balefire, gateway placement, the wall weave and the
+shape toggle.)
 
 ## Josh's notes, 15 Nov
 - [x] "all the skirts and dresses need something because they don't quite look
@@ -364,7 +365,8 @@ are what the 4:44 review, or the next session, should pick up.
     is held and follows the aim, paid for per second, instead of one instant bar.
   - **Double everyone's starting health** (Rules.CLASSES hp; check enemy damage and
     the downed threshold keep their sense).
-  - **A defensive wall weave**, switchable between a quarter circle round you and a
+  - [x] (20 Nov, Opus) Built: Wall of Air (book 6 assumed), solid both ways while held, on the ground's walls; T switches it (and the Wall of Water) between flat ahead and round you, the wheel turns it while woven. PLAYTEST: placing, Wall of Air.
+    **A defensive wall weave**, switchable between a quarter circle round you and a
     flat wall ahead. Built on the ground system's walls (Map.add_wall /
     remove_wall, as Heave's rubble), held or tied off; a key toggles the shape.
   - **Holding and preparing weaves; several at once.** Weave one ahead and keep it
@@ -380,10 +382,12 @@ are what the 4:44 review, or the next session, should pick up.
     particle counts; glow; an in-game quality setting (low/medium/high, render
     scale). Measure first (NOMOVIE=1 fps runs, Godot's profiler), then on Windows.
     Generally more performant everywhere.
-  - **Seeing through gateways:** a gateway's surface should show the far side as
+  - [x] (20 Nov, Opus) Checked in renders: each end shows the far side live, walking through is seamless frame by frame, now also with turned ends; looking out of a hole in the ground leaves the ground out of the window (it showed its underside). Not checked on Windows.
+    **Seeing through gateways:** a gateway's surface should show the far side as
     a live window (it was built that way 17 Nov: check it actually shows, in
     renders and on Windows).
-  - **Placing gateways:** choose where both ends go and turn each, including flat
+  - [x] (20 Nov, Opus) Built: held until whole, let go for the near end (within 10 m), click again for the far; T upright or flat (aimed high, a far end in the sky), the wheel turns it; through it you, missiles, windows and the camera are turned as the ends are. A tap still opens the quick way. (The sky end had never opened from a cast: the aim's height was flattened before it was read.)
+    **Placing gateways:** choose where both ends go and turn each, including flat
     on the ground, with the same toggling as the wall weave above.
   - **Water from water:** rivers, lakes and ponds on the maps, and Water weaves
     that draw on them: an attack (a surge pulled from the water) and a defensive

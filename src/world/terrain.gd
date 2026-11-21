@@ -65,4 +65,7 @@ static func build_mesh(size: float, step: float, tree: SceneTree = null) -> Mesh
 	mesh.surface_set_material(0, mat)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	# Layer 3 as well: a gateway window looking up out of a hole in the ground
+	# leaves the ground (and its grass) out, or it would see their underside.
+	mi.layers = 1 | 4
 	return mi
