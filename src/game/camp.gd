@@ -498,7 +498,7 @@ func _doors() -> void:
 		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false):
 			ids.append(id)
 	# One doorway per mode, in this order (training first, the duel last).
-	var order := ["camp_training", "holdout", "darkfriend_door", "endless_door", "team_battle", "dream_spar"]
+	var order := ["camp_training", "holdout", "guard_door", "darkfriend_door", "endless_door", "team_battle", "dream_spar"]
 	ids.sort_custom(func(x: String, y: String) -> bool: return (order.find(x) if order.has(x) else 50) < (order.find(y) if order.has(y) else 50))
 	var open := Rules.available(profile)
 	for i in ids.size():
@@ -630,6 +630,10 @@ func _sheet() -> void:
 		for gid in profile.get("gifts", []):
 			if Rules.GIFTS.has(gid):
 				_row(side, Rules.GIFTS[gid].name, "gift")
+		if Rules.SOCIETIES.has(profile.get("society", "")):
+			_row(side, Rules.SOCIETIES[profile.society].name, Rules.SOCIETIES[profile.society].sub)
+		if Rules.KITS.has(profile.get("hunter_kit", "")):
+			_row(side, Rules.KITS[profile.hunter_kit].name, "kit")
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
@@ -1396,6 +1400,14 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "", origin_ := "") -
 		_text(gv, "Give up all five points, once and only now, to keep a Talent for good.", 13, Color(0.66, 0.67, 0.72))
 		make.talent_box = _grid(gv, 2)
 	else:
+		if cls_ == "aiel":
+			_section(gv, "Society  (free)")
+			_text(gv, "The warrior society you belong to. Women who take the spear are Maidens; men join any other.", 13, Color(0.66, 0.67, 0.72))
+			make.soc_box = _grid(gv, 1)
+		elif cls_ == "hunter":
+			_section(gv, "Kit  (sets out the weapons; whole, a start in each)")
+			_text(gv, "Where your arms come from. Taken whole, you begin a level up in each of them.", 13, Color(0.66, 0.67, 0.72))
+			make.kit_box = _grid(gv, 1)
 		_section(gv, "Weapons  (1 point each)")
 		make.weapon_box = _grid(gv, 2)
 		var probe := {cls = cls_}
@@ -1456,6 +1468,33 @@ func _refresh_gifts() -> void:
 				_refresh_gifts(); _creation_changed())
 			var gl := _text(make.gift_box, Rules.GIFTS[gid].blurb, 13, Color(0.7, 0.72, 0.78))
 			gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if make.has("soc_box"):
+			_clear(make.soc_box)
+			var sex := "f" if make.power_id == "saidar" else "m"
+			for sid in Rules.SOCIETIES:
+				var sd: Dictionary = Rules.SOCIETIES[sid]
+				if sd.sex != sex:
+					continue
+				var ss: String = sid
+				_card(make.soc_box, sd.name, sd.sub, null, make.get("society", "") == sid, func() -> void:
+					make.society = "" if make.get("society", "") == ss else ss
+					_refresh_gifts(); _creation_changed())
+				var sl := _text(make.soc_box, sd.blurb, 13, Color(0.7, 0.72, 0.78))
+				sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if make.has("kit_box"):
+			_clear(make.kit_box)
+			for kid in Rules.KITS:
+				var kd: Dictionary = Rules.KITS[kid]
+				var kk: String = kid
+				var whole: bool = kd.weapons.all(func(w: String) -> bool: return make.weapons.get(w, false))
+				_card(make.kit_box, kd.name, ", ".join(kd.weapons.map(func(w: String) -> String: return Rules.weapons[w].name)), null, whole, func() -> void:
+					# One kit at a time: its weapons in, any others out.
+					for w in make.weapons:
+						make.weapons[w] = kd.weapons.has(w)
+					make.hunter_kit = kk
+					_refresh_gifts(); _creation_changed())
+				var kl := _text(make.kit_box, kd.blurb, 13, Color(0.7, 0.72, 0.78))
+				kl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_clear(make.weapon_box)
 		var fams := {}
 		for w in make.weapons:
@@ -1700,6 +1739,11 @@ func _create() -> void:
 			if make.forms[f]: forms.append(f)
 		opts.kit = kit; opts.forms = forms; opts.stats = make.stats.duplicate()
 		opts.gift = make.get("gift", "")
+		opts.society = make.get("society", "")
+		# The kit counts only if its weapons are all still chosen (create_fighter checks).
+		for kid in Rules.KITS:
+			if Rules.KITS[kid].weapons.all(func(w: String) -> bool: return kit.has(w)):
+				opts.hunter_kit = kid
 	var p := Profile.make(opts)
 	Profile.save(p)
 	Launch.report = []

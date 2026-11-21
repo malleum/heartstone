@@ -105,6 +105,17 @@ static func create_fighter(opts: Dictionary) -> Dictionary:
 			p.kit.append(w)
 	if p.kit.is_empty():
 		p.kit = ["belt_knife"]
+	# An Aiel's society, if it will have them (the Maidens take only women, the rest only men).
+	var soc: Dictionary = Rules.SOCIETIES.get(opts.get("society", ""), {})
+	if c == "aiel" and not soc.is_empty() and soc.sex == sex:
+		p.society = opts.society
+	# A Hunter who sets out with a kit whole knows its weapons a little already.
+	var kd: Dictionary = Rules.KITS.get(opts.get("hunter_kit", ""), {})
+	if c == "hunter" and not kd.is_empty() and kd.weapons.all(func(w: String) -> bool: return p.kit.has(w)):
+		p.hunter_kit = opts.hunter_kit
+		for w in kd.weapons:
+			var fam: String = Rules.weapons[w].family
+			p.skills[fam] = maxf(float(p.skills.get(fam, 0.0)), Rules.TUNE.skill_xp)
 	return p
 
 ## The simplest single-Power weave of each Power.
@@ -313,7 +324,7 @@ static func make(opts: Dictionary) -> Dictionary:
 			p.weapons_owned = p.kit.duplicate()
 	else:
 		var stats: Dictionary = opts.get("stats", {})
-		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {}), gift = opts.get("gift", "")})
+		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {}), gift = opts.get("gift", ""), society = opts.get("society", ""), hunter_kit = opts.get("hunter_kit", "")})
 		p.forms = {}
 		for f in opts.get("forms", []):
 			p.forms[f] = {known = true}

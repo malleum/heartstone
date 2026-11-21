@@ -224,9 +224,10 @@ are what the 4:44 review, or the next session, should pick up.
   learn some of it, less well. All of it uses stamina. Many weapons: knives and
   thrown knives, bows of several kinds, staff, spear, Aiel javelins, swords.
   **The full plan and to-do list is `MELEE.md`.** (21 Nov: earned weapons, sword and knife,
-  fighters' gifts, the Warder's cloak, channellers' starting weapons; still open there:
-  real animation for the stand-ins, Aiel societies, the Hunter's kits, Warder sensing,
-  skill pacing and balance by play.)
+  fighters' gifts, the Warder's cloak, channellers' starting weapons; then Aiel societies,
+  Hunter kits, the Warder's bond (sensing, fury) and a fighters' fight, Guard the Aes Sedai.
+  Still open there: real animation for the stand-ins, skill pacing and balance by play,
+  the duel in the yard.)
 
 ## Online
 - [x] **Deploy the server on minimus.** (Live since 17 Nov.) It is built and tested on localhost (see

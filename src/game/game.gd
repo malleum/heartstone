@@ -8,6 +8,9 @@ extends Node3D
 ## weave at the crosshair, 1-9 / wheel / Q,E select, Esc frees the mouse.
 
 var args := {}
+var bonds := {}                     # Warder id -> the channeller he is bonded to
+var ward := {}                      # Guard the Aes Sedai: {id, until} (sim time)
+var sim_now := 0.0                  # the sim's clock, from the last snapshot
 var session: Session
 var profile: Dictionary
 var cam: Camera3D
@@ -1791,6 +1794,10 @@ func _on_events(list: Array) -> void:
 					# Aiel veil themselves to fight.
 					if e.get("cls", "") == "aiel":
 						Hero.veil(rig, true)
+					if int(e.get("bond", 0)) != 0:
+						bonds[e.id] = int(e.bond)
+					if float(e.get("ward_until", 0.0)) > 0.0:
+						ward = {id = e.id, until = float(e.ward_until)}
 					if e.id == session.my_id:
 						me = rig
 						_set_sight(e.get("cls", "channeller"), e.get("power", "saidin"))
@@ -1904,6 +1911,26 @@ func _on_events(list: Array) -> void:
 					_end_form(a2)
 					a2.form_fx = Weavefx.forming(self, a2.node, e.weave, maxf(float(e.left), 0.05), _power_of(e.id))
 					a2.form_since = clock
+			"ward":
+				ward = {id = e.id, until = float(e.until)}
+				Toast.say("Guard her", "She is sealing the Waygate and cannot lift a hand while she weaves. They will come for her above all. If she falls, it is lost.", "warn", 9.0)
+			"ward_lost":
+				Toast.say("She has fallen", "The Waygate stands open.", "warn", 6.0)
+			"ward_done":
+				Toast.say("The Waygate is sealed", "Nothing more will come through it.", "good", 6.0)
+			"bond":
+				bonds[e.id] = int(e.to)
+				if session.my_id in [e.id, int(e.to)]:
+					var other: int = int(e.to) if e.id == session.my_id else e.id
+					var nm: String = actors.get(other, {}).get("name", "someone")
+					Toast.say("The bond", ("You are bonded to %s: you will feel where she is, and when she is hurt." if e.id == session.my_id else "%s is your Warder: you will feel where he is, and when he is hurt.") % nm, "info", 6.0)
+			"bond_fall":
+				if e.id == session.my_id:
+					var nm2: String = actors.get(int(e.of), {}).get("name", "someone")
+					if e.get("fury", false):
+						Toast.say("You feel %s fall" % nm2, "Rage carries you: harder blows and no tiring, for a while.", "warn", 6.0)
+					else:
+						Toast.say("You feel %s fall" % nm2, "Through the bond, like a cord cut.", "warn", 5.0)
 			"kept_lost":
 				if e.id == session.my_id:
 					my_kept = {}
@@ -2045,13 +2072,14 @@ func _on_events(list: Array) -> void:
 					a.reps = 0
 					if e.move == "sling":
 						a.whirl_until = clock + e.wind + 0.1
-					# A thrust is made with the point forward along the arm.
-					Hero.grip(a.node, m.get("grip", ""))
-					a.grip_until = clock + whole if m.has("grip") else 0.0
-					# A form with a stroke of its own: the arm and blade follow it,
-					# whatever the clip does with the legs.
-					# (An ordinary blow ends any stroke still running.)
-					Hero.stroke(a.node, e.move, e.wind, e.recover * 0.8)
+					# A form, or a move with a stroke written for this weapon: the arms (and
+					# a kicking foot) follow it, whatever the clip does with the legs. (An
+					# ordinary blow ends any stroke still running.)
+					var stroked := Hero.stroke(a.node, e.move, e.wind, e.recover * 0.8, a.get("weapon", ""))
+					# A thrust is made with the point forward along the arm (a written
+					# stroke turns the hand itself, from the ordinary grip).
+					Hero.grip(a.node, "" if stroked else m.get("grip", ""))
+					a.grip_until = clock + whole if m.has("grip") and not stroked else 0.0
 					# What makes a form its own: a turn of the whole body, a leap.
 					if m.has("spin") or m.has("leap"):
 						a.flourish = {t = 0.0, time = e.wind + e.recover * 0.5, spin = float(m.get("spin", 0.0)), leap = float(m.get("leap", 0.0)), land = e.wind}
@@ -2478,6 +2506,16 @@ func _patch(e: Dictionary) -> void:
 	patches[e.id] = n
 
 ## The weave someone was making has left their hands (or come to nothing).
+## Who this player is bonded to (their Warder or their channeller), for the HUD's sense of them.
+func bonded_ids() -> Array:
+	var out := []
+	if bonds.has(session.my_id):
+		out.append(bonds[session.my_id])
+	for w in bonds:
+		if bonds[w] == session.my_id:
+			out.append(w)
+	return out.filter(func(i: int) -> bool: return actors.has(i) and is_instance_valid(actors[i].node))
+
 ## Which half of the Power an actor's weaves are made with: a player's own; anything else
 ## that channels (a Dreadlord) is a man, since there are no women Dreadlords yet.
 func _power_of(id: int) -> String:
@@ -2564,6 +2602,7 @@ func _spawn_enemy(id: int, type: String, pos: Vector3) -> void:
 
 func _on_snapshot(s: Dictionary) -> void:
 	team_meter = s.get("round", [])
+	sim_now = float(s.get("t", sim_now))
 	for e in s.ents:
 		var id: int = e[0]
 		if not actors.has(id):
@@ -2581,6 +2620,9 @@ func _on_snapshot(s: Dictionary) -> void:
 		if args.has("ghost") and id == session.my_id and int(e[6]) & (16 | 32) != _ghost_st:
 			_ghost_st = int(e[6]) & (16 | 32)
 			print("GHOST %d status guard=%s duck=%s" % [frame, _ghost_st & 16 != 0, _ghost_st & 32 != 0])
+		# Through the bond a hurt is felt: the knot over them throbs for a moment.
+		if a.has("hp") and e[4] < float(a.hp) - 0.5:
+			a.hurt_at = clock
 		a.hp = e[4]
 		if e.size() > 8: a.max_hp = e[8]
 		if id == session.my_id:
@@ -2977,6 +3019,8 @@ func _ending(success: bool) -> String:
 		"battle": return "Your side won" if success else "Their side won"
 	if darkfriend:
 		return "The Shadow is served" if success else "You were found out"
+	if Rules.activities.get(session.activity, {}).has("guard"):
+		return "The Waygate is sealed" if success else "She fell, and the Waygate stands open"
 	return "The line held" if success else "You fell"
 
 var _done := false

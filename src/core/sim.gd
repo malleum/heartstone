@@ -31,6 +31,8 @@ var levels := {1: 1, 2: 1}
 var xps := {1: 0.0, 2: 0.0}
 var _filled := false
 var _endless_won := false
+var ward := 0             # Guard the Aes Sedai: her id, once she is there
+var ward_until := 0.0     # when her weave is done (the win)
 var ledger: Array = []   # recent harm: {t, by, on, dmg, hp, downed}; balefire undoes it
 var df_mode := false     # a Darkfriend round: one or two players may secretly serve the Shadow
 var _df_assigned := false
@@ -96,8 +98,67 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> in
 		w.round = {level = team_level, picks = 0, man = true, gift = 0.0, learn = 1.0}
 		var wid := add_player(w, pos + Vector3(1.6, 0, 0.8), true)
 		ents[wid].warder_of = id
+		ents[wid].bond = id
+		events.append({e = "bond", id = wid, to = id})
+	_bond_all()
 	_share_story()
+	# Guard the Aes Sedai: she arrives with the first of you, already weaving.
+	if ward == 0 and Rules.activities[activity_id].has("guard") and not profile.get("ward", false):
+		_add_ward()
 	return id
+
+## The one to guard: an Aes Sedai sealing a Waygate. While she weaves she cannot lift a
+## hand; they want her above anyone; if she falls it is lost; when it is done it is won.
+func _add_ward() -> void:
+	var g: Dictionary = Rules.activities[activity_id].guard
+	var pr := Profile.create({name = g.get("name", "The Aes Sedai"), power = "saidar", potential_pts = 8, affinity_pts = {spirit = 3, air = 2}})
+	pr.ward = true
+	pr.look = g.get("look", "")
+	pr.round = {level = 1, picks = 0, warder = false, gift = 0.0, learn = 1.0}
+	var at := Vector3(float(g.get("x", 0.0)), 0, float(g.get("z", 2.5)))
+	ward = add_player(pr, at, true)
+	var w: Dictionary = ents[ward]
+	w.ward = true
+	w.max_hp = float(g.get("hp", 400.0)); w.hp = w.max_hp
+	ward_until = t + float(g.get("secs", 420.0))
+	events.append({e = "ward", id = ward, until = ward_until, secs = float(g.get("secs", 420.0))})
+	events.append({e = "form", id = ward, weave = "gateway", time = float(g.get("secs", 420.0))})
+
+## Is one of these two the Warder bonded to the other?
+func _bonded(a: Dictionary, b: Dictionary) -> bool:
+	return a.get("bond", 0) == b.id or b.get("bond", 0) == a.id
+
+## Every Warder in the party without a channeller is bonded to one on his side: one with
+## no Warder yet if there is one. (An Aes Sedai may have several; a Warder has one.)
+func _bond_all() -> void:
+	for id in ents:
+		var w: Dictionary = ents[id]
+		if w.kind != "player" or w.profile.get("cls", "") != "warder" or (ents.has(w.get("bond", 0)) and ents[w.bond].alive):
+			continue
+		var best := 0; var fewest := 99
+		for cid in ents:
+			var c: Dictionary = ents[cid]
+			if c.kind != "player" or not c.alive or c.team != w.team or c.profile.get("cls", "channeller") != "channeller" or c.profile.get("ward", false):
+				continue
+			var n := 0
+			for k in ents:
+				if ents[k].kind == "player" and ents[k].get("bond", 0) == cid: n += 1
+			if n < fewest:
+				fewest = n; best = cid
+		if best != 0:
+			w.bond = best
+			events.append({e = "bond", id = id, to = best})
+
+## Someone has gone down: through the bond it is felt. A Warder whose channeller falls
+## fights on in fury for a while (harder blows, no tiring); a channeller feels her Warder go.
+func _bond_fall(e: Dictionary) -> void:
+	for id in ents:
+		var o: Dictionary = ents[id]
+		if o.kind != "player" or o.id == e.id or not _bonded(o, e):
+			continue
+		if o.get("bond", 0) == e.id:
+			o.fury_until = t + Rules.TUNE.bond_fury
+		events.append({e = "bond_fall", id = o.id, of = e.id, fury = o.get("bond", 0) == e.id})
 
 ## Spoilers: in one fight the player who has read least decides for everyone.
 ## Weaves and Talents from later books cannot be used, are not offered, and are not
@@ -123,7 +184,7 @@ func _intro(e: Dictionary) -> Dictionary:
 	# how far they can go is theirs to find out).
 	var rd: Dictionary = pr.get("round", {})
 	var round_view := {} if rd.is_empty() else {level = rd.get("level", 1), picks = rd.get("picks", 0), strength = Rules.level_of(Rules.strength(pr)) if pr.get("cls", "channeller") == "channeller" else 0, warder = rd.get("warder", false), gift = rd.get("gift", 0.0), bot = e.get("bot", false)}
-	return {round = round_view, team = e.get("team", 0), e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos}
+	return {round = round_view, team = e.get("team", 0), e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos, bond = e.get("bond", 0), society = pr.get("society", ""), ward_until = ward_until if e.get("ward", false) else 0.0}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
 func roster() -> Array:
@@ -782,7 +843,7 @@ func step(dt: float) -> void:
 	# Bots that belong to the fight itself (an Aes Sedai's Warder) are driven here,
 	# so they fight the same on a server as on a desk.
 	for id in ents:
-		if ents[id].get("bot", false) and ents[id].alive:
+		if ents[id].get("bot", false) and ents[id].alive and not ents[id].get("ward", false):
 			Bot.drive(self, id)
 	if not ledger.is_empty() and ledger[0].t < t - 20.0:
 		ledger = ledger.filter(func(h: Dictionary) -> bool: return h.t >= t - 20.0)
@@ -821,6 +882,18 @@ func step(dt: float) -> void:
 	_step_effects(dt)
 	_step_patches(dt)
 	# Outcome.
+	if ward != 0:
+		var wd: Dictionary = ents.get(ward, {})
+		if wd.is_empty() or not wd.alive or wd.get("downed", false):
+			events.append({e = "ward_lost", id = ward})
+			ward = 0
+			_finish(false)
+			return
+		if t >= ward_until:
+			events.append({e = "ward_done", id = ward})
+			ward = 0
+			_finish(true)
+			return
 	if not battle.is_empty():
 		_step_battle()
 	elif _spar:
@@ -1089,7 +1162,7 @@ func _step_battle() -> void:
 		var p: Dictionary = ents[id]
 		if p.kind == "player" and not p.alive and p.has("return_at") and t >= float(p.return_at):
 			p.erase("return_at")
-			p.alive = true
+			p.alive = true; p.was_downed = false
 			p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
 			p.pos = _base(p.team) + Vector3(rng.randf_range(-2.0, 2.0), 0, 0)
 			p.safe_until = t + 2.0
@@ -1126,7 +1199,7 @@ func _step_downed(p: Dictionary, dt: float) -> void:
 			helped = true
 	p.revive_t = p.get("revive_t", 0.0) + dt if helped else maxf(p.get("revive_t", 0.0) - dt, 0.0)
 	if p.revive_t >= Round.REVIVE_SECS:
-		p.downed = false
+		p.downed = false; p.was_downed = false
 		p.hp = p.max_hp * 0.25
 		p.stamina = p.get("stamina_max", Rules.TUNE.stamina) * 0.2
 		p.safe_until = t + 1.0
@@ -1149,7 +1222,7 @@ func _return_dead() -> void:
 		p.return_next = false
 		var lost := rng.randi_range(1, 6)
 		Round.weaken(p.profile, lost)
-		p.alive = true
+		p.alive = true; p.was_downed = false
 		p.hp = p.max_hp; p.stamina = p.get("stamina_max", Rules.TUNE.stamina)
 		p.pos = Vector3(rng.randf_range(-2.0, 2.0), 0, rng.randf_range(2.0, 4.0))
 		p.safe_until = t + 2.0
@@ -1309,14 +1382,16 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if p.get("downed", false):
 		_step_downed(p, dt)
 		return
-	# The bond: a Warder and a channeller near each other both recover faster.
+	# The bond: a Warder and the channeller he is bonded to, near each other, both
+	# recover faster; a Warder whose channeller has fallen fights on without tiring.
 	var bonded := 1.0
 	for id in ents:
 		var o: Dictionary = ents[id]
-		if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and o.pos.distance_to(p.pos) < Rules.TUNE.bond_reach \
-				and [p.profile.get("cls", "channeller"), o.profile.get("cls", "channeller")] in [["warder", "channeller"], ["channeller", "warder"]]:
+		if o.kind == "player" and o.alive and o.id != p.id and _bonded(p, o) and o.pos.distance_to(p.pos) < Rules.TUNE.bond_reach:
 			bonded = Rules.TUNE.bond_regen
-	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * dt, p.get("stamina_max", Rules.TUNE.stamina))
+	if t < p.get("fury_until", -1.0):
+		bonded = maxf(bonded, 2.0)
+	p.stamina = minf(p.stamina + Rules.TUNE.stamina_regen * bonded * Rules.soc(p.profile, "regen") * dt, p.get("stamina_max", Rules.TUNE.stamina))
 	p.stagger = maxf(p.stagger - dt, 0.0)
 	p.down = maxf(p.down - dt, 0.0)
 	if p.get("lying", false) and p.down <= 0.0:
@@ -1338,7 +1413,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		# Rest mends bruises, not wounds: those wait for a Healer.
 		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, maxf(p.max_hp - p.get("wound", 0.0), p.hp))
 	# Forming a weave takes concentration: you move at half speed while doing it.
-	p.guard = t - p.parry_at <= Rules.TUNE.parry_window
+	p.guard = t - p.parry_at <= Rules.TUNE.parry_window * Rules.soc(p.profile, "parry")
 	var slow: float = Rules.TUNE.form_slow if not p.forming.is_empty() else 1.0
 	if not p.swing.is_empty() and not p.swing.struck: slow = minf(slow, Rules.TUNE.swing_slow)
 	if p.guard: slow = minf(slow, Rules.TUNE.guard_slow)
@@ -1484,6 +1559,8 @@ func _strike(p: Dictionary) -> void:
 	var w: Dictionary = Rules.weapons[sw.weapon]
 	var m: Dictionary = Rules.moves[sw.move]
 	var dmg := Rules.blow(p.profile, sw.weapon, sw.move, p.stamina)
+	if t < p.get("fury_until", -1.0):
+		dmg *= Rules.TUNE.fury_dmg
 	var dir: Vector3 = sw.dir
 	if m.get("missile", false):
 		var shot: Dictionary = w.get("shot", w.get("throw", {}))
@@ -1614,7 +1691,7 @@ func _shield_turns(e: Dictionary, vel: Vector3) -> bool:
 ## What is left of a blow after the target's guard. -1: it never landed (parried).
 func _guarded(target: Dictionary, dmg: float, attacker: Dictionary, dir: Vector3) -> float:
 	var since: float = t - target.parry_at
-	if since > Rules.TUNE.parry_window:
+	if since > Rules.TUNE.parry_window * (Rules.soc(target.profile, "parry") if target.kind == "player" else 1.0):
 		return dmg
 	# A parry only covers the front.
 	var facing := Vector3(sin(target.yaw), 0, cos(target.yaw))
@@ -1834,7 +1911,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			if not best.is_empty():
 				# Healing brings the fallen back from the edge: up off the ground.
 				if best.get("downed", false):
-					best.downed = false
+					best.downed = false; best.was_downed = false
 					best.hp = 0.0
 					best.safe_until = t + 1.0
 					events.append({e = "revived", id = best.id, healed = true})
@@ -2163,6 +2240,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 	# Darkhounds: steel wounds close almost as they open. The Power is what kills them.
 	if e.kind == "enemy" and e.row.has("steel") and weave != "" and not Rules.weaves.has(weave):
 		dmg *= float(e.row.steel)
+	# A Stone Dog standing his ground.
+	if e.kind == "player" and e.get("still_for", 0.0) > 0.5:
+		dmg *= Rules.soc(e.profile, "still")
 	if e.get("barrier", 0.0) > 0.0:
 		var soak := minf(e.barrier, dmg)
 		e.barrier -= soak; dmg -= soak
@@ -2198,6 +2278,8 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			e.down_hp = e.max_hp * 0.5
 			e.revive_t = 0.0
 			e.forming = {}; e.swing = {}; e.queued = {}; e.guard = false; e.drawing = false
+			e.was_downed = true
+			_bond_fall(e)
 			for h in e.get("held", []).duplicate():
 				release(e.id, h.weave, h.target)
 			events.append({e = "downed", id = e.id, secs = e.down_left, by = by})
@@ -2243,6 +2325,9 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 		events.append({e = "die", id = e.id, by = by})
 		if e.kind == "player":
 			_drop_from_circle(e)
+			# Dying without going down first (balefire, or outside a round).
+			if not e.get("was_downed", false):
+				_bond_fall(e)
 		if weave == "balefire":
 			_unmake(e, by)
 		# Dead in a round: back at the next wave, weaker for it. In a battle, back
@@ -2710,6 +2795,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			# to pick out, and they go for someone else unless he is close.
 			if p.profile.get("cls", "") == "warder" and p.get("still_for", 0.0) > 1.0 and d > 9.0:
 				d *= 16.0
+			# The one weaving at the Waygate is what they came for.
+			if p.get("ward", false):
+				d *= 0.3
 			if d < best:
 				best = d; target = p
 		e.chasing = target.get("id", 0)

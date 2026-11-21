@@ -191,6 +191,9 @@ func _draw() -> void:
 		if picks > 0:
 			Glyph.text(self, sans, Vector2(420, 46), "%s: choose (%d)" % [Keys.name(KEY_TAB), picks], 14, Color(1.0, 0.92, 0.6, 0.6 + 0.4 * sin(t * 4.0)))
 
+	_bond_sense(W, H, sc)
+	_ward_sense(W, H, sc)
+
 	# Health and stamina.
 	var bx := 30.0; var by := H - 74.0
 	Glyph.bar(self, Vector2(bx, by), 330, 16, hp, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
@@ -396,3 +399,96 @@ func _vignette(col: Color, depth: float) -> void:
 	for k in 4:
 		var k2 := (k + 1) % 4
 		draw_polygon(PackedVector2Array([o[k], o[k2], i[k2], i[k]]), PackedColorArray([col, col, clear, clear]))
+
+## The bond: a Warder always knows where his channeller is, and she where he is, through
+## walls and behind them. A knot over them (an arrow at the edge when out of sight), gold
+## when whole, redder as they are hurt, throbbing when a blow lands, the distance beside.
+func _bond_sense(W: float, H: float, sc: float) -> void:
+	if g.cam == null or not g.has_method("bonded_ids"):
+		return
+	for id in g.bonded_ids():
+		var a: Dictionary = g.actors[id]
+		if a.get("dead", false):
+			continue
+		var at: Vector3 = (a.node as Node3D).global_position + Vector3(0, 2.3, 0)
+		var f := clampf(float(a.get("hp", 1.0)) / maxf(float(a.get("max_hp", 1.0)), 1.0), 0.0, 1.0)
+		var throb := clampf(1.0 - (g.clock - float(a.get("hurt_at", -9.0))) / 0.6, 0.0, 1.0)
+		var down: bool = a.get("downed", false)
+		var col := Glyph.GOLD.lerp(Color(1.0, 0.2, 0.15), 1.0 - f)
+		if down:
+			col = Color(1.0, 0.15, 0.1, 0.6 + 0.4 * sin(t * 8.0))
+		var behind: bool = g.cam.is_position_behind(at)
+		var sp: Vector2 = g.cam.unproject_position(at) / sc
+		var m := 46.0
+		var dist: float = g.cam.global_position.distance_to(at)
+		var r := 6.0 + 4.0 * throb
+		if not behind and sp.x > m and sp.x < W - m and sp.y > m and sp.y < H - m:
+			# In sight: a small knot over them, fainter close by where they are plain to see.
+			var fade := clampf((dist - 5.0) / 6.0, 0.35, 1.0)
+			_knot(sp, r, Color(col, col.a * fade))
+			if dist > 12.0:
+				Glyph.text(self, Glyph.sans(), sp + Vector2(r + 4, 4), "%d m" % int(dist), 11, Color(col, 0.7 * fade))
+		else:
+			# Out of sight: at the edge of the screen, pointing the way to them.
+			var c := Vector2(W, H) * 0.5
+			var d := (sp - c)
+			if behind:
+				d = -d
+			if d.length() < 1.0:
+				d = Vector2(0, 1)
+			d = d.normalized()
+			var k := minf((W * 0.5 - m) / maxf(absf(d.x), 0.001), (H * 0.5 - m) / maxf(absf(d.y), 0.001))
+			var e := c + d * k
+			_knot(e, r, col)
+			var tip := e + d * (r + 12.0)
+			var sd := Vector2(-d.y, d.x)
+			draw_colored_polygon(PackedVector2Array([tip, e + d * (r + 3.0) + sd * 5.0, e + d * (r + 3.0) - sd * 5.0]), col)
+			Glyph.text(self, Glyph.sans(), e - d * (r + 16.0) + Vector2(-10, 4), "%d m" % int(dist), 11, Color(col, 0.8))
+
+func _knot(c: Vector2, r: float, col: Color) -> void:
+	# Two loops crossed: the mark of a bond, not of a target.
+	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0), c + Vector2(0, -r)])
+	draw_polyline(pts, col, 2.0, true)
+	draw_arc(c, r * 0.45, 0, TAU, 14, col, 1.5, true)
+
+## Guard the Aes Sedai: how long until the Waygate is sealed, her health, and where she is
+## (a mark over her, or at the edge pointing the way).
+func _ward_sense(W: float, H: float, sc: float) -> void:
+	if g.ward.is_empty() or not g.actors.has(g.ward.id) or g.cam == null:
+		return
+	var a: Dictionary = g.actors[g.ward.id]
+	var left := maxf(float(g.ward.until) - g.sim_now, 0.0)
+	var f := clampf(float(a.get("hp", 1.0)) / maxf(float(a.get("max_hp", 1.0)), 1.0), 0.0, 1.0)
+	var serif := Glyph.serif()
+	var line := "The Waygate is sealed in %d:%02d" % [int(left) / 60, int(left) % 60]
+	Glyph.text(self, serif, Vector2(W * 0.5 - 120, 92), line, 18, Color(0.85, 0.9, 1.0))
+	Glyph.bar(self, Vector2(W * 0.5 - 120, 100), 240, 6, f, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
+	var throb := clampf(1.0 - (g.clock - float(a.get("hurt_at", -9.0))) / 0.6, 0.0, 1.0)
+	var col := Color(0.8, 0.88, 1.0).lerp(Color(1.0, 0.25, 0.2), maxf(1.0 - f, throb * 0.8))
+	if is_instance_valid(a.node):
+		_point_at((a.node as Node3D).global_position + Vector3(0, 2.4, 0), col, 7.0 + 4.0 * throb, W, H, sc)
+
+## A mark over a place in the world, or at the screen's edge pointing to it when it is out
+## of sight, with the distance beside it.
+func _point_at(at: Vector3, col: Color, r: float, W: float, H: float, sc: float) -> void:
+	var behind: bool = g.cam.is_position_behind(at)
+	var sp: Vector2 = g.cam.unproject_position(at) / sc
+	var m := 46.0
+	var dist: float = g.cam.global_position.distance_to(at)
+	if not behind and sp.x > m and sp.x < W - m and sp.y > m and sp.y < H - m:
+		draw_arc(sp, r, 0, TAU, 20, col, 2.0, true)
+		draw_line(sp + Vector2(0, -r * 0.5), sp + Vector2(0, r * 0.5), col, 2.0, true)
+		draw_line(sp + Vector2(-r * 0.5, 0), sp + Vector2(r * 0.5, 0), col, 2.0, true)
+		return
+	var c := Vector2(W, H) * 0.5
+	var d := sp - c
+	if behind:
+		d = -d
+	d = d.normalized() if d.length() > 1.0 else Vector2(0, 1)
+	var k := minf((W * 0.5 - m) / maxf(absf(d.x), 0.001), (H * 0.5 - m) / maxf(absf(d.y), 0.001))
+	var e := c + d * k
+	draw_arc(e, r, 0, TAU, 20, col, 2.0, true)
+	var tip := e + d * (r + 12.0)
+	var sd := Vector2(-d.y, d.x)
+	draw_colored_polygon(PackedVector2Array([tip, e + d * (r + 3.0) + sd * 5.0, e + d * (r + 3.0) - sd * 5.0]), col)
+	Glyph.text(self, Glyph.sans(), e - d * (r + 16.0) + Vector2(-10, 4), "%d m" % int(dist), 11, Color(col, 0.8))

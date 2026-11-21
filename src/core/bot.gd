@@ -143,6 +143,21 @@ static func drive(sim: Sim, id: int) -> void:
 			if d < 9.0: crowd += 1
 			if d < best:
 				best = d; near = e
+	# Guarding the Aes Sedai: the foe nearest her is the one to stop, and no straying
+	# far from her while nothing is on her.
+	if sim.ward != 0 and sim.ents.has(sim.ward) and id != sim.ward:
+		var wpos: Vector3 = sim.ents[sim.ward].pos
+		var close: Dictionary = {}; var cdist := 15.0
+		for eid in sim.ents:
+			var e: Dictionary = sim.ents[eid]
+			if e.alive and e.team != me.team and e.pos.distance_to(wpos) < cdist:
+				cdist = e.pos.distance_to(wpos); close = e
+		if not close.is_empty():
+			near = close; best = close.pos.distance_to(me.pos)
+		elif me.pos.distance_to(wpos) > 8.0:
+			var back: Vector3 = (wpos - me.pos) * Vector3(1, 0, 1)
+			sim.set_input(id, back.normalized(), atan2(back.x, back.z))
+			return
 	if near.is_empty():
 		sim.set_input(id, Vector3.ZERO, me.yaw)
 		return

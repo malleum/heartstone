@@ -1762,7 +1762,7 @@ func _rounds() -> void:
 
 	# Every setup of every mode's doorway can be fought.
 	var variants := Rules.activities.keys().filter(func(k: String) -> bool: return k.contains("@"))
-	check(variants.size() == 12, "three modes of four setups each (%d)" % variants.size())
+	check(variants.size() == 16, "four modes of four setups each (%d)" % variants.size())
 	for vid in variants:
 		var vs2 := Sim.new(vid, 5)
 		vs2.add_player(Profile.make({name = "Setup " + vid, power = "saidar"}))
@@ -1894,7 +1894,80 @@ func _init() -> void:
 	_dream()
 	_dream_more()
 	_arms_more()
+	_classes()
 	_trolloc_blows()
 	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails else 0)
+
+func _classes() -> void:
+	print("== Aiel societies, Hunter kits, the Warder's bond")
+	Map.use("open")
+	var st := {might = 3, quickness = 3, endurance = 3}
+	var plain := Profile.create_fighter({name = "Rhuarc", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"]})
+	var maid := Profile.create_fighter({name = "Aviendha", cls = "aiel", sex = "f", stat_pts = st, kit = ["aiel_spear"], society = "far_dareis_mai"})
+	var fem := Profile.create_fighter({name = "Plainf", cls = "aiel", sex = "f", stat_pts = st, kit = ["aiel_spear"]})
+	check(maid.get("society", "") == "far_dareis_mai", "a woman Aiel may be a Maiden")
+	check(not Profile.create_fighter({name = "Gaul", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"], society = "far_dareis_mai"}).has("society"), "a man may not be a Maiden")
+	check(not Profile.create_fighter({name = "Bain", cls = "aiel", sex = "f", stat_pts = st, kit = ["aiel_spear"], society = "shaen_mtaal"}).has("society"), "a woman takes the spear only as a Maiden")
+	check(Rules.run_speed(maid) > Rules.run_speed(fem) and Rules.dodge(maid, true).cost < Rules.dodge(fem, true).cost, "the Maidens are quicker and dodge for less")
+	var thunder := Profile.create_fighter({name = "Thunder", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"], society = "shamad_conde"})
+	check(Rules.blow(thunder, "aiel_spear", Rules.weapons.aiel_spear.light[0]) > Rules.blow(plain, "aiel_spear", Rules.weapons.aiel_spear.light[0]) * 1.05, "Thunder Walkers' spears hit harder")
+	var eagle := Profile.create_fighter({name = "Eagle", cls = "aiel", sex = "m", stat_pts = st, kit = ["horn_bow"], society = "far_aldazar_din"})
+	check(Rules.draw_time(eagle, "horn_bow") < Rules.draw_time(plain, "horn_bow"), "Brothers of the Eagle draw faster")
+	# A Stone Dog standing his ground takes less.
+	var dog := Profile.create_fighter({name = "Dog", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"], society = "shaen_mtaal"})
+	var sim := Sim.new("practice", 31)
+	sim._waves = []
+	var di := sim.add_player(dog, Vector3.ZERO); var pi := sim.add_player(plain, Vector3(6, 0, 0))
+	sim._add_enemy("dummy", Vector3(40, 0, 40))
+	run(sim, 1.0)
+	var d0: float = sim.ents[di].hp; var p0: float = sim.ents[pi].hp
+	sim._hurt(sim.ents[di], 20.0, sim._next - 1, ""); sim._hurt(sim.ents[pi], 20.0, sim._next - 1, "")
+	check(d0 - sim.ents[di].hp < (p0 - sim.ents[pi].hp) * 0.9, "a Stone Dog standing still takes less (%.1f against %.1f)" % [d0 - sim.ents[di].hp, p0 - sim.ents[pi].hp])
+	check(Rules.soc(Profile.create_fighter({name = "Red", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"], society = "aethan_dor"}), "parry") > 1.0, "Red Shields parry later")
+	# Hunter kits.
+	var tr := Profile.create_fighter({name = "Perrin", cls = "hunter", stat_pts = st, kit = ["hammer", "wood_axe", "throwing_axes"], hunter_kit = "smith"})
+	check(tr.get("hunter_kit", "") == "smith" and Rules.skill_level(tr, "axe") >= 1 and Rules.skill_level(tr, "thrown") >= 1, "a Hunter with a whole kit starts a level up in its weapons")
+	check(not Profile.create_fighter({name = "Half", cls = "hunter", stat_pts = st, kit = ["hammer"], hunter_kit = "smith"}).has("hunter_kit"), "half a kit is no kit")
+	# The bond: a Warder is bonded to the channeller in the party, and feels her fall.
+	var s2 := Sim.new("practice", 32)
+	s2._waves = []
+	var ci := s2.add_player(Profile.create({name = "Moiraine"}), Vector3.ZERO)
+	var wi := s2.add_player(Profile.create_fighter({name = "Lan", cls = "warder", stat_pts = st, kit = ["sword"]}), Vector3(2, 0, 0))
+	check(s2.ents[wi].get("bond", 0) == ci, "a Warder is bonded to the channeller with him")
+	check(s2.events.any(func(e: Dictionary) -> bool: return e.e == "bond" and e.id == wi and e.to == ci), "the bond is told to every view")
+	s2._add_enemy("dummy", Vector3(40, 0, 40))
+	var foe: int = s2._next - 1
+	s2.ents[ci].hp = 1.0
+	s2._hurt(s2.ents[ci], 50.0, foe, "")
+	check(s2.events.any(func(e: Dictionary) -> bool: return e.e == "bond_fall" and e.id == wi and e.of == ci and e.fury), "he feels her fall")
+	check(s2.ents[wi].get("fury_until", 0.0) > s2.t + 5.0, "and fights on in fury")
+	# A second channeller with no Warder: a new Warder goes to her.
+	var s3 := Sim.new("practice", 33)
+	s3._waves = []
+	var a1 := s3.add_player(Profile.create({name = "Siuan"}), Vector3.ZERO)
+	var w1 := s3.add_player(Profile.create_fighter({name = "W1", cls = "warder", stat_pts = st, kit = ["sword"]}), Vector3(1, 0, 0))
+	var a2 := s3.add_player(Profile.create({name = "Leane"}), Vector3(2, 0, 0))
+	var w2 := s3.add_player(Profile.create_fighter({name = "W2", cls = "warder", stat_pts = st, kit = ["sword"]}), Vector3(3, 0, 0))
+	check(s3.ents[w1].bond == a1 and s3.ents[w2].bond == a2, "each Warder to a channeller without one")
+	# Guard the Aes Sedai: she comes with the first of you, they go for her, and her
+	# falling loses it; her weave done wins it.
+	var g1 := Sim.new("guard_door@tarwins_day", 34)
+	var me := g1.add_player(Profile.create_fighter({name = "Guard", cls = "warder", stat_pts = st, kit = ["sword"]}), Vector3.ZERO)
+	check(g1.ward != 0 and g1.ents[g1.ward].get("ward", false) and g1.ents[me].get("bond", 0) == 0, "the Aes Sedai is there, and no Warder bonds to her")
+	g1._add_enemy("trolloc", Vector3(0, 0, -12))
+	var trl: Dictionary = g1.ents[g1._next - 1]
+	g1.ents[g1.ward].pos = Vector3(0, 0, -16)
+	g1.step(0.05)
+	check(trl.chasing == g1.ward, "a Trolloc goes for her over a nearer guard")
+	g1.ents[g1.ward].hp = 1.0
+	g1._hurt(g1.ents[g1.ward], 30.0, trl.id, "")
+	run(g1, 0.5)
+	check(g1.over and not g1.success, "her falling loses it")
+	var g2 := Sim.new("guard_door@tarwins_day", 35)
+	g2.add_player(Profile.create_fighter({name = "Guard", cls = "warder", stat_pts = st, kit = ["sword"]}), Vector3.ZERO)
+	g2.ward_until = g2.t + 1.0
+	g2._waves = []
+	run(g2, 2.0)
+	check(g2.over and g2.success, "her weave done wins it")

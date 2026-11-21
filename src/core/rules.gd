@@ -74,6 +74,8 @@ const TUNE := {
 	spar_cap = 0.07,           # and the most of a body one such blow can take
 	bond_reach = 15.0,         # a Warder and a channeller this close both recover stamina faster
 	bond_regen = 3.0,
+	bond_fury = 12.0,          # seconds a Warder fights on in fury when his channeller falls
+	fury_dmg = 1.25,
 	rest_after = 10.0,         # s without being hurt before you catch your breath
 	rest_regen = 0.008,        # share of full health recovered each second after that (slow: a fight is won by Healing, not waiting)
 	# One dodge: a roll the way you are moving, or a step back if you are standing.
@@ -393,6 +395,47 @@ const GIFTS := {
 	gamblers_luck = {name = "A gambler's luck", blurb = "The dice tumble your way: one blow in seven that would land on you misses, and one of yours in ten lands twice as hard."},
 }
 
+## The Aiel warrior societies: an Aiel joins one at creation, for a small edge of its own.
+## Women who take the spear are Far Dareis Mai and only that; men may join any other.
+## mods: speed, dodge_cost, regen (stamina), parry (window), draw (bows faster), still
+## (share of every hurt taken while standing still), fam {family: blow multiplier}.
+const SOCIETIES := {
+	far_dareis_mai = {name = "Far Dareis Mai", sub = "Maidens of the Spear", sex = "f", mods = {speed = 1.05, dodge_cost = 0.85},
+		blurb = "The Maidens: quick on their feet and quicker to dance the spears. A twentieth faster, and every dodge costs less."},
+	shaen_mtaal = {name = "Shae'en M'taal", sub = "Stone Dogs", sex = "m", mods = {still = 0.8},
+		blurb = "They tie themselves to the ground and do not retreat: standing your ground, a fifth less from every blow."},
+	aethan_dor = {name = "Aethan Dor", sub = "Red Shields", sex = "m", mods = {parry = 1.3},
+		blurb = "The ones who keep order: a buckler and a blade always ready. A parry catches blows a third later."},
+	shamad_conde = {name = "Sha'mad Conde", sub = "Thunder Walkers", sex = "m", mods = {fam = {spear = 1.1}},
+		blurb = "They walk into battle as into a storm: spear blows a tenth harder."},
+	sovin_nai = {name = "Sovin Nai", sub = "Knife Hands", sex = "m", mods = {fam = {knife = 1.12, hand = 1.12}},
+		blurb = "Close in, where the knife is: knife and hand blows an eighth harder."},
+	duadhe_mahdiin = {name = "Duadhe Mahdi'in", sub = "Water Seekers", sex = "m", mods = {regen = 1.2},
+		blurb = "They find water where there is none, and run the length of a day: breath comes back a fifth faster."},
+	far_aldazar_din = {name = "Far Aldazar Din", sub = "Brothers of the Eagle", sex = "m", mods = {draw = 1.2},
+		blurb = "Eyes like the eagle's: the horn bow drawn a fifth faster."},
+}
+
+static func society(p: Dictionary) -> Dictionary:
+	return SOCIETIES.get(p.get("society", ""), {})
+
+## A society's edge for this character (`def` when they have none, or it gives none).
+static func soc(p: Dictionary, key: String, def := 1.0) -> float:
+	return float(society(p).get("mods", {}).get(key, def))
+
+## What a Hunter of the Horn may set out with: the arms of where they are from. Taking a
+## kit whole gives a start in its weapons (a level in each family).
+const KITS := {
+	two_rivers = {name = "Two Rivers", weapons = ["longbow", "quarterstaff", "belt_knife"],
+		blurb = "A longbow that shoots twice as far as any other, and a quarterstaff."},
+	red_hand = {name = "The Band of the Red Hand", weapons = ["crossbow", "pike", "ashandarei"],
+		blurb = "The Band's crossbows and pikes, and a black-hafted spear with a blade like a sword."},
+	gleeman = {name = "A gleeman's knives", weapons = ["throwing_knives", "daggers", "belt_knife"],
+		blurb = "Knives from the sleeves, two in the hands and one in the belt."},
+	smith = {name = "A blacksmith's arms", weapons = ["hammer", "wood_axe", "throwing_axes"],
+		blurb = "The hammer from the forge and an axe: heavy blows that stagger."},
+}
+
 static func has_gift(p: Dictionary, id: String) -> bool:
 	return p.get("gifts", []).has(id)
 
@@ -418,7 +461,8 @@ static func blow(p: Dictionary, weapon_id: String, move_id: String, stamina := -
 			might = 1.0
 	# A Power-wrought blade never dulls: it cuts as hard tired as fresh.
 	var tired: float = 1.0 if w.get("keen", false) else vigor(stamina)
-	return base * might * (1.0 + TUNE.skill_dmg * skill_level(p, w.family)) * tired * (1.08 if has_gift(p, "old_blood") else 1.0)
+	var band: float = float(society(p).get("mods", {}).get("fam", {}).get(w.family, 1.0))
+	return base * might * (1.0 + TUNE.skill_dmg * skill_level(p, w.family)) * tired * (1.08 if has_gift(p, "old_blood") else 1.0) * band
 
 ## A tired fighter swings with less behind it, and so spends less, like a channeller.
 static func move_cost(p: Dictionary, weapon_id: String, move_id: String, stamina := -1.0) -> float:
@@ -437,16 +481,16 @@ static func dodge(p: Dictionary, rolling: bool) -> Dictionary:
 	var d: Dictionary = TUNE.sidestep
 	var c := cls(p)
 	return {dist = d.dist * (1.0 + 0.02 * stat(p, "quickness")), time = d.time, safe = d.safe * c.safe,
-		cost = d.cost * c.dodge_cost * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance"), 0.4)}
+		cost = d.cost * c.dodge_cost * soc(p, "dodge_cost") * maxf(1.0 - TUNE.endur_thrift * stat(p, "endurance"), 0.4)}
 
 static func run_speed(p: Dictionary) -> float:
 	# Those who fight with their hands run faster than those who weave.
-	return 4.7 * cls(p).speed * (1.15 if p.get("cls", "channeller") != "channeller" else 1.0) * (1.0 + 0.01 * stat(p, "quickness"))
+	return 4.7 * cls(p).speed * soc(p, "speed") * (1.15 if p.get("cls", "channeller") != "channeller" else 1.0) * (1.0 + 0.01 * stat(p, "quickness"))
 
 ## Seconds to draw (or span) and loose, at this character's skill.
 static func draw_time(p: Dictionary, weapon_id: String) -> float:
 	var w: Dictionary = weapons[weapon_id]
-	return w.shot.draw / (1.0 + TUNE.skill_speed * 2.0 * skill_level(p, w.family))
+	return w.shot.draw / (1.0 + TUNE.skill_speed * 2.0 * skill_level(p, w.family)) / soc(p, "draw")
 
 ## The weave tree: what this character could study now, and what is still out of
 ## reach with the weaves it is waiting on. One weave is studied at a time.
