@@ -10,6 +10,110 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+var _slots: Array = []     # the bar's slot centres on screen, as last drawn
+var _slot_r := 24.0
+
+## A dream ability's mark: what it does, in a few strokes.
+func _dream_icon(c: Vector2, r: float, mv: String, col: Color) -> void:
+	var m: Dictionary = Dream.moves[mv]
+	var w := 2.0
+	match m.kind:
+		"shift":
+			var d := Vector2(0, -1)
+			match m.get("where", ""):
+				"back": d = Vector2(0, 1)
+				"side": d = Vector2(1, 0)
+				"behind":
+					draw_arc(c, r * 0.6, PI * 0.2, PI * 1.6, 16, col, w, true)
+					d = Vector2(1, -0.3).normalized()
+				"swap":
+					draw_line(c + Vector2(-r, -r * 0.35), c + Vector2(r, -r * 0.35), col, w, true)
+					draw_line(c + Vector2(r, r * 0.35), c + Vector2(-r, r * 0.35), col, w, true)
+					draw_line(c + Vector2(r, -r * 0.35), c + Vector2(r * 0.6, -r * 0.7), col, w, true)
+					draw_line(c + Vector2(-r, r * 0.35), c + Vector2(-r * 0.6, r * 0.7), col, w, true)
+					return
+			draw_line(c - d * r, c + d * r, col, w, true)
+			draw_line(c + d * r, c + d * r * 0.4 + d.orthogonal() * r * 0.5, col, w, true)
+			draw_line(c + d * r, c + d * r * 0.4 - d.orthogonal() * r * 0.5, col, w, true)
+		"deny":
+			draw_arc(c, r * 0.85, PI * 1.1, PI * 1.9, 16, col, w * 1.3, true)
+			draw_line(c + Vector2(-r * 0.6, r * 0.6), c + Vector2(r * 0.6, -r * 0.2), col, w, true)
+		"bolt":
+			if mv == "dream_boulder":
+				draw_circle(c, r * 0.65, col)
+			elif m.has("home"):
+				for k in 3:
+					var o := c + Vector2((k - 1) * r * 0.6, (k % 2) * r * 0.4 - r * 0.2)
+					draw_line(o + Vector2(-r * 0.35, -r * 0.2), o, col, w, true)
+					draw_line(o, o + Vector2(r * 0.35, -r * 0.2), col, w, true)
+			else:
+				var lines := 3 if int(m.get("count", 1)) > 1 else 1
+				for k in lines:
+					var o := Vector2((k - (lines - 1) * 0.5) * r * 0.45, 0)
+					draw_line(c + o + Vector2(-r, r), c + o + Vector2(r, -r), col, w, true)
+				draw_line(c + Vector2(r, -r), c + Vector2(r * 0.3, -r), col, w, true)
+				draw_line(c + Vector2(r, -r), c + Vector2(r, -r * 0.3), col, w, true)
+		"chain":
+			if m.get("cage", false):
+				for k in 4:
+					var x := c.x + (k - 1.5) * r * 0.5
+					draw_line(Vector2(x, c.y - r), Vector2(x, c.y + r), col, w, true)
+			elif m.has("drain"):
+				for k in 3:
+					draw_circle(c + Vector2((k - 1) * r * 0.6, -k * r * 0.35 + r * 0.3), r * (0.28 - k * 0.06), col)
+			elif m.has("shove"):
+				var s: float = signf(float(m.shove))
+				draw_circle(c, r * 0.22, col)
+				for d in [Vector2(1, 0), Vector2(-1, 0)]:
+					var a: Vector2 = c + d * r * (0.45 if s > 0.0 else 1.0)
+					var b: Vector2 = c + d * r * (1.0 if s > 0.0 else 0.45)
+					draw_line(a, b, col, w, true)
+					draw_line(b, b - d * r * 0.3 * s + Vector2(0, r * 0.3), col, w, true)
+					draw_line(b, b - d * r * 0.3 * s - Vector2(0, r * 0.3), col, w, true)
+			else:
+				draw_arc(c + Vector2(-r * 0.35, 0), r * 0.5, 0, TAU, 16, col, w, true)
+				draw_arc(c + Vector2(r * 0.35, 0), r * 0.5, 0, TAU, 16, col, w, true)
+		"pit":
+			if m.has("burst"):
+				var pts := PackedVector2Array([c + Vector2(r * 0.2, -r), c + Vector2(-r * 0.3, 0), c + Vector2(r * 0.25, 0), c + Vector2(-r * 0.2, r)])
+				draw_polyline(pts, col, w, true)
+			elif float(m.get("dps", 0.0)) > 12.0:
+				draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.6, r * 0.7), c + Vector2(-r * 0.6, r * 0.7)]), col)
+			else:
+				draw_arc(c, r * 0.9, 0, TAU, 20, col, w, true)
+				draw_arc(c, r * 0.45, 0, TAU, 14, col, w, true)
+		"wall":
+			if m.get("ring", false):
+				var pts := PackedVector2Array()
+				for k in 7:
+					pts.append(c + Vector2.from_angle(k * TAU / 6.0) * r * 0.9)
+				draw_polyline(pts, col, w, true)
+			elif m.get("reflect", false):
+				draw_rect(Rect2(c - Vector2(r * 0.5, r), Vector2(r, r * 2.0)), col, false, w)
+				draw_line(c + Vector2(-r * 0.3, r * 0.3), c + Vector2(r * 0.3, -r * 0.4), col, w, true)
+			else:
+				draw_rect(Rect2(c - Vector2(r, r * 0.6), Vector2(r * 2.0, r * 1.2)), col, false, w)
+				draw_line(c + Vector2(-r, 0), c + Vector2(r, 0), col, 1.5, true)
+				draw_line(c + Vector2(0, -r * 0.6), c + Vector2(0, 0), col, 1.5, true)
+		"mend":
+			draw_line(c + Vector2(0, -r), c + Vector2(0, r), col, w * 1.5, true)
+			draw_line(c + Vector2(-r, 0), c + Vector2(r, 0), col, w * 1.5, true)
+		"fade":
+			for k in 8:
+				draw_arc(c, r * 0.85, k * TAU / 8.0, k * TAU / 8.0 + 0.45, 4, col, w, true)
+		"haste":
+			for k in 2:
+				var o := c + Vector2(k * r * 0.6 - r * 0.3, 0)
+				draw_line(o + Vector2(-r * 0.4, -r * 0.7), o + Vector2(r * 0.3, 0), col, w, true)
+				draw_line(o + Vector2(r * 0.3, 0), o + Vector2(-r * 0.4, r * 0.7), col, w, true)
+
+## Which bar slot is under this point on screen (-1 if none).
+func slot_at(at: Vector2) -> int:
+	for i in _slots.size():
+		if (at - (_slots[i] as Vector2)).length() < _slot_r + 6.0:
+			return i
+	return -1
+
 func _process(dt: float) -> void:
 	t += dt
 	queue_redraw()
@@ -108,13 +212,27 @@ func _draw() -> void:
 		# Will, and what the dream will do for you, each on its key.
 		Glyph.bar(self, Vector2(bx - 6, by - 16), 330, 9, g.my_will / 100.0, Color(0.86, 0.82, 1.0), Color(0.5, 0.4, 0.9))
 		Glyph.text(self, sans, Vector2(bx + 334, by - 7), "will", 12, Color(0.75, 0.72, 0.95))
-		var dy := H - 300.0
+		# The dream bar, bottom right: eight slots, each on its key, drawn by what
+		# the ability does; grey when the Will is not there for it.
+		var keyof := {}
 		for k in g.dream_keys:
-			var mv: Dictionary = Dream.moves[g.dream_keys[k]]
+			keyof[g.dream_keys[k]] = k
+		var n_d: int = g.dream_bar.size()
+		var dgap := 50.0
+		var dx0 := W - 34.0 - dgap * (n_d - 1)
+		var dyy := H - 62.0
+		Glyph.text(self, sans, Vector2(dx0 + dgap * (n_d - 1) * 0.5, dyy - 48.0), "Dream   ·   %s: all of them" % Keys.name(KEY_I), 12, Color(0.8, 0.78, 1.0, 0.85), 0)
+		for i in n_d:
+			var mid: String = g.dream_bar[i]
+			var mv: Dictionary = Dream.moves[mid]
 			var can: bool = g.my_will >= float(mv.cost)
-			Glyph.text(self, sans, Vector2(W - 250, dy), "%s" % Keys.name(k), 14, Color(0.95, 0.9, 0.7) if can else Color(0.5, 0.5, 0.55))
-			Glyph.text(self, sans, Vector2(W - 190, dy), "%s  %d" % [mv.name, int(mv.cost)], 14, Color(0.86, 0.84, 1.0) if can else Color(0.5, 0.5, 0.55))
-			dy += 21.0
+			var c := Vector2(dx0 + i * dgap, dyy)
+			draw_circle(c, 21.0, Color(0.05, 0.04, 0.09, 0.6))
+			draw_arc(c, 21.0, 0, TAU, 32, Color(Dreamfx.PALE, 0.8 if can else 0.25), 1.5, true)
+			_dream_icon(c, 13.0, mid, Color(0.9, 0.88, 1.0) if can else Color(0.45, 0.45, 0.5))
+			if keyof.has(i):
+				Glyph.text(self, sans, c + Vector2(0, -27), Keys.name(keyof[i]), 12, Color(0.95, 0.9, 0.7) if can else Color(0.55, 0.55, 0.6), 0)
+			Glyph.text(self, sans, c + Vector2(0, 34), "%d" % int(mv.cost), 11, Color(0.8, 0.78, 1.0) if can else Color(0.5, 0.5, 0.55), 0)
 
 	# The weaves you know.
 	var known: Array = g.known
@@ -124,11 +242,19 @@ func _draw() -> void:
 		gap = maxf(gap, 46.0)
 		var x0 := W * 0.5 - gap * (n - 1) * 0.5
 		var y := H - 62.0
+		_slots = []
+		for i in n:
+			_slots.append(Vector2(x0 + i * gap, y) * sc)
+		_slot_r = 26.0 * minf(gap / 60.0, 1.0) * sc
 		for i in n:
 			var id: String = known[i]
 			var sel: bool = i == g.selected
 			var r := (30.0 if sel else 22.0) * minf(gap / 60.0, 1.0)
 			var c := Vector2(x0 + i * gap, y - (8.0 if sel else 0.0))
+			if g.drag_slot == i:
+				c = g.drag_at / sc
+			# Every slot sits on its own dark disc, so the bar reads as slots.
+			draw_circle(c, r + 2.0, Color(0.03, 0.03, 0.05, 0.45))
 			if sel:
 				draw_circle(c, r + 7.0, Color(Glyph.GOLD, 0.16 + 0.05 * sin(t * 3.0)))
 				draw_arc(c, r + 4.0, 0, TAU, 40, Glyph.GOLD, 2.0, true)
@@ -153,7 +279,19 @@ func _draw() -> void:
 				Glyph.weave(self, c, r, Rules.flows_of(Rules.weaves[id], p), 1.0 if wait <= 0.0 else 0.45, t * 0.25 if sel else 0.0)
 				# Held: a bright ring. Tied off: the ring broken into a knot's four marks.
 				var hs: int = g.holding(id)
-				if hs == 1:
+				# In the hands or kept aside: a ring that fills as it is made, gold and
+				# beating when whole. "kept" under a weave put aside for later.
+				var inh: Dictionary = g.my_form if not g.my_form.is_empty() and g.my_form.weave == id else (g.my_kept if not g.my_kept.is_empty() and g.my_kept.weave == id else {})
+				if not inh.is_empty():
+					var whole: bool = inh.get("ready", false)
+					var ff: float = 1.0 if whole else clampf(inh.get("done", 0.0) / maxf(inh.get("time", 1.0), 0.05), 0.0, 1.0)
+					var col: Color = Glyph.GOLD if whole else Weavefx.colour(id).lerp(Color.WHITE, 0.35)
+					draw_arc(c, r + 5.0, -PI * 0.5, -PI * 0.5 + TAU * ff, 40, col, 3.0, true)
+					if whole:
+						draw_arc(c, r + 9.0 + 1.5 * sin(t * 8.0), 0, TAU, 40, Color(Glyph.GOLD, 0.45), 1.5, true)
+					var word := ("ready" if whole else "weaving") if inh == g.my_form else ("kept · ready" if whole else "kept")
+					Glyph.text(self, sans, c + Vector2(0, r + 16), word, 11, Glyph.GOLD if whole else Color(0.9, 0.9, 1.0), 0)
+				elif hs == 1:
 					draw_arc(c, r + 2.0, 0, TAU, 40, Color(1, 1, 1, 0.9), 2.5, true)
 					Glyph.text(self, sans, c + Vector2(0, r + 16), "held", 11, Color.WHITE, 0)
 				elif hs == 2:
@@ -174,6 +312,10 @@ func _draw() -> void:
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
 				Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+		if not g.my_kept.is_empty():
+			# What is kept, and how to have it.
+			var kw: Dictionary = Rules.weaves.get(g.my_kept.weave, {})
+			Glyph.text(self, sans, Vector2(W * 0.5, H - 150.0), "%s kept%s   ·   %s: take it up   ·   right click with empty hands: let it go" % [kw.get("name", ""), " and ready" if g.my_kept.get("ready", false) else "", g._slot_key(g.my_kept.weave)], 12, Color(Glyph.GOLD, 0.85), 0)
 		var sel_id: String = known[g.selected]
 		var sw: Dictionary = Rules.forms[sel_id] if Rules.forms.has(sel_id) else (Rules.weapons[sel_id] if Rules.weapons.has(sel_id) else Rules.weaves[sel_id])
 		Glyph.text(self, serif, Vector2(W * 0.5, H - 132.0), sw.name, 22, Color(0.97, 0.94, 0.88), 0)
@@ -189,7 +331,7 @@ func _draw() -> void:
 	if not g.my_form.is_empty():
 		# A weave in the making: the ring fills as it is woven, and turns gold and
 		# beats when it is whole and waiting to be let go.
-		var f: float = clampf((g.clock - g.my_form.since) / maxf(g.my_form.time, 0.05), 0.0, 1.0)
+		var f: float = 1.0 if g.my_form.get("ready", false) else clampf(g.my_form.get("done", 0.0) / maxf(g.my_form.time, 0.05), 0.0, 1.0)
 		var col: Color = Weavefx.colour(g.my_form.weave).lerp(Color.WHITE, 0.3)
 		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 40, Glyph.GOLD if f >= 1.0 else col, 3.0, true)
 		if f >= 1.0:

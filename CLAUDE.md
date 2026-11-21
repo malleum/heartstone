@@ -82,8 +82,9 @@ working on abilities; the user's rulings there are final).
 - `tools/weave.sh <id>` (one weave side-on at six moments; `DEMO=<m>` for weaves the bot
   will not choose) and `tools/face.sh <name> [bench args]` (a face, front and three-quarter).
   Weave visuals are built from `src/game/flowfx.gd` (ribbons, fire ball, shell, rock shard).
-- Dream duels: `src/core/dream.gd`, `data/dream.json`; `--activity=dream_spar --foe=warder`,
-  `--dreamdemo[=move,..]` to stage the moves, `tests/dream_duel.gd` for bot-versus-bot numbers.
+- Dream duels: `src/core/dream.gd`, `data/dream.json` (24 moves; a dream bar of eight, I for the
+  inventory); `--activity=dream_spar --foe=warder`, `--dreamdemo[=move,..]` to stage the moves (all
+  24 by default), `tests/dream_duel.gd [-mix]` for bot-versus-bot numbers (`-mix`: random bars).
 - Camp doorways are live portals into a preloaded fight (`camp.gd` `_portal`; see ARCHITECTURE
   "Doorways you walk through"). `--offline` skips the server; `--timing` prints where opening
   a fight spends its time. Notices go through `Toast.say`, never text across the screen.

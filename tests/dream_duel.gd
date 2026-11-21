@@ -15,6 +15,17 @@ func _init() -> void:
 				p.weaves[w] = {known = true, xp = 0.0}
 		else:
 			p = Profile.create({name = "F%d" % i, cls = kinds[i], stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Rules.CLASSES[kinds[i]].kit})
+		if a.has("-mix"):
+			# -mix: each a dream bar of eight drawn from all of them (deny always).
+			Dream.load_data()
+			var all: Array = Dream.moves.keys().filter(func(m: String) -> bool: return m != "deny")
+			var rng := RandomNumberGenerator.new(); rng.seed = 77 + i + (int(a[2]) if a.size() > 2 and a[2].is_valid_int() else 0)
+			var bar := ["deny"]
+			while bar.size() < 8:
+				var m: String = all[rng.randi() % all.size()]
+				if not bar.has(m): bar.append(m)
+			p.dream_bar = bar
+			print("bar %d: %s" % [i, bar])
 		ids.append(sim.add_player(p, Vector3(0, 0, 14.0 * i)))
 	sim.ents[ids[0]].yaw = 0.0
 	var count := {}
@@ -25,6 +36,7 @@ func _init() -> void:
 		sim.step(1.0 / 30.0)
 		for e in sim.events:
 			count[e.e] = count.get(e.e, 0) + 1
+			if e.e == "dream": count["m:" + String(e.move)] = count.get("m:" + String(e.move), 0) + 1
 			if a.has("-v") and e.e in ["shift", "dream", "denied", "chained", "dream_hit", "blow", "strike", "cast", "blast", "die", "hit"]:
 				print("%6.2f %s %s" % [sim.t, e.e, str(e.get("move", e.get("weave", e.get("id", ""))))])
 		sim.events.clear()

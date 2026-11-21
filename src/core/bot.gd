@@ -211,6 +211,20 @@ static func dream(sim: Sim, id: int) -> void:
 			best = d; near = e
 	if near.is_empty():
 		return
+	Dream.load_data()
+	# What it can do: its own dream bar, as a player's (a shade fights with yours).
+	var bar: Array = Dream.bar_of(me.profile)
+	var by_kind := {}
+	for mv in bar:
+		if Dream.moves.has(mv):
+			var k: String = Dream.moves[mv].kind
+			if k == "shift":
+				k = "shift_" + String(Dream.moves[mv].where)
+			if not by_kind.has(k): by_kind[k] = []
+			by_kind[k].append(mv)
+	var pick := func(kind: String) -> String:
+		var l: Array = by_kind.get(kind, [])
+		return "" if l.is_empty() else l[sim.rng.randi() % l.size()]
 	var r := sim.rng.randf()
 	# What is coming at me?
 	for fx in sim.effects:
@@ -220,35 +234,61 @@ static func dream(sim: Sim, id: int) -> void:
 		match fx.kind:
 			"dream_bolt": threat = fx.wait <= 0.0 and fx.pos.distance_to(me.pos) < 12.0 and fx.dir.dot((me.pos - fx.pos).normalized()) > 0.9
 			"dream_chain": threat = fx.on == id and fx.left < 0.3
-			"dream_pit": threat = fx.pos.distance_to(sim._feet(me)) < fx.rad + 0.5 and fx.wait < 0.3
+			"dream_pit": threat = fx.pos.distance_to(sim._feet(me)) < fx.rad + 0.5 and fx.wait < 0.35
 		if threat:
-			if r < 0.5 and fx.kind != "dream_pit" or me.will < 16.0:
-				sim.request_dream(id, "deny", me.pos)
-			elif r > 0.85 and fx.kind == "dream_bolt":
-				sim.request_dream(id, "dream_wall", fx.pos)
-			elif r < 0.85:
+			var answer := ""
+			if (r < 0.45 and fx.kind != "dream_pit") or me.will < 16.0:
+				answer = pick.call("deny")
+			if answer == "" and r < 0.6:
+				answer = pick.call("fade")
+			if answer == "" and fx.kind == "dream_bolt" and r > 0.8:
+				answer = pick.call("wall")
+			var aim: Vector3 = fx.pos
+			if answer == "":
+				answer = pick.call("shift_side") if r < 0.7 else pick.call("shift_aim")
 				var side := Vector3(cos(me.yaw), 0, -sin(me.yaw)) * (6.0 if sim.rng.randf() < 0.5 else -6.0)
-				sim.request_dream(id, "shift_aim", me.pos + side)
+				aim = me.pos + side
+			if answer != "":
+				sim.request_dream(id, answer, aim)
 			return
 	if me.chained > sim.t:
-		if r < 0.7:
-			sim.request_dream(id, "shift_back", me.pos)
+		var out: String = pick.call("shift_back")
+		if out != "" and r < 0.7:
+			sim.request_dream(id, out, me.pos)
 		return
-	# Hurt and pressed: be somewhere else.
+	# Hurt: mend, or be somewhere else.
+	if me.hp < me.max_hp * 0.5 and r < 0.3 and me.will > 40.0:
+		var mend: String = pick.call("mend")
+		if mend != "":
+			sim.request_dream(id, mend, me.pos)
+			return
 	if me.hp < me.max_hp * 0.4 and best < 4.0 and r < 0.6:
-		sim.request_dream(id, "shift_back", me.pos)
-		return
+		var away: String = pick.call("shift_back")
+		if away != "":
+			sim.request_dream(id, away, me.pos)
+			return
 	if me.will < 50.0:
 		return
 	var chest: Vector3 = sim._feet(near) + Vector3(0, 1.2, 0)
 	var melee: bool = me.profile.get("cls", "channeller") != "channeller"
-	if r < 0.22 and best > (5.0 if melee else 99.0):
-		sim.request_dream(id, "shift_behind", near.pos)
-	elif r < 0.4:
-		sim.request_dream(id, "dream_spear", chest + near.move * near.speed * best / 48.0)
-	elif r < 0.5 and near.get("chained", 0.0) <= sim.t:
-		sim.request_dream(id, "dream_chains", near.pos)
-	elif r < 0.57:
-		sim.request_dream(id, "dream_pit", near.pos + near.move * near.speed * 0.4)
-	elif r < 0.62 and not melee and best < 6.0:
-		sim.request_dream(id, "shift_back", me.pos)
+	var mv := ""
+	var aim2: Vector3 = chest
+	if r < 0.18 and best > (5.0 if melee else 99.0):
+		mv = pick.call("shift_behind")
+		if mv == "": mv = pick.call("shift_swap")
+		aim2 = near.pos
+	elif r < 0.42:
+		mv = pick.call("bolt")
+		if mv != "":
+			aim2 = chest + near.move * near.speed * best / float(Dream.moves[mv].speed)
+	elif r < 0.54 and near.get("chained", 0.0) <= sim.t:
+		mv = pick.call("chain"); aim2 = near.pos
+	elif r < 0.64:
+		mv = pick.call("pit")
+		aim2 = near.pos + near.move * near.speed * 0.5
+	elif r < 0.68 and melee and best > 6.0:
+		mv = pick.call("haste")
+	elif r < 0.72 and not melee and best < 6.0:
+		mv = pick.call("shift_back"); aim2 = me.pos
+	if mv != "":
+		sim.request_dream(id, mv, aim2)

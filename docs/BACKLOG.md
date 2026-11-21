@@ -369,7 +369,8 @@ are what the 4:44 review, or the next session, should pick up.
     **A defensive wall weave**, switchable between a quarter circle round you and a
     flat wall ahead. Built on the ground system's walls (Map.add_wall /
     remove_wall, as Heave's rubble), held or tied off; a key toggles the shape.
-  - **Holding and preparing weaves; several at once.** Weave one ahead and keep it
+  - [x] (21 Nov, Opus, the user's go-ahead on all three) Built: (1) choosing another slot with a weave in hand (whole or part made) keeps it aside, ready; its slot takes it back up (whole, it goes on the click); one kept at a time, it holds its flows, costs a little breath once whole, and is lost when shielded, chained, bound or down. (2) Two at once: while one is kept and still being made, both weave at 60% (`TUNE.split`). (3) The bar: each slot on a dark disc, a filling ring and "weaving" / "ready" / "kept" under it, beside held / tied / by itself; a line says what is kept and its key; with the weave chart open (Tab) slots can be dragged to change places (saved as the bar order). PLAYTEST: keeping weaves.
+    **Holding and preparing weaves; several at once.** Weave one ahead and keep it
     ready in the hands to loose when wanted (the hold-click "ready" state exists:
     make it general and visible); weave two at once by splitting flows (canon), at
     a cost in speed. **And a better weave bar and inventory:** clearer slots, what
@@ -397,6 +398,11 @@ are what the 4:44 review, or the next session, should pick up.
   - **Show where a weave will land while it is being woven:** its area drawn on
     the ground at the aim (the radius of a fireball's burst, a wedge for the
     Rolling Ring, a line for Heave and Lash).
+
+- 2026-11-21, asked by the user: (done 21 Nov) **Three times as many things in the
+  dream duel, an inventory and a hotbar for them.** 24 dream abilities (16 new: see
+  ARCHITECTURE "Duelling in the dream"), a dream bar of eight on keys at the bottom
+  right, and I for all of them to choose from. PLAYTEST: the dream abilities.
 
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.

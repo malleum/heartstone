@@ -189,6 +189,51 @@ func _water() -> void:
 		sim3.events.clear()
 	check(drowned and not burst and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
 
+func _kept() -> void:
+	print("== Keeping a weave ready and weaving two at once")
+	var sim := Sim.new("practice", 13)
+	sim._waves = []
+	var p := Profile.create({name = "Keeper", potential_pts = 10, affinity_pts = {fire = 3, air = 3}})
+	p.weaves["fireball"] = {known = true, xp = 0.0}
+	p.weaves["hammer_of_air"] = {known = true, xp = 0.0}
+	p.channelled = Rules.TUNE.flow_steps[4]
+	var id := sim.add_player(p, Vector3(0, 0, 0))
+	sim._add_enemy("dummy", Vector3(0, 0, 14))
+	var foe: int = sim._next - 1
+	sim._add_enemy("dummy", Vector3(60, 0, -60))   # so the exercise does not end with the first
+	var me: Dictionary = sim.ents[id]
+	me.yaw = 0.0
+	check(sim.stow(id) != "", "nothing in the hands, nothing to keep")
+	sim.request_cast(id, "fireball", Vector3(0, 1, 14), true)
+	run(sim, 0.3)
+	check(sim.stow(id) == "" and me.forming.is_empty() and me.kept.weave == "fireball", "a weave half made can be kept aside")
+	check(sim.request_cast(id, "hammer_of_air", Vector3(0, 0, 8), true) == "", "and the hands make another meanwhile")
+	var f_left: float = me.forming.left; var k_left: float = me.kept.left
+	run(sim, 0.3)
+	check(absf((f_left - me.forming.left) - 0.3 * Rules.TUNE.split) < 0.05 and absf((k_left - me.kept.left) - 0.3 * Rules.TUNE.split) < 0.05, "both come slower while both are being made")
+	check(sim.stow(id) != "", "only one weave is kept at a time")
+	run(sim, 3.0)
+	check(me.kept.get("ready", false) and me.forming.get("ready", false), "both whole, and waiting")
+	var st0: float = me.stamina
+	sim.aim_cast(id, Vector3(0, 0, 8), false)
+	run(sim, 0.1)
+	check(me.forming.is_empty() and not me.kept.is_empty(), "the one in hand goes; the kept one stays")
+	run(sim, 1.0)
+	check(me.stamina < st0, "a whole weave kept costs breath")
+	var hp: float = sim.ents[foe].hp
+	check(sim.swap_kept(id) == "" and me.forming.weave == "fireball" and me.forming.ready and me.kept.is_empty(), "taken back up, it is in the hands, whole")
+	run(sim, 0.3)
+	check(not me.forming.is_empty(), "and it waits for the click")
+	sim.aim_cast(id, sim.ents[foe].pos + Vector3(0, 1.1, 0), false)
+	run(sim, 1.2)
+	check(me.forming.is_empty() and sim.ents[foe].hp < hp, "the click looses it")
+	sim.request_cast(id, "fireball", Vector3(0, 1, 14), true)
+	run(sim, 0.2)
+	sim.stow(id)
+	me.chained = sim.t + 2.0
+	run(sim, 0.1)
+	check(me.kept.is_empty(), "chained, the kept weave is lost")
+
 func _placed() -> void:
 	print("== Placed weaves: the shape key, the Wall of Air, gateways placed end by end and turned")
 	# The shape key: flat across the aim, or round the weaver; turned by the wheel.
@@ -685,6 +730,120 @@ func _dream() -> void:
 	sim._hurt(pb, 9999.0, ia, "dream")
 	run(sim, 0.2)
 	check(sim.over and sim.success, "one of them wakes: the duel is over")
+
+## Two dreamers 12 paces apart, A facing B, both tough enough not to wake.
+func _dpair() -> Array:
+	var a := Profile.create({name = "Dreamer", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var b := Profile.create({name = "Other", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var sim := Sim.new("dream_spar", 5)
+	var ia := sim.add_player(a, Vector3(0, 0, 0)); var ib := sim.add_player(b, Vector3(0, 0, 12))
+	for id in [ia, ib]:
+		sim.ents[id].hp = 2000.0; sim.ents[id].max_hp = 2000.0
+	sim.ents[ia].yaw = 0.0; sim.ents[ib].yaw = PI
+	return [sim, sim.ents[ia], sim.ents[ib]]
+
+func _dream_more() -> void:
+	print("== Tel'aran'rhiod: the other sixteen, and the dream bar")
+	Map.use("open")
+	Dream.load_data()
+	check(Dream.moves.size() == 24 and Dream.tune.bar.size() == 8 and Dream.tune.bar_keys.size() == 8, "twenty-four things to do, eight on the bar")
+	for mv in Dream.tune.bar:
+		check(Dream.moves.has(mv), "the default bar names a real move (%s)" % mv)
+	var d := _dpair(); var sim: Sim = d[0]; var pa: Dictionary = d[1]; var pb: Dictionary = d[2]
+	var chest: Vector3 = pb.pos + Vector3(0, 1.2, 0)
+	# Arrows: five at once.
+	var before := sim.effects.size()
+	sim.request_dream(pa.id, "dream_arrows", chest)
+	check(sim.effects.size() - before == 5, "a flight of arrows is five")
+	var hp: float = pb.hp
+	run(sim, 1.0)
+	check(pb.hp < hp, "and they land")
+	# A boulder knocks down.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "dream_boulder", pb.pos + Vector3(0, 1.2, 0))
+	var seen := run(sim, 1.2)
+	check(seen.has("dream_hit") and pb.down > 0.0, "a boulder knocks them down")
+	# Ravens turn after the foe, even thrown wide.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	hp = pb.hp
+	sim.request_dream(pa.id, "dream_ravens", pa.pos + Vector3(8, 1.4, 6))
+	run(sim, 2.5)
+	check(pb.hp < hp, "ravens thrown wide still find them")
+	# A cage: no stepping out of it.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "dream_cage", pb.pos)
+	seen = run(sim, 0.9)
+	check(seen.has("chained") and sim.request_dream(pb.id, "shift_back", Vector3.ZERO) == "caged", "caged, not even a step away gets you out")
+	# Forgetting drains Will.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "dream_forget", pb.pos)
+	run(sim, 0.5)
+	check(pb.will <= 100.0 - 35.0 + 1.0, "forgetting takes their Will (%d)" % pb.will)
+	# A great hand throws them away; drawn in, they come to you.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "dream_shove", pb.pos)
+	run(sim, 0.8)
+	check(pb.pos.z > 14.0, "a great hand throws them away (z=%.1f)" % pb.pos.z)
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "dream_pull", pb.pos)
+	run(sim, 0.8)
+	check(pb.pos.z < 9.0, "drawn in, they come toward you (z=%.1f)" % pb.pos.z)
+	# Lightning from a clear sky: a breath later, there.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	hp = pb.hp
+	sim.request_dream(pa.id, "dream_storm", pb.pos)
+	run(sim, 0.6)
+	check(is_equal_approx(pb.hp, hp), "the strike waits")
+	run(sim, 0.6)
+	check(pb.hp <= hp - 29.0, "then falls")
+	# The ground burns.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	hp = pb.hp
+	sim.request_dream(pa.id, "dream_fire", pb.pos)
+	run(sim, 2.0)
+	check(pb.hp < hp - 15.0 and pb.get("mired", 0.0) <= sim.t, "burning ground hurts, and does not mire")
+	# A ring of stone round you stops a spear from any side.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	before = sim.effects.size()
+	sim.request_dream(pb.id, "dream_ring", Vector3.ZERO)
+	check(sim.effects.size() - before == 6, "a ring is six walls")
+	hp = pb.hp
+	sim.request_dream(pa.id, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	run(sim, 1.0)
+	check(is_equal_approx(pb.hp, hp), "and stops what is thrown")
+	# A mirror sends it back.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pb.id, "dream_mirror", Vector3.ZERO)
+	hp = pa.hp
+	var hb: float = pb.hp
+	sim.request_dream(pa.id, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	run(sim, 1.5)
+	check(pa.hp < hp and is_equal_approx(pb.hp, hb), "a mirror throws it back at the thrower")
+	# Mend, fade, haste.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	pa.hp = 1000.0
+	sim.request_dream(pa.id, "dream_mend", Vector3.ZERO)
+	check(is_equal_approx(pa.hp, 1030.0), "it never happened: the wound closes")
+	sim.request_dream(pb.id, "dream_fade", Vector3.ZERO)
+	hp = pb.hp
+	sim.request_dream(pa.id, "dream_spear", pb.pos + Vector3(0, 1.2, 0))
+	run(sim, 0.7)
+	check(is_equal_approx(pb.hp, hp) and sim.request_attack(pb.id, "light", pa.pos) == "not quite here", "faded: nothing touches you, and you touch nothing")
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.set_input(pa.id, Vector3(1, 0, 0), PI * 0.5)
+	run(sim, 1.0)
+	var plain: float = pa.pos.x
+	pa.pos = Vector3.ZERO
+	sim.request_dream(pa.id, "dream_haste", Vector3.ZERO)
+	run(sim, 1.0)
+	check(pa.pos.x > plain * 1.4, "quick as thought: faster on your feet (%.1f against %.1f)" % [pa.pos.x, plain])
+	# Step aside; change places.
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "shift_side", pa.pos + Vector3(-5, 0, 5))
+	check(absf(absf(pa.pos.x) - 6.0) < 0.3 and absf(pa.pos.z) < 0.3, "step aside: six paces to the side")
+	d = _dpair(); sim = d[0]; pa = d[1]; pb = d[2]
+	sim.request_dream(pa.id, "shift_swap", pb.pos)
+	check(pa.pos.distance_to(Vector3(0, 0, 12)) < 0.5 and pb.pos.distance_to(Vector3.ZERO) < 0.5, "change places: each where the other was")
 
 func _shadowspawn() -> void:
 	print("== Darkhounds, Draghkar, Dreadlords")
@@ -1661,12 +1820,14 @@ func _init() -> void:
 	_water()
 	_held_balefire()
 	_placed()
+	_kept()
 	_fasten_players()
 	_foes()
 	_powers()
 	_playtest()
 	_shadowspawn()
 	_dream()
+	_dream_more()
 	_trolloc_blows()
 	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))

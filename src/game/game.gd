@@ -44,7 +44,8 @@ var ready_at := {}                # weave -> clock time it can be woven again
 var my_stamina: float = Rules.TUNE.stamina
 var my_will := 100.0
 var dreaming := false        # this fight is in Tel'aran'rhiod: dream moves are on their keys
-var dream_keys := {}        # physical key -> dream move
+var dream_keys := {}        # physical key -> dream bar slot
+var dream_bar: Array = []   # the eight dream moves on the dream bar, slot by slot
 var _hinted := false       # the controls line has been shown
 var _foe := 0               # a bot opponent in a duel
 var _foe_profile := {}      # who it will be, if nobody real turns up
@@ -207,7 +208,8 @@ func _on_lost() -> void:
 
 var weaving := false              # the mouse is held on a weave being made
 var _sweeping := false            # my Balefire is burning (it follows my aim while held)
-var my_form := {}                 # {weave, since, time, ready}: my weave in the making, for the HUD
+var my_form := {}                 # {weave, since, time, ready, done}: my weave in the making, for the HUD
+var my_kept := {}                 # {weave, time, ready, done}: a weave kept aside, ready (Sim.stow)
 var spanned := {}                 # crossbow -> clock time it will be spanned again
 
 func _exit_tree() -> void:
@@ -222,6 +224,43 @@ func _ground(p: Vector3) -> Vector3:
 	return Vector3(p.x, Terrain.height(p.x, p.z), p.z)
 
 # --- input ------------------------------------------------------------------------
+
+var drag_slot := -1               # the bar slot being dragged to a new place (weave chart open)
+var drag_at := Vector2.ZERO
+
+## With the weave chart open (the mouse free), the bar can be rearranged: drag a slot
+## onto another and they change places. Kept as the character's bar order.
+func _input(ev: InputEvent) -> void:
+	if hud == null or tree_view == null or not tree_view.visible:
+		drag_slot = -1
+		return
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
+		var i: int = hud.slot_at(ev.position)
+		if ev.pressed and i >= 0:
+			drag_slot = i; drag_at = ev.position
+			get_viewport().set_input_as_handled()
+		elif not ev.pressed and drag_slot >= 0:
+			if i >= 0 and i != drag_slot:
+				var moving: String = known[drag_slot]
+				var chosen: String = known[selected] if selected < known.size() else ""
+				known[drag_slot] = known[i]; known[i] = moving
+				selected = maxi(known.find(chosen), 0)
+				_save_pref("hotbar", known.duplicate())
+			drag_slot = -1
+			get_viewport().set_input_as_handled()
+	elif ev is InputEventMouseMotion and drag_slot >= 0:
+		drag_at = ev.position
+
+## A preference changed in a fight (the bar's order, the dream bar) goes onto the
+## character as saved, not the fight's copy of it; a throwaway has nothing to save.
+func _save_pref(key: String, value: Variant) -> void:
+	profile[key] = value
+	if args.has("name") or args.has("tour") or args.has("auto"):
+		return
+	var stored := Profile.load_profile(profile.name)
+	if not stored.is_empty():
+		stored[key] = value
+		Profile.save(stored)
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if session == null:
@@ -250,8 +289,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_show_tree(tree_view == null or not tree_view.visible)
 			elif not team_meter.is_empty():
 				_show_picks(pick_card == null or not pick_card.visible)
+		elif dreaming and ev.physical_keycode == Keys.k(KEY_I):
+			_show_dream_inventory(dream_inv == null or not dream_inv.visible)
 		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
-			session.dream(dream_keys[ev.physical_keycode], _aim_point())
+			session.dream(dream_bar[dream_keys[ev.physical_keycode]], _aim_point())
 		elif ev.physical_keycode == Keys.k(KEY_V) and not dreaming and me:
 			session.jump()   # a low sweep (the yellow wedge) passes under
 		elif ev.physical_keycode == Keys.k(KEY_Q):
@@ -319,7 +360,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					session.draw(true)
 			else:
 				_cast_selected()
-		elif ev.button_index == MOUSE_BUTTON_RIGHT and (weaving or not my_form.is_empty()) and me:
+		elif ev.button_index == MOUSE_BUTTON_RIGHT and (weaving or not my_form.is_empty() or not my_kept.is_empty()) and me:
 			# Right click while weaving: let it go, unloosed.
 			weaving = false
 			session.cancel_weave()
@@ -357,6 +398,17 @@ func _armed() -> bool:
 func _select(i: int) -> void:
 	if known.is_empty():
 		return
+	if i != selected and me:
+		if not my_kept.is_empty() and known[i] == my_kept.weave:
+			# The kept weave's slot: back into the hands (what was there is kept instead).
+			session.swap_kept()
+		elif not my_form.is_empty() and not my_form.get("marked", false) and not Rules.weaves[my_form.weave].get("sweep", false):
+			if not my_kept.is_empty():
+				Toast.say("Hands full", "One weave kept ready already: take it up (%s), loose it or let it go (right click)." % _slot_key(my_kept.weave), "warn", 3.0)
+				return
+			# Another slot with a weave in hand: it is kept aside, ready, and the hands
+			# are free for the next (both weave slower while both are being made).
+			session.stow()
 	selected = i
 	held_since = -1.0
 	if profile.get("kit", []).is_empty():
@@ -371,6 +423,11 @@ func _select(i: int) -> void:
 					break
 	else:
 		session.equip("")
+
+## The key that chooses this thing on the bar ("" past the ninth slot).
+func _slot_key(id: String) -> String:
+	var n := known.find(id)
+	return Keys.name(KEY_1 + n) if n >= 0 and n < 9 else ""
 
 func _move_dir() -> Vector3:
 	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -390,6 +447,17 @@ func _cast_selected() -> void:
 		# A gateway's near end is set: this press and release sets the far end.
 		session.aim(at, true)
 		weaving = true
+		return
+	if not my_form.is_empty() and my_form.weave == known[selected]:
+		# Taken back up from keeping: whole, it goes on the click; part made, the
+		# press carries on weaving it, as if it had never been put aside.
+		my_form.erase("waiting")
+		if my_form.get("ready", false):
+			session.aim(at, false)
+			_face(at)
+		else:
+			session.aim(at, true)
+			weaving = true
 		return
 	if Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind in PLACED and place_turn != 0.0:
 		place_turn = 0.0
@@ -582,6 +650,12 @@ func _gate_mark_into(st: SurfaceTool, end: Dictionary) -> void:
 
 func _process(dt: float) -> void:
 	_area_preview()
+	# How far my weaves have come (the HUD's rings): split while two are being made.
+	var split: float = Rules.TUNE.split if not my_form.is_empty() and not my_kept.is_empty() and not my_kept.get("ready", false) else 1.0
+	if not my_form.is_empty() and not my_form.get("ready", false):
+		my_form.done = minf(my_form.get("done", 0.0) + dt * split, my_form.time)
+	if not my_kept.is_empty() and not my_kept.get("ready", false):
+		my_kept.done = minf(my_kept.get("done", 0.0) + dt * (Rules.TUNE.split if not my_form.is_empty() else 1.0), my_kept.time)
 	if controlled:
 		Wind.step(dt)
 		Debris.step(dt)
@@ -672,7 +746,8 @@ func _process(dt: float) -> void:
 			face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
 			aim_t = 0.3
 			if frame % 4 == 0:
-				session.aim(at, weaving)
+				# (Taken back up from keeping, it waits for a click, not for the button.)
+				session.aim(at, weaving or my_form.get("waiting", false))
 		if not controlled:
 			move = Vector3.ZERO
 		session.send_input(move, face_yaw)
@@ -728,8 +803,8 @@ func _process(dt: float) -> void:
 	# whoever is nearest, so each can be looked at in a render.
 	if args.has("dreamdemo") and frame % 75 == 40 and session.is_host and me and session.sim.dream:
 		var dp: Dictionary = session.sim.ents[session.my_id]
-		var order := ["dream_spear", "dream_wall", "dream_chains", "dream_pit", "shift_aim", "shift_behind", "shift_back", "deny"]
-		if args.dreamdemo != "":
+		var order: Array = Dream.moves.keys()
+		if not args.dreamdemo in ["", "1"]:
 			order = Array(args.dreamdemo.split(","))
 		var at: Vector3 = dp.pos + Vector3(sin(dp.yaw), 0, cos(dp.yaw)) * 8.0
 		for o in session.sim._targets(dp):
@@ -922,9 +997,11 @@ func _on_started(_my_id: int, activity: String) -> void:
 				(c as DirectionalLight3D).light_energy *= 0.55
 				(c as DirectionalLight3D).light_color = Color(0.82, 0.84, 1.0)
 		Dream.load_data()
-		for mv in Dream.moves:
-			var k: String = profile.get("dream_keys", {}).get(mv, Dream.moves[mv].key)
-			dream_keys[OS.find_keycode_from_string(k)] = mv
+		dream_bar = Dream.bar_of(profile)
+		var keys: Array = Dream.keys_of(profile)
+		for i in keys.size():
+			dream_keys[OS.find_keycode_from_string(keys[i])] = i
+		Toast.say("Tel'aran'rhiod", "Your dream abilities are on the bar at the right, each on its key. %s: all of them, to choose which eight." % Keys.name(KEY_I), "info", 7.0)
 		# --foe=mirror|warder|aiel|hunter|channeller: someone to duel when no friend
 		# is here. Entering a duel alone meets your own shade.
 		if session.is_host and (args.has("foe") or Rules.activities[activity].kind == "spar"):
@@ -1211,7 +1288,7 @@ func _show_tree(on: bool) -> void:
 	if on:
 		tree_view.profile = view_profile()
 		var left: int = view_profile().get("round", {}).get("picks", 0)
-		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 else "The weave chart   ·   Tab closes"
+		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 else "The weave chart   ·   drag the bar's slots to rearrange them   ·   Tab closes"
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not args.has("auto") and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -1253,6 +1330,107 @@ func _show_picks(on: bool) -> void:
 		b.focus_mode = Control.FOCUS_NONE
 		var k: String = ch.kind; var id: String = ch.id
 		b.pressed.connect(func() -> void: session.pick(k, id))
+
+# --- the dream inventory: every dream ability, and which eight are on the bar -------
+var dream_inv: Control
+var _inv_pick := ""                # an ability chosen, waiting for a slot
+
+func _show_dream_inventory(on: bool) -> void:
+	if dream_inv == null:
+		dream_inv = Control.new(); hud_layer.add_child(dream_inv)
+		dream_inv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		dream_inv.mouse_filter = Control.MOUSE_FILTER_STOP
+		var shade := ColorRect.new(); shade.color = Color(0.02, 0.02, 0.05, 0.55); dream_inv.add_child(shade)
+		shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	dream_inv.visible = on
+	_inv_pick = ""
+	if on:
+		_fill_dream_inventory()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif not args.has("auto") and DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+## A box for the inventory's buttons: dark, edged in `edge`, brighter under the mouse.
+func _inv_style(b: Button, edge: Color, fill := Color(0.06, 0.05, 0.1, 0.85)) -> void:
+	for st in ["normal", "hover", "pressed"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = fill.lightened(0.12) if st == "hover" else fill
+		sb.border_color = edge if st != "hover" else edge.lightened(0.3)
+		sb.set_border_width_all(2 if st == "hover" else 1)
+		sb.set_corner_radius_all(6)
+		sb.content_margin_left = 10; sb.content_margin_right = 10
+		b.add_theme_stylebox_override(st, sb)
+
+func _fill_dream_inventory() -> void:
+	for c in dream_inv.get_children():
+		if c is PanelContainer:
+			c.queue_free()
+	var card := Glyph.card(Color(Dreamfx.PALE, 0.5)); dream_inv.add_child(card)
+	card.anchor_left = 0.5; card.anchor_right = 0.5; card.anchor_top = 0.08
+	card.offset_left = -430; card.offset_right = 430
+	var box := VBoxContainer.new(); box.add_theme_constant_override("separation", 10); card.add_child(box)
+	var title := Label.new(); title.text = "Dream abilities"; box.add_child(title)
+	title.add_theme_font_override("font", Glyph.serif()); title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(0.9, 0.88, 1.0))
+	var note := Label.new(); box.add_child(note)
+	note.text = "Click an ability, then a slot on the bar, to put it there (one already on the bar changes places).   %s closes." % Keys.name(KEY_I)
+	note.add_theme_font_size_override("font_size", 13); note.add_theme_color_override("font_color", Color(0.78, 0.78, 0.86))
+	var desc := Label.new()
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; desc.custom_minimum_size = Vector2(820, 44)
+	desc.add_theme_font_size_override("font_size", 14); desc.add_theme_color_override("font_color", Color(0.95, 0.93, 0.85))
+	desc.text = "Point at one to read what it does."
+	var say := func(mv: String) -> void:
+		var m: Dictionary = Dream.moves[mv]
+		desc.text = "%s  (Will %d):  %s" % [m.name, int(m.cost), m.blurb]
+	# The bar: eight slots, each on its key.
+	var keys: Array = Dream.keys_of(profile)
+	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", 6); box.add_child(row)
+	for i in dream_bar.size():
+		var b := Button.new(); row.add_child(b)
+		b.custom_minimum_size = Vector2(100, 54); b.focus_mode = Control.FOCUS_NONE
+		b.text = "%s\n%s" % [Keys.name(OS.find_keycode_from_string(keys[i])) if i < keys.size() else "", Dream.moves[dream_bar[i]].name]
+		b.add_theme_font_size_override("font_size", 12)
+		_inv_style(b, Color(1.0, 0.85, 0.45) if _inv_pick != "" else Color(Dreamfx.PALE, 0.9), Color(0.1, 0.08, 0.18, 0.95))
+		var slot := i
+		b.mouse_entered.connect(func() -> void: say.call(dream_bar[slot]))
+		b.pressed.connect(func() -> void:
+			if _inv_pick == "":
+				return
+			var was: String = dream_bar[slot]
+			var at := dream_bar.find(_inv_pick)
+			dream_bar[slot] = _inv_pick
+			if at >= 0 and at != slot:
+				dream_bar[at] = was
+			_inv_pick = ""
+			_save_pref("dream_bar", dream_bar.duplicate())
+			_fill_dream_inventory())
+	# Everything the dream allows.
+	var grid := GridContainer.new(); grid.columns = 4; box.add_child(grid)
+	grid.add_theme_constant_override("h_separation", 6); grid.add_theme_constant_override("v_separation", 6)
+	for mv in Dream.moves:
+		var m: Dictionary = Dream.moves[mv]
+		var b := Button.new(); grid.add_child(b)
+		b.custom_minimum_size = Vector2(206, 40); b.focus_mode = Control.FOCUS_NONE
+		var on_bar := dream_bar.find(mv)
+		b.text = "%s   %d%s" % [m.name, int(m.cost), ("   [%s]" % Keys.name(OS.find_keycode_from_string(keys[on_bar]))) if on_bar >= 0 and on_bar < keys.size() else ""]
+		b.add_theme_font_size_override("font_size", 13)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		if mv == _inv_pick:
+			_inv_style(b, Color(1.0, 0.85, 0.45), Color(0.2, 0.15, 0.06, 0.95))
+		elif on_bar >= 0:
+			_inv_style(b, Color(Dreamfx.PALE, 0.7), Color(0.12, 0.1, 0.22, 0.9))
+		else:
+			_inv_style(b, Color(0.5, 0.5, 0.6, 0.4))
+		var id: String = mv
+		b.mouse_entered.connect(func() -> void: say.call(id))
+		b.pressed.connect(func() -> void:
+			_inv_pick = id
+			_fill_dream_inventory())
+	box.add_child(desc)
+	if _inv_pick != "":
+		say.call(_inv_pick)
+		desc.text += "\nNow click a slot on the bar above."
 
 ## Only a game on this machine alone can stop: a shared one runs on for the others.
 func can_pause() -> bool:
@@ -1452,7 +1630,7 @@ func _offline(why: String) -> void:
 func _on_events(list: Array) -> void:
 	for e in list:
 		# --ghost: say what the sim made of the scripted hands, for a test to read.
-		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike", "dream", "shift", "deny"]:
+		if args.has("ghost") and e.get("id", 0) == session.my_id and e.e in ["blow", "dodge", "equip", "form", "ready", "cast", "hold", "release", "tie", "loose", "strike", "dream", "shift", "deny", "stow", "swap"]:
 			print("GHOST %d %s %s" % [frame, e.e, e.get("move", e.get("weave", e.get("weapon", "roll" if e.get("roll", false) else "")))])
 		if args.has("ghost") and e.e == "airwall" and e.id == session.my_id:
 			print("GHOST %d airwall pts=%d" % [frame, e.pts.size()])
@@ -1690,12 +1868,40 @@ func _on_events(list: Array) -> void:
 						a.form_since = clock
 					Sfx.play(self, "hum", _ground(a.target) + Vector3(0, 1.4, 0), -8.0, clampf(1.6 / maxf(e.time, 0.4), 0.5, 1.6))
 					if e.id == session.my_id:
-						my_form = {weave = e.weave, since = clock, time = e.time, ready = false}
+						my_form = {weave = e.weave, since = clock, time = e.time, ready = false, done = 0.0}
 			"ready":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Sfx.play(self, "chime", actors[e.id].node.position + Vector3(0, 1.4, 0), -4.0, 1.5)
 				if e.id == session.my_id:
-					my_form.ready = true
+					if e.get("kept", false):
+						my_kept.ready = true; my_kept.done = my_kept.get("time", 1.0)
+					else:
+						my_form.ready = true
+			"stow":
+				if e.id == session.my_id:
+					var tm: float = my_form.get("time", 1.0)
+					my_kept = {weave = e.weave, time = tm, ready = e.ready, done = tm - float(e.left)}
+					my_form = {}
+					weaving = false
+				if actors.has(e.id):
+					_end_form(actors[e.id])
+			"swap":
+				if e.id == session.my_id:
+					var was := my_kept
+					my_form = {weave = e.weave, since = clock, time = was.get("time", 1.0), ready = e.ready, done = was.get("time", 1.0) - float(e.left), waiting = true}
+					my_kept = {}
+					if e.kept != "":
+						var tk: float = Rules.form_time(view_profile(), e.kept)
+						my_kept = {weave = e.kept, time = tk, ready = e.kept_ready, done = tk - float(e.kept_left)}
+					weaving = false
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var a2: Dictionary = actors[e.id]
+					_end_form(a2)
+					a2.form_fx = Weavefx.forming(self, a2.node, e.weave, maxf(float(e.left), 0.05))
+					a2.form_since = clock
+			"kept_lost":
+				if e.id == session.my_id:
+					my_kept = {}
 			"fizzle":
 				if actors.has(e.id):
 					_end_form(actors[e.id])
@@ -2010,24 +2216,41 @@ func _on_events(list: Array) -> void:
 					flash_t = 1.2; flash_text = "Your will broke on theirs"
 					shake = maxf(shake, 0.5)
 			"dream":
-				if e.move == "dream_chains" and actors.has(e.on) and is_instance_valid(actors[e.on].node):
+				var dk: String = Dream.moves.get(e.move, {}).get("kind", "")
+				if dk == "chain" and actors.has(e.on) and is_instance_valid(actors[e.on].node):
 					Dreamfx.chain_wind(self, _ground(actors[e.on].node.position), e.time)
 					if e.on == session.my_id:
-						flash_t = 0.8; flash_text = "Chains: be gone, or Deny"
-				elif e.move == "dream_pit":
+						flash_t = 0.8; flash_text = "%s: be gone, or Deny" % Dream.moves[e.move].name
+				elif dk == "pit":
 					Dreamfx.pit_warn(self, _ground(e.pos), e.radius, e.time)
+					if e.move == "dream_storm" and actors.has(session.my_id) and is_instance_valid(me) and me.position.distance_to(_ground(e.pos)) < float(e.radius) + 1.0:
+						flash_t = 0.8; flash_text = "Lightning: be gone from under it"
+				elif dk in ["mend", "fade", "haste"] and actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Dreamfx.on_self(self, actors[e.id].node, e.move, float(e.time))
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Sfx.play(self, "hum", actors[e.id].node.position + Vector3(0, 1.4, 0), -6.0, 2.0)
+			"drained":
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Dreamfx.on_self(self, actors[e.id].node, "drained", 0.0)
+				if e.id == session.my_id:
+					flash_t = 1.2; flash_text = "Your will runs out of you"
 			"chained":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
-					Dreamfx.chains(actors[e.id].node, e.time)
+					if e.get("cage", false):
+						Dreamfx.cage(actors[e.id].node, e.time)
+					else:
+						Dreamfx.chains(actors[e.id].node, e.time)
 					Sfx.play(self, "thud", actors[e.id].node.position + Vector3(0, 1.2, 0), 0.0, 1.6)
 				if e.id == session.my_id:
-					flash_t = 1.2; flash_text = "Chained: step away to be free"
+					flash_t = 1.2; flash_text = "Caged: Deny what comes, and wait" if e.get("cage", false) else "Chained: step away to be free"
 			"dream_hit", "dream_end":
 				Weavefx.spit(self, e.pos, Dreamfx.PALE)
 			"pit_open":
-				Sfx.play(self, "rumble", _ground(e.pos), 0.0, 1.3)
+				if e.get("move", "") == "dream_storm":
+					Weavefx._strike_flash(self, _ground(e.pos), float(e.radius))
+					shake = maxf(shake, 0.3)
+				else:
+					Sfx.play(self, "rumble", _ground(e.pos), 0.0, 1.3)
 			"gate_pass":
 				# Through the gateway: there, not walked there. My camera stays where it
 				# was (seeing me through the window) until it crosses the plane too.

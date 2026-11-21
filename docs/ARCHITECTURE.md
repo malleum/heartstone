@@ -678,10 +678,11 @@ it, so nothing is sent. Only moving pieces cost anything per frame.
 ## Duelling in the dream (src/core/dream.gd, data/dream.json; built 16 Nov)
 An activity with `"dream": true` (only `dream_spar` so far) gives every player **Will**
 (100; back at 13/s after 1 s without spending, x1.6 standing still) and the dream moves,
-each a row in `data/dream.json` with its key, cost and numbers. Arms and weaves still
-work beside them.
+each a row in `data/dream.json` with its cost and numbers. Arms and weaves still
+work beside them. (21 Nov, the user's ask: three times as many, 24, and a dream bar
+of eight slots with an inventory, I, to choose which eight; see below the table.)
 
-| Move | Key | Will | What it does |
+| Move | Key (default bar) | Will | What it does |
 |---|---|---|---|
 | Step behind | Z | 24 | Behind the nearest opponent within 32 m, facing their back |
 | Step away | X | 12 | 7 m straight back |
@@ -691,6 +692,29 @@ work beside them.
 | Chains | Y | 26 | After 0.45 s they close on the nearest opponent to the aim point; held 2 s (no blows, rolls or walking) unless they left the spot or Denied |
 | The ground turns | U | 20 | A marked circle opens after 0.55 s: slow and 9 damage/s for 3 s |
 | A wall | H | 18 | Stone across your front for 3.5 s; stops spears, arrows and thrown weaves |
+| Step aside | | 10 | 6 m to whichever side you look toward |
+| Change places | | 28 | You and the opponent nearest the aim (within 30 m) swap places |
+| A flight of arrows | | 14 | Five arrows fanned 16 degrees, 5 each |
+| A boulder | | 22 | Slow (22 m/s), 26 damage, a wide hit, knocks down 1.2 s |
+| Ravens | | 18 | Three birds fanned wide that turn after the nearest foe, 7 each |
+| A cage | | 30 | Like Chains but slower (0.7 s) and held 3 s, and no step gets you out |
+| Forgetting | | 16 | After 0.35 s on the one looked at: 35 Will gone, unless they left the spot or Denied |
+| A great hand | | 14 | After 0.2 s they are thrown 7 m away |
+| Drawn in | | 14 | After 0.2 s they are dragged to your feet (up to 9 m) |
+| The ground burns | | 22 | A circle of 3.4 m burns 16/s for 3 s; no mire |
+| Lightning from a clear sky | | 26 | A marked circle of 2.4 m is struck once after 0.9 s for 30 |
+| A ring of stone | | 24 | Six walls round you (radius 2.6 m) for 3 s |
+| A mirror | | 20 | A 4 m pane ahead for 2.5 s: dream-things thrown at it go back, now the mirror-maker's |
+| It never happened | | 32 | 30 health back |
+| Not quite here | | 20 | 1.4 s untouchable, and no blows, weaves or dream attacks meanwhile |
+| Quick as thought | | 16 | 3 s at 1.6 times your speed |
+
+- **The dream bar and inventory** (21 Nov). Eight slots (`tune.bar`, keys `tune.bar_keys`:
+  Z X V T Y U H Shift by position), drawn bottom right with a mark for what each does
+  and its cost, grey when the Will is short. I opens every ability: click one, then a
+  slot (one already on the bar changes places). Kept as `profile.dream_bar`; the slot
+  keys can be changed in the camp's Keys panel (`profile.dream_slot_keys`). The bot
+  plays from its own bar by kind (`Bot.dream`), so a shade fights with yours.
 
 - Any step frees you from chains, for half as much Will again. A step also drops a
   swing or a forming weave and leaves you unhittable for 0.14 s.
@@ -707,8 +731,11 @@ work beside them.
   (shaken). The client's unpacking stride in `Session._snap` must match the row length:
   it did not at first, which broke every joined game until the co-op test caught it.
 - View: `dreamfx.gd` (pale shell and streak for a step, a shell for Deny, chains,
-  spear), `dreampit.gd`, `dreamwall.gd`; the world is drained of colour and fogged.
-  The HUD shows Will above health and lists the keys with their costs.
+  spear; arrows, a tumbling boulder, ravens with beating wings (`dreamraven.gd`), a
+  cage of bars, burning ground, a storm cloud and its strike, a glass mirror, and
+  shells and streaks for fade, haste and mend), `dreampit.gd`, `dreamwall.gd`; the
+  world is drained of colour and fogged. The HUD shows Will above health and the
+  dream bar at the bottom right.
 - Tools: `tests/dream_duel.gd` (two bots duel headless and the fight is counted),
   `--dreamdemo[=move,move]` (the player works through the moves for a render),
   `tools/ghost.sh` presses every dream key.

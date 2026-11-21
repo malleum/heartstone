@@ -291,16 +291,17 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if cam == null:
 		return
 	# Waiting for a key to bind (the Keys panel): the next key pressed is it.
-	if (_binding != -1 or _binding_dream != "") and ev is InputEventKey and ev.pressed and not ev.echo:
+	if (_binding != -1 or _binding_dream >= 0) and ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.physical_keycode != KEY_ESCAPE:
-			if _binding_dream != "":
-				# Dream moves are kept with the character (profile.dream_keys).
-				if not profile.has("dream_keys"): profile.dream_keys = {}
-				profile.dream_keys[_binding_dream] = OS.get_keycode_string(ev.physical_keycode)
+			if _binding_dream >= 0:
+				# The dream bar's keys are kept with the character (profile.dream_slot_keys).
+				var keys: Array = Dream.keys_of(profile)
+				keys[_binding_dream] = OS.get_keycode_string(ev.physical_keycode)
+				profile.dream_slot_keys = keys
 				Profile.save(profile)
 			else:
 				Keys.bind(_binding as Key, ev.physical_keycode)
-		_binding = -1; _binding_dream = ""
+		_binding = -1; _binding_dream = -1
 		get_viewport().set_input_as_handled()
 		_keys_panel()
 		return
@@ -594,7 +595,7 @@ func _sheet() -> void:
 	_button(side, "Menu: characters, keys, server, quit  (Esc)", func() -> void: _show_menu(true))
 
 var _binding := -1   # the default key being rebound in the Keys panel, or -1
-var _binding_dream := ""   # or the dream move being rebound
+var _binding_dream := -1   # or the dream bar slot being rebound
 
 ## Every key that does something, and what it is bound to; press one to change it.
 func _keys_panel() -> void:
@@ -609,15 +610,16 @@ func _keys_panel() -> void:
 	# The dream duel's moves, kept with this character.
 	_section(menu_box, "In the World of Dreams")
 	Dream.load_data()
-	for mv in Dream.moves:
-		var m: String = mv
-		var cur: String = profile.get("dream_keys", {}).get(m, Dream.moves[m].key)
-		_button(menu_box, "%s:   %s" % [Dream.moves[m].name, "press a key…" if _binding_dream == m else cur], func() -> void:
-			_binding_dream = m
+	var dkeys: Array = Dream.keys_of(profile)
+	var dbar: Array = Dream.bar_of(profile)
+	for i in dkeys.size():
+		var slot := i
+		_button(menu_box, "Dream slot %d (now %s):   %s" % [i + 1, Dream.moves[dbar[i]].name, "press a key…" if _binding_dream == i else dkeys[i]], func() -> void:
+			_binding_dream = slot
 			_keys_panel())
 	_button(menu_box, "Put every key back as it was", func() -> void:
 		Keys.reset()
-		profile.erase("dream_keys"); Profile.save(profile)
+		profile.erase("dream_keys"); profile.erase("dream_slot_keys"); Profile.save(profile)
 		_keys_panel())
 	_button(menu_box, "Back  (Esc)", func() -> void: _binding = -1; _show_menu(true))
 

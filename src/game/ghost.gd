@@ -30,7 +30,10 @@ const SCRIPTS := {
 		[280, "tap", KEY_3], [290, "mouse", MOUSE_BUTTON_LEFT, true], [291, "mouse", MOUSE_BUTTON_LEFT, false],
 		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
 		[420, "tap", KEY_E], [430, "tap", KEY_Q], [436, "tap", KEY_1],
-		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE]],
+		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE],
+		# Keep a fireball aside (another slot while it is in hand), take it back up, loose it.
+		[540, "tap", KEY_1], [550, "mouse", MOUSE_BUTTON_LEFT, true], [575, "tap", KEY_2], [580, "mouse", MOUSE_BUTTON_LEFT, false],
+		[610, "tap", KEY_1], [630, "mouse", MOUSE_BUTTON_LEFT, true], [632, "mouse", MOUSE_BUTTON_LEFT, false]],
 	# Placing: the other shape, a Wall of Air round you; then a gateway held until
 	# whole, let go for the near end, the wheel turning the far end, a click for it.
 	place = [[60, "tap", KEY_T], [80, "mouse", MOUSE_BUTTON_LEFT, true], [150, "mouse", MOUSE_BUTTON_LEFT, false],
@@ -41,7 +44,7 @@ const SCRIPTS := {
 	# A duel in the dream: every dream key once, most of them before the shade
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
-		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y]],
+		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y], [320, "tap", KEY_I]],
 	# The camp: hide and show the sheet, open and close the menu, walk at a doorway.
 	camp = [[30, "tap", KEY_H], [60, "tap", KEY_H], [100, "tap", KEY_ESCAPE], [140, "tap", KEY_ESCAPE],
 		[180, "key", KEY_W, true], [520, "key", KEY_W, false]],

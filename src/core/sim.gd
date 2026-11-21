@@ -197,6 +197,8 @@ func free_slots(p: Dictionary) -> int:
 			used += Rules.slots_of(Rules.weaves[h.weave], p.profile)
 	for w in p.get("autos", []):
 		used += Rules.slots_of(Rules.weaves[w], p.profile)
+	if not p.get("kept", {}).is_empty():
+		used += Rules.slots_of(Rules.weaves[p.kept.weave], p.profile)
 	return Rules.flow_capacity(p.profile) + 2 * p.get("circle", []).size() - used
 
 ## Who a held weave aimed at `aim` would fasten on: the nearest body the weave can
@@ -240,6 +242,70 @@ func tie(id: int, weave: String) -> String:
 			events.append({e = "tie", id = id, weave = weave, target = h.target})
 	return "" if any else "you are not holding that"
 
+## Keep the weave in the hands (whole or still being made) aside, ready, so the
+## hands can make another: weaving two at once. One is kept at a time; it holds its
+## flows, and the two weave slower while both are being made (TUNE.split). A whole
+## kept weave costs a little breath each second.
+func stow(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or p.forming.is_empty():
+		return "nothing in your hands"
+	if not p.get("kept", {}).is_empty():
+		return "one weave kept ready at a time"
+	var f: Dictionary = p.forming
+	if f.has("end_a") or Rules.weaves[f.weave].get("sweep", false):
+		return "busy"
+	if free_slots(p) < Rules.slots_of(Rules.weaves[f.weave], p.profile):
+		return "not enough flows free to keep it"
+	f.hold = true
+	f.erase("wait_b")
+	p.kept = f
+	p.forming = {}
+	events.append({e = "stow", id = id, weave = f.weave, ready = f.get("ready", false), left = maxf(f.left, 0.0)})
+	return ""
+
+## The kept weave back into the hands, and whatever was in them kept in its place.
+func swap_kept(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty() or p.get("kept", {}).is_empty():
+		return "nothing kept"
+	var k: Dictionary = p.kept
+	var f: Dictionary = p.forming
+	if not f.is_empty() and (f.has("end_a") or Rules.weaves[f.weave].get("sweep", false)):
+		return "busy"
+	k.hold = true
+	p.forming = k
+	p.kept = {}
+	if not f.is_empty():
+		f.hold = true
+		p.kept = f
+	events.append({e = "swap", id = id, weave = k.weave, ready = k.get("ready", false), left = maxf(k.left, 0.0),
+		kept = f.get("weave", ""), kept_ready = f.get("ready", false), kept_left = maxf(f.get("left", 0.0), 0.0)})
+	return ""
+
+## A kept weave goes on being made beside the one in hand, and is lost with the
+## hands (shielded, chained, bound, down, entranced, dead).
+func _step_kept(p: Dictionary, dt: float) -> void:
+	var k: Dictionary = p.get("kept", {})
+	if k.is_empty():
+		return
+	if not p.alive or p.get("downed", false) or p.severed > t or p.chained > t or p.get("bound_by", 0) != 0 or p.get("entranced", 0.0) > t:
+		p.kept = {}
+		events.append({e = "kept_lost", id = p.id, weave = k.weave})
+		return
+	if k.get("ready", false):
+		var cost: float = Rules.draw_of(p.profile, k.weave, p.stamina) * Rules.TUNE.kept_upkeep * dt
+		p.stamina -= cost
+		if p.stamina <= 0.0:
+			p.stamina = 0.0
+			p.kept = {}
+			events.append({e = "kept_lost", id = p.id, weave = k.weave})
+		return
+	k.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0) * (Rules.TUNE.split if not p.forming.is_empty() else 1.0)
+	if k.left <= 0.0:
+		k.ready = true
+		events.append({e = "ready", id = p.id, weave = k.weave, kept = true})
+
 ## How the next placed weave stands: `alt` is the other shape (a wall round you
 ## instead of flat ahead; a gateway end laid flat instead of upright), `turn`
 ## turns it (radians) from facing the weaver.
@@ -257,6 +323,10 @@ func cancel_weave(id: int) -> String:
 	for fx in effects:
 		if fx.kind == "sweep" and fx.owner == id:
 			fx.holding = false; fx.age = maxf(fx.age, 99.0)
+	if not p.is_empty() and p.forming.is_empty() and not p.get("kept", {}).is_empty():
+		events.append({e = "kept_lost", id = id, weave = p.kept.weave})
+		p.kept = {}
+		return ""
 	if p.is_empty() or p.forming.is_empty():
 		return "nothing being woven"
 	events.append({e = "cancel", id = id, weave = p.forming.weave})
@@ -316,6 +386,8 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 		return "busy"
 	if p.get("entranced", 0.0) > t:
 		return "the song has you"
+	if p.get("faded", 0.0) > t:
+		return "not quite here"
 	if p.get("circle_of", 0) != 0:
 		return "linked: your circle's leader weaves"
 	if p.severed > t:
@@ -405,6 +477,8 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 	var p: Dictionary = ents[id]
 	if not p.alive:
 		return "busy"
+	if p.get("faded", 0.0) > t:
+		return "not quite here"
 	if p.get("entranced", 0.0) > t:
 		return "the song has you"
 	if p.weapon == "":
@@ -1280,7 +1354,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if back > 0.3:
 		var careful: bool = not p.forming.is_empty() or p.guard or p.get("drawing", false)
 		slow *= lerpf(1.0, 0.55 if careful else 0.7, clampf((back - 0.3) / 0.5, 0.0, 1.0))
-	var step: Vector3 = p.move * p.speed * slow * dt
+	var step: Vector3 = p.move * p.speed * slow * dt * (p.get("haste_k", 1.0) if p.get("haste", 0.0) > t else 1.0)
 	if p.get("shove", Vector3.ZERO).length() > 0.2:
 		# Thrown back by a blow: carried a step whatever the feet wanted.
 		step += p.shove * dt
@@ -1326,10 +1400,13 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	if not p.get("autos", []).is_empty() and not p.get("downed", false) and p.severed <= t:
 		_step_autos(p)
 	_step_swing(p, dt)
+	_step_kept(p, dt)
 	if p.forming.is_empty():
 		return
-	# Held by an Eyeless gaze, the weave comes slowly.
-	p.forming.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0)
+	# Held by an Eyeless gaze, the weave comes slowly; with a second weave kept and
+	# still being made, the flows are split between them.
+	var split: float = Rules.TUNE.split if not p.get("kept", {}).is_empty() and not p.kept.get("ready", false) else 1.0
+	p.forming.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0) * split
 	if p.forming.left > 0.0:
 		return
 	# A weave that sweeps (Balefire) goes as soon as it is whole: holding on is what
