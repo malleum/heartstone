@@ -329,6 +329,7 @@ are what the 4:44 review, or the next session, should pick up.
   Dancing, Travelling (Androl's). `Rules.TALENT_BOOK` holds the Talents' books.
 
 - 2026-11-18 night, from the first evening of play with friends (for next week):
+  - [x] (20 Nov, Opus) Camp link errors fixed: `_close_link` passed null to `set_multiplayer` (refused), and when the camp left the tree its link child had already left, so `_link.multiplayer` was null and the connection was never closed: packets kept arriving for /root/Camp/CampLink every frame. Now the link's SceneMultiplayer is kept and its peer closed through it before the branch is freed; camp timers are Timer children (`_after`), so none fire into a freed camp. Walk-through renders show no errors.
   - **Camp link errors in the terminal** ("Node not found: /root/Camp/CampLink",
     "Invalid packet received", "p_child->data.parent != this"). Likely: the link's
     branch hangs under the camp node, and when the camp leaves the tree (a doorway

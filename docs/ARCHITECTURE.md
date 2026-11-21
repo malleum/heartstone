@@ -784,7 +784,7 @@ and drop a bow draw for the blade within 2.5 m. See MELEE.md.
    Its top section lists well-defined tasks for a lighter model, with briefs.
 1. (Fixed 20 Nov, to confirm in play) The doorway world mismatch: the camp's flat
    ground (`Terrain.amp`) leaked into doorway fights; the camp named its own setup.
-2. The camp link's lifecycle (errors when the camp leaves the tree).
+2. (Fixed 20 Nov) The camp link's lifecycle (errors when the camp leaves the tree).
 3. Performance, Windows first: measure, then frame cap, quality setting, cheaper
    doorway views, shadows.
 4. Prepared and multiple weaves, and a better weave bar (design with the user).

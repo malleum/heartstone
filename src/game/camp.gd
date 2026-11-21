@@ -941,7 +941,8 @@ func _camp_link(dt: float) -> void:
 			return
 		_link_retry = 6.0
 		_link_branch = Node.new(); _link_branch.name = "CampLink"; add_child(_link_branch)
-		get_tree().set_multiplayer(SceneMultiplayer.new(), _link_branch.get_path())
+		_link_mp = SceneMultiplayer.new()
+		get_tree().set_multiplayer(_link_mp, _link_branch.get_path())
 		# Named Session, so its calls find the server's Session (paths are relative
 		# to each side's multiplayer root).
 		_link = Session.new(); _link.name = "Session"; _link_branch.add_child(_link)
@@ -960,11 +961,29 @@ func _camp_link(dt: float) -> void:
 		_link_send = Session.CAMP_EVERY
 		_link.camp_at(pos.x, pos.z, face)
 
+## Hang up the camp link: close its connection first (so nothing more arrives for a
+## branch that is going), then free the branch. Its SceneMultiplayer stays
+## registered at that path with no peer, which costs nothing; Godot will not take
+## null there ("p_multiplayer is null"), and the next link replaces it.
+var _link_closing := false
+var _link_mp: SceneMultiplayer
 func _close_link() -> void:
+	if _link_closing:
+		return
+	_link_closing = true
+	# (Through _link_mp, not _link.multiplayer: when the camp leaves the tree its
+	# children have already left, and a node out of the tree has no multiplayer.)
+	if _link_mp != null:
+		var mp := _link_mp
+		if mp.multiplayer_peer and not (mp.multiplayer_peer is OfflineMultiplayerPeer):
+			for c in mp.server_disconnected.get_connections():
+				mp.server_disconnected.disconnect(c.callable)
+			mp.multiplayer_peer.close()
+			mp.multiplayer_peer = null
 	if is_instance_valid(_link_branch):
-		get_tree().set_multiplayer(null, _link_branch.get_path())
 		_link_branch.queue_free()
-	_link = null; _link_branch = null
+	_link = null; _link_branch = null; _link_mp = null
+	_link_closing = false
 
 ## Ten times a second from the link: where everyone else is.
 func _heard_walkers(list: Array) -> void:
