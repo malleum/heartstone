@@ -201,9 +201,13 @@ are what the 4:44 review, or the next session, should pick up.
 ## Character and progression
 - [x] Weave tree follow-ups (18 Nov): a line says how many weaves lie past your
   spoiler setting; names over 13 letters go on two lines.
-- [ ] Camp follow-ups: (other players are seen walking in the camp, 18 Nov); the doorways show
-  a silhouette of the place, not the place itself; the armoury and appearance are
-  panels, not things you walk to.
+- [x] Camp follow-ups: (other players are seen walking in the camp, 18 Nov); (21 Nov) each
+  doorway shows a picture of the place it opens on (chosen when the camp is built, so
+  it is the place you walk into; `assets/postcards`, made by `tools/postcards.sh`), until
+  the live view takes over as you come up; the armoury (a rack and an armour stand),
+  the tailor (a rail of clothes and a long mirror) and the study (books and a lantern:
+  the loadout) stand on the open side of the camp: walk up and press E. The sheet's
+  buttons still work.
 - [ ] Looks, what is left: the face itself cannot be shaped (the sourced heads
   have no shape keys; only skin, eyes, hair and beard change). Armour is mail
   drawn on cloth, not plate. (The women's bodice is now cloth on gowns, 15 Nov.)

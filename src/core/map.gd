@@ -174,6 +174,17 @@ static func _props(activity: String) -> void:
 		_solid(-8.0, 7.5, 0.55, 0.5, "bale", {yaw = 0.4})
 		_solid(-9.0, 8.4, 0.55, 0.5, "bale", {yaw = 1.2})
 		_solid(-3.0, 6.5, 0.12, 5.2, "banner_camp")
+		# Places to walk to (camp.gd STATIONS): the armoury, the tailor, the study.
+		for st in STATIONS:
+			_solid(st.x, st.z, st.r, 1.6, st.prop, {yaw = st.yaw})
+
+## The camp's places to walk to: each faces the middle of the camp, a few paces
+## off on the open side (the doorways' arc runs round to the right).
+const STATIONS := [
+	{id = "armoury", prop = "armoury", x = -8.2, z = -0.6, r = 0.9, yaw = PI * 0.5},
+	{id = "tailor", prop = "tailor", x = -7.0, z = -5.6, r = 0.9, yaw = PI * 0.5 - 0.6},
+	{id = "study", prop = "study", x = -6.6, z = 4.2, r = 0.8, yaw = PI * 0.5 + 0.6},
+]
 
 ## Solid things standing on the map, as circles: the sim blocks movement and weaves
 ## on them and the view draws a tree at each, so the two cannot disagree.

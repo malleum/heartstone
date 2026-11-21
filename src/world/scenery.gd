@@ -186,6 +186,84 @@ static func _cyl(parent: Node3D, r0: float, r1: float, h: float, at: Vector3, ma
 	return mi
 
 ## Everything Map placed as a prop, drawn where the sim has it.
+## A place in the camp you walk up to (Map.STATIONS): the armoury (a rack of arms
+## and an armour stand), the tailor (a rail of clothes and a long mirror), the study
+## (a table of books under a lantern). Built facing +z, turned to the camp.
+static func station(g: Node3D, at: Vector3, kind: String, yaw: float) -> void:
+	var n := Node3D.new(); g.add_child(n); n.position = at; n.rotation.y = yaw
+	var wood := _mat(Color(0.24, 0.16, 0.09)); var dark := _mat(Color(0.12, 0.08, 0.05))
+	var steel := _mat(Color(0.55, 0.56, 0.6), 0.35); steel.metallic = 0.85
+	match kind:
+		"armoury":
+			# The rack: two posts, two rails, blades and hafts leaning in it.
+			for sx in [-0.95, 0.95]:
+				_box(n, Vector3(0.1, 1.6, 0.1), Vector3(sx, 0.8, 0), wood)
+			for y in [0.55, 1.4]:
+				_box(n, Vector3(2.0, 0.07, 0.08), Vector3(0, y, 0), wood)
+			for k in 7:
+				var x := -0.78 + k * 0.26
+				if k % 3 == 0:
+					# A spear: a long haft and a leaf of steel.
+					_cyl(n, 0.022, 0.022, 2.1, Vector3(x, 1.05, 0.1), _mat(Color(0.36, 0.27, 0.16)), Vector3(-0.08, 0, 0), 6)
+					_box(n, Vector3(0.05, 0.28, 0.012), Vector3(x, 2.2, 0.0), steel, Vector3(-0.08, 0, 0))
+				else:
+					# A sword point down: blade, cross-guard, grip and pommel.
+					_box(n, Vector3(0.045, 0.85, 0.01), Vector3(x, 0.55, 0.1), steel, Vector3(-0.1, 0, 0))
+					_box(n, Vector3(0.2, 0.03, 0.03), Vector3(x, 1.0, 0.06), dark, Vector3(-0.1, 0, 0))
+					_cyl(n, 0.017, 0.017, 0.2, Vector3(x, 1.12, 0.05), _mat(Color(0.3, 0.18, 0.1)), Vector3(-0.1, 0, 0), 6)
+					_cyl(n, 0.03, 0.03, 0.04, Vector3(x, 1.24, 0.04), steel, Vector3(-0.1, 0, 0), 8)
+			# An armour stand beside it: a cross of wood wearing a mail shirt and a helm.
+			var stand := Node3D.new(); n.add_child(stand); stand.position = Vector3(1.6, 0, 0.2)
+			_box(stand, Vector3(0.08, 1.55, 0.08), Vector3(0, 0.78, 0), wood)
+			_box(stand, Vector3(0.75, 0.07, 0.07), Vector3(0, 1.38, 0), wood)
+			var mail := _mat(Color(0.62, 0.63, 0.66), 0.5); mail.metallic = 0.75
+			_cyl(stand, 0.26, 0.3, 0.72, Vector3(0, 1.02, 0), mail, Vector3.ZERO, 14)
+			for sx in [-0.3, 0.3]:
+				_cyl(stand, 0.11, 0.13, 0.12, Vector3(sx, 1.36, 0), steel, Vector3(0, 0, PI * 0.5), 10)
+			_cyl(stand, 0.13, 0.15, 0.2, Vector3(0, 1.62, 0), steel, Vector3.ZERO, 14)
+			_cyl(stand, 0.2, 0.2, 0.02, Vector3(0, 1.53, 0), steel, Vector3.ZERO, 14)
+		"tailor":
+			# A rail on two stands with clothes hung from it in a dozen colours.
+			for sx in [-1.0, 1.0]:
+				_box(n, Vector3(0.07, 1.8, 0.07), Vector3(sx, 0.9, 0), wood)
+				_box(n, Vector3(0.5, 0.06, 0.06), Vector3(sx, 0.03, 0), wood)
+			_cyl(n, 0.02, 0.02, 2.0, Vector3(0, 1.75, 0), dark, Vector3(0, 0, PI * 0.5), 6)
+			var cols := [Color(0.1, 0.17, 0.11), Color(0.58, 0.19, 0.21), Color(0.85, 0.85, 0.82), Color(0.06, 0.06, 0.09), Color(0.3, 0.23, 0.16), Color(0.5, 0.36, 0.08), Color(0.12, 0.2, 0.42), Color(0.45, 0.1, 0.3)]
+			for k in cols.size():
+				var x := -0.85 + k * 0.24
+				var cloth := _mat(cols[k], 1.0)
+				# Each hung facing out, fanned a little, a shirt's shoulders over a dress's length.
+				var hgt := 1.05 + (k % 3) * 0.12
+				_box(n, Vector3(0.3, hgt, 0.04), Vector3(x, 1.72 - hgt * 0.5, (k % 2) * 0.06), cloth, Vector3(0, 0.3 * (k % 2 * 2 - 1), 0))
+				_box(n, Vector3(0.36, 0.08, 0.05), Vector3(x, 1.68, (k % 2) * 0.06), cloth, Vector3(0, 0.3 * (k % 2 * 2 - 1), 0))
+			# A long mirror in a frame, a little apart, tilted back.
+			var m := Node3D.new(); n.add_child(m); m.position = Vector3(1.7, 0, 0.35); m.rotation = Vector3(-0.08, -0.4, 0)
+			_box(m, Vector3(0.7, 1.75, 0.06), Vector3(0, 0.95, 0), wood)
+			var glass := _mat(Color(0.75, 0.78, 0.82), 0.04); glass.metallic = 1.0
+			_box(m, Vector3(0.58, 1.6, 0.02), Vector3(0, 0.95, 0.035), glass)
+			_box(m, Vector3(0.6, 0.06, 0.5), Vector3(0, 0.03, -0.1), wood)
+		"study":
+			# A table with books open and stacked, a lantern, a stool.
+			_box(n, Vector3(1.5, 0.07, 0.8), Vector3(0, 0.78, 0), wood)
+			for sx in [-0.65, 0.65]:
+				for sz in [-0.32, 0.32]:
+					_box(n, Vector3(0.07, 0.76, 0.07), Vector3(sx, 0.38, sz), wood)
+			var bc := [Color(0.45, 0.12, 0.1), Color(0.12, 0.25, 0.15), Color(0.15, 0.15, 0.35), Color(0.4, 0.3, 0.12)]
+			for k in 4:
+				_box(n, Vector3(0.3, 0.06, 0.22), Vector3(-0.5, 0.845 + k * 0.062, -0.1), _mat(bc[k]), Vector3(0, 0.15 * k, 0))
+			# An open book: two pale pages on a cover.
+			_box(n, Vector3(0.46, 0.02, 0.32), Vector3(0.1, 0.825, 0.05), _mat(Color(0.3, 0.12, 0.08)))
+			for sx in [-0.11, 0.11]:
+				_box(n, Vector3(0.21, 0.015, 0.29), Vector3(0.1 + sx, 0.842, 0.05), _mat(Color(0.88, 0.84, 0.72), 1.0), Vector3(0, 0, -sx * 0.6))
+			var lantern := _mat(Color(1.0, 0.8, 0.45)); lantern.emission_enabled = true; lantern.emission = Color(1.0, 0.7, 0.35); lantern.emission_energy_multiplier = 2.0
+			_box(n, Vector3(0.12, 0.18, 0.12), Vector3(0.55, 0.92, -0.15), lantern)
+			var lt := OmniLight3D.new(); lt.light_color = Color(1.0, 0.75, 0.4); lt.light_energy = 1.2; lt.omni_range = 4.0
+			lt.position = Vector3(0.55, 1.05, -0.15); n.add_child(lt)
+			_cyl(n, 0.2, 0.2, 0.05, Vector3(0, 0.48, 0.7), wood, Vector3.ZERO, 10)
+			for k in 3:
+				var a := k * TAU / 3.0
+				_box(n, Vector3(0.05, 0.46, 0.05), Vector3(sin(a) * 0.14, 0.23, 0.7 + cos(a) * 0.14), wood)
+
 static func props(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 41
 	var wood := _mat(Color(0.16, 0.11, 0.07))
@@ -204,6 +282,7 @@ static func props(g: Node3D) -> void:
 			"barrel":
 				barrel(g, at, rng, t.get("lying", false)); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw
 			"sacks": sacks(g, at, rng, t.get("count", 3))
+			"armoury", "tailor", "study": station(g, at, t.prop, t.yaw)
 			"bale": bale(g, at, t.yaw)
 			"stake":
 				# Driven in at the near end, leaning out at whatever comes.

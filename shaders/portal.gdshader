@@ -11,6 +11,10 @@ uniform int scene = 0;
 // would be over there), and how far it has come in over the folding light.
 uniform sampler2D view : filter_linear;
 uniform float live = 0.0;
+// A picture of the place it opens on (assets/postcards, tools/postcards.sh), seen
+// through the light until the live view takes over as you come up to it.
+uniform sampler2D card : source_color, filter_linear;
+uniform float has_card = 0.0;
 
 float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float n(vec2 p) {
@@ -47,6 +51,14 @@ void fragment() {
 	c = mix(c, scene == 4 ? c + vec3(1.2) : tint * 0.05, clamp(abs(shape), 0.0, 1.0) * (scene == 4 ? 1.0 : 0.88));
 	ALBEDO = mix(vec3(0.03, 0.03, 0.04) + 0.03 * s, c, lit);
 	ALPHA = mix(0.8, 0.93, lit);
+	if (has_card > 0.0 && lit > 0.5) {
+		// The place itself, rippling a little as if through water, with the
+		// doorway's own light folding faintly over it and bright at its edge.
+		vec2 wob = vec2(n(uv * 2.0 + TIME * 0.3) - 0.5, n(uv * 2.0 - TIME * 0.25 + 4.0) - 0.5) * 0.012;
+		vec3 place = texture(card, UV + wob).rgb;
+		ALBEDO = place * 0.92 + tint * (0.08 + s * s * 0.25) + vec3(1.0, 0.97, 0.9) * rim * 1.2;
+		ALPHA = 1.0;
+	}
 	if (live > 0.0) {
 		// Through the doorway the far side is simply there; a thin shimmer of the
 		// light stays on the edges so it still reads as a doorway of the Power.

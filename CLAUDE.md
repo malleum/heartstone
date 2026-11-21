@@ -98,6 +98,9 @@ working on abilities; the user's rulings there are final).
   `--gate=metres@degrees` (where `--gate` opens its far end); `--walkgate` walks in at the
   near end's front and out of the far end's. `tools/ghost.sh` has a `place` script (T, the
   wheel, a gateway set end by end).
+- Camp pictures: `--campos=x,z` stands you there, `--show=none` hides the sheet. Game: `--hideme`
+  (your own figure not drawn). `tools/postcards.sh [setup..]` re-renders the doorways' pictures
+  (`assets/postcards/`, imported with `godot --headless --import`); rerun after a map changes.
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
   weaves a second thing 40 frames after each `--demo` (a fireball at a Wall of Water);
   `--quality=0|1|2` renders one picture-quality level without changing the saved one.

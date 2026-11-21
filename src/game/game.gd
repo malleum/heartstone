@@ -812,6 +812,9 @@ func _process(dt: float) -> void:
 		dp.will = 100.0; dp.shaken = 0.0
 		session.sim.request_dream(session.my_id, order[(frame / 75) % order.size()], at + Vector3(0, 1.2, 0))
 	_draw_actors(dt)
+	# --hideme: the player's own figure is not drawn (pictures of a place: postcards).
+	if args.has("hideme") and me:
+		me.visible = false
 	if not stand_in.is_empty() and me:
 		# Before the hand-over, the body over here stands exactly where the camp's
 		# is, mapped through the doorway, in the same step of the same stride.

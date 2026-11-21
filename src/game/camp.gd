@@ -81,6 +81,10 @@ func _ready() -> void:
 	# --camyaw=deg: look another way in a render (and --show=none hides the sheet).
 	if Launch.cmdline().has("camyaw"):
 		cam_yaw = deg_to_rad(float(Launch.cmdline().camyaw))
+	# --campos=x,z: stand there (pictures of a corner of the camp).
+	if Launch.cmdline().has("campos"):
+		var xz: PackedStringArray = String(Launch.cmdline().campos).split(",")
+		pos = Vector3(float(xz[0]), 0, float(xz[1]))
 	cam = Camera3D.new(); cam.fov = 60.0; add_child(cam)
 	_ui()
 	if returning:
@@ -119,6 +123,8 @@ func _ready() -> void:
 		_show_menu(true)
 	elif cl.get("show", "") == "loadout":
 		_loadout()
+	elif cl.get("show", "") == "none":
+		side.get_parent().get_parent().visible = false
 	# Home from a fight: the doorway's light is still up; let the camp through
 	# once it has been drawn.
 	_after(0.15, func() -> void: Veil.lift(0.8))
@@ -318,9 +324,27 @@ func _unhandled_input(ev: InputEvent) -> void:
 			else: _show_menu(not menu.visible)
 		elif ev.physical_keycode == Keys.k(KEY_TAB):
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif ev.physical_keycode == Keys.k(KEY_E) and _station != "" and not creating and not tree.visible and not menu.visible:
+			_use_station(_station)
 		elif ev.physical_keycode == Keys.k(KEY_H) and not creating and not tree.visible:
 			# Put the sheet away to see the camp, and bring it back.
 			side.get_parent().get_parent().visible = not side.get_parent().get_parent().visible
+
+var _station := ""   # the camp station within reach (Map.STATIONS), or ""
+
+## What each station opens.
+func _use_station(id: String) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	match id:
+		"armoury": _armoury()
+		"tailor": _appearance()
+		"study": _loadout()
+
+const STATION_SAY := {
+	armoury = ["The armoury", "Change what you carry"],
+	tailor = ["The tailor", "Dress, hair, build and cloak, in the long mirror"],
+	study = ["The study", "Talents, weaves and affinity for the next fight"],
+}
 
 func _show_tree(on: bool) -> void:
 	tree.profile = profile
@@ -426,6 +450,15 @@ func _process(dt: float) -> void:
 	cam.position = cam.position.lerp(want, minf(14.0 * dt, 1.0))
 	cam.basis = view
 	_portal(dt)
+	# The camp's stations: walk up to one and E opens it.
+	var st_near := ""
+	for st in Map.STATIONS:
+		if Vector2(pos.x - st.x, pos.z - st.z).length() < 2.6 and not menu.visible and not tree.visible:
+			st_near = st.id
+	if st_near != _station:
+		_station = st_near
+		if st_near != "":
+			Toast.say(STATION_SAY[st_near][0], "%s.   %s: open" % [STATION_SAY[st_near][1], Keys.name(KEY_E)], "info", 4.0)
 	# Doorways: say what the nearest one is; step into an open one to go.
 	var near := {}
 	for d in doors:
@@ -487,7 +520,17 @@ func _doors() -> void:
 		var name_: String = a.name + ("  ✓" if won_here else "")
 		var node := Scenery.doorway(self, _ground(at), -ang, DOOR_TINT.get(ids[i], DOOR_TINT.get(a.kind, Color.WHITE)), ids[i] in open, name_, "" if ids[i] in open else "(closed)",
 			{tarwins_gap = 1, wagon_ring = 2}.get(a.get("map", ""), 4 if a.kind == "spar" else 3))
-		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub})
+		# The place this doorway opens on is chosen now, so its picture is the place
+		# you will walk into (a mode's doorway picks one of its setups).
+		var setup := Rules.pick_setup(ids[i])
+		var card_id: String = setup.get_slice("@", 1) if setup.contains("@") else setup
+		var card_path := "res://assets/postcards/%s.jpg" % card_id
+		if ids[i] in open and ResourceLoader.exists(card_path):
+			var dm := _door_mat({node = node})
+			if dm:
+				dm.set_shader_parameter("card", load(card_path))
+				dm.set_shader_parameter("has_card", 1.0)
+		doors.append({id = ids[i], at = at, open = ids[i] in open, node = node, name = name_, sub = sub, setup = setup})
 		# Home from an activity: you step back out of its doorway, facing the camp.
 		if not _placed and Launch.last_activity == ids[i]:
 			pos = at * (1.0 - 2.6 / 20.0); face = atan2(-at.x, -at.z); cam_yaw = face
@@ -1715,7 +1758,7 @@ func _open_way(d: Dictionary) -> void:
 	# joins the fight already running, if there is one. Offline if it won't answer.
 	# A mode's doorway opens onto a setup chosen now: a different place and foes
 	# each time you walk up to it.
-	var act := Rules.pick_setup(d.id)
+	var act: String = d.get("setup", Rules.pick_setup(d.id))
 	# A fight already running behind this doorway is the one it opens onto (the
 	# server ignores our pick then); the fight says which setup it is when it starts.
 	for f in fights:
