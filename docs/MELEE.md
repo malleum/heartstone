@@ -118,11 +118,11 @@ of it. Notes on what a tick does not cover:
 Swords
 - [x] Sword (one hand, the plain soldier's blade)
 - [x] Hand-and-a-half sword (Borderlands)
-- [ ] Heron-mark blade (two hands; a blademaster's, earned not chosen)
+- [x] Heron-mark blade (two hands; a blademaster's, earned not chosen: 21 Nov, offered after a win only at sword skill 6)
 - [x] Short sword
 - [x] Sabre (Saldaea; long sweeping cuts)
 - [x] Practice sword of bound lathes (training yard; bruises only)
-- [ ] Power-wrought blade (never dulls; a reward)
+- [x] Power-wrought blade (never dulls; a reward: 21 Nov, renown 60; its blows do not weaken when you tire; pale, faintly shining)
 
 Knives
 - [x] Belt knife (everyone has one; the weapon of last resort)
@@ -130,8 +130,9 @@ Knives
 - [x] Paired daggers
 - [x] Throwing knives, a brace of eight (Mat, Thom, Faile)
 - [x] Knives recovered from the dead and the ground after a throw
-- [ ] The ruby-hilted dagger of Shadar Logoth (a cursed reward: deadly, and it
-      costs you)
+- [x] The ruby-hilted dagger of Shadar Logoth (a cursed reward: deadly, and it
+      costs you). 21 Nov: renown 30; its wounds bleed three times as much; in your hand
+      it drains 1.2 health a second (never below a third) and you do not rest-heal.
 
 Spears and polearms
 - [x] Aiel short spear with buckler; spare spears carried behind the buckler
@@ -170,7 +171,9 @@ Shields and the off hand
       a little slower and heavier); Borderland kite shield not made.
 - [~] Shield bash (18 Nov: the round shield's heavy blow, a short shove that
       staggers); dash behind the shield not made.
-- [ ] A second weapon in the off hand (sword and knife)
+- [x] A second weapon in the off hand (sword and knife): 21 Nov, one kit item like the
+      sword and shield: the knife stabs between the cuts (cut, stab, back-cut, stab) and
+      helps the guard (0.85).
 
 Bare hands
 - [x] Aiel hand-and-foot fighting: strikes, kick, throw
@@ -240,7 +243,8 @@ Bare hands
 
 ### 8. Classes
 - [ ] **Warder:** (guarding a channeller and the bond's shared recovery are built;
-      the cloak and sensing are not.) Kit of sword, bow, knife. Best guard. Bond to a channeller in
+      21 Nov: the cloak: standing still a second, enemies pass him over for anyone else
+      unless he is within 3 m; sensing is not.) Kit of sword, bow, knife. Best guard. Bond to a channeller in
       the party: sense where they are, share stamina, gain when near them. The
       colour-shifting cloak: hard for enemies to target when still. Guarding a
       channeller mid-weave (blows aimed at them are drawn to the Warder).
@@ -250,10 +254,14 @@ Bare hands
 - [ ] **Hunter of the Horn:** any weapon; kits from the Two Rivers (longbow,
       staff), the Band of the Red Hand (crossbow, pike, ashandarei), a gleeman's
       knives, a blacksmith's hammer and axe.
-- [ ] **Channellers with a weapon:** one weapon, skill ceiling 4 of 10, dodging
-      costs more. Asha'man start with a sword; Aes Sedai with a belt knife.
-- [ ] Wolfbrother, the Old Blood's memories of battle, a gambler's luck: gifts
-      for fighters, as Talents are for channellers.
+- [x] **Channellers with a weapon:** one weapon, skill ceiling 4 of 10, dodging
+      costs more (built earlier). 21 Nov: from Tar Valon, a man starts with a sword and a
+      woman with a belt knife.
+- [x] Wolfbrother, the Old Blood's memories of battle, a gambler's luck: gifts
+      for fighters, as Talents are for channellers. 21 Nov: one chosen at creation (free):
+      Wolfbrother a tenth faster and a sixth harder on Shadowspawn; the Old Blood 8% harder
+      blows and skill half again as fast; a gambler's luck turns aside one blow in seven
+      and makes one of yours in ten land twice as hard (`Rules.GIFTS`).
 - [ ] Dreamer (see `VISION.md`), later.
 
 ### 9. Balance and progression

@@ -45,7 +45,8 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		p.skills = {}
 	for f in fam:
 		var before := Rules.skill_level(p, f)
-		p.skills[f] = p.skills.get(f, 0.0) + fam[f] * yield_.get("mastery", 1.0)
+		# The Old Blood remembers: skill with arms comes half again as fast.
+		p.skills[f] = p.skills.get(f, 0.0) + fam[f] * yield_.get("mastery", 1.0) * (1.5 if Rules.has_gift(p, "old_blood") else 1.0)
 		if Rules.skill_level(p, f) > before:
 			out.append("%s skill %d -> %d" % [f.capitalize(), before, Rules.skill_level(p, f)])
 

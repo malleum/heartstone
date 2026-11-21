@@ -269,6 +269,11 @@ func _mode_heroes() -> void:
 		ap.play(args.get("clip", "Idle"))
 		if not strokes.is_empty():
 			Hero.arm(r, "sword"); ap.play(args.get("clip", "Sword_Idle"))
+		# --arms=a,b,c: each figure holds its own weapon (looking at weapon models).
+		if args.has("arms"):
+			Rules.load_data()
+			var aw: PackedStringArray = String(args.arms).split(",")
+			Hero.arm(r, aw[i % aw.size()]); ap.play(args.get("clip", "Sword_Idle"))
 	if args.has("then"):
 		events[int(_f("at", 30))] = func() -> void:
 			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)

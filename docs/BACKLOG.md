@@ -223,7 +223,10 @@ are what the 4:44 review, or the next session, should pick up.
   several attacks (swing, stab, low sweep), dodge, roll, duck. Channellers can
   learn some of it, less well. All of it uses stamina. Many weapons: knives and
   thrown knives, bows of several kinds, staff, spear, Aiel javelins, swords.
-  **The full plan and to-do list is `MELEE.md`.**
+  **The full plan and to-do list is `MELEE.md`.** (21 Nov: earned weapons, sword and knife,
+  fighters' gifts, the Warder's cloak, channellers' starting weapons; still open there:
+  real animation for the stand-ins, Aiel societies, the Hunter's kits, Warder sensing,
+  skill pacing and balance by play.)
 
 ## Online
 - [x] **Deploy the server on minimus.** (Live since 17 Nov.) It is built and tested on localhost (see

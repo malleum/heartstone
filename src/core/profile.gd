@@ -95,6 +95,7 @@ static func create_fighter(opts: Dictionary) -> Dictionary:
 		channelled = 0.0, renown = 0.0, seconds = 0.0,
 		weaves = {}, seen = [], done = {},
 		stats = stats, skills = skills, kit = [], forms = {}, style = opts.get("style", {}),
+		gifts = [opts.gift] if Rules.GIFTS.has(opts.get("gift", "")) else [],
 	}
 	for e in Rules.ELEMENTS:
 		p.affinity[e] = 0.0; p.aptitude[e] = 0.0
@@ -305,9 +306,14 @@ static func make(opts: Dictionary) -> Dictionary:
 		p.weaves[p.starter] = {known = true, xp = 0.0}
 		p.weaves_owned = []
 		p.techniques = ["tie_off"]
+		# From Tar Valon (or the Black Tower): the Asha'man are taught the sword,
+		# and an Aes Sedai carries her belt knife. Skill with it stops at 4.
+		if opts.get("origin", "") == "tar_valon":
+			p.kit = ["sword" if power == "saidin" else "belt_knife"]
+			p.weapons_owned = p.kit.duplicate()
 	else:
 		var stats: Dictionary = opts.get("stats", {})
-		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {})})
+		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {}), gift = opts.get("gift", "")})
 		p.forms = {}
 		for f in opts.get("forms", []):
 			p.forms[f] = {known = true}
@@ -339,7 +345,12 @@ static func unlock_offers(p: Dictionary, n: int, rng: RandomNumberGenerator) -> 
 			fams[Rules.weapons[w].family] = true
 		for w in Rules.weapons:
 			if not p.get("weapons_owned", p.kit).has(w) and Rules.wield_block(p, w) == "":
-				pool.append({kind = "weapon", id = w, name = Rules.weapons[w].name})
+				# A blademaster's sword, a Power-wrought blade, a cursed dagger: only
+				# once they are earned (renown, or skill), and said so.
+				if Rules.weapons[w].get("earned", false) and not Rules.earned_ok(p, w):
+					continue
+				var nm: String = Rules.weapons[w].name + ("  (cursed)" if Rules.weapons[w].get("cursed", false) else ("  (earned)" if Rules.weapons[w].get("earned", false) else ""))
+				pool.append({kind = "weapon", id = w, name = nm})
 		for f in Rules.forms:
 			if fams.has(Rules.forms[f].family) and not p.get("forms_owned", []).has(f):
 				pool.append({kind = "form", id = f, name = Rules.forms[f].name})

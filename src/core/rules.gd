@@ -386,6 +386,26 @@ static func move_times(p: Dictionary, weapon_id: String, move_id: String) -> Arr
 	return [m.wind / q, m.recover / q]
 
 ## Damage of one blow (or of the missile a missile move launches).
+## Gifts for fighters, as Talents are for channellers: one, chosen at creation.
+const GIFTS := {
+	wolfbrother = {name = "Wolfbrother", blurb = "The wolves' quickness on your feet and their hatred of the Shadowspawn: a tenth faster, a sixth harder on them; the night is not so dark."},
+	old_blood = {name = "The Old Blood", blurb = "Memories of battles you never fought: blows land a little harder, and skill with arms comes half again as fast."},
+	gamblers_luck = {name = "A gambler's luck", blurb = "The dice tumble your way: one blow in seven that would land on you misses, and one of yours in ten lands twice as hard."},
+}
+
+static func has_gift(p: Dictionary, id: String) -> bool:
+	return p.get("gifts", []).has(id)
+
+## May this character be offered an earned weapon yet (its `earn`: renown, or a
+## skill level in a family)?
+static func earned_ok(p: Dictionary, weapon_id: String) -> bool:
+	var e: Dictionary = weapons[weapon_id].get("earn", {})
+	if e.has("renown") and float(p.get("renown", 0.0)) < float(e.renown):
+		return false
+	if e.has("skill") and skill_level(p, String(e.skill[0])) < int(e.skill[1]):
+		return false
+	return true
+
 static func blow(p: Dictionary, weapon_id: String, move_id: String, stamina := -1.0) -> float:
 	var w: Dictionary = weapons[weapon_id]
 	var m: Dictionary = moves[move_id]
@@ -396,7 +416,9 @@ static func blow(p: Dictionary, weapon_id: String, move_id: String, stamina := -
 		base = shot.get("dmg", 0.0)
 		if shot.get("crank", false):
 			might = 1.0
-	return base * might * (1.0 + TUNE.skill_dmg * skill_level(p, w.family)) * vigor(stamina)
+	# A Power-wrought blade never dulls: it cuts as hard tired as fresh.
+	var tired: float = 1.0 if w.get("keen", false) else vigor(stamina)
+	return base * might * (1.0 + TUNE.skill_dmg * skill_level(p, w.family)) * tired * (1.08 if has_gift(p, "old_blood") else 1.0)
 
 ## A tired fighter swings with less behind it, and so spends less, like a channeller.
 static func move_cost(p: Dictionary, weapon_id: String, move_id: String, stamina := -1.0) -> float:

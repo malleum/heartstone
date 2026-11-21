@@ -126,6 +126,26 @@ static func build(weapon_id: String) -> Dictionary:
 			boss.mesh = bs; boss.material_override = _mat(STEEL, 0.85); boss.position.y = 0.025; sh.add_child(boss)
 			out.off = sh; out.off_bone = "lowerarm_l"
 		"bastard_sword": _hilt(n, 0.26, 0.24); _blade(n, 0.14, 1.0, 0.055, steel)
+		"sword_knife":
+			# A sword in the right hand and a long knife in the left.
+			_hilt(n, 0.16, 0.2); _blade(n, 0.09, 0.8, 0.05, steel)
+			var kn := Node3D.new()
+			_hilt(kn, 0.11, 0.09); _blade(kn, 0.06, 0.3, 0.035, steel)
+			out.off = kn; out.off_bone = "hand_l"
+		"power_blade":
+			# Pale metal that holds a faint light of its own, with a plain dark hilt.
+			var pale := _mat(Color(0.82, 0.86, 0.95), 0.95)
+			pale.roughness = 0.12; pale.emission_enabled = true; pale.emission = Color(0.55, 0.65, 0.9); pale.emission_energy_multiplier = 0.35
+			_hilt(n, 0.17, 0.2); _blade(n, 0.09, 0.86, 0.045, pale)
+		"shadar_dagger":
+			# A slightly curved blade and a gold hilt with a great ruby in the pommel.
+			var gold := _mat(Color(0.8, 0.6, 0.2), 0.9)
+			_rod(n, Vector3(0, -0.06, 0), Vector3(0, 0.06, 0), 0.016, 0.016, gold)
+			_box(n, Vector3(0.03, 0.02, 0.1), Vector3(0, 0.065, 0), gold)
+			_blade(n, 0.07, 0.19, 0.03, steel)
+			var ruby := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 0.024; sp.height = 0.048
+			var rm := _mat(Color(0.7, 0.02, 0.05), 0.2); rm.roughness = 0.1; rm.emission_enabled = true; rm.emission = Color(0.6, 0.0, 0.05); rm.emission_energy_multiplier = 0.6
+			ruby.mesh = sp; ruby.material_override = rm; ruby.position = Vector3(0, -0.085, 0); n.add_child(ruby)
 		"heron_blade": _hilt(n, 0.28, 0.12); _blade(n, 0.15, 0.95, 0.04, steel)
 		"short_sword": _hilt(n, 0.14, 0.14); _blade(n, 0.08, 0.55, 0.055, steel)
 		"sabre": _hilt(n, 0.15, 0.16); _blade(n, 0.085, 0.86, 0.04, steel)

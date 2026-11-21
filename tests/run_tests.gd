@@ -731,6 +731,71 @@ func _dream() -> void:
 	run(sim, 0.2)
 	check(sim.over and sim.success, "one of them wakes: the duel is over")
 
+func _arms_more() -> void:
+	print("== Earned weapons, sword and knife, gifts, the Warder's cloak")
+	Map.use("open")
+	var f := Profile.create_fighter({name = "Earner", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	f.weapons_owned = ["sword"]; f.forms_owned = []
+	var offered := func(p: Dictionary) -> Array:
+		var ids := []
+		for i in 40:
+			var rng := RandomNumberGenerator.new(); rng.seed = i
+			for u in Profile.unlock_offers(p, 50, rng):
+				if u.kind == "weapon" and not ids.has(u.id): ids.append(u.id)
+		return ids
+	var o: Array = offered.call(f)
+	check(not o.has("heron_blade") and not o.has("power_blade") and not o.has("shadar_dagger"), "earned weapons are not offered before they are earned")
+	check(o.has("sword_knife"), "sword and knife is an ordinary weapon")
+	f.renown = 70.0; f.skills["sword"] = 36.0 * Rules.TUNE.skill_xp
+	o = offered.call(f)
+	check(o.has("heron_blade") and o.has("power_blade") and o.has("shadar_dagger"), "renown and a blademaster's skill earn them")
+	# A Power-wrought blade never dulls.
+	check(is_equal_approx(Rules.blow(f, "power_blade", "cut", 0.0), Rules.blow(f, "power_blade", "cut", Rules.TUNE.stamina)) and Rules.blow(f, "sword", "cut", 0.0) < Rules.blow(f, "sword", "cut", Rules.TUNE.stamina), "a Power-wrought blade cuts as hard tired as fresh; steel does not")
+	# The ruby-hilted dagger feeds on its holder.
+	var sim := Sim.new("practice", 21)
+	sim._waves = []
+	var cur := Profile.create_fighter({name = "Mat", cls = "hunter", stat_pts = {might = 3, quickness = 4, endurance = 3}, kit = ["belt_knife"]})
+	cur.kit = ["shadar_dagger"]; cur.weapons_owned = ["shadar_dagger"]   # won, and carried
+	var id := sim.add_player(cur, Vector3.ZERO)
+	sim._add_enemy("dummy", Vector3(40, 0, 40))
+	var me: Dictionary = sim.ents[id]
+	var hp0: float = me.hp
+	run(sim, 3.0)
+	check(me.weapon == "shadar_dagger" and me.hp < hp0 - 3.0, "the cursed dagger in hand feeds on you (%.1f)" % (hp0 - me.hp))
+	# Gifts.
+	var plain := Profile.create_fighter({name = "Plain", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
+	var wolf := Profile.create_fighter({name = "Wolf", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"], gift = "wolfbrother"})
+	check(wolf.gifts == ["wolfbrother"], "a gift is chosen at creation")
+	var s2 := Sim.new("practice", 22)
+	s2._waves = []
+	var a := s2.add_player(plain, Vector3.ZERO); var b := s2.add_player(wolf, Vector3(5, 0, 0))
+	check(s2.ents[b].speed > s2.ents[a].speed * 1.05, "a wolfbrother runs faster")
+	var lucky := Profile.create_fighter({name = "Lucky", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"], gift = "gamblers_luck"})
+	var s3 := Sim.new("practice", 23)
+	s3._waves = []
+	var li := s3.add_player(lucky, Vector3.ZERO)
+	s3._add_enemy("dummy", Vector3(30, 0, 30))
+	var foe: int = s3._next - 1
+	var misses := 0
+	for i in 400:
+		s3.ents[li].hp = s3.ents[li].max_hp
+		var h: float = s3.ents[li].hp
+		s3._hurt(s3.ents[li], 5.0, foe, "")
+		if is_equal_approx(s3.ents[li].hp, h): misses += 1
+	check(misses > 30 and misses < 90, "luck turns aside about one blow in seven (%d of 400)" % misses)
+	check(Rules.blow(Profile.create_fighter({name = "Old", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"], gift = "old_blood"}), "sword", "cut") > Rules.blow(plain, "sword", "cut"), "the Old Blood strikes harder")
+	# A Warder standing still is passed over for someone else.
+	var s4 := Sim.new("practice", 24)
+	s4._waves = []
+	var wi := s4.add_player(plain, Vector3(0, 0, 0))
+	var ci := s4.add_player(Profile.create({name = "Chan"}), Vector3(0, 0, -9))
+	s4._add_enemy("trolloc", Vector3(0, 0, 6))
+	var tr: Dictionary = s4.ents[s4._next - 1]
+	s4.step(0.05)
+	check(tr.chasing == wi, "they go for the nearest, a Warder on the move")
+	run(s4, 1.3)
+	check(tr.chasing == ci or tr.pos.distance_to(Vector3.ZERO) < 3.0, "but standing still in his cloak he is passed over for someone further off")
+
 ## Two dreamers 12 paces apart, A facing B, both tough enough not to wake.
 func _dpair() -> Array:
 	var a := Profile.create({name = "Dreamer", cls = "warder", stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = ["sword"]})
@@ -1828,6 +1893,7 @@ func _init() -> void:
 	_shadowspawn()
 	_dream()
 	_dream_more()
+	_arms_more()
 	_trolloc_blows()
 	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))

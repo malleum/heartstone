@@ -79,7 +79,7 @@ func add_player(profile: Dictionary, pos := Vector3.ZERO, as_bot := false) -> in
 	# Those who fight with their hands are built for it: more breath than a channeller.
 	p.stamina_max = Rules.TUNE.stamina * (1.5 if profile.get("cls", "channeller") != "channeller" else 1.0)
 	p.stamina = p.stamina_max
-	p.speed = Rules.run_speed(profile)
+	p.speed = Rules.run_speed(profile) * (1.1 if Rules.has_gift(profile, "wolfbrother") else 1.0)
 	p.max_hp = Rules.max_hp(profile); p.hp = p.max_hp
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
@@ -1333,7 +1333,8 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	_gaze(p)
 	_spear_set(p)
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
-	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0:
+	# (Not with a cursed blade in hand: it feeds on you instead.)
+	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0 and not Rules.weapons.get(p.get("weapon", ""), {}).get("cursed", false):
 		# Rest mends bruises, not wounds: those wait for a Healer.
 		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, maxf(p.max_hp - p.get("wound", 0.0), p.hp))
 	# Forming a weave takes concentration: you move at half speed while doing it.
@@ -1401,6 +1402,12 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		_step_autos(p)
 	_step_swing(p, dt)
 	_step_kept(p, dt)
+	# How long they have stood still (a Warder's cloak hides him then).
+	p.still_for = p.get("still_for", 0.0) + dt if p.move.length() < 0.1 and p.swing.is_empty() else 0.0
+	# A cursed blade in the hand feeds on the one holding it (never below a third).
+	var drain: float = float(Rules.weapons.get(p.get("weapon", ""), {}).get("drain_hp", 0.0))
+	if drain > 0.0 and p.hp > p.max_hp * 0.33:
+		p.hp = maxf(p.hp - drain * dt, p.max_hp * 0.33)
 	if p.forming.is_empty():
 		return
 	# Held by an Eyeless gaze, the weave comes slowly; with a second weave kept and
@@ -1513,7 +1520,12 @@ func _strike(p: Dictionary) -> void:
 		on.push = maxf(float(on.get("push", 0.0)), float(sw.push))
 	# An edge opens a wound that goes on bleeding; blunt weapons do not.
 	if w.family in ["sword", "knife", "axe", "spear"] and not m.get("blunt", false):
-		on.bleed = dmg * 0.2
+		on.bleed = dmg * float(w.get("bleed", 0.2))
+	# A gambler's luck: now and then a blow lands twice as hard.
+	if Rules.has_gift(p.profile, "gamblers_luck") and not found.is_empty() and rng.randf() < 0.1:
+		dmg *= 2.0
+		events.append({e = "lucky", id = p.id})
+	var wolf := Rules.has_gift(p.profile, "wolfbrother")
 	var n := 0
 	for e in found:
 		if n >= int(m.get("hits", 1)):
@@ -1522,7 +1534,9 @@ func _strike(p: Dictionary) -> void:
 			continue
 		# A blow straight after a parry, or on one who is down, goes in deeper.
 		var open := (1.5 if p.get("riposte_until", 0.0) > t else 1.0) * (1.5 if e.get("down", 0.0) > 0.0 else 1.0)
-		_wound(e, dmg * pow(0.7, n) * open, p.id, sw.weapon, on, dir)
+		# A wolfbrother's hatred of the Shadow's creatures is in the blow.
+		var hate: float = 1.15 if wolf and _is_shadowspawn(e) else 1.0
+		_wound(e, dmg * pow(0.7, n) * open * hate, p.id, sw.weapon, on, dir)
 		n += 1
 	if n > 0:
 		p.riposte_until = 0.0
@@ -2097,6 +2111,10 @@ func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -
 ## quiet: damage over time, which should not flinch, re-ignite or flash every tick.
 func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) -> void:
 	if not e.alive or e.get("away", false):
+		return
+	# A gambler's luck: one blow in seven that should have landed somehow misses.
+	if not quiet and e.kind == "player" and by != e.id and ents.has(by) and Rules.has_gift(e.profile, "gamblers_luck") and rng.randf() < 1.0 / 7.0:
+		events.append({e = "luck", id = e.id})
 		return
 	# Arms and weaves are made to kill Trollocs. Between two people sparring they
 	# would end it in a few blows, so they do a share of their work (dream-things
@@ -2688,6 +2706,10 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			if p.get("darkfriend", false) and (e.get("df_side", false) or e.row.get("darkfriend", false)):
 				continue    # they know their own
 			var d: float = p.pos.distance_squared_to(e.pos)
+			# A Warder's cloak takes the colours round it: standing still he is hard
+			# to pick out, and they go for someone else unless he is close.
+			if p.profile.get("cls", "") == "warder" and p.get("still_for", 0.0) > 1.0 and d > 9.0:
+				d *= 16.0
 			if d < best:
 				best = d; target = p
 		e.chasing = target.get("id", 0)

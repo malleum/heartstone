@@ -627,6 +627,9 @@ func _sheet() -> void:
 			_pips(side, st.capitalize(), int(Rules.stat(profile, st)), 4, Glyph.GOLD)
 		for w in profile.kit:
 			_row(side, Rules.weapons[w].name, Rules.weapons[w].family)
+		for gid in profile.get("gifts", []):
+			if Rules.GIFTS.has(gid):
+				_row(side, Rules.GIFTS[gid].name, "gift")
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
@@ -1397,7 +1400,8 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "", origin_ := "") -
 		make.weapon_box = _grid(gv, 2)
 		var probe := {cls = cls_}
 		for w in Rules.weapons:
-			if Rules.wield_block(probe, w) == "":
+			# (Earned weapons are won, not chosen.)
+			if Rules.wield_block(probe, w) == "" and not Rules.weapons[w].get("earned", false):
 				make.weapons[w] = Rules.CLASSES[cls_].kit.slice(0, 2).has(w)
 		_section(gv, "Forms  (2 points each)")
 		make.form_box = _grid(gv, 1)
@@ -1407,6 +1411,9 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "", origin_ := "") -
 		make.stat_box = VBoxContainer.new(); gv.add_child(make.stat_box)
 		for st in ["might", "quickness", "endurance"]:
 			make.stats[st] = 0
+		_section(gv, "A gift  (free: one, or none)")
+		_text(gv, "What a fighter is born with, as a channeller is born with a Talent.", 13, Color(0.66, 0.67, 0.72))
+		make.gift_box = _grid(gv, 1)
 	make.left = _text(gv, "", 16)
 	make.go = _button(gv, "Begin", _create)
 	make.go.custom_minimum_size.y = 40
@@ -1441,6 +1448,14 @@ func _refresh_gifts() -> void:
 					make.trade = true; make.talent = tt
 				_refresh_gifts(); _creation_changed())
 	else:
+		_clear(make.gift_box)
+		for gid in Rules.GIFTS:
+			var gg: String = gid
+			_card(make.gift_box, Rules.GIFTS[gid].name, "chosen" if make.get("gift", "") == gid else "", null, make.get("gift", "") == gid, func() -> void:
+				make.gift = "" if make.get("gift", "") == gg else gg
+				_refresh_gifts(); _creation_changed())
+			var gl := _text(make.gift_box, Rules.GIFTS[gid].blurb, 13, Color(0.7, 0.72, 0.78))
+			gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_clear(make.weapon_box)
 		var fams := {}
 		for w in make.weapons:
@@ -1561,7 +1576,9 @@ func _weapon_option(label: String, start: String, none: bool, parent: Control = 
 		items[""] = "Nothing"
 	var probe := {cls = cls_id if cls_id != "" else make.cls_id, stats = {might = 8}}
 	for w in Rules.weapons:
-		if Rules.wield_block(probe, w) == "" and not Rules.weapons[w].get("earned", false) and w != "hands":
+		# Earned weapons only once they are this character's own.
+		var mine: bool = profile.get("weapons_owned", []).has(w)
+		if Rules.wield_block(probe, w) == "" and (not Rules.weapons[w].get("earned", false) or mine) and w != "hands":
 			items[w] = "%s  (%s)" % [Rules.weapons[w].name, Rules.weapons[w].family]
 	var o := _option(parent if parent else side, label, items)
 	o.select(maxi(items.keys().find(start), 0))
@@ -1682,6 +1699,7 @@ func _create() -> void:
 		for f in make.forms:
 			if make.forms[f]: forms.append(f)
 		opts.kit = kit; opts.forms = forms; opts.stats = make.stats.duplicate()
+		opts.gift = make.get("gift", "")
 	var p := Profile.make(opts)
 	Profile.save(p)
 	Launch.report = []

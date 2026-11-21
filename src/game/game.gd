@@ -2232,6 +2232,14 @@ func _on_events(list: Array) -> void:
 					Dreamfx.on_self(self, actors[e.id].node, e.move, float(e.time))
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Sfx.play(self, "hum", actors[e.id].node.position + Vector3(0, 1.4, 0), -6.0, 2.0)
+			"luck":
+				if e.id == session.my_id:
+					flash_t = 0.7; flash_text = "Luck: it missed"
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					Weavefx.spit(self, actors[e.id].node.position + Vector3(0, 1.4, 0), Color(1.0, 0.9, 0.5))
+			"lucky":
+				if e.id == session.my_id:
+					flash_t = 0.7; flash_text = "A lucky blow"
 			"drained":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Dreamfx.on_self(self, actors[e.id].node, "drained", 0.0)
