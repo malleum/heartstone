@@ -24,6 +24,12 @@ const vec3 AJAH[7] = vec3[](vec3(0.05, 0.12, 0.5), vec3(0.05, 0.3, 0.08), vec3(0
 // little flutter, set each frame from how fast the wearer goes (Hero.cloak_motion).
 uniform vec3 sway = vec3(0.0);
 uniform float flutter = 0.0;
+// The legs as capsules (Hero._legs_to_cloth), in this mesh's space: cloth that would
+// be inside one is put on its surface instead, so no foot or knee comes through.
+uniform vec3 leg_a[6];
+uniform vec3 leg_b[6];
+uniform float leg_r[6];
+uniform float leg_grow = 1.0;
 
 void vertex() {
 	// More the further down it hangs; nothing at the shoulders.
@@ -34,6 +40,20 @@ void vertex() {
 	float w2 = sin(TIME * 2.7 - UV.y * 4.0 - UV.x * 5.3 + 1.7);
 	vec3 ripple = vec3(0.35 * w2, 0.12 * w1, w1 + 0.5 * w2) * flutter * 0.06;
 	VERTEX += (sway + ripple) * d;
+	for (int i = 0; i < 6; i++) {
+		float rr = leg_r[i] * leg_grow;
+		if (rr <= 0.0) { continue; }
+		vec3 ab = leg_b[i] - leg_a[i];
+		float t = clamp(dot(VERTEX - leg_a[i], ab) / max(dot(ab, ab), 1e-5), 0.0, 1.0);
+		vec3 q = leg_a[i] + ab * t;
+		vec3 off = VERTEX - q;
+		float l = length(off);
+		if (l < rr) {
+			// Out the way the cloth already is from the leg (behind it, for a cloak).
+			vec3 n = l > 1e-4 ? off / l : vec3(0.0, 0.0, -1.0);
+			VERTEX = q + n * rr;
+		}
+	}
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 

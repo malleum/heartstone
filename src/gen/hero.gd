@@ -179,11 +179,153 @@ static func _cloak_from_shoulders(m: MeshInstance3D, base: String, sk: Skeleton3
 			if legs.has(bones[i]):
 				bones[i] = pelvis
 		arr[Mesh.ARRAY_BONES] = bones
+		arr = _subdivide(arr, 2)
 		var flags := mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		out.add_surface_from_arrays(mesh.surface_get_primitive_type(si), arr, [], {}, flags)
 		out.surface_set_material(si, mesh.surface_get_material(si))
 	_cloaks[base] = out
 	m.mesh = out
+
+## A copy of a sourced mesh carrying each vertex's rest position (CUSTOM0): Godot
+## hands a shader the vertex already posed by the skeleton, so anything drawn by
+## position (the Cairhienin slashes, Tairen sleeves, how far hair hangs) slid over
+## the cloth as the body moved. Shared between figures, like the meshes themselves.
+static var _rested := {}
+static func _bake_rest(m: MeshInstance3D) -> void:
+	var src := m.mesh as ArrayMesh
+	if src == null:
+		return
+	var key := src.get_instance_id()
+	if _rested.has(key):
+		m.mesh = _rested[key]
+		return
+	var out := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var arr := src.surface_get_arrays(si)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var c := PackedFloat32Array(); c.resize(v.size() * 4)
+		for i in v.size():
+			c[i * 4] = v[i].x; c[i * 4 + 1] = v[i].y; c[i * 4 + 2] = v[i].z; c[i * 4 + 3] = 1.0
+		arr[Mesh.ARRAY_CUSTOM0] = c
+		# (Any other custom channels the model brings keep their formats.)
+		var keep: int = Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT) | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM2_SHIFT) | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM3_SHIFT)
+		var fmt := (src.surface_get_format(si) & keep) | (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
+		out.add_surface_from_arrays(src.surface_get_primitive_type(si), arr, [], {}, fmt)
+		out.surface_set_material(si, src.surface_get_material(si))
+		out.surface_set_name(si, src.surface_get_name(si))
+	_rested[key] = out
+	m.mesh = out
+
+## The legs as capsules in the body's own space (hip to knee, knee to ankle, ankle to
+## toe, each side), handed to every garment so cloth is pushed out of them: a cloak
+## the back foot kicked through, a skirt a knee came through. Radii are a leg's; each
+## garment adds its own margin (leg_grow).
+const LEG_BONES := [["thigh_l", "calf_l", 0.1], ["calf_l", "foot_l", 0.085], ["foot_l", "ball_l", 0.08],
+	["thigh_r", "calf_r", 0.1], ["calf_r", "foot_r", 0.085], ["foot_r", "ball_r", 0.08]]
+static func _legs_to_cloth(root: Node3D) -> void:
+	var mats: Array = root.get_meta("garment_mats", [])
+	var sk: Skeleton3D = root.get_meta("skeleton", null)
+	if mats.is_empty() or sk == null:
+		return
+	if not root.has_meta("leg_idx"):
+		var idx := []
+		for lb in LEG_BONES:
+			idx.append([sk.find_bone(lb[0]), sk.find_bone(lb[1])])
+		root.set_meta("leg_idx", idx)
+	var a := PackedVector3Array(); var b := PackedVector3Array(); var r := PackedFloat32Array()
+	var idx2: Array = root.get_meta("leg_idx")
+	for i in LEG_BONES.size():
+		var pair: Array = idx2[i]
+		if pair[0] < 0 or pair[1] < 0:
+			a.append(Vector3(0, -9, 0)); b.append(Vector3(0, -9, 0)); r.append(0.0)
+			continue
+		var pa := sk.get_bone_global_pose(pair[0]).origin
+		var pb := sk.get_bone_global_pose(pair[1]).origin
+		# The thigh from halfway down: at the hip the cloth follows the body already,
+		# and pushing it there blew skirts and coats out into balls.
+		a.append(pa.lerp(pb, 0.5) if i % 3 == 0 else pa)
+		b.append(pb)
+		r.append(LEG_BONES[i][2])
+	for gm in mats:
+		(gm as ShaderMaterial).set_shader_parameter("leg_a", a)
+		(gm as ShaderMaterial).set_shader_parameter("leg_b", b)
+		(gm as ShaderMaterial).set_shader_parameter("leg_r", r)
+
+## One surface's arrays with every triangle split in four (`levels` times): the
+## sourced cloak and coat are a few hundred vertices, too coarse for cloth to bend
+## round a leg (Hero._legs_to_cloth). New vertices take the mean of their edge's
+## ends; their bone weights are the two ends' merged, strongest kept.
+static func _subdivide(arr: Array, levels: int) -> Array:
+	for lv in levels:
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
+		var tan: PackedFloat32Array = arr[Mesh.ARRAY_TANGENT] if arr[Mesh.ARRAY_TANGENT] != null else PackedFloat32Array()
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV] if arr[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES] if arr[Mesh.ARRAY_BONES] != null else PackedInt32Array()
+		var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS] if arr[Mesh.ARRAY_WEIGHTS] != null else PackedFloat32Array()
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var n0 := v.size()
+		var per: int = bones.size() / n0 if n0 > 0 else 4
+		var mids := {}
+		var out_idx := PackedInt32Array()
+		var mid := func(a: int, b: int) -> int:
+			var key: int = mini(a, b) * 1000003 + maxi(a, b)
+			if mids.has(key):
+				return mids[key]
+			var k := v.size()
+			v.append((v[a] + v[b]) * 0.5)
+			if not nrm.is_empty(): nrm.append((nrm[a] + nrm[b]).normalized())
+			if not tan.is_empty():
+				var t3 := (Vector3(tan[a * 4], tan[a * 4 + 1], tan[a * 4 + 2]) + Vector3(tan[b * 4], tan[b * 4 + 1], tan[b * 4 + 2])).normalized()
+				tan.append(t3.x); tan.append(t3.y); tan.append(t3.z); tan.append(tan[a * 4 + 3])
+			if not uv.is_empty(): uv.append((uv[a] + uv[b]) * 0.5)
+			if not bones.is_empty():
+				var acc := {}
+				for e in [a, b]:
+					for j in per:
+						var w: float = wts[e * per + j] * 0.5
+						if w > 0.0:
+							acc[bones[e * per + j]] = acc.get(bones[e * per + j], 0.0) + w
+				var ks: Array = acc.keys()
+				ks.sort_custom(func(x: int, y: int) -> bool: return acc[x] > acc[y])
+				var tot := 0.0
+				for j in mini(per, ks.size()): tot += acc[ks[j]]
+				for j in per:
+					if j < ks.size():
+						bones.append(ks[j]); wts.append(acc[ks[j]] / maxf(tot, 1e-6))
+					else:
+						bones.append(0); wts.append(0.0)
+			mids[key] = k
+			return k
+		for t in range(0, idx.size(), 3):
+			var a := idx[t]; var b := idx[t + 1]; var c := idx[t + 2]
+			var ab: int = mid.call(a, b); var bc: int = mid.call(b, c); var ca: int = mid.call(c, a)
+			out_idx.append_array(PackedInt32Array([a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca]))
+		arr[Mesh.ARRAY_VERTEX] = v
+		if not nrm.is_empty(): arr[Mesh.ARRAY_NORMAL] = nrm
+		if not tan.is_empty(): arr[Mesh.ARRAY_TANGENT] = tan
+		if not uv.is_empty(): arr[Mesh.ARRAY_TEX_UV] = uv
+		if not bones.is_empty(): arr[Mesh.ARRAY_BONES] = bones; arr[Mesh.ARRAY_WEIGHTS] = wts
+		arr[Mesh.ARRAY_INDEX] = out_idx
+		# Anything else per-vertex would no longer line up; garments carry none we use.
+		for k in [Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV2, Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
+			arr[k] = null
+	return arr
+
+static var _dense := {}   # coat or shawl mesh -> the same, finer
+static func _densify(m: MeshInstance3D) -> void:
+	var src := m.mesh as ArrayMesh
+	if src == null:
+		return
+	var key := src.get_instance_id()
+	if not _dense.has(key):
+		var out := ArrayMesh.new()
+		for si in src.get_surface_count():
+			var arr := _subdivide(src.surface_get_arrays(si), 2)
+			out.add_surface_from_arrays(src.surface_get_primitive_type(si), arr, [], {}, src.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+			out.surface_set_material(si, src.surface_get_material(si))
+		_dense[key] = out
+	m.mesh = _dense[key]
 
 ## The wind where this body stands, turned into its own frame (+z is its front).
 static func _wind_local(root: Node3D) -> Vector3:
@@ -201,6 +343,7 @@ static func _hair_wind(root: Node3D, k: float) -> void:
 
 ## How the cloak moves with its wearer: speed in metres a second, 0 standing.
 static func cloak_motion(root: Node3D, speed: float) -> void:
+	_legs_to_cloth(root)
 	var m: MeshInstance3D = root.get_meta("cloak", null) if root.has_meta("cloak") else null
 	if m == null:
 		for c in root.find_children("Cloak", "MeshInstance3D", true, false):
@@ -249,6 +392,8 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 			m.visible = false
 		if n == "Cloak":
 			_cloak_from_shoulders(m, look.base, sk)
+		elif n in ["Coat", "Shawl"]:
+			_densify(m)
 		if n in ["Skirt", "Cloak", "Shawl", "Coat"]:
 			var spec: Array = look.get(n.to_lower(), [])
 			var cut := 1.0
@@ -266,11 +411,19 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 				gm.set_shader_parameter("base", spec[0]); gm.set_shader_parameter("style", spec[1]); gm.set_shader_parameter("trim", spec[2])
 				gm.set_shader_parameter("pleats", n == "Skirt")
 				gm.set_shader_parameter("cut", cut)
+				# The cloak and coat are coarse even subdivided: they stand off the leg a
+				# little more than a skirt does.
+				gm.set_shader_parameter("leg_grow", 1.45 if n == "Cloak" else (1.25 if n == "Coat" else 1.05))
 				m.material_override = gm
+				var gl: Array = root.get_meta("garment_mats", [])
+				gl.append(gm)
+				root.set_meta("garment_mats", gl)
 		elif n.begins_with("Hair") or n.begins_with("Eyebrows"):
 			# The pack ships hair as a grey map meant to be tinted. Hair (not brows)
 			# goes to a shader that lets it move in the wind (Hero.cloak_motion).
 			var aabb := m.mesh.get_aabb()
+			if n.begins_with("Hair"):
+				_bake_rest(m)
 			for i in m.mesh.get_surface_count():
 				var src: BaseMaterial3D = m.get_active_material(i)
 				if n.begins_with("Hair") and src != null:
@@ -280,6 +433,7 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 					if src.albedo_texture: hm.set_shader_parameter("tex", src.albedo_texture)
 					hm.set_shader_parameter("top", aabb.end.y)
 					hm.set_shader_parameter("span", maxf(aabb.size.y, 0.1))
+					hm.set_shader_parameter("mid_z", aabb.get_center().z)
 					m.set_surface_override_material(i, hm)
 					var list: Array = root.get_meta("hair_mats", [])
 					list.append(hm)
@@ -294,6 +448,7 @@ static func instantiate(look_id: String, seed := 0, style := {}) -> Node3D:
 			elif n.begins_with("Hair"):
 				hairs.append(m)
 		elif look.has("p"):
+			_bake_rest(m)
 			for i in m.mesh.get_surface_count():
 				var src := m.get_active_material(i) as BaseMaterial3D
 				# Identify the atlas by its texture: material names do not survive import.

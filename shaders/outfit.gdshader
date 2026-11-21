@@ -24,7 +24,8 @@ uniform float sheen = 0.0;
 uniform bool mail = false;
 varying vec3 rest;
 
-void vertex() { rest = VERTEX; }
+// The rest pose, baked into CUSTOM0 by Hero._bake_rest: VERTEX here is already posed.
+void vertex() { rest = CUSTOM0.xyz; }
 
 void fragment() {
 	vec3 c = texture(albedo_tex, UV).rgb;

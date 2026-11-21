@@ -82,8 +82,14 @@ func _spawn(data: Dictionary, x: float, z: float, yaw := 0.0) -> Walker:
 			w.sk.position.y = 2.0 * wings.spread; w.sk.rotation.x = 1.15 * wings.spread
 	return w
 
+var hero_rigs: Array = []    # --mode=heroes: the figures, for --run
+
 func _process(dt: float) -> void:
 	frame += 1
+	# --run=speed: cloaks, skirts and hair move as the game moves them at that speed.
+	if args.has("run"):
+		for r in hero_rigs:
+			Hero.cloak_motion(r, float(args.run))
 	if events.has(frame):
 		events[frame].call()
 	var t0 := Time.get_ticks_usec()
@@ -250,7 +256,7 @@ func _mode_heroes() -> void:
 		var st := {} if cloaks.is_empty() else {cloak = cloaks[i], cloak_len = int(_f("len", -1)) if args.has("len") else i % 4}
 		var r := Hero.instantiate(ids[i], int(_f("seed", 1)) + i, st)
 		r.position = Vector3((i - (ids.size() - 1) * 0.5) * 1.0, 0, 0)
-		add_child(r); rigs.append(r)
+		add_child(r); rigs.append(r); hero_rigs.append(r)
 		var ap: AnimationPlayer = r.get_meta("anim")
 		if i == 0 and not args.has("quiet"): print("HERO clips ", ap.get_animation_list())
 		ap.play(args.get("clip", "Idle"))
