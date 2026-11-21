@@ -695,9 +695,10 @@ static func arm(root: Node3D, weapon_id: String) -> void:
 		at.add_child(holder)
 
 ## Play a written-out sword stroke (ArmPose.STROKES) over whatever clip is running.
-static func stroke(root: Node3D, id: String, land: float, after: float) -> void:
+static func stroke(root: Node3D, id: String, land: float, after: float, weapon := "") -> bool:
 	if root.has_meta("pose"):
-		(root.get_meta("pose") as ArmPose).stroke(id, land, after)
+		return (root.get_meta("pose") as ArmPose).stroke(id, land, after, weapon)
+	return false
 
 ## How the right hand holds what is in it: "" as carried, "couched" point-forward
 ## along the arm for a thrust.

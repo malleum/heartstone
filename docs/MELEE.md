@@ -226,8 +226,16 @@ Bare hands
       ichor on a hit (not built).
 - [x] Sounds: swing, steel on steel, steel on flesh, bowstring, arrow strike,
       footfall of a roll.
-- [ ] Stand-ins to replace with real animation: spear thrust, staff work, bow
-      draw, low sweep, two-handed grips, Aiel hand fighting.
+- [x] Stand-ins to replace with real animation: spear thrust, staff work, bow
+      draw, low sweep, two-handed grips, Aiel hand fighting. (21 Nov: written strokes,
+      `ArmPose.WRITTEN`, looked up by weapon, then family, then move: two hands on a spear
+      (thrust, jab, lunge, butt, low sweep) and on a staff or long hafted blade (cuts both
+      ways, overhead, butt, sweep); the Aiel spear one-handed over and under the buckler;
+      hand fighting with a lead-hand jab, a rear-hand cross, a front kick (the leg is
+      driven too: a key's seventh value is the foot) and a sweeping kick; an archer turns
+      side-on to draw. Built over the pack's clips, which still give the legs, as the sword
+      forms are. The pack has no spear, staff, bow or kick clips; truly new clips would be
+      made in Blender. `tools/strokes.sh weapon:move ...` shows them.)
 - [~] Camera: a slight pull-in when guarding (18 Nov, 0.8 m); lock-on to one enemy (optional, not done).
 
 ### 7. HUD and camp
@@ -242,18 +250,29 @@ Bare hands
 - [x] Controls shown in the camp and on first entering a fight.
 
 ### 8. Classes
-- [ ] **Warder:** (guarding a channeller and the bond's shared recovery are built;
+- [x] **Warder:** (guarding a channeller and the bond's shared recovery are built;
       21 Nov: the cloak: standing still a second, enemies pass him over for anyone else
-      unless he is within 3 m; sensing is not.) Kit of sword, bow, knife. Best guard. Bond to a channeller in
+      unless he is within 3 m. 21 Nov: the bond is real: each Warder is bonded to one
+      channeller on his side (`Sim._bond_all`, one without a Warder first); each senses the
+      other on the HUD, through walls (a knot over them, or an arrow at the edge, redder as
+      they are hurt, throbbing when struck); the faster recovery is the bonded pair's only;
+      when she falls he fights on in fury for 12 s (blows a quarter harder, no tiring),
+      and each is told when the other falls.) Kit of sword, bow, knife. Best guard. Bond to a channeller in
       the party: sense where they are, share stamina, gain when near them. The
       colour-shifting cloak: hard for enemies to target when still. Guarding a
       channeller mid-weave (blows aimed at them are drawn to the Warder).
-- [ ] **Aiel:** kit of spears and buckler, long knife, horn bow. Fastest, best
+- [x] **Aiel:** kit of spears and buckler, long knife, horn bow. Fastest, best
       sidestep, runs longest. No swords. Societies (Maidens, Stone Dogs, Red
-      Shields, Thunder Walkers) as a small bonus each. Veil.
-- [ ] **Hunter of the Horn:** any weapon; kits from the Two Rivers (longbow,
+      Shields, Thunder Walkers) as a small bonus each. Veil. (21 Nov: seven societies,
+      `Rules.SOCIETIES`, chosen at creation: Far Dareis Mai (women only: faster, cheaper
+      dodges), Stone Dogs (standing still, a fifth less from blows), Red Shields (parry
+      window a third longer), Thunder Walkers (spears +10%), Knife Hands (knife and hand
+      +12%), Water Seekers (breath back a fifth faster), Brothers of the Eagle (horn bow
+      drawn a fifth faster). Women take the spear only as Maidens, as in the books.)
+- [x] **Hunter of the Horn:** any weapon; kits from the Two Rivers (longbow,
       staff), the Band of the Red Hand (crossbow, pike, ashandarei), a gleeman's
-      knives, a blacksmith's hammer and axe.
+      knives, a blacksmith's hammer and axe. (21 Nov: `Rules.KITS`, a card at creation
+      that sets out the three weapons; taken whole, a level in each of their families.)
 - [x] **Channellers with a weapon:** one weapon, skill ceiling 4 of 10, dodging
       costs more (built earlier). 21 Nov: from Tar Valon, a man starts with a sword and a
       woman with a belt knife.
@@ -268,8 +287,11 @@ Bare hands
 - [ ] A fighter and a channeller of equal hours should each feel needed: the
       fighter holds what the channeller cannot afford to have reach them.
 - [ ] Skill pacing per family; what each level gives.
-- [ ] Renown and activities that suit fighters (hold the breastwork, guard the
-      Aes Sedai, a duel in the yard).
+- [~] Renown and activities that suit fighters (hold the breastwork, guard the
+      Aes Sedai, a duel in the yard). (21 Nov: Guard the Aes Sedai, a doorway of its own:
+      she seals a Waygate for seven minutes and cannot defend herself; enemies go for her
+      above anyone; if she goes down it is lost. Bots keep by her. Not done: the duel in
+      the yard.)
 - [x] Sparring between a fighter and a channeller in Tel'aran'rhiod (dream moves and Will; blows and weaves scaled down between players).
 - [x] Wounds that last until Healed (18 Nov: 30% of each hurt is a wound, up to 60%
       of health; rest cannot mend past it; Healing closes it), so a Healer matters.

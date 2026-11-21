@@ -19,7 +19,7 @@
     "leg_sweep": {"name": "Leg sweep", "wind": 0.35, "recover": 0.5, "arc": 70, "reach": 1.0, "dmg": 0.5, "cost": 10, "hits": 4, "height": "low", "on_hit": {"down": 1.8}, "clip": "Melee_Hook", "at": 0.4, "trail": "low"},
     "punch": {"name": "Strike", "wind": 0.16, "recover": 0.2, "arc": 25, "reach": 1.0, "dmg": 1.0, "cost": 3, "hits": 1, "clip": "Punch_Jab", "at": 0.35, "trail": "lance"},
     "cross": {"name": "Cross", "wind": 0.2, "recover": 0.26, "arc": 25, "reach": 1.0, "dmg": 1.3, "cost": 4, "hits": 1, "on_hit": {"stagger": 0.3}, "clip": "Punch_Cross", "at": 0.35, "trail": "lance"},
-    "kick": {"name": "Kick", "wind": 0.34, "recover": 0.45, "arc": 30, "reach": 1.3, "dmg": 1.8, "cost": 9, "hits": 1, "on_hit": {"push": 7, "stagger": 0.7}, "clip": "Melee_Hook", "at": 0.4, "trail": "lance"},
+    "kick": {"name": "Kick", "wind": 0.34, "recover": 0.45, "arc": 30, "reach": 1.3, "dmg": 1.8, "cost": 9, "hits": 1, "on_hit": {"push": 7, "stagger": 0.7}, "clip": "Punch_Jab", "at": 0.35, "trail": "lance"},
     "bash": {"name": "Shield bash", "wind": 0.26, "recover": 0.4, "arc": 40, "reach": 0.8, "dmg": 0.6, "cost": 9, "hits": 2, "lunge": 1.2, "on_hit": {"stagger": 1.1, "push": 5}, "clip": "Shield_Dash", "at": 0.4, "trail": "lance"},
     "throw": {"name": "Throw", "wind": 0.3, "recover": 0.32, "cost": 6, "missile": true, "clip": "OverhandThrow", "at": 0.45},
     "flick": {"name": "Flick a knife", "wind": 0.16, "recover": 0.2, "cost": 3, "missile": true, "clip": "OverhandThrow", "at": 0.45},

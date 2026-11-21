@@ -249,9 +249,19 @@ func _mode_heroes() -> void:
 		if args.has("only"): strokes = Array(args.only.split(","))
 		ids = []
 		for k in strokes: ids.append(args.strokes if args.strokes != "1" else "warder")
+		# "weapon:move" (e.g. quarterstaff:cut) arms that weapon and plays the move's clip
+		# as the game does, with its stroke over it.
 		events[int(_f("at", 10))] = func() -> void:
 			for i in rigs.size():
-				Hero.stroke(rigs[i], strokes[i], _f("land", 0.5), _f("after", 0.5))
+				var sid: String = strokes[i]
+				if sid.contains(":"):
+					var wpn := sid.get_slice(":", 0); var mv := sid.get_slice(":", 1)
+					var ap2: AnimationPlayer = rigs[i].get_meta("anim")
+					var clip: String = Rules.moves[mv].clip
+					ap2.play(clip, 0.08, clampf(ap2.get_animation(clip).length * float(Rules.moves[mv].get("at", 0.4)) / _f("land", 0.5), 0.35, 4.0))
+					Hero.stroke(rigs[i], mv, _f("land", 0.5), _f("after", 0.5), wpn)
+				else:
+					Hero.stroke(rigs[i], sid, _f("land", 0.5), _f("after", 0.5))
 	for i in ids.size():
 		var st := {} if cloaks.is_empty() else {cloak = cloaks[i], cloak_len = int(_f("len", -1)) if args.has("len") else i % 4}
 		# --style=key:v,key:v (e.g. f_jaw:2,f_nose:-2): the same style for each figure;
@@ -268,7 +278,8 @@ func _mode_heroes() -> void:
 		if i == 0 and not args.has("quiet"): print("HERO clips ", ap.get_animation_list())
 		ap.play(args.get("clip", "Idle"))
 		if not strokes.is_empty():
-			Hero.arm(r, "sword"); ap.play(args.get("clip", "Sword_Idle"))
+			var sw: String = String(strokes[i]).get_slice(":", 0) if String(strokes[i]).contains(":") else "sword"
+			Hero.arm(r, "" if sw == "hands" else sw); ap.play(args.get("clip", "Sword_Idle"))
 		# --arms=a,b,c: each figure holds its own weapon (looking at weapon models).
 		if args.has("arms"):
 			Rules.load_data()

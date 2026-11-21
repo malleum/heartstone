@@ -88,15 +88,117 @@ const STROKES := {
 		[1.0, Vector3(0.0, 0.0, 0.62), Vector3(0.0, -0.06, 1.0), 0.45, 0.4, 0.0],
 		[1.6, Vector3(0.0, -0.02, 0.6), Vector3(0.0, -0.1, 1.0), 0.45, 0.42, 0.0]]},
 }
+
+## --- the stand-ins, written out (21 Nov) ---------------------------------------------
+## Looked up as "<weapon>:<move>", then "<family>:<move>", then "<move>". `two`: both
+## hands on the shaft, the left `gap` metres along it toward the point (negative: under
+## the right, on a hilt). `arm` "l": the left arm makes it (x is then outward to the
+## left). `fist`: nothing in the hand to turn. A key's seventh value is where the right
+## foot goes, from the hip (right, up, forward, metres): a kick, a sweep.
+## Two hands on a spear: the left forward on the shaft, the body turned side-on.
+const WRITTEN := {
+	"spear:spear_thrust": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.05, -0.42, -0.2), Vector3(-0.1, 0.1, 1.0), -0.7, -0.05, 0.0],
+		[0.6, Vector3(0.06, -0.42, -0.26), Vector3(-0.1, 0.08, 1.0), -0.78, -0.08, 0.0],
+		[1.0, Vector3(-0.05, -0.3, 0.3), Vector3(-0.05, 0.02, 1.0), -0.2, 0.3, 0.0],
+		[1.5, Vector3(0.0, -0.36, 0.1), Vector3(-0.08, 0.08, 1.0), -0.45, 0.12, 0.0]]},
+	"spear:spear_jab": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.04, -0.4, -0.06), Vector3(-0.1, 0.12, 1.0), -0.6, 0.0, 0.0],
+		[1.0, Vector3(0.0, -0.34, 0.2), Vector3(-0.06, 0.06, 1.0), -0.4, 0.15, 0.0],
+		[1.4, Vector3(0.04, -0.4, 0.0), Vector3(-0.1, 0.1, 1.0), -0.55, 0.05, 0.0]]},
+	"spear:spear_lunge": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.08, -0.3, -0.35), Vector3(-0.1, 0.2, 1.0), -0.9, -0.12, 0.0],
+		[0.6, Vector3(0.09, -0.3, -0.4), Vector3(-0.1, 0.22, 1.0), -0.95, -0.15, 0.0],
+		[1.0, Vector3(-0.1, -0.15, 0.45), Vector3(0.0, 0.08, 1.0), 0.0, 0.45, 0.0],
+		[1.6, Vector3(-0.05, -0.25, 0.3), Vector3(-0.05, 0.1, 1.0), -0.2, 0.35, 0.0]]},
+	# The butt brought up under the jaw, the point dropping behind.
+	"spear:butt": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.05, -0.42, -0.15), Vector3(-0.1, 0.15, 1.0), -0.6, 0.0, 0.0],
+		[1.0, Vector3(-0.05, 0.05, 0.35), Vector3(-0.1, -0.95, -0.3), 0.2, 0.1, 0.0],
+		[1.5, Vector3(0.0, -0.2, 0.15), Vector3(-0.05, -0.3, 0.95), -0.2, 0.05, 0.0]]},
+	# Swept low across the shins, bent into it.
+	"spear:leg_sweep": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.35, -0.3, -0.05), Vector3(0.5, -0.4, -0.75), -0.8, 0.2, 0.0],
+		[1.0, Vector3(0.0, -0.45, 0.4), Vector3(-0.75, -0.55, 0.4), 0.3, 0.5, 0.0],
+		[1.5, Vector3(-0.15, -0.42, 0.3), Vector3(-0.85, -0.45, -0.2), 0.6, 0.45, 0.0]]},
+	# A long hafted blade (ashandarei, halberd) cuts like a staff, both hands.
+	"spear:cut": {two = true, gap = 0.45, keys = [
+		[0.0, Vector3(0.35, 0.05, 0.0), Vector3(0.6, 0.3, -0.75), -0.7, 0.0, 0.0],
+		[1.0, Vector3(0.0, -0.05, 0.4), Vector3(-0.85, 0.15, 0.5), 0.3, 0.1, 0.0],
+		[1.5, Vector3(-0.15, -0.1, 0.3), Vector3(-0.8, 0.0, -0.3), 0.7, 0.05, 0.0]]},
+	"spear:backcut": {two = true, gap = 0.45, keys = [
+		[0.0, Vector3(-0.05, 0.0, 0.25), Vector3(-0.5, 0.2, 0.85), 0.5, 0.05, 0.0],
+		[1.0, Vector3(0.15, 0.0, 0.35), Vector3(-0.85, -0.05, -0.5), -0.4, 0.1, 0.0],
+		[1.5, Vector3(0.2, -0.1, 0.25), Vector3(-0.7, -0.1, -0.7), -0.6, 0.05, 0.0]]},
+	"spear:finisher": {two = true, gap = 0.45, keys = [
+		[0.0, Vector3(0.1, 0.45, -0.05), Vector3(-0.2, 0.6, -0.75), -0.2, -0.2, 0.0],
+		[0.6, Vector3(0.1, 0.5, -0.1), Vector3(-0.2, 0.5, -0.85), -0.25, -0.25, 0.0],
+		[1.0, Vector3(0.0, 0.05, 0.45), Vector3(-0.15, -0.35, 0.92), 0.0, 0.4, 0.0],
+		[1.5, Vector3(0.0, -0.15, 0.4), Vector3(-0.1, -0.6, 0.8), 0.0, 0.45, 0.0]]},
+	# The Aiel's short spear, overhand or under, with the buckler on the other arm.
+	"aiel_spear:spear_jab": {keys = [
+		[0.0, Vector3(0.12, 0.25, -0.2), Vector3(0.0, -0.25, 1.0), -0.35, 0.0, 0.0],
+		[1.0, Vector3(0.0, 0.15, 0.5), Vector3(0.0, -0.15, 1.0), 0.25, 0.15, 0.0],
+		[1.4, Vector3(0.1, 0.2, 0.0), Vector3(0.0, -0.2, 1.0), -0.2, 0.05, 0.0]]},
+	"aiel_spear:spear_thrust": {keys = [
+		[0.0, Vector3(0.15, -0.4, -0.15), Vector3(-0.1, 0.2, 1.0), -0.4, 0.0, 0.0],
+		[1.0, Vector3(0.0, -0.25, 0.5), Vector3(-0.05, 0.1, 1.0), 0.3, 0.25, 0.0],
+		[1.5, Vector3(0.08, -0.35, 0.2), Vector3(-0.08, 0.15, 1.0), 0.0, 0.1, 0.0]]},
+	"aiel_spear:spear_lunge": {keys = [
+		[0.0, Vector3(0.2, 0.35, -0.35), Vector3(0.0, -0.1, 1.0), -0.7, -0.1, 0.0],
+		[0.6, Vector3(0.22, 0.38, -0.4), Vector3(0.0, -0.08, 1.0), -0.75, -0.12, 0.0],
+		[1.0, Vector3(-0.05, 0.1, 0.6), Vector3(0.0, -0.25, 1.0), 0.35, 0.4, 0.0],
+		[1.5, Vector3(0.0, 0.05, 0.5), Vector3(0.0, -0.2, 1.0), 0.3, 0.4, 0.0]]},
+	"aiel_spear:leg_sweep": {keys = [
+		[0.0, Vector3(0.4, -0.2, 0.0), Vector3(0.6, -0.5, -0.4), -0.6, 0.25, 0.0],
+		[1.0, Vector3(0.0, -0.45, 0.45), Vector3(-0.6, -0.6, 0.5), 0.3, 0.5, 0.0],
+		[1.5, Vector3(-0.2, -0.4, 0.3), Vector3(-0.85, -0.4, 0.2), 0.5, 0.45, 0.0]]},
+	# Hand fighting: the lead hand's jab, the rear hand's cross, a front kick, a sweep.
+	"hand:punch": {arm = "l", fist = true, keys = [
+		[0.0, Vector3(0.05, -0.12, 0.12), Vector3(0.0, 0.0, 1.0), -0.15, 0.0, 0.0],
+		[1.0, Vector3(-0.12, 0.0, 0.52), Vector3(0.0, 0.0, 1.0), -0.35, 0.08, 0.0],
+		[1.4, Vector3(0.05, -0.1, 0.15), Vector3(0.0, 0.0, 1.0), -0.15, 0.0, 0.0]]},
+	"hand:cross": {fist = true, keys = [
+		[0.0, Vector3(0.05, -0.12, 0.1), Vector3(0.0, 0.0, 1.0), -0.4, 0.0, 0.0],
+		[1.0, Vector3(-0.12, 0.0, 0.55), Vector3(0.0, 0.0, 1.0), 0.45, 0.1, 0.0],
+		[1.4, Vector3(0.05, -0.1, 0.15), Vector3(0.0, 0.0, 1.0), 0.0, 0.0, 0.0]]},
+	"hand:kick": {fist = true, keys = [
+		[0.0, Vector3(0.02, -0.12, 0.15), Vector3(0.0, 0.0, 1.0), 0.0, 0.0, 0.0, Vector3(0.06, -0.86, 0.02)],
+		[0.5, Vector3(0.02, -0.12, 0.15), Vector3(0.0, 0.0, 1.0), 0.0, -0.08, 0.0, Vector3(0.06, -0.42, 0.32)],
+		[1.0, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), 0.05, -0.18, 0.0, Vector3(0.0, -0.08, 0.78)],
+		[1.2, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), 0.05, -0.16, 0.0, Vector3(0.0, -0.12, 0.74)],
+		[1.6, Vector3(0.02, -0.12, 0.15), Vector3(0.0, 0.0, 1.0), 0.0, -0.05, 0.0, Vector3(0.06, -0.6, 0.25)]]},
+	"hand:leg_sweep": {fist = true, keys = [
+		[0.0, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), -0.5, 0.15, 0.0, Vector3(0.3, -0.84, -0.18)],
+		[1.0, Vector3(0.1, -0.2, 0.1), Vector3(0.0, 0.0, 1.0), 0.6, 0.35, 0.0, Vector3(-0.22, -0.84, 0.45)],
+		[1.5, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), 0.7, 0.3, 0.0, Vector3(-0.1, -0.84, 0.3)]]},
+}
+## Every stroke by name; staff work is spear work held in the middle (the same strokes,
+## two-handed).
+static var _all := {}
+static func _alias() -> void:
+	if not _all.is_empty():
+		return
+	_all = STROKES.merged(WRITTEN)
+	for mv in ["cut", "backcut", "finisher", "butt", "leg_sweep"]:
+		_all["staff:" + mv] = WRITTEN["spear:" + mv]
+	_all["staff:overhead"] = WRITTEN["spear:finisher"]
+	_all["spear:overhead"] = WRITTEN["spear:finisher"]
+
 var _stroke := {}
 var _st := 0.0
 var _land := 0.3
 var _total := 0.6
 
-## Begin a stroke: `land` seconds to the blow, `after` seconds of follow-through.
-func stroke(id: String, land: float, after: float) -> void:
-	_stroke = STROKES.get(id, {})
+## Begin a stroke: `land` seconds to the blow, `after` seconds of follow-through. The
+## weapon's own stroke for this move comes first, then its family's, then the move's.
+## Returns whether there was one.
+func stroke(id: String, land: float, after: float, weapon := "") -> bool:
+	_alias()
+	var fam: String = Rules.weapons.get(weapon, {}).get("family", "")
+	_stroke = _all.get(weapon + ":" + id, _all.get(fam + ":" + id, _all.get(id, {})))
 	_st = 0.0; _land = maxf(land, 0.05); _total = _land + maxf(after, 0.1)
+	return not _stroke.is_empty()
 
 func stop_stroke() -> void:
 	_stroke = {}
@@ -122,6 +224,18 @@ func _stroke_step() -> void:
 	var hand: Vector3 = (a[1] as Vector3).lerp(b[1], x)
 	var blade: Vector3 = (a[2] as Vector3).normalized().slerp((b[2] as Vector3).normalized(), x)
 	var twist: float = lerpf(a[3], b[3], x); var lean: float = lerpf(a[4], b[4], x); var knee: float = lerpf(a[5], b[5], x)
+	# The foot: where both keys have one it travels between them; where one has, it eases
+	# in or out of the clip's own step.
+	var foot := Vector3.ZERO; var foot_w := 0.0
+	if a.size() > 6 and b.size() > 6:
+		foot = (a[6] as Vector3).lerp(b[6], x); foot_w = 1.0
+	elif a.size() > 6:
+		foot = a[6]; foot_w = 1.0 - x
+	elif b.size() > 6:
+		foot = b[6]; foot_w = x
+	var lefty: bool = _stroke.get("arm", "") == "l"
+	if lefty:
+		hand.x = -hand.x; blade.x = -blade.x
 	var w := smoothstep(0.0, 0.07, _st) * (1.0 - smoothstep(_total - 0.16, _total, _st))
 	var sk := get_skeleton()
 	var right := -left
@@ -136,7 +250,20 @@ func _stroke_step() -> void:
 	weight = w
 	var world := func(v: Vector3) -> Vector3: return right * v.x + up * v.y + fwd * v.z
 	var bdir: Vector3 = world.call(blade).normalized()
+	if lefty:
+		# The lead hand: the left arm makes the blow, the right stays in guard.
+		_reach("upperarm_l", "lowerarm_l", "hand_l", world.call(hand), (left * 0.5 - up * 0.8 - fwd * 0.3).normalized())
+		_reach("upperarm_r", "lowerarm_r", "hand_r", world.call(Vector3(-0.04, -0.14, 0.14)), (right * 0.5 - up * 0.8 - fwd * 0.3).normalized())
+		_foot_step(foot, foot_w, w)
+		weight = save
+		return
 	var target := _reach("upperarm_r", "lowerarm_r", "hand_r", world.call(hand), (right * 0.5 - up * 0.8 - fwd * 0.3).normalized())
+	if _stroke.get("fist", false):
+		# Nothing held: the other hand stays up in guard.
+		_reach("upperarm_l", "lowerarm_l", "hand_l", world.call(Vector3(0.04, -0.14, 0.16)), (left * 0.5 - up * 0.8 - fwd * 0.3).normalized())
+		_foot_step(foot, foot_w, w)
+		weight = save
+		return
 	# The blade along its line, edge leading into the cut.
 	var vel: Vector3 = world.call((b[1] as Vector3) - (a[1] as Vector3) + ((b[2] as Vector3) - (a[2] as Vector3)) * 0.6)
 	var edge := vel - bdir * vel.dot(bdir)
@@ -148,13 +275,22 @@ func _stroke_step() -> void:
 		# The other hand under the first, on the same hilt.
 		var s_l := sk.find_bone("upperarm_l"); var s_r := sk.find_bone("upperarm_r")
 		if s_l >= 0 and s_r >= 0:
-			var off := target - bdir * 0.11 - sk.get_bone_global_pose(s_l).origin
+			var off := target + bdir * float(_stroke.get("gap", -0.11)) - sk.get_bone_global_pose(s_l).origin
 			_reach("upperarm_l", "lowerarm_l", "hand_l", off, (left * 0.5 - up * 0.8 - fwd * 0.3).normalized(), true)
 	if knee > 0.01:
 		weight = w * knee
 		_point("thigh_l", "calf_l", (fwd * 0.85 - up * 0.45 + left * 0.15).normalized())
 		_point("calf_l", "foot_l", (-up * 0.95 - fwd * 0.3).normalized())
+	_foot_step(foot, foot_w, w)
 	weight = save
+
+## The right foot to `foot` (from the hip: right, up, forward, metres), knee leading.
+func _foot_step(foot: Vector3, foot_w: float, w: float) -> void:
+	if foot_w <= 0.01:
+		return
+	var right := -left
+	weight = w * foot_w
+	_reach("thigh_r", "calf_r", "foot_r", right * foot.x + up * foot.y + fwd * foot.z, (fwd * 0.85 + up * 0.15 + right * 0.1).normalized(), true)
 
 ## Two-bone reach: put `tip` at `off` from the root bone (skeleton space; in metres
 ## on a 0.55 m arm unless `exact`), elbow toward `pole`. Returns where it went.
@@ -189,6 +325,14 @@ func _process_modification() -> void:
 	var aim := (fwd * cos(pitch) + up * sin(pitch)).normalized()
 	match mode:
 		"bow":
+			# An archer stands side-on to the mark: the trunk turned so the bow shoulder
+			# leads, the arms then pointed from where the shoulders are.
+			var skb := get_skeleton()
+			for bone in ["spine_01", "spine_02", "spine_03"]:
+				var bi := skb.find_bone(bone)
+				if bi >= 0:
+					var cur := skb.get_bone_global_pose(bi)
+					skb.set_bone_global_pose(bi, Transform3D(Basis(Quaternion(up, -0.75 * weight / 3.0)) * cur.basis, cur.origin))
 			# The bow arm straight out; the string hand from the bow back to the cheek,
 			# elbow high and out behind.
 			var bow_arm := (aim * 0.92 + left * 0.38).normalized()

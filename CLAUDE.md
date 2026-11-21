@@ -73,7 +73,8 @@ working on abilities; the user's rulings there are final).
   each a throwaway character in front of one thing, N/B/R to move on, nothing saved.
   Add a station when you add something that needs feeling. `--ally=warder|channeller`
   puts a bot friend beside the player.
-- `tools/strokes.sh` (the sword forms side by side, four moments each). Bench:
+- `tools/strokes.sh [weapon:move ...]` (the sword forms, or the named written moves, side by
+  side, four moments each; strokes in `ArmPose.STROKES`/`WRITTEN`, by weapon, family, move). Bench:
   `--mode=hound [--speed= --spring=<frame> --die=<frame>]`, `--species=draghkar|dreadlord`,
   `--mode=heroes --strokes` / `--cloaks=<look>`; lineup `--face=0.8 [--turn=deg]` looks the first one in the face. Game: `--spawn=type:n@metres`.
 - `tools/views.sh <name> [bench args]` (three views of a bench creature on one sheet)
