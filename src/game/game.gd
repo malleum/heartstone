@@ -768,6 +768,10 @@ func _on_started(_my_id: int, activity: String) -> void:
 		Toast.say("Back in the fight", "", "good", 4.0)
 		return
 	_started = true
+	# Which setup of a mode's doorway this is: from the fight itself (the server's,
+	# when joining one already running), so it names what is actually there.
+	if Rules.activities[activity].has("setup"):
+		Toast.say(Rules.activities[activity].name, Rules.activities[activity].get("blurb", ""), "info", 5.0)
 	in_battle = Rules.activities[activity].has("battle")
 	_stamp("session started")
 	if Launch.cmdline().get("ghost", "") in ["flow", "online"]:

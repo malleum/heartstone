@@ -340,7 +340,16 @@ are what the 4:44 review, or the next session, should pick up.
     strength (canon), which reads as a penalty for being helped. Plan: much smaller,
     or none when Healed by another (keep the cost on the Healer), and say it in the
     weave's card.
-  - **Through a doorway the world shown is not the fight's** (Trollocs come from
+  - [x] (20 Nov, Opus: two causes found and fixed; to confirm in play with two players) Causes:
+    `Map.use` never reset `Terrain.amp`, and the camp sets 0.25, so every fight entered
+    through a doorway was drawn and simulated on the camp's flattened ground while the
+    server's sim had the full-height one (weaves and arrows struck bumps nobody could
+    see; feet and bodies at other heights); and the camp named its own random setup in
+    a notice while the server's room ran the first arrival's. Now `Map.use` sets full
+    height, the camp opens onto the running room's setup when the lobby shows one, and
+    the fight names its own setup when it starts. Also `Map.state` now carries the
+    water, so a doorway's ponds no longer stay dug into the camp's ground.
+    **Through a doorway the world shown is not the fight's** (Trollocs come from
     elsewhere; invisible things block you). Likely: each camp picks its own random
     setup as you walk up (`Rules.pick_setup`), and the preview builds that map,
     while the server room was started on the first arrival's setup. Plan: the camp

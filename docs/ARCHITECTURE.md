@@ -782,8 +782,8 @@ and drop a bow draw for the blade within 2.5 m. See MELEE.md.
 ## Next steps, in order
 0. `BACKLOG.md` is the full list of what Josh has asked for; this is only an order.
    Its top section lists well-defined tasks for a lighter model, with briefs.
-1. The doorway world mismatch (camp picks its own setup; the server room runs the
-   first arrival's): it breaks fights.
+1. (Fixed 20 Nov, to confirm in play) The doorway world mismatch: the camp's flat
+   ground (`Terrain.amp`) leaked into doorway fights; the camp named its own setup.
 2. The camp link's lifecycle (errors when the camp leaves the tree).
 3. Performance, Windows first: measure, then frame cap, quality setting, cheaper
    doorway views, shadows.

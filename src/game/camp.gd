@@ -121,7 +121,17 @@ func _ready() -> void:
 		_loadout()
 	# Home from a fight: the doorway's light is still up; let the camp through
 	# once it has been drawn.
-	get_tree().create_timer(0.15).timeout.connect(func() -> void: Veil.lift(0.8))
+	_after(0.15, func() -> void: Veil.lift(0.8))
+
+## Call `fn` in `secs`, unless the camp is gone by then (a scene tree timer would
+## still fire, into a freed camp: "call on a null instance").
+func _after(secs: float, fn: Callable) -> void:
+	var tm := Timer.new(); tm.one_shot = true; tm.wait_time = secs
+	add_child(tm)
+	tm.timeout.connect(func() -> void:
+		tm.queue_free()
+		fn.call())
+	tm.start()
 
 func _exit_tree() -> void:
 	_close_link()
@@ -496,7 +506,7 @@ func _sync(name_: String, local: Dictionary) -> void:
 	# One connection at a time, and never by freeing another's: a doorway's fight
 	# loaded just now is left alone, and the character is kept a little later.
 	if get_tree().root.get_node_or_null("Session") != null:
-		get_tree().create_timer(5.0).timeout.connect(func() -> void: _sync(name_, local))
+		_after(5.0, func() -> void: _sync(name_, local))
 		return
 	var s := Session.new()
 	# (Deferred, and waited for: at start the root may still be setting up its
@@ -521,7 +531,7 @@ func _sync(name_: String, local: Dictionary) -> void:
 			_select(kept.name if newer else profile.get("name", ""), false)
 		_menu_fill()
 	s.vaulted.connect(finish)
-	get_tree().create_timer(6.0).timeout.connect(func() -> void: finish.call("no answer from the server", {}))
+	_after(6.0, func() -> void: finish.call("no answer from the server", {}))
 	s.vault_sync(Launch.server(), name_, online.key, local, online.get("word", ""))
 
 func _select(name_: String, sync := true) -> void:
@@ -865,7 +875,7 @@ func _poll_lobby(dt: float) -> void:
 		live.queue_free()
 		_heard(list, answered)
 	s.lobby.connect(func(list: Array) -> void: done.call(list, true))
-	get_tree().create_timer(5.0).timeout.connect(func() -> void: done.call(fights, false))
+	_after(5.0, func() -> void: done.call(fights, false))
 	s.ask_lobby(Launch.server(), word, profile.get("name", ""), where)
 
 func _heard_link(list: Array) -> void:
@@ -1685,9 +1695,12 @@ func _open_way(d: Dictionary) -> void:
 	# A mode's doorway opens onto a setup chosen now: a different place and foes
 	# each time you walk up to it.
 	var act := Rules.pick_setup(d.id)
+	# A fight already running behind this doorway is the one it opens onto (the
+	# server ignores our pick then); the fight says which setup it is when it starts.
+	for f in fights:
+		if String(f.get("room", "")) == d.id and Rules.activities.has(String(f.get("activity", ""))):
+			act = f.activity
 	var a := {activity = act, name = profile.name, preview = "1"}
-	if act != d.id:
-		Toast.say(Rules.activities[act].name, Rules.activities[act].blurb, "info", 5.0)
 	if (reachable or cl.has("ghost")) and not cl.has("offline"):
 		a.join = Launch.server(); a.word = online.get("word", ""); a.room = d.id
 	if cl.has("stroll"):

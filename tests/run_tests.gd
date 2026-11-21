@@ -129,6 +129,16 @@ func _water() -> void:
 	check(Map.water_depth(mid.x, mid.z) == 2, "the pond's middle is deep")
 	check(Map.water_depth(mid.x + pond.r * 0.8, mid.z) == 1, "its rim is shallow")
 	check(Map.unblock(Vector3(mid.x, 0, mid.z), 0.4).distance_to(mid) > pond.r * 0.55, "deep water is not walked: a body in it is put out")
+	# A fight's ground is always the full-height one, whatever the camp left behind,
+	# and the camp's saved ground carries its water (none) back with it.
+	Terrain.amp = 0.25
+	var camp_state := {}
+	Map.use("open", "camp"); camp_state = Map.state()
+	check(Terrain.amp == 1.0, "Map.use puts the ground back to full height (a doorway's fight was built on the camp's flat ground)")
+	Map.use("open", "camp_training")
+	Map.set_state(camp_state)
+	check(Map.water().is_empty(), "the camp's saved ground brings back its own water, not the doorway's")
+	Map.use("open", "camp_training")
 	# A Torrent from near water outdoes one far from it.
 	var prof := Profile.create({name = "Wet", cls = "channeller"})
 	prof.weaves["torrent"] = {known = true, xp = 0.0}

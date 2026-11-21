@@ -28,6 +28,11 @@ static var _water: Array = []
 static func use(map_id: String, activity := "") -> void:
 	id = map_id if MAPS.has(map_id) else "open"
 	m = MAPS[id]
+	# Every fight's ground is the full-height one. (The camp flattens its own after
+	# this; a doorway's fight built inside the camp used to keep the camp's flat
+	# ground while the server's sim had the real one: weaves and arrows struck
+	# bumps nobody could see.)
+	Terrain.amp = 1.0
 	_trees = []
 	_walls = []
 	_grid = {}
@@ -353,10 +358,10 @@ static func line_z() -> float:
 ## A camp doorway builds its fight's world while the camp is still walked in: the
 ## camp keeps its own copy and asks its heights and walls through it.
 static func state() -> Dictionary:
-	return {id = id, m = m, trees = _trees, walls = _walls, grid = _grid, amp = Terrain.amp}
+	return {id = id, m = m, trees = _trees, walls = _walls, grid = _grid, amp = Terrain.amp, water = _water}
 
 static func set_state(s: Dictionary) -> void:
-	id = s.id; m = s.m; _trees = s.trees; _walls = s.walls; _grid = s.grid; Terrain.amp = s.amp
+	id = s.id; m = s.m; _trees = s.trees; _walls = s.walls; _grid = s.grid; Terrain.amp = s.amp; _water = s.get("water", [])
 
 
 ## Water on each map (drawn by Scenery.water; the ground is dipped to hold it, see
