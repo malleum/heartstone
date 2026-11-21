@@ -323,6 +323,13 @@ better and, for Travelling, removes the strength gate.
   slow wheel of fire 10 to 30 ft across (Josh's description). The Rolling Ring rolls
   out as a wedge under 90 degrees wide, not a full circle (Josh's ruling for the game).
 
+## Balefire held (20 Nov, the user's ask)
+Woven like any weave (hold the mouse), but when whole it goes at once and burns for as
+long as the mouse stays down (0.6 s at least, `sweep_secs` 3 s times the root of
+strength at most), swinging after the crosshair at `turn` 75 degrees a second and
+costing `upkeep` half its draw each second. Each body it crosses is burned once.
+Right click or letting go puts it out. Bots loose it as a short burst.
+
 ## Water from water (built 19 Nov; the design below, with these choices)
 Built: `Map._waters` (per map: the training yard's horse pond, a stream and pool in
 Tarwin's Gap, a pond outside the wagon ring, a river across the Wild Hunt's corner),

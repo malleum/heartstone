@@ -189,6 +189,47 @@ func _water() -> void:
 		sim3.events.clear()
 	check(drowned and not burst and sim3.ents[foe3].hp >= sim3.ents[foe3].max_hp, "a fireball is drowned in it and never bursts")
 
+func _held_balefire() -> void:
+	print("== Balefire held: burns while held, follows the aim, costs breath, goes out when let go")
+	var sim := Sim.new("practice", 7)
+	sim._waves = []
+	var p := Profile.create({name = "Bale"})
+	p.weaves["balefire"] = {known = true, xp = 0.0}
+	var id := sim.add_player(p, Vector3(0, 0, 0))
+	var me: Dictionary = sim.ents[id]
+	me.yaw = PI
+	sim._add_enemy("dummy", Vector3(0, 0, -12)); var a: int = sim._next - 1
+	sim._add_enemy("dummy", Vector3(12, 0, 0)); var b: int = sim._next - 1
+	sim._add_enemy("dummy", Vector3(0, 0, 60))   # (keeps the exercise going: it ends when all are down)
+	me.beam_hold = true
+	sim._cast(me, "balefire", Vector3(0, 1, -12))
+	var st0: float = me.stamina
+	sim.step(0.05)
+	check(not sim.ents[a].alive, "it burns the one it is aimed at")
+	check(sim.ents[b].alive, "and not one off to the side")
+	# Swing it round onto the second, still held.
+	sim.aim_cast(id, Vector3(12, 1, 0), true)
+	var burning := 0
+	for i in 40:
+		sim.step(0.05)
+		for fx in sim.effects:
+			if fx.kind == "sweep": burning = i
+	check(not sim.ents[b].alive, "held, it swings after the aim onto another")
+	check(me.stamina < st0, "and costs breath while it burns")
+	check(burning == 39, "it is still burning while held (a starting channeller's lasts %.1f s)" % (float(Rules.weaves.balefire.base.sweep_secs) * clampf(sqrt(Rules.scale(p, "balefire", me.stamina_max)), 0.5, 2.2)))
+	# Woven again, held, then let go: out within a moment.
+	me.cd = {}
+	me.stamina = me.stamina_max
+	me.beam_hold = true
+	sim._cast(me, "balefire", Vector3(-12, 1, 0))
+	for i in 4: sim.step(0.05)
+	sim.aim_cast(id, Vector3(-12, 1, 0), false)
+	for i in 16: sim.step(0.05)
+	var left := false
+	for fx in sim.effects:
+		if fx.kind == "sweep": left = true
+	check(not left, "let go, it goes out")
+
 func _fasten_players() -> void:
 	print("== Bonds of Air can fasten on a player in any mode")
 	var sim := Sim.new("practice", 3)
@@ -1520,6 +1561,7 @@ func _init() -> void:
 	_arms()
 	_holds()
 	_water()
+	_held_balefire()
 	_fasten_players()
 	_foes()
 	_powers()

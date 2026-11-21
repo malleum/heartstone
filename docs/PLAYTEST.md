@@ -147,3 +147,5 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 13. (18 Nov) Sword and round shield (a Warder's kit item): hold right click with the
    shield toward an archer and arrows glance off; the heavy blow is a shield bash
    that shoves. Assumed: turns anything within about 70 degrees of where you face.
+
+- Held Balefire (20 Nov): turns after the crosshair at 75 degrees a second, burns up to 3 s (times the root of strength), at least 0.6 s on a click, costs half its draw each second. Assumed: a slow, heavy sweep you steer, not a laser pointer; it burns each body once. Feel the turn rate and whether 3 s is too much.

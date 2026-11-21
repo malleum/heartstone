@@ -789,5 +789,5 @@ and drop a bow draw for the blade within 2.5 m. See MELEE.md.
    doorway views, shadows.
 4. Prepared and multiple weaves, and a better weave bar (design with the user).
 5. Balance by play: weave_scale, Rolling Ring, health, Healing's cost.
-6. Water from map water (design in WEAVES.md), the wall weave, gateway placement.
+6. (Water and held Balefire built 20 Nov.) The Air wall weave, gateway placement.
 7. The super backlog: multi-stage runs; casting by drawing (see VISION.md).

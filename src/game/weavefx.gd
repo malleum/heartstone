@@ -336,6 +336,10 @@ static func live(g: Node3D, kind: String, weave := "") -> Node3D:
 			n.free()
 			n = Blossom.new()
 			g.add_child(n)
+		"sweep":
+			n.free()
+			n = Sweep.new()
+			g.add_child(n)
 		"missile" when weave == "dark_fire":
 			# A Dreadlord's fire: a red-black ball with a dull trail.
 			var s := SphereMesh.new(); s.radius = 0.3; s.height = 0.6
@@ -589,6 +593,49 @@ class Blossom extends Node3D:
 ## The Rolling Ring of Earth and Fire: a wedge of churned ground and flame rolling
 ## out the way it was thrown. Teeth of rock heave up and fall along its front as
 ## it goes. The game feeds it its radius and heading from the sim.
+## Balefire held: a bar of liquid white fire from the hands, as long as its reach,
+## turned with the weaver (set_r gives its length and heading). A hard white core, a
+## boiling body round it, a pale ghost wider still, light all along, and where it
+## ends the air is torn into sparks.
+class Sweep extends Node3D:
+	var len := 70.0
+	var parts: Array = []
+	var lamps: Array = []
+	var spark: GPUParticles3D
+
+	func _ready() -> void:
+		for spec in [[0.09, Color(1.0, 1.0, 0.95), 12.0], [0.3, Color(1.0, 0.92, 0.7), 3.5], [0.9, Color(0.62, 0.52, 0.95), 0.5]]:
+			var c := CylinderMesh.new(); c.top_radius = spec[0]; c.bottom_radius = spec[0]; c.height = 1.0; c.radial_segments = 10; c.rings = 1
+			var mi := Weavefx._mesh(c, spec[1], spec[2])
+			if spec[0] > 0.2:
+				# The body and the ghost round it glow through each other (added light,
+				# faint), not a solid pipe.
+				var m: StandardMaterial3D = mi.material_override
+				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+				m.albedo_color.a = 0.08 if spec[0] > 0.5 else 0.45
+				m.emission_energy_multiplier = spec[2] * (0.25 if spec[0] > 0.5 else 0.6)
+			mi.rotation.x = PI * 0.5
+			add_child(mi); parts.append(mi)
+		for i in 4:
+			var l := Weavefx._light(Color(1.0, 0.96, 0.88), 6.0, 14.0)
+			add_child(l); lamps.append(l)
+		spark = Weavefx._particles(Color(1.0, 0.95, 0.8), 60, 0.5, 0.08, 6.0, -4.0)
+		add_child(spark)
+
+	func set_r(r: float, yaw: float) -> void:
+		len = maxf(r, 1.0)
+		rotation.y = yaw
+
+	func _process(_dt: float) -> void:
+		var boil := 1.0 + 0.12 * sin(Time.get_ticks_msec() * 0.031) + 0.08 * sin(Time.get_ticks_msec() * 0.077)
+		for i in parts.size():
+			var mi: MeshInstance3D = parts[i]
+			mi.scale = Vector3(boil if i > 0 else 1.0, len, boil if i > 0 else 1.0)
+			mi.position = Vector3(0, 0.2, len * 0.5 + 0.6)
+		for i in lamps.size():
+			(lamps[i] as OmniLight3D).position = Vector3(0, 0.2, 0.6 + len * (i + 0.5) / lamps.size() * 0.5)
+		spark.position = Vector3(0, 0.2, len + 0.6)
+
 class Wedge extends Node3D:
 	var r := 0.5
 	var half := 0.6
@@ -976,6 +1023,11 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 	var b: Dictionary = Rules.weaves[e.weave].base
 	Sfx.play(g, "whoosh", from, -6.0)
 	match e.kind:
+		"beam" when Rules.weaves[e.weave].get("sweep", false):
+			# Held Balefire: the bar is the live `Sweep`; here only the flare at the hands.
+			_once(_particles(Color(1.0, 0.95, 0.8), 40, 0.6, 0.1, 6.0, 0.0), g, from + e.dir * 1.0)
+			Sfx.play(g, "crack", from, 2.0, 0.6)
+			if g.has_method("shake_at"): g.shake_at(from, 2.0)
 		"beam":
 			# Balefire: a white-hot bar with a wider halo that lingers as an afterimage.
 			var to: Vector3 = from + e.dir * b.range

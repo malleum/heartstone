@@ -206,6 +206,7 @@ func _on_lost() -> void:
 		session.join(args.join, profile, "_rejoin", args.get("word", ""), args.get("room", ""), false))
 
 var weaving := false              # the mouse is held on a weave being made
+var _sweeping := false            # my Balefire is burning (it follows my aim while held)
 var my_form := {}                 # {weave, since, time, ready}: my weave in the making, for the HUD
 var spanned := {}                 # crossbow -> clock time it will be spanned again
 
@@ -592,8 +593,9 @@ func _process(dt: float) -> void:
 			var bat := _aim_point()
 			face_yaw = atan2(bat.x - me.position.x, bat.z - me.position.z)
 			aim_t = 0.3
-		if not my_form.is_empty() and me:
+		if (not my_form.is_empty() or _sweeping) and me:
 			# Face where the weave will go, and keep the host told (a few times a second).
+			# (Balefire burning: the same, so it swings after the crosshair.)
 			var at := _aim_point()
 			face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
 			aim_t = 0.3
@@ -622,7 +624,17 @@ func _process(dt: float) -> void:
 		var spot: PackedStringArray = dspots[(frame / dgap) % dspots.size()].split("@")
 		var dyaw: float = dp.yaw + deg_to_rad(float(spot[1]) if spot.size() > 1 else 0.0)
 		if Rules.weaves.has(dweave):
+			dp.beam_hold = Rules.weaves[dweave].get("sweep", false)
 			session.sim._cast(dp, dweave, dp.pos + Vector3(sin(dyaw), 0, cos(dyaw)) * float(spot[0]) + Vector3(0, 1.0, 0))
+	# A sweeping weave in --demo (Balefire): held for 2.5 s, swung side to side.
+	if args.has("demo") and session.is_host and me and Rules.weaves.get(args.demo.split(":")[0], {}).get("sweep", false):
+		var into := (frame - 100) % dgap
+		if into > 0 and into < 90:
+			var dp3: Dictionary = session.sim.ents[session.my_id]
+			var base_yaw: float = dp3.get("demo_yaw", dp3.yaw)
+			if into == 1: dp3.demo_yaw = dp3.yaw; base_yaw = dp3.yaw
+			var sy: float = base_yaw + sin(into / 90.0 * TAU) * deg_to_rad(55.0)
+			session.sim.aim_cast(session.my_id, dp3.pos + Vector3(sin(sy), 0, cos(sy)) * 20.0 + Vector3(0, 1, 0), into < 75)
 	# --demo2=weave:metres: a second weave, woven 40 frames after each --demo one (a
 	# fireball at a Wall of Water, say).
 	if args.has("demo2") and frame % dgap == (140) % dgap and session.is_host and me:
@@ -1836,6 +1848,10 @@ func _on_events(list: Array) -> void:
 				if not told.has("gate_kill"):
 					told.gate_kill = true
 					_banner("A gateway kills the Shadow's creatures\nShove them through it.", 4.0, "good")
+			"sweep_on":
+				if e.id == session.my_id: _sweeping = true
+			"sweep_off":
+				if e.id == session.my_id: _sweeping = false
 			"surge":
 				Weavefx.surge(self, e)
 			"curtain":

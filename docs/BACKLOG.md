@@ -359,7 +359,8 @@ are what the 4:44 review, or the next session, should pick up.
     different activity from the one it built.
   - **Rolling Ring: less area and less damage** (both its earth and fire forms).
     Data: its width/range and damage in weaves.json.
-  - **Balefire held and aimed while it burns:** a beam that lasts while the button
+  - [x] (20 Nov, Opus) Built: hold the mouse to weave it; when whole it fires at once and burns while held (at least 0.6 s; up to 3 s, longer for the strong), swinging after the crosshair at 75 degrees a second, costing half its draw each second; let go or right click and it goes out; whatever the bar crosses is burned once (and burned out of the Pattern as before). Data: `sweep` and `sweep_secs/min_secs/turn/upkeep` on the balefire row; sim effect `sweep`; `Weavefx.Sweep`. PLAYTEST: turn rate, length, cost.
+    **Balefire held and aimed while it burns:** a beam that lasts while the button
     is held and follows the aim, paid for per second, instead of one instant bar.
   - **Double everyone's starting health** (Rules.CLASSES hp; check enemy damage and
     the downed threshold keep their sense).

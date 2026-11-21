@@ -243,6 +243,10 @@ func tie(id: int, weave: String) -> String:
 ## Let go of a weave being made, or made and held back, without loosing it.
 func cancel_weave(id: int) -> String:
 	var p: Dictionary = ents.get(id, {})
+	# Right click with Balefire burning puts it out.
+	for fx in effects:
+		if fx.kind == "sweep" and fx.owner == id:
+			fx.holding = false; fx.age = maxf(fx.age, 99.0)
 	if p.is_empty() or p.forming.is_empty():
 		return "nothing being woven"
 	events.append({e = "cancel", id = id, weave = p.forming.weave})
@@ -349,6 +353,12 @@ func aim_cast(id: int, aim: Vector3, hold: bool) -> void:
 	if not p.forming.is_empty():
 		p.forming.aim = aim
 		p.forming.hold = hold
+		return
+	# Balefire burning: it follows the aim, and goes out when let go.
+	for fx in effects:
+		if fx.kind == "sweep" and fx.owner == id:
+			fx.aim = aim
+			fx.holding = hold
 
 # --- arms: intent ---------------------------------------------------------------------
 
@@ -1294,7 +1304,11 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	p.forming.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0)
 	if p.forming.left > 0.0:
 		return
-	if p.forming.hold:
+	# A weave that sweeps (Balefire) goes as soon as it is whole: holding on is what
+	# keeps it burning (`sweep` effect), not what holds it back.
+	var sweeps: bool = Rules.weaves[p.forming.weave].get("sweep", false)
+	p.beam_hold = p.forming.hold and sweeps
+	if p.forming.hold and not sweeps:
 		# Whole, and held back in the hands until it is let go.
 		if not p.forming.ready:
 			p.forming.ready = true
@@ -1572,6 +1586,12 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 					e.vel = d.normalized() * b.push
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
 					_hurt(e, b.damage * k, p.id, weave)
+		"beam" when w.get("sweep", false):
+			# Balefire held: a bar of it that burns while the weaver holds on (at least
+			# a moment), swinging after the aim at a walk, paid for each second.
+			effects.append({kind = "sweep", owner = p.id, weave = weave, pos = p.pos, yaw = atan2(dir.x, dir.z), aim = aim, holding = p.get("beam_hold", false),
+				age = 0.0, left = float(b.sweep_secs) * kr, rad = float(b.range), width = float(b.width), dmg = b.damage * k, hit = [], id = _fx_id()})
+			events.append({e = "sweep_on", id = p.id, fx = effects[-1].id})
 		"line", "beam", "lash":
 			var reach_m: float = b.range * kr
 			match _power_of(weave):
@@ -2294,6 +2314,31 @@ func _step_effects(dt: float) -> void:
 					fx.pos.y = Terrain.height(fx.pos.x, fx.pos.z)
 					_blast(fx.owner, fx.weave, fx.pos, fx.radius, fx.dmg)
 					alive = false
+			"sweep":
+				var bw: Dictionary = Rules.weaves[fx.weave].base
+				fx.age += dt; fx.left -= dt
+				fx.pos = owner.pos
+				# Swings after the aim, no faster than `turn` degrees a second.
+				var want := atan2(fx.aim.x - owner.pos.x, fx.aim.z - owner.pos.z)
+				var dyaw := wrapf(want - fx.yaw, -PI, PI)
+				fx.yaw += clampf(dyaw, -deg_to_rad(float(bw.turn)) * dt, deg_to_rad(float(bw.turn)) * dt)
+				owner.yaw = fx.yaw
+				var upkeep: float = Rules.draw_of(owner.profile, fx.weave, owner.stamina) * float(bw.upkeep) * dt
+				owner.stamina = maxf(owner.stamina - upkeep, 0.0)
+				if tallies.has(owner.id): tallies[owner.id].draw += upkeep
+				var fwd := Vector3(sin(fx.yaw), 0, cos(fx.yaw))
+				for e in _struck(owner):
+					if fx.hit.has(e.id):
+						continue
+					var off: Vector3 = e.pos - owner.pos
+					var along := off.dot(fwd)
+					if along > 0.0 and along < fx.rad and (off - fwd * along).length() < fx.width + e.radius:
+						fx.hit.append(e.id)
+						_hurt(e, fx.dmg, fx.owner, fx.weave)
+				alive = owner.alive and owner.stamina > 0.0 and fx.left > 0.0 and owner.severed <= t and not owner.get("downed", false) \
+					and (fx.holding or fx.age < float(bw.min_secs))
+				if not alive:
+					events.append({e = "sweep_off", id = owner.id, fx = fx.id})
 			"surge":
 				var h0: float = fx.head
 				fx.head = minf(fx.head + fx.speed * dt, fx.len)
