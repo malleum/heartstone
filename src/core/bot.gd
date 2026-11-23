@@ -96,7 +96,7 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 				if sim.request_attack(id, "form:" + f, near.pos + Vector3(0, 1.0, 0)) == "":
 					return
 		if close >= 3 and me.swing.is_empty():
-			kind = "heavy" if Rules.moves[row.heavy].arc >= 100 else ("low" if Rules.moves[row.low].get("hits", 1) >= 3 else "light")
+			kind = "heavy" if float(Rules.moves[row.heavy].get("arc", 0.0)) >= 100.0 else ("low" if Rules.moves[row.low].get("hits", 1) >= 3 else "light")
 		# A bandleader standing guard: break it with a heavy blow.
 		if near.get("row", {}).has("guards") and near.stagger <= 0.0:
 			kind = "heavy"

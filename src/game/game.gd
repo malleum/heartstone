@@ -115,7 +115,11 @@ func _ready() -> void:
 		profile.channelled = Rules.TUNE.flow_steps[clampi(int(args.flows), 2, 10)]
 	# --class=warder|aiel|hunter makes a throwaway fighter, to try arms in a render.
 	if args.has("class") and profile.get("cls", "channeller") != args.class:
-		profile = Profile.create({name = name_, cls = args.class, sex = args.get("sex", "m"), stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
+		profile = Profile.create({name = name_, cls = args.class, sex = args.get("sex", "m"), society = args.get("society", ""), hunter_kit = args.get("hkit", ""), gift = args.get("gift", ""), stat_pts = {might = 4, quickness = 3, endurance = 3}, kit = Array(args.kit.split(",")) if args.has("kit") else Rules.CLASSES[args.class].kit})
+		# --earned: the kit as given, earned weapons and all (to try them).
+		if args.has("earned") and args.has("kit"):
+			profile.kit = Array(args.kit.split(","))
+			profile.weapons_owned = profile.kit.duplicate()
 		# --forms: the throwaway fighter knows every form its weapons allow.
 		if args.has("forms"):
 			for f in Rules.forms:
@@ -279,6 +283,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			pass    # the pause menu (pauser.gd) has it
 		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
 			_to_camp()
+		elif args.has("tour") and ev.physical_keycode == KEY_F1 and tour_card:
+			tour_card.visible = not tour_card.visible
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
 		elif ev.physical_keycode == KEY_F5:
@@ -1020,6 +1026,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 				(c as DirectionalLight3D).light_energy *= 0.55
 				(c as DirectionalLight3D).light_color = Color(0.82, 0.84, 1.0)
 		Dream.load_data()
+		# --dreambar=a,b,..: eight dream abilities on the bar for this run (the tour).
+		if args.has("dreambar"):
+			profile.dream_bar = Array(String(args.dreambar).split(","))
 		dream_bar = Dream.bar_of(profile)
 		var keys: Array = Dream.keys_of(profile)
 		for i in keys.size():
@@ -1073,7 +1082,12 @@ func _on_started(_my_id: int, activity: String) -> void:
 	if args.has("tour"):
 		var st: Dictionary = Launch.TOUR[Launch.tour]
 		print("TOUR station %d %s" % [Launch.tour + 1, st.title])
-		tour_label.text = "%d / %d   %s\n\n%s\n\n%s next   ·   %s back   ·   %s again   ·   F10 camp" % [Launch.tour + 1, Launch.TOUR.size(), st.title.to_upper(), st.feel, Keys.name(KEY_N), Keys.name(KEY_B), Keys.name(KEY_R)]
+		tour_parts.num.text = "#%d  of %d   ·   %s" % [Launch.tour + 1, Launch.TOUR.size(), String(st.get("sec", "")).to_upper()]
+		tour_parts.title.text = st.title
+		tour_parts.test.text = "TEST:  " + String(st.get("test", ""))
+		tour_parts.feel.text = st.get("feel", "")
+		tour_parts.feel.visible = st.get("feel", "") != ""
+		tour_parts.keys.text = "%s next   ·   %s back   ·   %s again   ·   F1 hide this   ·   F10 camp" % [Keys.name(KEY_N), Keys.name(KEY_B), Keys.name(KEY_R)]
 		tour_card.visible = true
 
 var _ally := 0
@@ -2762,7 +2776,7 @@ func _draw_actors(dt: float) -> void:
 					# On the wing it is carried where the sim has it; it does not walk there.
 					w.vel = Vector3.ZERO
 					w.pos += to * minf(8.0 * dt, 1.0)
-					w.heading = lerp_angle(w.heading, a.yaw, minf(6.0 * dt, 1.0))
+					w.heading = lerp_angle(w.heading, a.get("yaw", w.heading), minf(6.0 * dt, 1.0))
 				elif st & 10:
 					# Thrown or flat on the ground: it is carried, it does not walk there,
 					# so it keeps facing the way it was and slides.
@@ -2772,11 +2786,12 @@ func _draw_actors(dt: float) -> void:
 					w.vel = (to * 3.0).limit_length(6.5) if to.length() > 0.25 else Vector3.ZERO
 					# Catching up backwards (after being thrown): step back still facing the
 					# way the sim says, rather than turning round to walk there.
-					w.face_yaw = a.yaw if to.dot(Vector3(sin(a.yaw), 0, cos(a.yaw))) < -0.1 else 999.0
+					var ay: float = a.get("yaw", 0.0)   # (not yet told, the first frames)
+					w.face_yaw = ay if to.dot(Vector3(sin(ay), 0, cos(ay))) < -0.1 else 999.0
 					# Standing still (an archer drawing, a blow coming): it faces where
 					# the sim says, at you.
 					if to.length() <= 0.25:
-						w.heading = lerp_angle(w.heading, a.yaw, minf(8.0 * dt, 1.0))
+						w.heading = lerp_angle(w.heading, a.get("yaw", w.heading), minf(8.0 * dt, 1.0))
 			walkers.append(w)
 		elif a.node is Hound:
 			var h: Hound = a.node
@@ -2792,7 +2807,7 @@ func _draw_actors(dt: float) -> void:
 					# says when it is not going anywhere.
 					h.vel = (to * 5.0).limit_length(22.0) if to.length() > 0.2 else Vector3.ZERO
 					if to.length() <= 0.2:
-						h.heading = lerp_angle(h.heading, a.yaw, minf(8.0 * dt, 1.0))
+						h.heading = lerp_angle(h.heading, a.get("yaw", h.heading), minf(8.0 * dt, 1.0))
 		elif a.kind == "player":
 			var n: Node3D = a.node
 			if id == session.my_id and not _home.is_empty():
@@ -2810,7 +2825,7 @@ func _draw_actors(dt: float) -> void:
 			if a.get("roll_until", 0.0) > clock:
 				n.rotation.y = a.roll_yaw
 			else:
-				n.rotation.y = lerp_angle(n.rotation.y, a.yaw, minf(10.0 * dt, 1.0))
+				n.rotation.y = lerp_angle(n.rotation.y, a.get("yaw", n.rotation.y), minf(10.0 * dt, 1.0))
 			a.busy = a.get("busy", 0.0) - dt
 			a.speed = speed
 			a.cloak_speed = lerpf(a.get("cloak_speed", 0.0), minf(speed, 9.0), minf(3.0 * dt, 1.0))
@@ -3058,16 +3073,25 @@ func _hud() -> void:
 	tour_card = Glyph.card(Color(Glyph.GOLD, 0.35)); layer.add_child(tour_card)
 	tour_card.offset_left = 24; tour_card.offset_top = 118; tour_card.offset_right = 24 + 460
 	tour_card.visible = false
-	tour_label = Label.new(); tour_card.add_child(tour_label)
-	tour_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tour_label.custom_minimum_size = Vector2(430, 0)
-	tour_label.add_theme_font_size_override("font_size", 14)
-	tour_label.add_theme_color_override("font_color", Color(0.86, 0.85, 0.82))
+	# The station: its number big, its part of the tour and its name, the one thing to
+	# test, what to do, and the keys.
+	var tv := VBoxContainer.new(); tv.add_theme_constant_override("separation", 6); tour_card.add_child(tv)
+	tour_parts = {}
+	for k in [["num", 30, Glyph.GOLD], ["title", 19, Color(0.97, 0.94, 0.88)], ["test", 17, Color(1.0, 0.92, 0.6)], ["feel", 14, Color(0.8, 0.8, 0.82)], ["keys", 13, Color(0.62, 0.63, 0.68)]]:
+		var l := Label.new(); tv.add_child(l)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(440, 0)
+		l.add_theme_font_size_override("font_size", k[1])
+		l.add_theme_color_override("font_color", k[2])
+		if k[0] in ["num", "title"]: l.add_theme_font_override("font", Glyph.serif())
+		tour_parts[k[0]] = l
+	tour_label = tour_parts.feel
 
 var result_card: PanelContainer
 var pause_menu: Node
 var tour_card: PanelContainer
 var tour_label: Label
+var tour_parts := {}
 ## A notice at the top right: the first line is its title, the rest its detail.
 func _banner(text: String, secs: float, kind := "info") -> void:
 	if previewing:

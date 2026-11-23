@@ -69,9 +69,12 @@ working on abilities; the user's rulings there are final).
   `-- --ghost=arms|weaves|camp`) press real keys and buttons and it checks what the
   game did. Run it after touching input in `game.gd` or `camp.gd`: bots call the sim
   directly and cannot catch input bugs (one was found this way).
-- `-- --tour[=N]` (table in `src/game/launch.gd`, rewritten 17 Nov: rounds, gateways, balefire first): short stations for hands-on testing,
-  each a throwaway character in front of one thing, N/B/R to move on, nothing saved.
-  Add a station when you add something that needs feeling. `--ally=warder|channeller`
+- `-- --tour[=N]` (table in `src/game/launch.gd`, rewritten 22 Nov: 80 numbered stations, every
+  weave, weapon, form, calling, enemy, dream ability and mode): each a throwaway character in front
+  of one thing, the card says what to test; N/B/R to move on, F1 hides the card, nothing saved.
+  Add a station when you add something that needs feeling, then `python3 tools/tourdoc.py`
+  (writes `docs/TOUR.md`, the numbered list). Station args: `society`, `hkit`, `gift`, `earned`,
+  `dreambar`, `fp`, `sex`, plus the usual; spawns without `@m` start 12 m off. `--ally=warder|channeller`
   puts a bot friend beside the player.
 - `tools/strokes.sh [weapon:move ...]` (the sword forms, or the named written moves, side by
   side, four moments each; strokes in `ArmPose.STROKES`/`WRITTEN`, by weapon, family, move). Bench:
