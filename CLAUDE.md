@@ -105,6 +105,8 @@ working on abilities; the user's rulings there are final).
 - Flows are seen only by channellers of the weaver's sex (`Weavefx.sees`, `Weavefx.flows`): a
   fighter bot's render shows no weaving. `--sight=all` shows every flow; `--sex=m` makes a
   throwaway channeller a man (women by default), `--allysex=m` the `--ally`.
+- First person: F5 in play (`Settings.first_person`); `--fp` for a run, `--fpout` shows its arm
+  poses from outside; bench `--mode=heroes --looks=x --arms=w --pose=ready|weave --kind=blade|pole|fist`.
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
   weaves a second thing 40 frames after each `--demo` (a fireball at a Wall of Water);
   `--quality=0|1|2` renders one picture-quality level without changing the saved one.

@@ -8,7 +8,8 @@ extends SkeletonModifier3D
 ##   pull: 0..1, how far the bow is drawn (the string hand travels back to the cheek)
 ##   pitch: radians the aim is raised (+) or lowered (-)
 
-var mode := ""
+var mode := ""     # also "weave" and "ready": first person, where the eye can see them
+var ready_kind := "blade"   # "ready": blade | pole (two hands on a shaft) | fist
 var pull := 0.0
 var pitch := 0.0
 var weight := 0.0
@@ -323,7 +324,35 @@ func _process_modification() -> void:
 	if weight <= 0.01 or mode == "":
 		return
 	var aim := (fwd * cos(pitch) + up * sin(pitch)).normalized()
+	var right := -left
+	# Directions from the shoulder (right, up, forward), raised with the look.
+	var lift := func(v: Vector3) -> Vector3:
+		return (right * v.x + up * v.y + fwd * v.z).rotated(left, -pitch)
 	match mode:
+		"weave":
+			# Seen from the eyes: both hands come up before the chest, cupped round the
+			# weave being made, a little apart.
+			_reach("upperarm_r", "lowerarm_r", "hand_r", lift.call(Vector3(-0.13, 0.12, 0.48)), (right * 0.6 - up * 0.8).normalized())
+			_reach("upperarm_l", "lowerarm_l", "hand_l", lift.call(Vector3(0.13, 0.12, 0.48)), (left * 0.6 - up * 0.8).normalized())
+		"ready":
+			if ready_kind == "fist":
+				_reach("upperarm_r", "lowerarm_r", "hand_r", lift.call(Vector3(-0.02, 0.06, 0.42)), (right * 0.5 - up * 0.8).normalized())
+				_reach("upperarm_l", "lowerarm_l", "hand_l", lift.call(Vector3(0.06, 0.1, 0.46)), (left * 0.5 - up * 0.8).normalized())
+				return
+			var pole := ready_kind == "pole"
+			# The blade out ahead from low on the right, its point toward the middle; a pole
+			# levelled from the hip.
+			var hand: Vector3 = Vector3(0.0, -0.15, 0.12) if pole else Vector3(0.14, 0.1, 0.5)
+			var bdir: Vector3 = lift.call(Vector3(-0.2, 0.22, 0.95) if pole else Vector3(-0.28, 0.3, 0.91)).normalized()
+			var target := _reach("upperarm_r", "lowerarm_r", "hand_r", lift.call(hand), (right * 0.5 - up * 0.8 - fwd * 0.3).normalized())
+			var edge := fwd - bdir * fwd.dot(bdir)
+			edge = edge.normalized() if edge.length() > 0.05 else up
+			_hold("hand_r", Basis(bdir.cross(edge), bdir, edge) * grip_r.inverse())
+			if pole:
+				var sk0 := get_skeleton()
+				var sl := sk0.find_bone("upperarm_l")
+				if sl >= 0:
+					_reach("upperarm_l", "lowerarm_l", "hand_l", target + bdir * 0.3 - sk0.get_bone_global_pose(sl).origin, (left * 0.5 - up * 0.8).normalized(), true)
 		"bow":
 			# An archer stands side-on to the mark: the trunk turned so the bow shoulder
 			# leads, the arms then pointed from where the shoulders are.

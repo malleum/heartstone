@@ -424,8 +424,11 @@ static func live(g: Node3D, kind: String, weave := "", power := "") -> Node3D:
 ## The flows themselves, seen while a weave is made: one thread for each flow, and
 ## each Power moves in its own way (see FormFx). It lasts until the game frees it,
 ## because a finished weave can be held back in the hands.
+static var fp_who: Node3D = null    # the body whose eyes the camera is (first person)
 static func forming(_g: Node3D, who: Node3D, weave: String, secs: float, power := "") -> Node3D:
 	var fx := FormFx.new()
+	if who == fp_who:
+		fx.HANDS = Vector3(0, 1.55, 0.72)
 	fx.secs = maxf(secs, 0.15)
 	fx.weave = weave
 	who.add_child(fx)
@@ -447,7 +450,9 @@ class FormFx extends Node3D:
 	var halo: MeshInstance3D
 	var burst_done := false
 	var hoops: Array = []
-	const HANDS := Vector3(0, 1.25, 0.5)
+	## Where the weave gathers, before the weaver. Seen from the weaver's own eyes (first
+	## person) it is drawn higher and further out, where the raised hands are.
+	var HANDS := Vector3(0, 1.25, 0.5)
 
 	func _ready() -> void:
 		var fl: Dictionary = Rules.weaves[weave].flows

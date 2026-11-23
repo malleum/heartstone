@@ -420,6 +420,11 @@ are what the 4:44 review, or the next session, should pick up.
   ARCHITECTURE "Duelling in the dream"), a dream bar of eight on keys at the bottom
   right, and I for all of them to choose from. PLAYTEST: the dream abilities.
 
+- 2026-11-22, asked by the user: (done 22 Nov) **First person** (F5): weaving hands and
+  weapons held where the eyes see them. **The Myrddraal's dark**: the screen darkens from the
+  edges as one comes near a channeller or Warder, like the Warden's darkness but lighter.
+  **A new tag** so the Windows build updates (v0.2.6, then v0.2.7 with these).
+
 ## Super backlog (only these two; everything above is to be worked through)
 - Multi-stage runs: stages joined by a gateway.
 - Drawing to weave: tracing a weave's shape to make it.

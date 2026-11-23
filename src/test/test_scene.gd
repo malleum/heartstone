@@ -285,6 +285,11 @@ func _mode_heroes() -> void:
 			Rules.load_data()
 			var aw: PackedStringArray = String(args.arms).split(",")
 			Hero.arm(r, aw[i % aw.size()]); ap.play(args.get("clip", "Sword_Idle"))
+	# --pose=ready|weave [--kind=blade|pole|fist]: the first person arm poses, from outside.
+	if args.has("pose"):
+		for r in rigs:
+			var ps: ArmPose = r.get_meta("pose")
+			ps.mode = args.pose; ps.weight = 1.0; ps.ready_kind = args.get("kind", "blade")
 	if args.has("then"):
 		events[int(_f("at", 30))] = func() -> void:
 			for r in rigs: (r.get_meta("anim") as AnimationPlayer).play(args.then, 0.2)

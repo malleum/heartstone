@@ -13,6 +13,8 @@ static var story_open := false
 ## frame cap and vsync are always on (an uncapped, vsync-less game ran the GPU flat
 ## out). `--uncap` lifts them for measuring.
 static var quality := 2
+## Seeing through your own eyes instead of over the shoulder (F5).
+static var first_person := false
 const QUALITY_NAMES := ["Low", "Medium", "High"]
 
 static func grass_stride() -> int:
@@ -28,6 +30,7 @@ static func load_and_apply() -> void:
 			volume = clampf(float(d.get("volume", volume)), 0.0, 1.0)
 			quality = clampi(int(d.get("quality", quality)), 0, 2)
 			story = int(d.get("story", story)); story_open = bool(d.get("story_open", story_open))
+			first_person = bool(d.get("first_person", first_person))
 	# --quality=0|1|2 for a picture of one level, without touching the saved choice.
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--quality="):
@@ -46,4 +49,4 @@ static func apply() -> void:
 	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 4096][clampi(quality, 0, 2)], true)
 
 static func save() -> void:
-	FileAccess.open(FILE, FileAccess.WRITE).store_string(JSON.stringify({volume = volume, quality = quality, story = story, story_open = story_open}))
+	FileAccess.open(FILE, FileAccess.WRITE).store_string(JSON.stringify({volume = volume, quality = quality, story = story, story_open = story_open, first_person = first_person}))

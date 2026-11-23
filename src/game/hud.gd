@@ -133,6 +133,8 @@ func _draw() -> void:
 	if danger > 0.01:
 		_vignette(Color(0.75, 0.04, 0.02, minf(danger, 0.85)), minf(W, H) * 0.3)
 
+	_fade_dark(p, W, H)
+
 	# Who you are.
 	Glyph.text(self, serif, Vector2(30, 46), p.name, 30, Color(0.97, 0.94, 0.88))
 	draw_line(Vector2(30, 56), Vector2(290, 56), Color(Glyph.GOLD, 0.6), 1.5, true)
@@ -390,6 +392,32 @@ func _draw() -> void:
 		Glyph.text(self, serif, at, a.get("name", "?"), 17, col if not a.get("dead", false) else Color(0.6, 0.5, 0.5))
 		Glyph.bar(self, at + Vector2(0, 8), 200, 8, 0.0 if a.get("dead", false) else a.get("hp", 100.0) / a.get("max_hp", 100.0), Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
 		row += 1
+
+## A Myrddraal near: the dark creeps in from the edges, closer and deeper the nearer it
+## is, throbbing slowly, felt by those it most wants (channellers, and the Warders sworn
+## to them). Eased, so it creeps rather than snaps. Deepest when it is beside you.
+var _dark := 0.0
+func _fade_dark(p: Dictionary, W: float, H: float) -> void:
+	var want := 0.0
+	if p.get("cls", "channeller") in ["channeller", "warder"] and g.me != null and is_instance_valid(g.me):
+		var near := 1e9
+		for id in g.actors:
+			var a: Dictionary = g.actors[id]
+			if a.get("fade", false) and not a.get("dead", false) and is_instance_valid(a.node):
+				near = minf(near, (a.node as Node3D).global_position.distance_to(g.me.global_position))
+		# Felt from 16 m, fully at arm's length.
+		want = pow(clampf((16.0 - near) / (16.0 - 1.8), 0.0, 1.0), 1.6)
+	_dark = move_toward(_dark, want, get_process_delta_time() * (0.7 if want > _dark else 0.4))
+	if _dark < 0.01:
+		return
+	var beat := 0.8 + 0.2 * sin(t * 2.4)
+	var k := _dark * beat
+	# The whole view dims a little; the edges close in a lot.
+	draw_rect(Rect2(0, 0, W, H), Color(0.0, 0.0, 0.02, 0.55 * k))
+	var m := minf(W, H)
+	for layer in 3:
+		var depth := m * (0.18 + 0.16 * layer) * (0.45 + 0.55 * k)
+		_vignette(Color(0.0, 0.0, 0.02, (0.72 - 0.16 * layer) * k), depth)
 
 func _vignette(col: Color, depth: float) -> void:
 	var W := size.x / (size.y / 720.0); var H := 720.0

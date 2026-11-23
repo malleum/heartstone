@@ -281,6 +281,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
 			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
+		elif ev.physical_keycode == KEY_F5:
+			# Through your own eyes, or over the shoulder.
+			Settings.first_person = not Settings.first_person
+			Settings.save()
+			_first_person(Settings.first_person)
+			Toast.say("First person" if Settings.first_person else "Over the shoulder", "%s to change back." % Keys.name(KEY_F5), "info", 2.5)
 		elif ev.physical_keycode == Keys.k(KEY_L):
 			session.link()
 		elif ev.physical_keycode == Keys.k(KEY_K):
@@ -751,6 +757,9 @@ func _process(dt: float) -> void:
 			if frame % 4 == 0:
 				# (Taken back up from keeping, it waits for a click, not for the button.)
 				session.aim(at, weaving or my_form.get("waiting", false))
+		# Through your own eyes the body faces where you look, so the hands are before you.
+		if first_person and me:
+			face_yaw = wrapf(cam_yaw + PI, -PI, PI)
 		if not controlled:
 			move = Vector3.ZERO
 		session.send_input(move, face_yaw)
@@ -838,6 +847,14 @@ func _process(dt: float) -> void:
 		var guarding: bool = actors.has(session.my_id) and int(actors[session.my_id].get("status", 0)) & 16 != 0
 		_guard_pull = lerpf(_guard_pull, 0.8 if guarding else 0.0, minf(6.0 * dt, 1.0))
 		var want := pivot + view * (cam_off + Vector3(0, 0, cam_dist - _guard_pull + cam_swing * 0.6))
+		if first_person:
+			# A bot playing (pictures): the eyes turn with its body.
+			if args.has("auto"):
+				cam_yaw = lerp_angle(cam_yaw, me.rotation.y + PI + deg_to_rad(float(args.get("camyaw", 0.0))), minf(6.0 * dt, 1.0))
+				view = Basis(Vector3.UP, cam_yaw + cam_swing) * Basis(Vector3.RIGHT, cam_pitch)
+			# (--fpout: the first person poses seen from outside, for checking them.)
+			if not args.has("fpout"):
+				want = _eye(view, dt)
 		var view_b := view
 		if not cam_gate.is_empty():
 			# Through a gateway ahead of my camera: it is drawn where it would be on
@@ -856,7 +873,7 @@ func _process(dt: float) -> void:
 		shake = maxf(shake - dt * 1.8, 0.0)
 		var k := shake * shake
 		punch = maxf(punch - dt * 5.0, 0.0)
-		cam.fov = fov_base - 5.0 * punch
+		cam.fov = (fov_base + (8.0 if first_person else 0.0)) - 5.0 * punch
 		if smooth_cam > 0.0:
 			# Just through a camp doorway: keep the camp camera's easing (it trails a
 			# running body a little) and let it go, so there is no jump.
@@ -1801,6 +1818,8 @@ func _on_events(list: Array) -> void:
 					if e.id == session.my_id:
 						me = rig
 						_set_sight(e.get("cls", "channeller"), e.get("power", "saidin"))
+						# (--fp: first person for this run, for pictures.)
+						_first_person.call_deferred(Settings.first_person or args.has("fp"))
 						banner.text = ""
 						my_team = int(e.get("team", 0))
 						_paint_rings()
@@ -1811,9 +1830,9 @@ func _on_events(list: Array) -> void:
 						if _hinted or args.has("tour"):
 							pass
 						elif not profile.get("kit", []).is_empty():
-							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand" % [Keys.name(KEY_V), Keys.name(KEY_F)], 9.0)
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand   F5: first person" % [Keys.name(KEY_V), Keys.name(KEY_F)], 9.0)
 						elif not known.is_empty():
-							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
+							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll   F5: first person" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
 						_hinted = true
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
@@ -2506,6 +2525,45 @@ func _patch(e: Dictionary) -> void:
 	patches[e.id] = n
 
 ## The weave someone was making has left their hands (or come to nothing).
+## First person: the camera at the eyes. Your own head, hair, eyes and cloak are put on
+## a layer this camera does not draw (they would fill the view); everything else, the arms
+## and what they hold, is seen as it moves. (Gateway windows still show all of you.)
+const FP_LAYER := 1 << 10
+var first_person := false
+var _eye_at := Vector3.ZERO
+func _first_person(on: bool) -> void:
+	first_person = on
+	Weavefx.fp_who = me if on else null
+	if cam:
+		cam.cull_mask = 0xFFFFF & ~FP_LAYER
+		cam.near = 0.04 if on else 0.05
+	if me == null or not is_instance_valid(me):
+		return
+	_eye_at = Vector3.ZERO
+	for m: MeshInstance3D in me.find_children("*", "MeshInstance3D", true, false):
+		var n := String(m.name)
+		var head := n.begins_with("SuperHero") or n.begins_with("Superhero") or n.begins_with("Eyes") or n.begins_with("Eyebrows") \
+			or n.begins_with("Hair") or n == "Cloak" or m.get_parent() is BoneAttachment3D and String(m.get_parent().name) == "Veil"
+		if head:
+			m.layers = FP_LAYER if on else 1
+
+## Where the eyes are: over the body, at the head's height (followed, so ducking, falling
+## and rising carry the view), a hand's width forward of the head along the look.
+func _eye(view: Basis, dt: float) -> Vector3:
+	var at := me.position + Vector3(0, 1.62, 0)
+	var sk: Skeleton3D = me.get_meta("skeleton") if me.has_meta("skeleton") else null
+	if sk:
+		var hb := sk.find_bone("Head")
+		if hb < 0: hb = sk.find_bone("head")
+		if hb >= 0:
+			# The head where the clip has put it (bent over a weave, ducking, falling), so
+			# the body never comes up in front of the eyes.
+			at = (sk.global_transform * sk.get_bone_global_pose(hb)).origin + Vector3(0, 0.09, 0)
+	var flat := Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
+	var want := at + flat * 0.14 + (view * Vector3(0, 0, -1)) * 0.04
+	_eye_at = want if _eye_at == Vector3.ZERO else _eye_at.lerp(want, minf(22.0 * dt, 1.0))
+	return _eye_at
+
 ## Who this player is bonded to (their Warder or their channeller), for the HUD's sense of them.
 func bonded_ids() -> Array:
 	var out := []
@@ -2821,6 +2879,18 @@ func _bow_pose(a: Dictionary, n: Node3D, mine: bool, dt: float) -> void:
 		pose.mode = "bow"
 		pose.pull = clampf(a.draw_t / maxf(Rules.draw_time(profile, a.weapon), 0.1), 0.0, 1.0)
 		want = 1.0
+	elif mine and first_person and a.get("forming", false):
+		# Through your own eyes: the hands come up round the weave, where you can see it.
+		pose.mode = "weave"
+		want = 1.0
+		pose.pitch = lerpf(pose.pitch, cam_pitch * 0.6, minf(dt * 10.0, 1.0))
+	elif mine and first_person and a.get("busy", 0.0) <= 0.0 and shot.is_empty() and not (a.get("status", 0) & 64) and n.get_meta("pose") != null:
+		# ...and what is in hand is held up ready, before you, between blows.
+		var fam: String = w.get("family", "hand")
+		pose.mode = "ready"
+		pose.ready_kind = "pole" if fam in ["spear", "staff"] and a.get("weapon", "") != "aiel_spear" else ("fist" if fam == "hand" or w.is_empty() else "blade")
+		want = 0.0 if profile.get("cls", "channeller") == "channeller" and w.is_empty() else 1.0
+		pose.pitch = lerpf(pose.pitch, cam_pitch * 0.5, minf(dt * 10.0, 1.0))
 	elif shot.get("crank", false) and a.get("busy", 0.0) <= 0.0 and not (a.get("status", 0) & 64):
 		# A crossbow is carried levelled; while it is being spanned it points at the ground.
 		pose.mode = "crossbow"
