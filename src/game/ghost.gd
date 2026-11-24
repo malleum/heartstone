@@ -48,6 +48,9 @@ const SCRIPTS := {
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
 		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y], [320, "tap", KEY_I]],
+	# Pictures of the forms row: the sword in hand and its forms; a form; the bow and
+	# its forms; another; the knife.
+	formsdemo = [[40, "tap", KEY_1], [90, "tap", KEY_Z], [160, "tap", KEY_2], [210, "tap", KEY_X], [290, "tap", KEY_3]],
 	# The camp's yard: take the mouse, strike or weave at a post, roll, again.
 	yard = [[30, "mouse", MOUSE_BUTTON_LEFT, true], [31, "mouse", MOUSE_BUTTON_LEFT, false], [45, "tap", KEY_3],
 		[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],

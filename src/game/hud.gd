@@ -387,7 +387,8 @@ func _draw_all() -> void:
 		var hf: Array = g._hand_forms()
 		if not hf.is_empty():
 			var fx0 := x0 + gap * (n - 1) + maxf(gap, 60.0) + 24.0
-			var fgap := 62.0
+			# As many as there are, squeezed to fit what is left of the screen.
+			var fgap := clampf((W - fx0 - 34.0) / maxf(hf.size() - 0.5, 1.0), 44.0, 62.0)
 			var fy := y
 			var fam: String = Rules.forms[hf[0]].family
 			draw_line(Vector2(fx0 - 34.0, fy - 26.0), Vector2(fx0 - 34.0, fy + 26.0), Color(Glyph.GOLD, 0.35), 1.2)
