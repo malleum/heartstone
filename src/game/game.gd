@@ -484,16 +484,22 @@ func _unclicked_weave() -> String:
 
 ## Tab: what you carry (the chart of weaves) and, in a round, what a level-up can grow.
 func _inventory() -> void:
+	# In the World of Dreams Tab goes through the pages: the dream abilities, then your
+	# weaves or weapons and forms, then closed.
+	if dreaming and dream_inv != null and dream_inv.visible:
+		_show_dream_inventory(false)
+		_show_tree(true)
+		return
 	var open: bool = (tree_view != null and tree_view.visible) or (pick_card != null and pick_card.visible) or (dream_inv != null and dream_inv.visible)
 	if open:
 		close_overlay()
 		return
 	if dreaming:
 		_show_dream_inventory(true)
-	elif _weaver():
-		_show_tree(true)
-	elif not team_meter.is_empty():
+	elif not _weaver() and not team_meter.is_empty() and view_profile().get("round", {}).get("picks", 0) > 0:
 		_show_picks(true)
+	else:
+		_show_tree(true)
 
 ## Esc or Tab with something open over the fight: close it. True if anything was.
 func close_overlay() -> bool:
@@ -1502,7 +1508,7 @@ func _show_tree(on: bool) -> void:
 		tree_view.pickable = true
 		tree_view.chosen.connect(func(id: String) -> void:
 			var vp := view_profile()
-			if vp.get("round", {}).get("picks", 0) <= 0:
+			if vp.get("round", {}).get("picks", 0) <= 0 or not _weaver():
 				return
 			session.pick("weave" if Rules.knows(vp, id) else "learn", id))
 		tree_note = Label.new(); hud_layer.add_child(tree_note)
@@ -1515,7 +1521,7 @@ func _show_tree(on: bool) -> void:
 	if on:
 		tree_view.profile = view_profile()
 		var left: int = view_profile().get("round", {}).get("picks", 0)
-		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 else "The weave chart   ·   drag the bar's slots to rearrange them   ·   Tab closes"
+		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 and _weaver() else ("What you carry   ·   Tab or Esc closes" if not _weaver() else "The weave chart   ·   drag the bar's slots to rearrange them   ·   Tab or Esc closes")
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not args.has("auto") and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
