@@ -18,6 +18,10 @@ const RELEASES := "https://github.com/malleum/heartstone/releases/latest"
 const ASSET_LINUX := "heartstone.x86_64"
 const ASSET_WINDOWS := "heartstone.exe"
 const MIN_SIZE := 8 * 1024 * 1024   # the real thing is around a hundred MB
+## The release this code is, or the one being made: raised just before a v* tag is
+## pushed (the release workflow refuses a tag that does not match). Every build knows
+## it, the server's from source too, so each can say which version it is.
+const VERSION := "0.2.11"
 
 static var checked := false
 static var newest := ""          # the latest release's tag, once known
@@ -27,12 +31,20 @@ static var installed := ""       # a newer build already swapped in, waiting for
 static func tag() -> String:
 	return String(stamp().get("tag", ""))
 
+## "v0.2.11": the release tag, or for a build from source the version it belongs to.
+static func release() -> String:
+	return tag() if tag() != "" else "v" + VERSION
+
 ## This build's stamp: {tag, engine, commit, date (unix)}; empty when run from source.
 static func stamp() -> Dictionary:
 	if not FileAccess.file_exists("res://build.json"):
 		return {}
 	var d = JSON.parse_string(FileAccess.get_file_as_string("res://build.json"))
-	return d if d is Dictionary else {}
+	if not d is Dictionary:
+		return {}
+	if String(d.get("tag", "")) == "":
+		d.release = "v" + VERSION
+	return d
 
 ## "v0.2.0 · b141541 · 17 Nov 2026 23:25", or "run from source".
 static func label(st: Dictionary) -> String:
@@ -40,6 +52,7 @@ static func label(st: Dictionary) -> String:
 		return "run from source"
 	var parts := []
 	if String(st.get("tag", "")) != "": parts.append(st.tag)
+	elif String(st.get("release", "")) != "": parts.append(st.release)
 	if String(st.get("commit", "")) != "": parts.append(st.commit)
 	if int(st.get("date", 0)) > 0:
 		# In the player's own time zone (the stamp is UTC).

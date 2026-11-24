@@ -136,10 +136,13 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 	var act: Dictionary = Rules.activities[activity_id]
 	var out: Array[String] = []
 	p.seconds += tally.get("seconds", 0.0)
-	# A fighter works out the weapon or form chosen on the tree by the breath spent
-	# fighting, won or lost.
+	# The weave, weapon or form chosen on the tree is worked out between rounds, won
+	# or lost: a channeller's by what they channelled, a fighter's by the breath spent
+	# fighting.
 	if p.get("cls", "channeller") != "channeller":
 		_study_arms(p, float(tally.get("effort", 0.0)), out)
+	else:
+		_study_weave(p, float(tally.get("draw", 0.0)), out)
 	if not success:
 		out.append("The round is lost. Nothing carries over but what you learned of it.")
 		return out
@@ -153,6 +156,28 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 		p.unlocks_owed = int(p.get("unlocks_owed", 0)) + 1
 		out.append("A win: choose something to keep in the camp")
 	return out
+
+## A channeller's study, between rounds: the chosen weave (the nearest is picked for
+## them if nothing was, so no channelling is wasted).
+static func _study_weave(p: Dictionary, draw: float, out: Array[String]) -> void:
+	if draw <= 0.0:
+		return
+	if p.get("study", "") == "" or not Rules.study_options(p).has(p.study):
+		p.study = ""; p.study_done = 0.0
+		for id in Rules.study_options(p):
+			if p.study == "" or Rules.study_cost(p, id) < Rules.study_cost(p, p.study):
+				p.study = id
+		if p.study == "":
+			return
+		out.append("You begin working out %s" % Rules.weaves[p.study].name)
+	p.study_done = float(p.get("study_done", 0.0)) + draw
+	var name: String = Rules.weaves[p.study].name
+	if p.study_done < Rules.study_cost(p, p.study):
+		out.append("%s: %d%% worked out" % [name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
+		return
+	p.weaves[p.study] = {known = true, xp = 0.0}
+	out.append("Learned %s" % name)
+	p.study = ""; p.study_done = 0.0
 
 ## A fighter's study, between rounds: the chosen weapon or form (a form is picked for
 ## them if nothing was; a weapon only ever by choice, since it replaces one).

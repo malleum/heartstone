@@ -549,7 +549,7 @@ static func blow(p: Dictionary, weapon_id: String, move_id: String, stamina := -
 	var might := 1.0 + TUNE.might_dmg * stat(p, "might")
 	if m.get("missile", false):
 		var shot: Dictionary = w.get("shot", w.get("throw", {}))
-		base = shot.get("dmg", 0.0)
+		base = shot.get("dmg", 0.0) * float(m.get("dmg", 1.0))
 		if shot.get("crank", false):
 			might = 1.0
 	# A Power-wrought blade never dulls: it cuts as hard tired as fresh.

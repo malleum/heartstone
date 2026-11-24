@@ -96,8 +96,62 @@ func _greet(peer: int) -> void:
 @rpc("authority", "reliable")
 func _hail(nonce: String) -> void:
 	_nonce = nonce
+	# Before anything is sent, the server proves it knows the word, on a number of
+	# our own choosing: an impostor at the address cannot, and so is never given
+	# our proof (to guess the word from at leisure) or our character, and cannot
+	# hand us a doctored one from the store.
+	_mine = Crypto.new().generate_random_bytes(16).hex_encode()
+	var asked := _mine
+	_challenge.rpc_id(1, asked)
+	get_tree().create_timer(VOUCH_SECS).timeout.connect(func() -> void:
+		if _mine == asked and _on_nonce.is_valid():
+			_refuse_host("the server did not prove who it is (it may be an older version, or not the real one)"))
+
+const VOUCH_SECS := 8.0
+var _mine := ""               # client: the number we asked the server to prove the word on
+var _word_try := ""           # client: the word we expect the server to know
+var _fail_why := ""           # client: why the last connection was given up, if not unreachable
+var _on_fail: Callable
+
+## The server's half of the proof: the word hashed with the client's number (and
+## its own label, so it can never be passed off as a client's proof).
+static func _vouch_for(secret: String, theirs: String) -> String:
+	return _proof(secret, "server/" + theirs)
+
+@rpc("any_peer", "reliable")
+func _challenge(theirs: String) -> void:
+	if not is_host or theirs.length() > 64:
+		return
+	_vouch.rpc_id(multiplayer.get_remote_sender_id(), _vouch_for(word, theirs))
+
+@rpc("authority", "reliable")
+func _vouch(said: String) -> void:
+	if _mine == "":
+		return
+	var ok := said == _vouch_for(_word_try, _mine)
+	_mine = ""
+	if not ok:
+		_refuse_host("the server did not prove it knows the word: check the word under Esc, or it is not the real server")
+		return
 	if _on_nonce.is_valid():
 		_on_nonce.call()
+
+func _refuse_host(why: String) -> void:
+	_mine = ""
+	_on_nonce = Callable()
+	_fail_why = why
+	var then := _on_fail
+	_on_fail = Callable()
+	# Let go of it quietly (detached first, so it is not taken for a dropped server).
+	var pr := multiplayer.multiplayer_peer
+	multiplayer.multiplayer_peer = null
+	if pr != null:
+		pr.close()
+	if then.is_valid():
+		then.call()
+
+func _why_failed(address: String) -> String:
+	return _fail_why if _fail_why != "" else "could not reach " + address
 
 static func _proof(secret: String, nonce: String) -> String:
 	return (secret + "/" + nonce).sha256_text() if secret != "" else ""
@@ -153,16 +207,17 @@ func join(address: String, my_profile: Dictionary, want := "", their_word := "",
 	Rules.load_data()
 	profile = my_profile
 	return _connect(address, func() -> void: _hello.rpc_id(1, profile, want, _proof(their_word, _nonce), version(), room, hold), func() -> void:
-		if rejoin_failed.is_valid(): rejoin_failed.call()
-		else: rejected.emit("could not reach " + address))
+		if rejoin_failed.is_valid() and _fail_why == "": rejoin_failed.call()
+		else: rejected.emit(_why_failed(address)), their_word)
 
 ## Set while knocking to be let back in (game.gd _on_lost): a knock nobody answers
 ## goes back there to try again, instead of turning into "could not reach".
 var rejoin_failed: Callable
 
 ## Connect, and act once the host has greeted us with its number (see secrets).
-func _connect(address: String, on_up: Callable, on_fail: Callable) -> Error:
+func _connect(address: String, on_up: Callable, on_fail: Callable, their_word := "") -> Error:
 	var a := split_address(address)
+	_word_try = their_word; _fail_why = ""; _on_fail = on_fail
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(a[0], a[1])
 	if err != OK:
@@ -187,13 +242,13 @@ func vault_sync(address: String, name_: String, key: String, local: Dictionary, 
 		return
 	# The passphrase itself never leaves this machine: only its lock, sealed.
 	var lock := (name_.to_lower() + "/" + key).sha256_text()
-	_connect(address, func() -> void: _vault.rpc_id(1, name_, _seal(lock, their_word, _nonce), _proof(their_word, _nonce), local), func() -> void: vaulted.emit("could not reach " + address, {}))
+	_connect(address, func() -> void: _vault.rpc_id(1, name_, _seal(lock, their_word, _nonce), _proof(their_word, _nonce), local), func() -> void: vaulted.emit(_why_failed(address), {}), their_word)
 
 ## Ask a server who is playing what, answered through `lobby`: a list of
 ## {room, activity, players [names], t (seconds in)}. Empty if nobody, or no answer.
 ## `where`: this camp's {x, z, yaw, kind, style}, for others to see us walk about.
 func ask_lobby(address: String, their_word := "", me := "", where := {}) -> void:
-	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: lobby.emit([]))
+	_connect(address, func() -> void: _who.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: lobby.emit([]), their_word)
 
 ## The same question over a connection already open to a server (a camp doorway's
 ## fight joined there): false if this session is not joined to one.
@@ -456,6 +511,14 @@ var _in_camp := {}     # name -> {t: when last heard asking from a camp, at: whe
 ## Where someone stands in their camp, as a camp sends it: position, facing and
 ## what they look like, so the others can show them walking about. Checked for
 ## shape (it comes from another machine), and small or nothing.
+var _release := {}   # player name -> the version their game says it is
+
+func _versions_of(names: Array) -> Dictionary:
+	var out := {}
+	for n in names:
+		out[n] = _release.get(n, "")
+	return out
+
 static func _camp_spot(where: Dictionary) -> Dictionary:
 	if not (where.get("x") is float and where.get("z") is float and where.get("yaw") is float):
 		return {}
@@ -476,6 +539,8 @@ func _who(proof: String, me := "", where := {}) -> void:
 		var mine := me.strip_edges()
 		if mine != "":
 			_in_camp[mine] = {t = now, at = _camp_spot(where)}
+			# Which version each player runs (games before v0.2.11 do not say).
+			_release[mine] = String(where.get("v", "")).left(16)
 		var about := []
 		var walkers := []
 		# Not drawn in the camp: anyone in a fight just now, or not heard from lately.
@@ -495,16 +560,16 @@ func _who(proof: String, me := "", where := {}) -> void:
 					var w: Dictionary = _in_camp[n].at.duplicate()
 					w.name = n
 					walkers.append(w)
-		out.append({room = "_camp", players = about, walkers = walkers})
+		out.append({room = "_camp", players = about, walkers = walkers, versions = _versions_of(about)})
 		for room in _rooms:
 			var r: Dictionary = _rooms[room]
 			var names := []
 			for p in r.peers:
 				names.append(r.sim.ents[r.peers[p]].profile.name)
-			out.append({room = room, activity = r.activity, players = names, t = int(r.sim.t)})
+			out.append({room = room, activity = r.activity, players = names, t = int(r.sim.t), versions = _versions_of(names)})
 	# Who this server is, for anyone asking (even without the word): its build stamp
 	# and its handshake version, so a camp can show whether the two match.
-	out.append({room = "_server", stamp = Updater.stamp(), version = version()})
+	out.append({room = "_server", stamp = Updater.stamp(), version = version(), release = Updater.release()})
 	_who_reply.rpc_id(peer, out)
 
 const VAULT := "user://vault"
@@ -629,6 +694,10 @@ func _on_left(peer: int) -> void:
 			r.sim.events.append({e = "away", id = ent.id, name = ent.profile.name, secs = AWAY_SECS})
 		else:
 			ent.alive = false
+			# Only ever looked in through a doorway: gone, but not beaten (a duel
+			# does not count them as its loser).
+			if not r.get("entered", {}).has(peer):
+				ent.looked_only = true
 		r.peers.erase(peer)
 		r.get("entered", {}).erase(peer)
 	if dedicated and r.peers.is_empty() and not _awaited(room):
@@ -731,7 +800,7 @@ var _camp_t := 0.0
 
 ## Open the link (client): `where` as Session._camp_spot reads it.
 func camp_join(address: String, their_word: String, me: String, where: Dictionary) -> Error:
-	return _connect(address, func() -> void: _camp_hello.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: rejected.emit("could not reach " + address))
+	return _connect(address, func() -> void: _camp_hello.rpc_id(1, _proof(their_word, _nonce), me.left(32), where), func() -> void: rejected.emit(_why_failed(address)), their_word)
 
 ## Where this camp's character is now (client, ten times a second).
 func camp_at(x: float, z: float, yaw: float) -> void:

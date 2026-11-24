@@ -1897,6 +1897,31 @@ func _init() -> void:
 	check(spar.over, "a spar between two bots ends")
 	Progression.award(a, spar.tallies[ia], "dream_spar", spar.ents[ia].alive)
 	check(a.channelled > 0.0, "sparring pays into the same progression")
+	check(spar.won(ia) != spar.won(ib), "only one of the two won the duel")
+	# Two friends at the duel's doorway: one steps through while the other is still
+	# looking in. It must wait for them, not end at once.
+	var d2 := Sim.new("dream_spar", 2)
+	var ja := d2.add_player(Profile.create({name = "First In"}), Vector3(0, 0, 8))
+	var jb := d2.add_player(Profile.create({name = "Still Looking"}), Vector3(0, 0, -8))
+	d2.ents[jb].away = true
+	for i in 300: d2.step(1.0 / 30.0)
+	check(not d2.over and d2.tallies.size() == 2, "a duel waits for a friend still at the doorway")
+	d2.ents[jb].away = false
+	for i in 30: d2.step(1.0 / 30.0)
+	check(not d2.over, "and goes on once they step through")
+	# One who only looked in and walked away has not lost.
+	var d3 := Sim.new("dream_spar", 4)
+	d3.add_player(Profile.create({name = "Alone"}), Vector3(0, 0, 8))
+	var gone := d3.add_player(Profile.create({name = "Walked Off"}), Vector3(0, 0, -8))
+	d3.ents[gone].alive = false; d3.ents[gone].looked_only = true
+	for i in 30: d3.step(1.0 / 30.0)
+	check(not d3.over, "someone who only looked in is not beaten")
+	# Alone: the dream sends your shade (on a server too).
+	var d4 := Sim.new("dream_spar", 6)
+	var solo := d4.add_player(Profile.create({name = "Solo"}), Vector3(0, 0, 8))
+	for i in 160: d4.step(1.0 / 30.0)
+	var shade := d4.ents.values().filter(func(q: Dictionary) -> bool: return q.kind == "player" and q.id != solo)
+	check(shade.size() == 1 and shade[0].bot and shade[0].profile.name == "Your shade", "alone in a duel, your shade comes to fight you")
 
 	_arms()
 	_holds()
@@ -2030,6 +2055,45 @@ func _arms_tree() -> void:
 	var fw := Profile.make({name = "Form Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
 	Progression.award(fw, {effort = 99999.0, seconds = 60.0, draw = 0.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
 	check(not fw.forms_owned.is_empty() and Rules.knows(fw, fw.forms_owned[0]), "with nothing chosen, fighting works out a form, kept for good (%s)" % [fw.forms_owned])
+	# A channeller works out the chosen weave between rounds, by what they channelled.
+	var cw := Profile.make({name = "Study Weaver", power = "saidar"})
+	var pick := ""
+	for id in Rules.study_options(cw):
+		pick = id
+	check(pick != "", "a channeller has weaves open to study")
+	cw.study = pick; cw.study_done = 0.0
+	var cost := Rules.study_cost(cw, pick)
+	Progression.award(cw, {effort = 0.0, seconds = 60.0, draw = cost * 0.4, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", false)
+	check(cw.study == pick and absf(cw.study_done - cost * 0.4) < 0.01, "channelling in a round works out the chosen weave (%.0f of %.0f)" % [cw.study_done, cost])
+	Progression.award(cw, {effort = 0.0, seconds = 60.0, draw = cost, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
+	check(cw.weaves.get(pick, {}).get("known", false) and cw.study == "", "and then it is known (%s)" % pick)
+	# Missile forms: a fan of knives, an arrow through a rank.
+	var mf := Sim.new("practice", 77)
+	mf._waves = [{t = 999.0, spawn = {}}]
+	var archer := Profile.make({name = "Form Archer", cls = "hunter", kit = ["longbow", "throwing_knives", "belt_knife"]})
+	archer.forms = {bow_line = {known = true}, thrown_fan = {known = true}}
+	var ai := mf.add_player(archer)
+	var a: Dictionary = mf.ents[ai]
+	a.pos = Vector3.ZERO
+	for k in 3:
+		mf._add_enemy("trolloc", Vector3(0, 0, 10 + k * 1.6))
+		mf.ents[ai + 1 + k].speed = 0.0; mf.ents[ai + 1 + k].hp = 9999.0
+	a.weapon = "longbow"; a.ammo["longbow"] = 30; a.ammo["throwing_knives"] = 8
+	var why := mf.request_attack(ai, "form:bow_line", Vector3(0, 1.4, 14))
+	check(why == "", "Through the Line can be loosed (%s)" % why)
+	var hit_ids := {}
+	for i in 90:
+		mf.step(1.0 / 30.0)
+		for ev in mf.events:
+			if ev.e == "hit" and mf.ents.has(ev.id) and ev.id != ai:
+				hit_ids[ev.id] = true
+	check(hit_ids.size() >= 2, "one arrow goes through the first Trolloc into the next (%d hit)" % hit_ids.size())
+	a.weapon = "throwing_knives"
+	var left0: int = a.ammo["throwing_knives"]
+	check(mf.request_attack(ai, "form:thrown_fan", Vector3(0, 1.4, 14)) == "", "A Fan of Steel can be thrown")
+	for i in 15:
+		mf.step(1.0 / 30.0)
+	check(left0 - a.ammo["throwing_knives"] == 5, "it throws five knives at once (%d went)" % (left0 - a.ammo["throwing_knives"]))
 	# A bot weaves only at what it can see.
 	var ls := Sim.new("practice", 131)
 	ls._waves = [{t = 999.0, spawn = {}}]

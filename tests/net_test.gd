@@ -107,7 +107,8 @@ func _vault(address: String, word: String) -> void:
 			print("NET vault step failed: ", r[0], " ", r[1].get("seconds", "-"))
 	s.vault_sync(address, p.name, "pass1", {}, "notit")
 	var r2: Array = await s.vaulted
-	ok = ok and r2[0] == "wrong word"
+	# A wrong word: the server cannot prove it knows ours, so nothing is sent at all.
+	ok = ok and r2[0].contains("prove it knows the word")
 	print("NET vault ok=%s" % ok)
 	quit()
 

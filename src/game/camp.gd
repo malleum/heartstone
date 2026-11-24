@@ -909,9 +909,9 @@ func _poll_lobby(dt: float) -> void:
 	# its own only when it is down, and rarely: one built and thrown away every few
 	# seconds is what crashed the camp after a few minutes.
 	_lobby_t = 4.0 if _linked() else 12.0
-	var where := {}
+	var where := {v = Updater.release()}
 	if model and not creating:
-		where = {x = pos.x, z = pos.z, yaw = face, kind = String(model.get_meta("kind", "")), style = profile.get("style", {})}
+		where = {x = pos.x, z = pos.z, yaw = face, kind = String(model.get_meta("kind", "")), style = profile.get("style", {}), v = Updater.release()}
 	var word: String = online.get("word", "")
 	if _linked():
 		if _link.ask_here(word, profile.get("name", ""), where):
@@ -953,12 +953,14 @@ func _heard(list: Array, answered: bool) -> void:
 	for f in list:
 		if f.get("room", "") == "_server":
 			server_stamp = f.get("stamp", {}); server_version = f.get("version", "")
+			if f.has("release"): server_stamp.release = f.release
 		elif f.get("room", "") == "_camp":
 			# A friend just come to their camp: say so, once.
 			for n in f.get("players", []):
 				if not in_camp.has(n) and not cl.has("ghost"):
 					Toast.say("%s is in their camp" % n, "A doorway you both walk through puts you in the same fight.", "good", 6.0)
 			in_camp = f.get("players", [])
+			camp_versions = f.get("versions", {})
 			if not _linked():
 				_place_others(f.get("walkers", []))
 			# Someone to watch walk: ask again soon (the wait was chosen before
@@ -1115,6 +1117,16 @@ func _walk_others(dt: float) -> void:
 			ap.play(clip, 0.2)
 		Hero.cloak_motion(node, speed if moving else 0.0)
 
+var camp_versions := {}   # friend in their camp -> their game's version
+
+## "Josh (v0.2.11), Sam (older)": who, and which version each runs.
+static func _with_versions(names: Array, versions: Dictionary) -> String:
+	var out := []
+	for n in names:
+		var v := String(versions.get(n, ""))
+		out.append("%s (%s)" % [n, v if v != "" else "before v0.2.11"])
+	return ", ".join(out)
+
 func _lobby_text() -> String:
 	if not reachable:
 		return "The server isn't answering. Fights are played offline."
@@ -1122,7 +1134,7 @@ func _lobby_text() -> String:
 		return "Nobody is fighting just now."
 	var lines := []
 	for f in fights:
-		lines.append("%s: %s, %d:%02d in" % [", ".join(f.players), Rules.activities.get(f.activity, {}).get("name", f.activity), int(f.t) / 60, int(f.t) % 60])
+		lines.append("%s: %s, %d:%02d in" % [_with_versions(f.players, f.get("versions", {})), Rules.activities.get(f.activity, {}).get("name", f.activity), int(f.t) / 60, int(f.t) % 60])
 	return "\n".join(lines)
 
 ## Esc: the things that are not places. The server (where friends on different
@@ -1160,7 +1172,7 @@ func _menu_fill() -> void:
 	_section(menu_box, "Playing now")
 	_text(menu_box, _lobby_text(), 14, Color(0.75, 0.9, 0.8) if reachable else Color(1.0, 0.7, 0.45))
 	if not in_camp.is_empty():
-		_text(menu_box, "In their camps: " + ", ".join(in_camp), 14, Color(0.75, 0.9, 0.8))
+		_text(menu_box, "In their camps: " + _with_versions(in_camp, camp_versions), 14, Color(0.75, 0.9, 0.8))
 	# Which build each side is, and whether they can play together.
 	var mine := Updater.label(Updater.stamp())
 	_row(menu_box, "This game", mine)

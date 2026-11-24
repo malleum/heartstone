@@ -24,6 +24,10 @@ jobs:
           unzip -q godot.zip && mv "Godot_v${GODOT}-stable_linux.x86_64" godot && chmod +x godot
           dir=~/.local/share/godot/export_templates/${GODOT}.stable
           mkdir -p "$dir" && unzip -q templates.tpz && mv templates/* "$dir/"
+      - name: The tag matches Updater.VERSION
+        run: |
+          want="v$(grep -oP 'const VERSION := "\K[^"]+' src/game/updater.gd)"
+          [ "$want" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but Updater.VERSION says $want"; exit 1; }
       - name: Stamp the build
         run: |
           printf '{"tag": "%s", "engine": "%s", "commit": "%s", "date": %s, "embedded": true}\n' "$GITHUB_REF_NAME" "$GODOT" "$(git rev-parse --short HEAD)" "$(git log -1 --format=%ct)" > build.json

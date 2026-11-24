@@ -758,7 +758,11 @@ of eight slots with an inventory, I, to choose which eight; see below the table.
   target's health. Dream-things do their full written damage. Bot duels now last
   16 to 100 s.
 - **Opponent.** A spar entered alone conjures "Your shade" after 4 s (a bot of the same
-  kind as you); `--foe=warder|aiel|hunter|channeller|mirror` picks one. `Bot.dream`
+  kind as you; since 24 Nov made by the sim, so on the server as well);
+  `--foe=warder|aiel|hunter|channeller|mirror` picks one. A duel ends when someone has
+  been beaten and one is left standing; a friend still only looking in at the doorway
+  (`away`) is waited for, and one who walked off without entering (`looked_only`) has
+  not lost. `Sim.won` is true only for the one standing. `Bot.dream`
   plays the moves: Denies or steps from what is coming, steps out of chains, attacks
   when its Will is above 50.
 - Snapshot rows carry Will as an eighth number; status bits 131072 (chained) and 262144

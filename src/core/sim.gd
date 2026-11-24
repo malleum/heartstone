@@ -19,6 +19,7 @@ var rng := RandomNumberGenerator.new()
 var _next := 1
 var _waves: Array = []
 var _spar := false
+var _shade_asked := false   # a lone duellist's shade looked for (once)
 var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dream)
 var _field_clear := false   # this wave's foes all dead (its downed already settled)
 var round_mode := false  # a round (see Round): everyone grows during it, from fresh
@@ -598,6 +599,9 @@ func request_attack(id: int, kind: String, aim: Vector3, charge := 1.0) -> Strin
 			if t < p.shot_free + Rules.draw_time(p.profile, p.weapon):
 				return "still spanning"
 			charge = 1.0
+		elif w.has("shot") and kind.begins_with("form:"):
+			# A form is a practised full draw in the form's own time.
+			charge = 1.0
 		elif w.has("shot"):
 			# The draw happens in the hand before the click is released; the sim only
 			# makes sure nobody looses faster than the bow can be drawn.
@@ -848,6 +852,8 @@ func step(dt: float) -> void:
 	# so they fight the same on a server as on a desk.
 	for id in ents:
 		if ents[id].get("bot", false) and ents[id].alive and not ents[id].get("ward", false):
+			if dream:
+				Bot.dream(self, id)
 			Bot.drive(self, id)
 	if not ledger.is_empty() and ledger[0].t < t - 20.0:
 		ledger = ledger.filter(func(h: Dictionary) -> bool: return h.t >= t - 20.0)
@@ -912,8 +918,21 @@ func step(dt: float) -> void:
 	if not battle.is_empty():
 		_step_battle()
 	elif _spar:
-		if players.size() <= 1 and tallies.size() > 1:
+		# Over when someone has been beaten and one is left standing. A friend still
+		# only looking in through the doorway (away) has not lost: it waits for them.
+		var fallen := ents.values().any(func(q: Dictionary) -> bool: return q.kind == "player" and not q.alive and not q.get("looked_only", false))
+		if fallen and players.size() <= 1:
 			_finish(true)
+		elif not _shade_asked and t > 4.0:
+			# Nobody else came: the dream gives you your own shade to fight (here, so
+			# it happens on the server as well as on a desk).
+			_shade_asked = true
+			if tallies.size() == 1 and players.size() == 1:
+				var me: Dictionary = players[0]
+				var fp: Dictionary = me.profile.duplicate(true)
+				fp.name = "Your shade"; fp.erase("round")
+				var sid := add_player(fp, _feet(me) + Vector3(sin(me.yaw), 0, cos(me.yaw)) * 14.0, true)
+				ents[sid].yaw = me.yaw + PI
 	elif players.is_empty() and away == 0:
 		# In the endless night, lasting long enough was already the win.
 		_finish(_endless_won)
@@ -973,6 +992,8 @@ func _df_free() -> bool:
 
 ## Did this player win? In a Darkfriend round the two sides win and lose apart.
 func won(id: int) -> bool:
+	if _spar:
+		return over and ents.get(id, {}).get("alive", false)
 	if not battle.is_empty():
 		return over and ents.get(id, {}).get("team", 0) == winner
 	if not df_mode or not over:
@@ -1622,10 +1643,24 @@ func _strike(p: Dictionary) -> void:
 		# A half-drawn bow throws a slow arrow that drops short and barely bites;
 		# the last of the draw is where the power is.
 		var pull: float = sw.charge if w.has("shot") else 1.0
-		effects.append({kind = "missile", owner = p.id, weapon = sw.weapon, pos = hand + throw * 0.5, vel = throw * shot.speed * lerpf(0.35, 1.0, pull * pull),
-			dmg = dmg * lerpf(0.15, 1.0, pull * pull), radius = 0.5, left = shot.range * lerpf(0.4, 1.0, pull), gravity = shot.gravity, stagger = shot.get("stagger", 0.0) * pull,
-			push = shot.get("push", 0.0) * pull, id = _fx_id(), lit = w.family == "bow" and not w.shot.get("crank", false) and _by_fire(p.pos)})
-		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon], pull = pull, lit = effects[-1].lit})
+		# A form may loose several at once in a fan (count, spread degrees across it),
+		# send one through several bodies (pierce), and hit harder or reel them more.
+		var on: Dictionary = m.get("on_hit", {})
+		var n := mini(int(m.get("count", 1)), p.ammo[sw.weapon] + 1)
+		p.ammo[sw.weapon] -= n - 1
+		var lit: bool = w.family == "bow" and not w.shot.get("crank", false) and _by_fire(p.pos)
+		for i in n:
+			var a := deg_to_rad(float(m.get("spread", 0.0))) * ((i + 0.5) / n - 0.5)
+			var way := throw.rotated(Vector3.UP, a)
+			effects.append({kind = "missile", owner = p.id, weapon = sw.weapon, pos = hand + way * 0.5, vel = way * shot.speed * lerpf(0.35, 1.0, pull * pull),
+				dmg = dmg * lerpf(0.15, 1.0, pull * pull), radius = 0.5, left = shot.range * lerpf(0.4, 1.0, pull), gravity = shot.gravity,
+				stagger = maxf(float(shot.get("stagger", 0.0)), float(on.get("stagger", 0.0))) * pull,
+				push = maxf(float(shot.get("push", 0.0)), float(on.get("push", 0.0))) * pull, id = _fx_id(), lit = lit,
+				pierce = int(m.get("pierce", 0)), passed = []})
+		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon], pull = pull, lit = lit, form = Rules.forms.has(sw.move)})
+		# Out of shafts mid-flurry: the hands stop.
+		if p.ammo[sw.weapon] <= 0:
+			sw.again = 0
 		return
 	var reach: float = w.reach * m.get("reach", 1.0)
 	var found := []
@@ -2628,6 +2663,17 @@ func _step_effects(dt: float) -> void:
 						break
 					hit = _fly(fx, owner, dt / hops)
 					alive = fx.left > 0.0
+					if hit and fx.has("struck") and fx.get("pierce", 0) > 0 and not fx.passed.has(fx.struck) and not _shield_turns(ents[fx.struck], fx.vel):
+						# Driven clean through one and on into the next.
+						var thru: Dictionary = ents[fx.struck]
+						fx.passed.append(fx.struck)
+						fx.pierce -= 1
+						var fl: Vector3 = fx.vel * Vector3(1, 0, 1)
+						_wound(thru, fx.dmg, fx.owner, fx.weapon, {stagger = fx.stagger, push = fx.push}, fl.normalized())
+						events.append({e = "stick", pos = fx.pos, weapon = fx.weapon, into = 0, dir = fx.vel.normalized()})
+						fx.dmg *= 0.8
+						fx.erase("struck")
+						hit = false
 				if hit:
 					alive = false
 					# A shield held up turns what flies at it from the front.

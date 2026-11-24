@@ -236,6 +236,12 @@ Bare hands
       side-on to draw. Built over the pack's clips, which still give the legs, as the sword
       forms are. The pack has no spear, staff, bow or kick clips; truly new clips would be
       made in Blender. `tools/strokes.sh weapon:move ...` shows them.)
+- [x] (24 Nov) Strokes for every form past the sword's: spear (set, sweep, wall, and the
+      dance and the stag from the spear strokes), staff (whirl, door; reeds and rafters from
+      the staff strokes), axe (cleave, oak two-handed, hook, round), knife (flurry, slip,
+      hamstring, shadows), hand (stone, hip; knuckles from jab and cross). A flurry restarts
+      its stroke each blow, alternating with "<form>:b". Bow and thrown forms (24 Nov):
+      missile moves with count, spread and pierce.
 - [~] Camera: a slight pull-in when guarding (18 Nov, 0.8 m); lock-on to one enemy (optional, not done).
 
 ### 7. HUD and camp

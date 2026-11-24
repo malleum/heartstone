@@ -698,6 +698,7 @@ func _frame_body(dt: float) -> void:
 		_stamp("frame %d drawn (dt %.2f s)" % [frame, dt])
 	frame += 1
 	if args.has("ghost"):
+		Ghost.flags = {ready = my_form.get("ready", false), marked = my_form.get("marked", false)}
 		Ghost.step(args.ghost, frame)
 	clock += dt
 	refusal_t -= dt
@@ -1052,7 +1053,8 @@ func _on_started(_my_id: int, activity: String) -> void:
 		Toast.say("Tel'aran'rhiod", "Your dream abilities are on the bar at the right, each on its key. %s: all of them, to choose which eight." % Keys.name(KEY_I), "info", 7.0)
 		# --foe=mirror|warder|aiel|hunter|channeller: someone to duel when no friend
 		# is here. Entering a duel alone meets your own shade.
-		if session.is_host and (args.has("foe") or Rules.activities[activity].kind == "spar"):
+		# (Alone in a duel with no --foe, the sim itself brings your shade.)
+		if session.is_host and args.has("foe"):
 			var kind: String = args.get("foe", "mirror")
 			var fp: Dictionary
 			if kind == "mirror":
@@ -1668,11 +1670,13 @@ func _offline(why: String) -> void:
 		else:
 			body += "They differ: update whichever is older."
 		Toast.say("Versions differ: playing offline", body, "warn", 14.0)
-	elif why.contains("turned you away") and String(args.get("word", "")) == "":
+	elif (why.contains("turned you away") or why.contains("prove it knows the word")) and String(args.get("word", "")) == "":
 		# The usual reason: this machine has never been given the server's word.
 		Toast.say("Playing offline: no server word", "The server wants its word. Esc, then type it into \"the server's word\" (asked once; kept on this machine). Friends can't join until then.", "warn", 14.0)
-	elif why.contains("turned you away"):
-		Toast.say("Playing offline: wrong word?", "The server turned you away. Check the server's word under Esc (it must match the one on the server exactly).", "warn", 12.0)
+	elif why.contains("turned you away") or why.contains("prove it knows the word"):
+		Toast.say("Playing offline: wrong word?", "The server and this game do not share the same word. Check the server's word under Esc (it must match the one on the server exactly). If it does, this is not your server.", "warn", 12.0)
+	elif why.contains("did not prove who it is"):
+		Toast.say("Playing offline", "The server did not prove who it is: it may be an older version, or not your server.", "warn", 12.0)
 	else:
 		Toast.say("Playing offline", "Couldn't reach the server (%s). Friends can't join this game." % why, "warn", 8.0)
 	multiplayer.multiplayer_peer = null
@@ -2157,10 +2161,14 @@ func _on_events(list: Array) -> void:
 					a.reps = a.get("reps", 0) + 1
 					Armsfx.trail(self, a.node.position, e.dir, e.reach, m, a.reps, e.hits > 0)
 					if int(m.get("repeat", 1)) > 1 and a.reps > 1:
-						# A flurry: each wound is its own quick blow, hand after hand.
-						var ap: AnimationPlayer = a.node.get_meta("anim")
-						var clip: String = "Punch_Cross" if a.reps % 2 == 0 else "Punch_Jab"
-						ap.stop(); ap.play(clip, 0.02, ap.get_animation(clip).length * 0.35 / maxf(float(m.get("gap", 0.12)), 0.05))
+						# A flurry: each wound is its own quick blow, hand after hand: the
+						# written stroke again (its second one on even blows), or a punch.
+						var g := float(m.get("gap", 0.12))
+						var wp: String = a.get("weapon", "")
+						if not (a.reps % 2 == 0 and Hero.stroke(a.node, e.move + ":b", g * 0.45, g * 0.55, wp)) and not Hero.stroke(a.node, e.move, g * 0.45, g * 0.55, wp):
+							var ap: AnimationPlayer = a.node.get_meta("anim")
+							var clip: String = "Punch_Cross" if a.reps % 2 == 0 else "Punch_Jab"
+							ap.stop(); ap.play(clip, 0.02, ap.get_animation(clip).length * 0.35 / maxf(g, 0.05))
 						Sfx.play(self, "whoosh", a.node.position + Vector3(0, 1.3, 0), -6.0, 1.7 + 0.1 * a.reps)
 			"dodge":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):

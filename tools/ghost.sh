@@ -10,7 +10,7 @@ KEEP_EVERY=900 tools/render.sh renders/ghost_arms 960 -- --activity=camp_trainin
 # (Strength fixed at 1: the yard rolls strength, and a strong roll's two fireballs
 # killed every post, which ends the exercise and stops the clock mid-weave.)
 KEEP_EVERY=900 tools/render.sh renders/ghost_weaves 680 -- --activity=camp_training --name=GhostC --aff=fire --only=fireball,dome_of_air,bonds_of_air --tie --flows=3 --strength=1 --ghost=weaves >"$out/weaves" 2>&1
-KEEP_EVERY=900 tools/render.sh renders/ghost_place 440 -- --activity=camp_training --name=GhostP --only=wall_of_air,gateway --strength=8 --flows=5 --ghost=place >"$out/place" 2>&1
+KEEP_EVERY=900 tools/render.sh renders/ghost_place 520 -- --activity=camp_training --name=GhostP --only=wall_of_air,gateway --strength=8 --flows=5 --ghost=place >"$out/place" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_dream 520 -- --activity=dream_spar --name=GhostD --class=warder --ghost=dream >"$out/dream" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_camp 600 -- --who=Bot --ghost=camp >"$out/camp" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_flow 520 -- --ghost=flow >"$out/flow" 2>&1

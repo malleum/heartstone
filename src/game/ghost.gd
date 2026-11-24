@@ -5,7 +5,9 @@ extends RefCounted
 ## the sim) can be exercised in a render or a test.
 ##   -- --ghost=arms | weaves | place | camp | dream
 ## Each script is a list of [frame, what, ...]: "key" keycode down?, "mouse"
-## button down?, "tap" keycode (down and up).
+## button down?, "tap" keycode (down and up). [frame, "when", flag, rows]: from that
+## frame on, once the game says `flag` (Ghost.flags), play `rows` (frames counted
+## from then), so a script waits for the game rather than guessing how long it takes.
 
 const SCRIPTS := {
 	# A fighter in the training yard: every control once.
@@ -38,9 +40,10 @@ const SCRIPTS := {
 	# whole, let go for the near end, the wheel turning the far end, a click for it.
 	place = [[60, "tap", KEY_T], [80, "mouse", MOUSE_BUTTON_LEFT, true], [150, "mouse", MOUSE_BUTTON_LEFT, false],
 		[180, "tap", KEY_2], [190, "tap", KEY_T],
-		[200, "mouse", MOUSE_BUTTON_LEFT, true], [350, "mouse", MOUSE_BUTTON_LEFT, false],
-		[370, "mouse", MOUSE_BUTTON_WHEEL_UP, true], [371, "mouse", MOUSE_BUTTON_WHEEL_UP, false],
-		[390, "mouse", MOUSE_BUTTON_LEFT, true], [392, "mouse", MOUSE_BUTTON_LEFT, false]],
+		[200, "mouse", MOUSE_BUTTON_LEFT, true],
+		[210, "when", "ready", [[5, "mouse", MOUSE_BUTTON_LEFT, false]]],
+		[210, "when", "marked", [[10, "mouse", MOUSE_BUTTON_WHEEL_UP, true], [11, "mouse", MOUSE_BUTTON_WHEEL_UP, false],
+			[30, "mouse", MOUSE_BUTTON_LEFT, true], [32, "mouse", MOUSE_BUTTON_LEFT, false]]]],
 	# A duel in the dream: every dream key once, most of them before the shade
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
@@ -50,16 +53,31 @@ const SCRIPTS := {
 		[180, "key", KEY_W, true], [520, "key", KEY_W, false]],
 }
 
+static var flags := {}     # what the game says is so this frame (ready, marked)
+static var _fired := {}    # "when" rows already started, by index
+static var _later := []    # [frame, row] scheduled by them
+
 static func step(script: String, frame: int) -> void:
-	for row in SCRIPTS.get(script, []):
-		if row[0] != frame and not (row[1] == "tap" and row[0] + 2 == frame):
-			continue
-		if row[1] == "mouse":
-			var ev := InputEventMouseButton.new()
-			ev.button_index = row[2]; ev.pressed = row[3]
-			Input.parse_input_event(ev)
-		else:
-			var ev := InputEventKey.new()
-			ev.keycode = row[2]; ev.physical_keycode = row[2]
-			ev.pressed = row[3] if row[1] == "key" else row[0] == frame
-			Input.parse_input_event(ev)
+	var rows: Array = SCRIPTS.get(script, [])
+	for i in rows.size():
+		var row: Array = rows[i]
+		if row[1] == "when" and frame >= row[0] and not _fired.has(i) and flags.get(row[2], false):
+			_fired[i] = true
+			for r in row[3]:
+				var abs_row: Array = r.duplicate(); abs_row[0] = frame + int(r[0])
+				_later.append(abs_row)
+	for row in rows.filter(func(r: Array) -> bool: return r[1] != "when") + _later:
+		_play(row, frame)
+
+static func _play(row: Array, frame: int) -> void:
+	if row[0] != frame and not (row[1] == "tap" and row[0] + 2 == frame):
+		return
+	if row[1] == "mouse":
+		var ev := InputEventMouseButton.new()
+		ev.button_index = row[2]; ev.pressed = row[3]
+		Input.parse_input_event(ev)
+	else:
+		var ev := InputEventKey.new()
+		ev.keycode = row[2]; ev.physical_keycode = row[2]
+		ev.pressed = row[3] if row[1] == "key" else row[0] == frame
+		Input.parse_input_event(ev)

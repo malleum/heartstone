@@ -49,7 +49,15 @@ static func _fight(sim: Sim, id: int, me: Dictionary, near: Dictionary, best: fl
 	if me.weapon == ranged:
 		sim.set_guard(id, false)
 		sim.set_input(id, -to if best < 6.0 and near.speed > 0.0 else Vector3.ZERO, yaw)
-		sim.request_attack(id, "light", sim.aim_missile(me, me.weapon, near))
+		# A missile form whenever one is ready for what is in hand.
+		if me.swing.is_empty():
+			for f in me.profile.get("forms", {}):
+				if me.cd.get(f, 0.0) <= sim.t and Rules.forms[f].get("missile", false) and Rules.form_block(me.profile, f, me.weapon) == "":
+					if sim.request_attack(id, "form:" + f, sim.aim_missile(me, me.weapon, near)) == "":
+						return
+			# (Only with the hands free: asked every frame, the next shot is always
+			# queued behind this one and a form never finds a moment.)
+			sim.request_attack(id, "light", sim.aim_missile(me, me.weapon, near))
 		return
 	var threats := 0
 	var danger := to

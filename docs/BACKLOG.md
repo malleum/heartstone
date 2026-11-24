@@ -244,7 +244,7 @@ are what the 4:44 review, or the next session, should pick up.
 - [x] Gateway: the edges cut (17 Nov) and Darkfriends open one (17 Nov).
 - [x] Healing with two people (18 Nov): tested in the rules; Healing a downed friend
   brings them back up.
-- [ ] (21 Nov) `tools/ghost.sh` place: the check that the wheel turned a gateway's far end
+- [x] (21 Nov; fixed 24 Nov: `when` rows in ghost.gd) `tools/ghost.sh` place: the check that the wheel turned a gateway's far end
   (`gate_open turn=0.2x`) failed once in a full run and passed alone: the turn depends on
   how many wheel notches land before the end is set. Make the script wait for the turn.
 - [ ] Movement prediction is built but has only run on one machine, where there
@@ -592,8 +592,17 @@ are what the 4:44 review, or the next session, should pick up.
     none; check every prop against what it looks like.
 
 ## From 23 Nov
-- [ ] Forms for bows and thrown weapons (a volley, a fan of knives): the trees have none yet.
-- [ ] Channellers' study between rounds: the camp chart's "click to study" does nothing for
-      current saves (only a win's unlocks add weaves); fighters now study by fighting.
-- [ ] The hand-and-a-half sword and the earned blades share a column with five steps: if more
-      weapons join a line, the column layout needs a scroll or smaller steps.
+- [x] (24 Nov) Forms for bows and thrown weapons: five bow forms, four thrown (count/spread,
+      pierce on missile moves). PLAYTEST 94.
+- [x] (24 Nov) Channellers' study between rounds: worked out by what they channelled. PLAYTEST 95.
+- [x] (24 Nov) Tree layout: the fighter trees use the whole width (the card goes on the far
+      side), circles shrink with the step, side-by-side steps take less room.
+
+## From 24 Nov
+- [x] Versions of the server and every player in the Esc menu (PLAYTEST 96).
+- [x] Dream duel: two friends could not walk in one after the other, it ended at once
+      (PLAYTEST 97).
+- [x] The server proves it is the real one (PLAYTEST 98).
+- [x] `tools/ghost.sh` place waits for the game (ready, marked) instead of fixed frames.
+- [x] Written strokes for the twenty forms that had none (PLAYTEST 99). Still stand-ins: the
+      legs (the pack's clips), and the bow forms use the plain loose and throw clips.

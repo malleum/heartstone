@@ -92,8 +92,11 @@ func _shown() -> Array:
 			out.append(id)
 	return out
 
+var _step_r := 0.0   # a fighter's tree: the most a circle may be, so a long column still fits
+
 func _node_r() -> float:
-	return clampf(_radius() * 0.085, 20.0, 34.0)
+	var r := clampf(_radius() * 0.085, 20.0, 34.0)
+	return minf(r, _step_r) if _forms() and _step_r > 0.0 else r
 
 func _layout() -> void:
 	if _for == size and not _pos.is_empty():
@@ -119,15 +122,27 @@ func _layout() -> void:
 		for f in fams:
 			for tier in deepest + 1:
 				widest[f] = maxi(widest[f], ids.filter(func(i: String) -> bool: return tb[i].family == f and _tier(i) == tier).size())
+		# The whole width (the card goes on the far side from what it describes). Each
+		# column is at least a name wide; steps side by side are staggered up and
+		# down, so each one past the first needs less than that, as room allows.
+		var left := 50.0; var right := _sz().x - 50.0
+		var name_w := 84.0
+		var extra := 0
+		for f in fams:
+			extra += widest[f] - 1
+		var sib_k := clampf(((right - left) / name_w - fams.size()) / maxf(extra, 1.0), 0.45, 1.0)
 		var total := 0.0
 		for f in fams:
-			total += 1.0 + 1.0 * (widest[f] - 1)
-		var left := 50.0; var right := _sz().x * 0.74
-		var top := 178.0; var step := minf(100.0, (_sz().y - top - 120.0) / maxf(deepest, 1.0))
+			total += 1.0 + sib_k * (widest[f] - 1)
+		# (The last step may be staggered down, and has its name under it.)
+		var top := 178.0; var step := minf(100.0, (_sz().y - top - 110.0) / maxf(deepest + 0.3, 1.0))
+		# However many steps a column grows to, they fit: the circles shrink with the
+		# step, leaving room for the name under each (and the staggered sibling).
+		_step_r = maxf(step * 0.26, 11.0)
 		var unit := (right - left) / maxf(total, 1.0)
 		var x0 := left
 		for fam in fams:
-			var colw: float = unit * (1.0 + 1.0 * (widest[fam] - 1))
+			var colw: float = unit * (1.0 + sib_k * (widest[fam] - 1))
 			var x: float = x0 + colw * 0.5
 			x0 += colw
 			_cols[fam] = x
@@ -348,6 +363,10 @@ func _card(id: String) -> void:
 	var w: Dictionary = _table()[id]
 	var x := _sz().x * 0.76; var y := _sz().y * 0.24
 	var wd := _sz().x * 0.22
+	# A fighter's trees fill the width: the card stands on the other side from the
+	# step it is about.
+	if _forms() and _pos.has(id) and _pos[id].x > _sz().x * 0.5:
+		x = 40.0
 	draw_rect(Rect2(x - 20, y - 46, wd + 40, 360), Color(0.06, 0.06, 0.1, 0.85))
 	draw_rect(Rect2(x - 20, y - 46, wd + 40, 360), Color(Glyph.GOLD, 0.4), false, 1.2)
 	Glyph.text(self, serif, Vector2(x, y), w.name, 24 if w.name.length() < 22 else 17, Color(0.97, 0.94, 0.88))

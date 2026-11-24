@@ -82,7 +82,11 @@ In the camp, under **Server**:
   from the word and the number). Someone listening on the network learns
   neither and cannot replay what they heard. Limits: with **no word set** the
   seal protects nothing, so set one; the characters themselves are sent in the
-  clear; and nothing proves the server is the real one.
+  clear. The server proves itself the same way, first (24 Nov): the game sends a
+  number of its own, the server answers with a hash of the word and that number,
+  and only if it is right does the game send its proof or anything else. An
+  impostor at the address (no word) learns nothing to guess the word from and
+  can neither take nor hand back a character.
 - Characters are trusted as sent (no anti-cheat, by design: friends only). The
   server only checks that a character is shaped like one.
 - Progress is saved when an activity ends; a character is sent to the server when
@@ -93,7 +97,7 @@ In the camp, under **Server**:
 - `src/net/server.gd`: the program (a Godot script with no window).
 - `src/net/session.gd`: `serve`, `_rooms`, `_hello` (the word, the room, starting
   a fight, the roster for latecomers), `_who` (the lobby), `_vault` (the character
-  store), `_greet` / `_proof` / `_seal` (secrets), `vault_sync` and `ask_lobby`
+  store), `_greet` / `_proof` / `_seal` / `_challenge` / `_vouch` (secrets), `vault_sync` and `ask_lobby`
   (the client side).
 - `flake.nix`: `packages.server`, `nixosModules.default`, `checks.module`.
 - `tools/test.sh` runs a server on localhost with two players in two rooms at

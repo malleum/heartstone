@@ -83,55 +83,57 @@ Generated from `src/game/launch.gd` by `tools/tourdoc.py`.
 | 49 | Sword forms, last four | Keys 6-9: the Swallow, the Courtier's Fan, Arc of the Moon, Sheathing the Sword. |  |
 | 50 | Spear forms | The Dance of Spears (three thrusts) and Set Against the Charge. |  |
 | 51 | Whirling Staff, Hew, Flurry | Staff, axe and knife (paired daggers) forms. | Flurry is four quick wounds. |
+| 52 | Bow forms | With the longbow in hand: Snap Shot (no draw), Two on the String, Through the Line (wait till they line up), Hail of Shafts, the Heart Shot. | Through the Line should go through two or three in a row; the Heart Shot knocks one back. |
+| 53 | Thrown forms | Throwing knives: Flick of the Wrist, a Fan of Steel (five at once), Hard and Low, the Gleeman's Juggle. Gather them up again after. | The fan should spread across a rank; the juggle stops when the knives run out. |
 
 ## Callings
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 52 | The Warder's bond | A knot marks your channeller, through walls; redder as she is hurt. | Out of sight it is an arrow at the screen's edge. If she goes down you rage: harder blows, no tiring, for 12 s. |
-| 53 | The Warder's cloak and ward | Stand still a second: they go for her instead. Parry beside her: you take her blow. | You both recover faster near each other. |
-| 54 | Aiel: a Maiden of the Spear | A little faster, and dodges cost less breath. | Veiled to fight. |
-| 55 | Aiel: a Stone Dog | Standing your ground, a fifth less from every blow. | Compare standing still with moving. |
-| 56 | Aiel: Brother of the Eagle | The horn bow drawn a fifth faster. |  |
-| 57 | Hunter: the Band of the Red Hand | The kit whole: crossbow, pike, ashandarei, a level up in each. |  |
-| 58 | Gift: Wolfbrother | A tenth faster, harder on Shadowspawn. |  |
-| 59 | Gift: a gambler's luck | "Lucky": one blow in seven misses you; one of yours in ten lands double. | Watch the notices. |
+| 54 | The Warder's bond | A knot marks your channeller, through walls; redder as she is hurt. | Out of sight it is an arrow at the screen's edge. If she goes down you rage: harder blows, no tiring, for 12 s. |
+| 55 | The Warder's cloak and ward | Stand still a second: they go for her instead. Parry beside her: you take her blow. | You both recover faster near each other. |
+| 56 | Aiel: a Maiden of the Spear | A little faster, and dodges cost less breath. | Veiled to fight. |
+| 57 | Aiel: a Stone Dog | Standing your ground, a fifth less from every blow. | Compare standing still with moving. |
+| 58 | Aiel: Brother of the Eagle | The horn bow drawn a fifth faster. |  |
+| 59 | Hunter: the Band of the Red Hand | The kit whole: crossbow, ashandarei, short sword, a level up in each. |  |
+| 60 | Gift: Wolfbrother | A tenth faster, harder on Shadowspawn. |  |
+| 61 | Gift: a gambler's luck | "Lucky": one blow in seven misses you; one of yours in ten lands double. | Watch the notices. |
 
 ## Enemies
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 60 | Trollocs | Each weapon has its own two blows; a blow unguarded staggers or throws you. | Scythe-swords sweep, axes chop, spears thrust, clubs smash. Read the wedges. |
-| 61 | Trolloc archers | They shoot from range: duck, roll, or shield. |  |
-| 62 | A bandleader (brute) | Big and hard-hitting; its low sweep trips (jump it, V). |  |
-| 63 | The Eyeless, blade to blade | It circles, lunges along the red line, or vanishes and comes out behind you. | Roll off the line or parry. Its wounds fester until Healed. |
-| 64 | The Eyeless and the dark | As a channeller: the dark closes in as it comes near; its stare slows your weaving. | Half of what you throw misses it; Blade of Spirit does not. Look away from its gaze. |
-| 65 | Darkhounds | They spring from far off along the red line; steel does half; weaves kill. | They mend when left alone. |
-| 66 | A Draghkar | It lands and sings (the rings): hit it before the song ends, or break its sight. | Let it finish once to feel it. |
-| 67 | A Dreadlord | Fire that bursts, red ground where lightning will fall. | Shield it, or out-weave it. |
-| 68 | Darkfriends | Men with blades and bows, smaller than Trollocs, fighting like people. |  |
-| 69 | A horde | Thirty Trollocs: does it stay smooth? | Rolling Ring and Blossoms into the crowd. |
+| 62 | Trollocs | Each weapon has its own two blows; a blow unguarded staggers or throws you. | Scythe-swords sweep, axes chop, spears thrust, clubs smash. Read the wedges. |
+| 63 | Trolloc archers | They shoot from range: duck, roll, or shield. |  |
+| 64 | A bandleader (brute) | Big and hard-hitting; its low sweep trips (jump it, V). |  |
+| 65 | The Eyeless, blade to blade | It circles, lunges along the red line, or vanishes and comes out behind you. | Roll off the line or parry. Its wounds fester until Healed. |
+| 66 | The Eyeless and the dark | As a channeller: the dark closes in as it comes near; its stare slows your weaving. | Half of what you throw misses it; Blade of Spirit does not. Look away from its gaze. |
+| 67 | Darkhounds | They spring from far off along the red line; steel does half; weaves kill. | They mend when left alone. |
+| 68 | A Draghkar | It lands and sings (the rings): hit it before the song ends, or break its sight. | Let it finish once to feel it. |
+| 69 | A Dreadlord | Fire that bursts, red ground where lightning will fall. | Shield it, or out-weave it. |
+| 70 | Darkfriends | Men with blades and bows, smaller than Trollocs, fighting like people. |  |
+| 71 | A horde | Thirty Trollocs: does it stay smooth? | Rolling Ring and Blossoms into the crowd. |
 
 ## Dream
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 70 | Dream duel: moving and denying | Z X V T Y U H Shift: the shifts, deny, spear, chains, pit, wall. | Will (the pale bar) pays for everything. Deny, pressed as something reaches you, unmakes it. I opens all 24. |
-| 71 | Dream duel: the wild things | Side-step, swap, arrows, boulder, ravens, cage, forget, shove. | Caged? Deny and wait. Swap trades places. |
-| 72 | Dream duel: the strange ones | Pull, fire, storm, ring, mirror, mend, fade, haste. | The mirror turns things back. Fade: unseen. Haste: quicker. |
-| 73 | Dream inventory | I: click an ability, then a slot, to put it on the bar. | Is it friendly enough? Are the bar's marks readable? |
+| 72 | Dream duel: moving and denying | Z X V T Y U H Shift: the shifts, deny, spear, chains, pit, wall. | Will (the pale bar) pays for everything. Deny, pressed as something reaches you, unmakes it. I opens all 24. |
+| 73 | Dream duel: the wild things | Side-step, swap, arrows, boulder, ravens, cage, forget, shove. | Caged? Deny and wait. Swap trades places. |
+| 74 | Dream duel: the strange ones | Pull, fire, storm, ring, mirror, mend, fade, haste. | The mirror turns things back. Fade: unseen. Haste: quicker. |
+| 75 | Dream inventory | I: click an ability, then a slot, to put it on the bar. | Is it friendly enough? Are the bar's marks readable? |
 
 ## Fights
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 74 | A round, sped up | Tab: choices waiting (six levels in). Waves four times as fast. | Your fire hurts your Warder. Go down: you lie there till the wave ends, and he must be beside you then (watch the health bar's DOWN line). |
-| 75 | Guard the Aes Sedai | She seals the Waygate (timer at the top); they go for her; if she falls it is lost. | Her mark points to her when she is out of sight. |
-| 76 | Guard her as a channeller | A Dome over her, Bonds on what reaches her. |  |
-| 77 | Two banners (team battle) | Blue rings yours, red theirs; kill theirs, stand over your own. | Bots fill out the numbers. |
-| 78 | The wagon ring, sped up | From every side, with archers and an Eyeless. |  |
-| 79 | The Wild Hunt, sped up | Darkhounds, a Draghkar, Dreadlords together. |  |
-| 80 | The endless night, sped up | Waves without end, at night, eight levels in. | Last station: N goes back to the camp. Things to try there are in docs/TOUR.md. |
+| 76 | A round, sped up | Tab: choices waiting (six levels in). Waves four times as fast. | Your fire hurts your Warder. Go down: you lie there till the wave ends, and he must be beside you then (watch the health bar's DOWN line). |
+| 77 | Guard the Aes Sedai | She seals the Waygate (timer at the top); they go for her; if she falls it is lost. | Her mark points to her when she is out of sight. |
+| 78 | Guard her as a channeller | A Dome over her, Bonds on what reaches her. |  |
+| 79 | Two banners (team battle) | Blue rings yours, red theirs; kill theirs, stand over your own. | Bots fill out the numbers. |
+| 80 | The wagon ring, sped up | From every side, with archers and an Eyeless. |  |
+| 81 | The Wild Hunt, sped up | Darkhounds, a Draghkar, Dreadlords together. |  |
+| 82 | The endless night, sped up | Waves without end, at night, eight levels in. | Last station: N goes back to the camp. Things to try there are in docs/TOUR.md. |
 
 ## Not in the tour
 

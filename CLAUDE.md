@@ -114,6 +114,14 @@ working on abilities; the user's rulings there are final).
   or form is worked out by effort spent fighting (`Progression._study_arms`); skill gates apply
   only in a round (`Rules.skills_count`). Camp: T or the sheet's button; `--show=tree --page=forms`.
 - Damage numbers: `hud.gd` `pop()` from the `hit` event (yours, and smaller red for hurts taken).
+- Versions: `Updater.VERSION` is the release being made; raise it before pushing a `v*` tag
+  (the workflow refuses a tag that does not match). Every build shows it, the server's too;
+  camps report theirs to the server, which lists each player's in the lobby.
+- The server proves the word first (`Session._challenge` / `_vouch`, on the client's own
+  number) before a client sends its proof, profile or character.
+- Missile forms (`missile` true on a form): `count` and `spread` (a fan), `pierce`; bow forms
+  are fully drawn in their own wind. Ghost scripts can wait on the game: `[frame, "when", flag,
+  rows]` with `Ghost.flags` set by game.gd (ready, marked).
 - Speed: `-- --perf` prints a line every 2 s (fps, draw calls, triangles, nodes, and the game's
   parts timed by `Perf.add`); `--census` lists what is drawn by kind and owner (game frame 400,
   camp 600). Measure with `NOMOVIE=1 TIMEOUT=35 tools/render.sh ... -- --perf --uncap` and one

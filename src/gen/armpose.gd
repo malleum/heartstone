@@ -173,6 +173,90 @@ const WRITTEN := {
 		[0.0, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), -0.5, 0.15, 0.0, Vector3(0.3, -0.84, -0.18)],
 		[1.0, Vector3(0.1, -0.2, 0.1), Vector3(0.0, 0.0, 1.0), 0.6, 0.35, 0.0, Vector3(-0.22, -0.84, 0.45)],
 		[1.5, Vector3(0.05, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), 0.7, 0.3, 0.0, Vector3(-0.1, -0.84, 0.3)]]},
+	# --- the forms past the sword's (24 Nov). A flurry restarts its stroke on every
+	# blow, taking "<form>:b" on the even ones where there is one (game.gd).
+	# Spear: butt grounded behind, the point raised to meet what comes.
+	"spear_set": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.08, -0.42, -0.12), Vector3(-0.05, 0.2, 1.0), -0.6, 0.0, 0.0],
+		[1.0, Vector3(0.06, -0.5, -0.25), Vector3(-0.05, 0.5, 0.86), -0.75, -0.12, 0.3],
+		[1.6, Vector3(0.06, -0.5, -0.25), Vector3(-0.05, 0.48, 0.87), -0.75, -0.12, 0.3]]},
+	# The shaft swung low right round the front.
+	"spear_sweep": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.45, -0.25, -0.1), Vector3(0.6, -0.35, -0.7), -1.1, 0.25, 0.0],
+		[1.0, Vector3(0.0, -0.45, 0.42), Vector3(-0.7, -0.6, 0.4), 0.2, 0.5, 0.0],
+		[1.6, Vector3(-0.4, -0.4, 0.2), Vector3(-0.9, -0.4, -0.2), 1.0, 0.45, 0.0]]},
+	# The wall of points: thrusts walking across the front, left and right.
+	"spear_wall": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.1, -0.38, -0.05), Vector3(0.25, 0.08, 1.0), -0.7, 0.05, 0.0],
+		[1.0, Vector3(0.0, -0.3, 0.32), Vector3(0.3, 0.02, 1.0), -0.5, 0.25, 0.0],
+		[1.4, Vector3(0.06, -0.36, 0.05), Vector3(0.25, 0.06, 1.0), -0.65, 0.1, 0.0]]},
+	"spear_wall:b": {two = true, gap = 0.42, keys = [
+		[0.0, Vector3(0.04, -0.38, -0.05), Vector3(-0.3, 0.08, 1.0), -0.3, 0.05, 0.0],
+		[1.0, Vector3(-0.08, -0.3, 0.32), Vector3(-0.35, 0.02, 1.0), 0.0, 0.25, 0.0],
+		[1.4, Vector3(0.0, -0.36, 0.05), Vector3(-0.3, 0.06, 1.0), -0.2, 0.1, 0.0]]},
+	# Staff: both ends round, the shaft level across the body.
+	"staff_whirl": {two = true, gap = 0.45, keys = [
+		[0.0, Vector3(0.3, -0.05, 0.25), Vector3(-0.9, 0.1, 0.3), -0.6, 0.0, 0.0],
+		[1.0, Vector3(-0.1, -0.05, 0.4), Vector3(-0.9, 0.1, -0.3), 0.5, 0.1, 0.0],
+		[1.5, Vector3(-0.3, -0.05, 0.25), Vector3(-0.8, 0.1, -0.6), 0.8, 0.05, 0.0]]},
+	# Held across in both hands and driven straight out.
+	"staff_door": {two = true, gap = 0.45, keys = [
+		[0.0, Vector3(0.15, -0.1, 0.05), Vector3(-1.0, 0.05, 0.0), 0.0, -0.05, 0.0],
+		[0.6, Vector3(0.15, -0.08, 0.0), Vector3(-1.0, 0.05, 0.0), 0.0, -0.1, 0.0],
+		[1.0, Vector3(0.1, 0.0, 0.55), Vector3(-1.0, 0.05, 0.0), 0.0, 0.35, 0.0],
+		[1.5, Vector3(0.12, -0.05, 0.4), Vector3(-1.0, 0.05, 0.0), 0.0, 0.25, 0.0]]},
+	# Axe: the woodsman's swing, both hands on the haft, over and down through.
+	"axe_cleave": {two = true, gap = -0.22, keys = [
+		[0.0, Vector3(-0.05, 0.5, -0.1), Vector3(0.0, 0.5, -0.85), 0.0, -0.2, 0.0],
+		[0.65, Vector3(-0.05, 0.55, -0.15), Vector3(0.0, 0.7, -0.7), 0.0, -0.25, 0.0],
+		[1.0, Vector3(-0.05, -0.1, 0.5), Vector3(0.0, -0.4, 0.9), 0.0, 0.5, 0.0],
+		[1.5, Vector3(-0.05, -0.4, 0.35), Vector3(0.0, -0.8, 0.5), 0.0, 0.6, 0.0]]},
+	# The same from higher, everything behind it, and into the ground.
+	"axe_oak": {two = true, gap = -0.22, keys = [
+		[0.0, Vector3(0.05, 0.52, -0.2), Vector3(0.1, 0.3, -0.95), -0.3, -0.3, 0.0],
+		[0.7, Vector3(0.05, 0.58, -0.25), Vector3(0.1, 0.5, -0.85), -0.35, -0.35, 0.0],
+		[1.0, Vector3(-0.05, -0.2, 0.48), Vector3(0.0, -0.6, 0.8), 0.1, 0.65, 0.0],
+		[1.5, Vector3(-0.05, -0.5, 0.3), Vector3(0.0, -0.95, 0.3), 0.1, 0.75, 0.0]]},
+	# Reached low behind a knee, then hauled back.
+	"axe_hook": {keys = [
+		[0.0, Vector3(0.2, -0.1, 0.2), Vector3(0.2, -0.3, 0.95), -0.3, 0.1, 0.0],
+		[1.0, Vector3(0.05, -0.4, 0.55), Vector3(0.0, -0.9, 0.4), 0.1, 0.45, 0.0],
+		[1.5, Vector3(0.2, -0.35, 0.05), Vector3(0.1, -0.95, -0.2), -0.4, 0.3, 0.0]]},
+	# Level and all the way round with the weight of the head.
+	"axe_round": {keys = [
+		[0.0, Vector3(0.45, 0.05, -0.1), Vector3(0.7, 0.1, -0.7), -0.9, 0.0, 0.0],
+		[1.0, Vector3(-0.05, 0.0, 0.55), Vector3(-0.6, 0.05, 0.8), 0.3, 0.1, 0.0],
+		[1.5, Vector3(-0.45, 0.0, 0.2), Vector3(-0.95, 0.05, 0.2), 0.9, 0.05, 0.0]]},
+	# Knife: a stab and a rising slash, turn about.
+	"knife_flurry": {keys = [
+		[0.0, Vector3(0.1, -0.15, 0.1), Vector3(0.0, 0.0, 1.0), -0.2, 0.0, 0.0],
+		[1.0, Vector3(-0.02, -0.05, 0.55), Vector3(0.0, 0.0, 1.0), 0.3, 0.15, 0.0],
+		[1.4, Vector3(0.1, -0.12, 0.15), Vector3(0.0, 0.0, 1.0), 0.0, 0.05, 0.0]]},
+	"knife_flurry:b": {keys = [
+		[0.0, Vector3(0.2, -0.3, 0.2), Vector3(0.3, -0.3, 0.9), -0.3, 0.05, 0.0],
+		[1.0, Vector3(-0.15, 0.1, 0.5), Vector3(-0.4, 0.4, 0.8), 0.35, 0.1, 0.0],
+		[1.4, Vector3(0.0, -0.1, 0.3), Vector3(-0.1, 0.1, 1.0), 0.1, 0.05, 0.0]]},
+	# In under the ribs, low and quick.
+	"knife_slip": {keys = [
+		[0.0, Vector3(0.15, -0.25, -0.05), Vector3(0.0, 0.15, 1.0), -0.5, 0.0, 0.0],
+		[1.0, Vector3(0.0, -0.12, 0.6), Vector3(0.0, 0.25, 0.97), 0.35, 0.35, 0.0],
+		[1.5, Vector3(0.05, -0.15, 0.45), Vector3(0.0, 0.2, 1.0), 0.3, 0.3, 0.0]]},
+	# Down low, a cut at the back of the knee.
+	"knife_hamstring": {keys = [
+		[0.0, Vector3(0.3, -0.2, 0.1), Vector3(0.6, -0.4, 0.6), -0.6, 0.3, 0.0],
+		[1.0, Vector3(-0.1, -0.5, 0.4), Vector3(-0.6, -0.6, 0.5), 0.4, 0.65, 0.0],
+		[1.5, Vector3(-0.25, -0.45, 0.25), Vector3(-0.8, -0.5, 0.1), 0.6, 0.6, 0.0]]},
+	# Hands: the heel of the palm, the whole body behind it.
+	"hand_stone": {fist = true, keys = [
+		[0.0, Vector3(0.12, -0.15, -0.05), Vector3(0.0, 0.0, 1.0), -0.6, -0.05, 0.0],
+		[0.6, Vector3(0.13, -0.15, -0.1), Vector3(0.0, 0.0, 1.0), -0.7, -0.08, 0.0],
+		[1.0, Vector3(-0.08, 0.02, 0.6), Vector3(0.0, 0.0, 1.0), 0.4, 0.3, 0.0],
+		[1.5, Vector3(-0.05, 0.0, 0.55), Vector3(0.0, 0.0, 1.0), 0.4, 0.3, 0.0]]},
+	# A grip on them, a turn of the hips, and down.
+	"hand_hip": {fist = true, keys = [
+		[0.0, Vector3(0.05, -0.05, 0.45), Vector3(0.0, 0.0, 1.0), -0.3, 0.1, 0.0],
+		[1.0, Vector3(-0.3, -0.3, 0.3), Vector3(0.0, 0.0, 1.0), 1.0, 0.45, 0.0],
+		[1.5, Vector3(-0.35, -0.4, 0.2), Vector3(0.0, 0.0, 1.0), 1.1, 0.5, 0.0]]},
 }
 ## Every stroke by name; staff work is spear work held in the middle (the same strokes,
 ## two-handed).
@@ -185,6 +269,22 @@ static func _alias() -> void:
 		_all["staff:" + mv] = WRITTEN["spear:" + mv]
 	_all["staff:overhead"] = WRITTEN["spear:finisher"]
 	_all["spear:overhead"] = WRITTEN["spear:finisher"]
+	# Forms made of strokes already written.
+	_all["dance_of_spears"] = WRITTEN["spear:spear_jab"]
+	_all["aiel_spear:dance_of_spears"] = WRITTEN["aiel_spear:spear_jab"]
+	_all["aiel_spear:dance_of_spears:b"] = WRITTEN["aiel_spear:spear_thrust"]
+	_all["spear_stag"] = WRITTEN["spear:spear_lunge"]
+	_all["aiel_spear:spear_stag"] = WRITTEN["aiel_spear:spear_lunge"]
+	_all["aiel_spear:spear_wall"] = WRITTEN["aiel_spear:spear_jab"]
+	_all["aiel_spear:spear_wall:b"] = WRITTEN["aiel_spear:spear_thrust"]
+	_all["aiel_spear:spear_sweep"] = WRITTEN["aiel_spear:leg_sweep"]
+	_all["staff_reeds"] = WRITTEN["spear:leg_sweep"]
+	_all["staff_rafters"] = WRITTEN["spear:cut"]
+	_all["staff_rafters:b"] = WRITTEN["spear:backcut"]
+	_all["knife_shadows"] = WRITTEN["knife_flurry"]
+	_all["knife_shadows:b"] = WRITTEN["knife_flurry:b"]
+	_all["hand_knuckle"] = WRITTEN["hand:cross"]
+	_all["hand_knuckle:b"] = WRITTEN["hand:punch"]
 
 var _stroke := {}
 var _st := 0.0
