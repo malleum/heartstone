@@ -108,6 +108,12 @@ working on abilities; the user's rulings there are final).
 - Flows are seen only by channellers of the weaver's sex (`Weavefx.sees`, `Weavefx.flows`): a
   fighter bot's render shows no weaving. `--sight=all` shows every flow; `--sex=m` makes a
   throwaway channeller a man (women by default), `--allysex=m` the `--ally`.
+- Fighters' trees (`weavetree.gd`, pages "weapons"/"forms", columns by weapon kind): the weapon
+  tree is `needs` (any one of) / `study` / `skill` on each row of `data/weapons.json`; a fighter
+  owns one weapon of each kind (`Rules.gain_weapon` replaces). Between rounds the chosen weapon
+  or form is worked out by effort spent fighting (`Progression._study_arms`); skill gates apply
+  only in a round (`Rules.skills_count`). Camp: T or the sheet's button; `--show=tree --page=forms`.
+- Damage numbers: `hud.gd` `pop()` from the `hit` event (yours, and smaller red for hurts taken).
 - First person: F5 in play (`Settings.first_person`); `--fp` for a run, `--fpout` shows its arm
   poses from outside; bench `--mode=heroes --looks=x --arms=w --pose=ready|weave --kind=blade|pole|fist`.
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`
@@ -128,8 +134,9 @@ working on abilities; the user's rulings there are final).
 
 ## Git
 - Releases: push a `v*` tag and GitHub Actions builds Linux and Windows and publishes them
-  (`.github/workflows/release.yml`). Installed games no longer update themselves (official
-  builds refuse `--main-pack`; `updater.gd` only announces a newer release). The server on
+  (`.github/workflows/release.yml`). Installed games update themselves (`updater.gd`: the
+  data is embedded in the executable, the release carries the bare executables and
+  `build.json`, the game swaps its own executable; never `--main-pack`). The server on
   minimus updates itself from `master` (flake `autoUpdate`). See SERVER.md.
 - After every commit that touches game code or data, rebuild and commit `dist/` (the user
   and friends play the standalone against the self-updating server).

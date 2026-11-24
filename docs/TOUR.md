@@ -125,7 +125,7 @@ Generated from `src/game/launch.gd` by `tools/tourdoc.py`.
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 74 | A round, sped up | Tab: choices waiting (six levels in). Waves four times as fast. | Your fire hurts your Warder. Go down and he comes to stand over you. |
+| 74 | A round, sped up | Tab: choices waiting (six levels in). Waves four times as fast. | Your fire hurts your Warder. Go down: you lie there till the wave ends, and he must be beside you then (watch the health bar's DOWN line). |
 | 75 | Guard the Aes Sedai | She seals the Waygate (timer at the top); they go for her; if she falls it is lost. | Her mark points to her when she is out of sight. |
 | 76 | Guard her as a channeller | A Dome over her, Bonds on what reaches her. |  |
 | 77 | Two banners (team battle) | Blue rings yours, red theirs; kill theirs, stand over your own. | Bots fill out the numbers. |

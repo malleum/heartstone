@@ -296,6 +296,24 @@ Bare hands
 - [x] Wounds that last until Healed (18 Nov: 30% of each hurt is a wound, up to 60%
       of health; rest cannot mend past it; Healing closes it), so a Healer matters.
 
+## The weapon and form trees (23 Nov, user's ask)
+- Two trees for fighters, drawn like the weave chart (glyphs, gold lines, a card), as
+  columns by weapon kind: plain at the top, finest at the bottom. Camp: T.
+- Weapon tree: each weapon row has `needs` (any one of), `study` and `skill`. Lines: short
+  sword > sabre > sword > sword and shield / sword and knife > hand-and-a-half > Power-wrought
+  / heron-mark (earned); belt knife > paired daggers / Aiel long knife > ruby-hilted dagger;
+  boar spear / Aiel spears > halberd > pike > ashandarei; quarterstaff > iron-shod; cudgel >
+  hammer > woodsman's axe > half-moon; horse / horn bow > crossbow > longbow; sling /
+  throwing knives > javelins > throwing axes.
+- One weapon of each kind is owned and carried: a new one replaces the old (study, a win's
+  unlock, a round's pick). Old saves keep their best of each kind. Creation offers only the
+  first of each line (and the calling's or Hunter kit's own); the armoury only what is owned.
+- Forms: 28 now (every melee kind has a tree of 3-8). Bows and thrown weapons have none yet.
+- Between rounds the chosen weapon or form is worked out by effort spent fighting, won or
+  lost (`Progression._study_arms`); with nothing chosen, the cheapest open form. Skill is
+  grown afresh each round, so skill gates apply only inside one; between rounds a form needs
+  a weapon of its kind.
+
 ## Sources for weapons and forms
 The names above are from the books (the sword forms from Rand's and Lan's fights,
 the ashandarei and thrown knives from Mat, the Aiel kit from the Maidens and the

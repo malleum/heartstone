@@ -107,6 +107,64 @@ func _dream_icon(c: Vector2, r: float, mv: String, col: Color) -> void:
 				draw_line(o + Vector2(-r * 0.4, -r * 0.7), o + Vector2(r * 0.3, 0), col, w, true)
 				draw_line(o + Vector2(r * 0.3, 0), o + Vector2(-r * 0.4, r * 0.7), col, w, true)
 
+# --- damage numbers ---------------------------------------------------------------
+# A number springs off whoever is struck. The harder the blow, the bigger, warmer and
+# livelier it is: small white ticks, then gold, orange, red, and past 400 a white-hot
+# number that bursts in a ring and shimmers. Blows that land within a moment of each
+# other on the same body add up into one number (a beam, a flurry).
+var _pops: Array = []
+const POP_LIFE := 1.1
+
+func pop(id: int, at: Vector3, dmg: float, mine: bool) -> void:
+	for q in _pops:
+		if q.id == id and q.mine == mine and t - q.t0 < 0.3:
+			q.dmg += dmg; q.t0 = t - 0.05; q.at = at
+			return
+	_pops.append({id = id, at = at, dmg = dmg, mine = mine, t0 = t, seed = randf_range(-1.0, 1.0)})
+	if _pops.size() > 40:
+		_pops.pop_front()
+
+## Colour, size and liveliness by how much it was.
+static func _pop_style(d: float) -> Dictionary:
+	if d < 20.0: return {col = Color(0.95, 0.95, 0.95), px = 19, pop = 0.25, shake = 0.0, ring = false}
+	if d < 60.0: return {col = Color(1.0, 0.88, 0.35), px = 25, pop = 0.45, shake = 0.0, ring = false}
+	if d < 150.0: return {col = Color(1.0, 0.6, 0.15), px = 31, pop = 0.7, shake = 1.5, ring = false}
+	if d < 400.0: return {col = Color(1.0, 0.25, 0.12), px = 38, pop = 1.0, shake = 3.0, ring = true}
+	return {col = Color(1.0, 0.95, 0.75), px = 50, pop = 1.4, shake = 5.0, ring = true}
+
+func _draw_pops(sc: float) -> void:
+	if g.cam == null:
+		return
+	_pops = _pops.filter(func(q: Dictionary) -> bool: return t - q.t0 < POP_LIFE)
+	for q in _pops:
+		var at: Vector3 = q.at + Vector3(0, 2.2, 0)
+		if g.cam.is_position_behind(at):
+			continue
+		var age: float = t - q.t0
+		var f: float = age / POP_LIFE
+		var st := _pop_style(q.dmg)
+		var px: int = st.px if q.mine else int(st.px * 0.75)
+		var col: Color = st.col if q.mine else Color(1.0, 0.35, 0.3)
+		# Springs up big, settles, drifts up and sideways, fades in its last third.
+		var punch: float = 1.0 + float(st.pop) * exp(-age * 9.0) * (1.0 + 0.6 * sin(age * 30.0) * exp(-age * 6.0))
+		var sp: Vector2 = g.cam.unproject_position(at) / sc
+		sp += Vector2(q.seed * 30.0 * f, -46.0 * (1.0 - pow(1.0 - f, 2.0)))
+		if st.shake > 0.0 and age < 0.25:
+			sp += Vector2(sin(age * 90.0 + q.seed * 9.0), cos(age * 77.0)) * float(st.shake) * (1.0 - age / 0.25)
+		var a := clampf((1.0 - f) * 3.0, 0.0, 1.0)
+		if st.ring and q.mine and age < 0.4:
+			var rr := 10.0 + age * 160.0
+			draw_arc(sp + Vector2(0, -px * 0.35), rr, 0, TAU, 32, Color(col, (1.0 - age / 0.4) * 0.7), 2.5, true)
+		if q.dmg >= 400.0 and q.mine:
+			# White-hot: it shimmers between gold and white, sparks round it.
+			col = Color(1.0, 0.95, 0.75).lerp(Color(1.0, 0.75, 0.25), 0.5 + 0.5 * sin(age * 25.0))
+			for k in 6:
+				var ang := k * TAU / 6.0 + age * 4.0
+				draw_circle(sp + Vector2(0, -px * 0.35) + Vector2(cos(ang), sin(ang)) * (px * 0.9 + age * 30.0), 2.2, Color(1.0, 0.9, 0.5, a))
+		draw_set_transform(sp * sc, q.seed * 0.12 * (1.0 - f), Vector2.ONE * sc * punch)
+		Glyph.text(self, Glyph.serif(), Vector2(0, 0), "%d" % maxi(int(round(q.dmg)), 1), px, Color(col, a), 0)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(sc, sc))
+
 ## Which bar slot is under this point on screen (-1 if none).
 func slot_at(at: Vector2) -> int:
 	for i in _slots.size():
@@ -134,6 +192,7 @@ func _draw() -> void:
 		_vignette(Color(0.75, 0.04, 0.02, minf(danger, 0.85)), minf(W, H) * 0.3)
 
 	_fade_dark(p, W, H)
+	_draw_pops(sc)
 
 	# Who you are.
 	Glyph.text(self, serif, Vector2(30, 46), p.name, 30, Color(0.97, 0.94, 0.88))
@@ -199,14 +258,14 @@ func _draw() -> void:
 	# Health and stamina.
 	var bx := 30.0; var by := H - 74.0
 	Glyph.bar(self, Vector2(bx, by), 330, 16, hp, Color(0.85, 0.16, 0.12), Color(0.55, 0.05, 0.05))
-	# Wounds: the end of the bar rest cannot refill, until someone Heals you.
-	if g.my_wound > 0.01:
-		var ww := 330.0 * clampf(g.my_wound, 0.0, 1.0)
-		draw_rect(Rect2(bx + 330.0 - ww, by, ww, 16), Color(0.12, 0.02, 0.02, 0.85))
-		for i in int(ww / 8.0):
-			draw_line(Vector2(bx + 330.0 - ww + i * 8.0, by + 16), Vector2(bx + 330.0 - ww + i * 8.0 + 6.0, by), Color(0.45, 0.08, 0.06, 0.8), 1.0)
-		Glyph.text(self, sans, Vector2(bx + 352, by - 2), "wounded", 11, Color(0.85, 0.45, 0.4))
-	Glyph.text(self, sans, Vector2(bx + 352, by + 14), "%d" % int(maxf(g.my_hp, 0.0)), 15, Color(1, 0.9, 0.88))
+	var me_a: Dictionary = g.actors.get(g.session.my_id, {}) if g.session else {}
+	if me_a.get("downed", false):
+		# Down: no number to watch; what gets you up is what matters.
+		Glyph.text(self, sans, Vector2(bx + 352, by + 14), "DOWN", 15, Color(1.0, 0.35, 0.3, 0.7 + 0.3 * sin(t * 5.0)))
+		var how := "a friend must stand over you, or one more blow ends it" if g.in_battle else "up when the wave ends if a friend is beside you, or when Healed; alone, you die"
+		Glyph.text(self, sans, Vector2(bx, by - 10), how, 13, Color(1.0, 0.75, 0.7))
+	else:
+		Glyph.text(self, sans, Vector2(bx + 352, by + 14), "%d" % int(maxf(g.my_hp, 0.0)), 15, Color(1, 0.9, 0.88))
 	var st: float = g.my_stamina / Rules.TUNE.stamina
 	Glyph.bar(self, Vector2(bx - 6, by + 24), 330, 9, st, Color(0.85, 0.9, 1.0), Color(0.35, 0.5, 0.85))
 	var vig := Rules.vigor(g.my_stamina)

@@ -118,13 +118,29 @@ static func drive(sim: Sim, id: int) -> void:
 	if me.get("lying", false):
 		sim.request_dodge(id, Vector3.ZERO, true)
 		return
-	# A friend down nearby comes first: stand over them until they are up.
+	# A friend down nearby. In a battle, stand over them until they are up. In the
+	# waves, Heal them if you can; otherwise be beside them when the wave ends (once
+	# the last few foes are all that is left), and fight on until then.
+	var foes_left := 0
+	for k in sim.ents:
+		if sim.ents[k].kind == "enemy" and sim.ents[k].alive:
+			foes_left += 1
 	for k in sim.ents:
 		var o: Dictionary = sim.ents[k]
 		if o.kind == "player" and o.alive and o.get("downed", false) and k != id and o.team == me.team and o.pos.distance_to(me.pos) < 30.0:
 			var to: Vector3 = (o.pos - me.pos) * Vector3(1, 0, 1)
-			sim.set_input(id, to.normalized() if to.length() > 1.0 else Vector3.ZERO, atan2(to.x, to.z))
-			return
+			if not sim.battle.is_empty():
+				sim.set_input(id, to.normalized() if to.length() > 1.0 else Vector3.ZERO, atan2(to.x, to.z))
+				return
+			if me.profile.weaves.has("healing") and me.forming.is_empty() and me.cd.get("healing", 0.0) <= sim.t:
+				if to.length() > 5.0:
+					sim.set_input(id, to.normalized(), atan2(to.x, to.z))
+					return
+				if sim.request_cast(id, "healing", o.pos) == "":
+					return
+			if foes_left <= 3 and to.length() > Round.FRIEND_REACH * 0.6:
+				sim.set_input(id, to.normalized(), atan2(to.x, to.z))
+				return
 	# A bot spends its level-ups at once, on whatever its tree offers first.
 	if me.profile.get("round", {}).get("picks", 0) > 0:
 		var ch := Round.choices(me.profile)
@@ -203,12 +219,26 @@ static func drive(sim: Sim, id: int) -> void:
 	elif best > reach * 0.8 and (not Map.m.get("breastwork", false) or me.pos.z > Map.line_z() + 3.0):
 		# Where there is a line to hold, hold it: do not walk out in front of it.
 		move = to
+	# Weaving as a person would: only at what it can see, a breath between weaves,
+	# the aim drifting a little (more the further off they are) and corrected only a
+	# few times a second, not every frame. Out of sight, it goes round to find them.
+	var seen := not Map.crosses(me.pos, near.pos, 0.0, 1.6)
+	if not seen and me.forming.is_empty():
+		move = (to + Vector3(-to.z, 0, to.x) * (0.6 if id % 2 == 0 else -0.6)).normalized()
 	sim.set_input(id, move, atan2(to.x, to.z))
 	if not me.forming.is_empty():
-		# A weave takes time to make: aim it where they are when it leaves.
-		sim.aim_cast(id, sim.aim_at(me, me.forming.weave, near), false)
-	elif pick != "":
-		sim.request_cast(id, pick, sim.aim_at(me, pick, near))
+		if sim.t >= me.get("bot_aim_t", 0.0):
+			me.bot_aim_t = sim.t + 0.3 + sim.rng.randf() * 0.25
+			sim.aim_cast(id, sim.aim_at(me, me.forming.weave, near) + me.get("bot_err", Vector3.ZERO), false)
+	elif pick != "" and seen and sim.t >= me.get("bot_cast_t", 0.0):
+		# Against another player it weaves at a person's pace and aim; against
+		# Shadowspawn (on your side) it is a steadier hand.
+		var pvp: bool = near.kind == "player"
+		var miss: float = ((0.4 + 0.08 * best) if pvp else (0.1 + 0.02 * best)) * sim.rng.randf()
+		var ang := sim.rng.randf() * TAU
+		me.bot_err = Vector3(cos(ang) * miss, 0, sin(ang) * miss)
+		if sim.request_cast(id, pick, sim.aim_at(me, pick, near) + me.bot_err) == "":
+			me.bot_cast_t = sim.t + Rules.form_time(me.profile, pick) + ((0.6 + sim.rng.randf() * 0.9) if pvp else (0.05 + sim.rng.randf() * 0.12))
 
 ## A dreamer's part of a bot, in Tel'aran'rhiod: unmake or be gone from what is
 ## coming, and use the dream against whoever is nearest. It thinks a few times a

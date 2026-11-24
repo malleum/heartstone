@@ -1,7 +1,8 @@
 # Every tag pushed as v* builds the game for Linux and Windows and publishes a
-# GitHub release with both, plus the game data on its own (heartstone-engine-<godot
-# version>.pck) so an installed game can update itself without a new download
-# (src/game/updater.gd). Tag with: git tag v0.4.0 && git push origin v0.4.0
+# GitHub release with both zipped, plus the bare executables (the game data is
+# inside each: embed_pck) and build.json, which installed games compare with their
+# own to update themselves (src/game/updater.gd, after malleum/ultimategrapple).
+# Tag with: git tag v0.4.0 && git push origin v0.4.0
 name: release
 on:
   push:
@@ -25,17 +26,23 @@ jobs:
           mkdir -p "$dir" && unzip -q templates.tpz && mv templates/* "$dir/"
       - name: Stamp the build
         run: |
-          printf '{"tag": "%s", "engine": "%s", "commit": "%s", "date": %s}\n' "$GITHUB_REF_NAME" "$GODOT" "$(git rev-parse --short HEAD)" "$(git log -1 --format=%ct)" > build.json
+          printf '{"tag": "%s", "engine": "%s", "commit": "%s", "date": %s, "embedded": true}\n' "$GITHUB_REF_NAME" "$GODOT" "$(git rev-parse --short HEAD)" "$(git log -1 --format=%ct)" > build.json
       - name: Export
         run: |
           ./godot --headless --import || true
           mkdir -p out/linux out/windows
           ./godot --headless --export-release "Linux" out/linux/heartstone.x86_64
           ./godot --headless --export-release "Windows Desktop" out/windows/heartstone.exe
-          test -f out/linux/heartstone.pck && test -f out/windows/heartstone.exe
+          test -s out/linux/heartstone.x86_64 && test -s out/windows/heartstone.exe
+          # The data must be inside the executables (the updater swaps only them).
+          test ! -f out/linux/heartstone.pck && test ! -f out/windows/heartstone.pck
+          # The Linux build must start and run its scripts without errors.
+          out=$(timeout 120 out/linux/heartstone.x86_64 --headless --quit-after 300 2>&1 || true)
+          echo "$out" | tail -20
+          if echo "$out" | grep -qE "SCRIPT ERROR|Parse Error"; then exit 1; fi
       - name: Package
         run: |
-          cp out/linux/heartstone.pck "heartstone-engine-${GODOT}.pck"
+          cp out/linux/heartstone.x86_64 out/windows/heartstone.exe .
           (cd out/linux && zip -q -r ../../heartstone-linux-x86_64.zip .)
           (cd out/windows && zip -q -r ../../heartstone-windows.zip .)
       - name: Release
@@ -43,4 +50,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --generate-notes \
-            heartstone-linux-x86_64.zip heartstone-windows.zip "heartstone-engine-${GODOT}.pck"
+            heartstone-linux-x86_64.zip heartstone-windows.zip heartstone.x86_64 heartstone.exe build.json

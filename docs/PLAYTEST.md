@@ -89,6 +89,13 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 83 | Gateways as windows, and walking home through one at the end of a round: seamless in real time? | Rendered frame by frame | `game.gd` `_open_window`, `_open_home` |
 | 84 | Bows: the arrow should leave the moment you let go of a full draw, and you turn to your aim while drawing. Arrows have a trail now. Better? | Rules tested; seen in renders | `Sim.set_draw`, `request_attack`; `game.gd` draw facing |
 | 85 | The pause menu (Esc), smaller notices, no frozen world at the end of a round. | Seen in code and renders, not clicked | `pauser.gd`, `toast.gd` |
+| 86 | Going down, new rules: you stay down (nothing more lands) until the wave ends; a friend within 5 m then gets you up on 1 health, alone you die. Healing raises you at once. Is 5 m the right "with them"? Bots come to you once 3 or fewer foes are left. | `Round.FRIEND_REACH` 5 m; rules tested | `Sim._wave_end`, `bot.gd` |
+| 87 | Damage numbers over whoever you hit: white under 20, gold, orange, red, then a white-hot shimmering number with a ring past 400; hurts you take in smaller red. Too busy? Big enough? | Sizes 19-50 px, 1.1 s | `hud.gd` `pop`, `_pop_style` |
+| 88 | The health bar has no hatched part any more: lasting wounds are gone, rest refills it all (slowly, after 10 s unhurt). | Rules tested | `Sim._hurt` |
+| 89 | Bot channellers: only at what they can see, a pause between weaves and some aim error. Against players: 0.6-1.5 s pause, 0.4 m + 8% of distance off. Against Shadowspawn (your allies): 0.05-0.17 s, 0.1 m + 2%. Still too strong in the team battle? | Rules tested (wall check, battle ends) | `bot.gd` |
+| 90 | The weapon and form trees (camp: T, or the sheet's button): one weapon of each kind, a new one replaces the old; between rounds the chosen one is worked out by fighting, won or lost. Is the pace right? A root weapon 300, sword 1500, hand-and-a-half 3500, heron-mark 9000 effort (a round is roughly 4000). | Rules tested; trees rendered | `data/weapons.json` needs/study, `weavetree.gd` |
+| 91 | A man who channels starts with a short sword. | Rules tested | `Profile.create` |
+| 92 | Auto-update: from v0.2.9 on, a newer release downloads in the background in the camp, swaps the executable and restarts (idle) or applies next launch. Install v0.2.9 by hand once. | Not testable here (needs a newer release); workflow and logic copied from ultimategrapple | `updater.gd`, release.yml |
 1. (17 Nov) Cloak and hair in motion: the cloak eases back over about a second as you
    speed up (no snap on the first step), ripples run down it, and a light stir stays
    while standing. Hair tips drift back and stir, more when running. Assumed amounts:

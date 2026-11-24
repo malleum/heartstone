@@ -522,12 +522,26 @@ outlasts it.
   all is the win.
 - **Friendly fire.** In a round a player's blows, missiles, bursts, beams and
   rolling fire hurt friends fully (`Sim._struck`); aiming and bots choose only foes.
-- **Going down.** At 0 health a player in a round is down (`downed`), not dead:
-  they cannot act, and a friend standing within 1.8 m for 2 s brings them back at a
-  quarter health and a fifth of their stamina. Half their max health more while
-  down, or 15 s with nobody, kills; balefire kills outright. The dead come back
+- **Going down.** At 0 health a player in a round is down (`downed`), not dead, and
+  cannot act. Nothing more lands on them in the waves (enemies move on; balefire still
+  unmakes). When the wave ends (`Sim._wave_end`: its field cleared, or the next wave
+  arriving first), a friend on their feet within 5 m (`Round.FRIEND_REACH`) gets them
+  up on 1 health; with nobody near they die. Healing gets them up at once, from 0.
+  Everyone down at once is a death for all (the round is lost). The dead come back
   with the next wave, potential and strength fallen 1d6 levels (`Round.weaken`).
-  Bots go to downed friends first.
+  (User's ruling, 23 Nov: the old 15 s timer and "half a body more" pool read badly
+  on the health bar.) Bots Heal a downed friend if they can, else go to them once
+  three or fewer foes are left.
+- **No lasting wounds** (23 Nov): the hatched end of the health bar (hurt rest could not
+  mend) read as "more to take before dying" and was dropped; rest mends all of it.
+- **Damage numbers** (`Hud.pop`): on every `hit` you dealt (and, smaller and red, those you
+  took), merged when they land within 0.3 s on one body; size, colour and liveliness grow
+  with the number (five steps, the last a shimmering white-hot one with a ring).
+- **Bots weave like people** (`Bot.drive`): only at what they can see (they go round
+  otherwise), a pause between weaves and an aim error; human-paced against players,
+  steadier against Shadowspawn (they are the test stand-in for winnable rounds).
+- **Fighters' trees** (`MELEE.md`, "The weapon and form trees"): the weapon tree is data on
+  each weapon row; one weapon of each kind; studied between rounds by effort.
 - **Balefire** burns its victim's last moments out of the Pattern (`Sim._unmake`):
   whatever it harmed in the last 5 s (times the weaver's reach) stands again as it
   was, the dead included. Harm is kept for 20 s in `Sim.ledger` for this.
@@ -586,7 +600,7 @@ player beyond one (`Round.strengthen`). Two Darkfriends are not told of each oth
   needs gateway strength, 19(7); one who does not has it opened by one of them.
   The Shadow's own never choose the Darkfriend as their quarry.
 - Players can Shield and bind one another here (`_aimed` takes players in this mode).
-- Down: 10 s to be revived, and no coming back after a death.
+- Down as in rounds (up at the wave's end with a friend near), and no coming back after a death.
 - Ends: every loyal player dead, the Darkfriend wins. The waves outlasted, the loyal
   win only if every Darkfriend is dead, Shielded or bound in Air at that moment;
   otherwise the Darkfriend wins. `Sim.won(id)` gives each side its own result.
@@ -650,7 +664,8 @@ Eighty growing waves at Tarwin's Gap by night; thirty minutes held is a win
 - Each side levels on its own kills (`levels`, `xps`); killing one of theirs is worth
   about two Trollocs to the whole side. The round meter carries both sides' levels,
   the score and the time left; each view shows its own side's (`game.my_team`).
-- Going down and reviving work as in rounds (only your own side can bring you back);
+- Going down works the old way here (no waves): a friend standing over you 2 s brings you
+  back, 15 s alone or one more blow from the other side finishes you;
   a death scores a point for the side that caused it (a downed player left to die is
   still the work of whoever put them down: `downed_by`) and you return at your end
   after `battle.respawn` seconds, with no strength lost.

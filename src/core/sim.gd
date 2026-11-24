@@ -20,6 +20,7 @@ var _next := 1
 var _waves: Array = []
 var _spar := false
 var dream := false       # Tel'aran'rhiod: dream moves are allowed here (see Dream)
+var _field_clear := false   # this wave's foes all dead (its downed already settled)
 var round_mode := false  # a round (see Round): everyone grows during it, from fresh
 var team_level := 1
 var team_xp := 0.0
@@ -829,14 +830,17 @@ func step(dt: float) -> void:
 				p.pos = Map.clamp_pos(Map.unblock(p.pos + p.move * p.speed * dt, p.radius))
 		return
 	t += dt
-	# A round's field cleared early: the next wave comes in a few seconds, not when
-	# its timer says.
-	if round_mode and battle.is_empty() and not _waves.is_empty() and _waves[0].t > t + 6.0:
+	# A round's field cleared: that wave is over (the downed get up or die), and the
+	# next comes in a few seconds, not when its timer says.
+	if round_mode and battle.is_empty() and not _spar:
 		var any_foe := false
 		for id in ents:
 			if ents[id].kind == "enemy" and ents[id].alive and ents[id].get("row", {}).get("speed", 1.0) > 0.0:
 				any_foe = true; break
-		if not any_foe:
+		if not any_foe and not _field_clear and t > 1.0:
+			_field_clear = true
+			_wave_end()
+		if not any_foe and not _waves.is_empty() and _waves[0].t > t + 6.0:
 			var shift: float = _waves[0].t - (t + 6.0)
 			for w in _waves:
 				w.t -= shift
@@ -894,6 +898,11 @@ func step(dt: float) -> void:
 			ward = 0
 			_finish(true)
 			return
+	# Everyone down: there is nobody left to stand over anyone.
+	if round_mode and battle.is_empty() and not players.is_empty() and away == 0 \
+			and players.all(func(q: Dictionary) -> bool: return q.get("downed", false)):
+		_wave_end()
+		return
 	if not battle.is_empty():
 		_step_battle()
 	elif _spar:
@@ -1186,10 +1195,13 @@ func _finish(ok: bool) -> void:
 	over = true; success = ok
 	events.append({e = "over", success = ok})
 
-## Down: no moving, no acting. A friend standing over you for two seconds brings
-## you back, low on health and breath; the time runs out and you die.
+## Down: no moving, no acting. In the waves you lie there until the wave ends
+## (`_wave_end`) or someone Heals you. In a battle a friend standing over you for two
+## seconds brings you back, low on health and breath; the time runs out and you die.
 func _step_downed(p: Dictionary, dt: float) -> void:
 	p.move = Vector3.ZERO
+	if battle.is_empty():
+		return
 	p.down_left -= dt
 	var helped := false
 	for id in ents:
@@ -1206,11 +1218,39 @@ func _step_downed(p: Dictionary, dt: float) -> void:
 		events.append({e = "revived", id = p.id})
 	elif p.down_left <= 0.0:
 		p.downed = false
-		p.down_hp = 0.0
 		p.finishing = true
 		# Left to die: the death is still the work of whoever put them down.
 		_hurt(p, p.hp + 1.0, p.get("downed_by", 0), "", true)
 		p.finishing = false
+
+## A wave over (its field cleared, or the next one arriving): whoever is down with a
+## friend on their feet near them gets up on 1 health; whoever lies alone dies, and
+## comes back with the next wave weaker for it (`_return_dead`).
+func _wave_end() -> void:
+	var down := []
+	for id in ents:
+		var p: Dictionary = ents[id]
+		if p.kind == "player" and p.alive and p.get("downed", false):
+			down.append(p)
+	for p in down:
+		var friend := false
+		for id in ents:
+			var o: Dictionary = ents[id]
+			if o.kind == "player" and o.alive and o.id != p.id and o.team == p.team and not o.get("downed", false) \
+					and not o.get("away", false) and o.get("tying", 0) != p.id and o.pos.distance_to(p.pos) < Round.FRIEND_REACH:
+				friend = true; break
+		if friend:
+			p.downed = false; p.was_downed = false
+			p.hp = 1.0
+			p.stamina = p.get("stamina_max", Rules.TUNE.stamina) * 0.2
+			p.safe_until = t + 1.0
+			events.append({e = "revived", id = p.id, wave = true})
+		else:
+			p.downed = false
+			p.finishing = true
+			# Left to die: the death is still the work of whoever put them down.
+			_hurt(p, p.hp + 1.0, p.get("downed_by", 0), "", true)
+			p.finishing = false
 
 ## Those who died come back as a wave arrives, where the defenders stand, with
 ## their potential and strength fallen by 1d6 levels.
@@ -1233,6 +1273,10 @@ func _return_dead() -> void:
 
 func _spawn_wave(w: Dictionary) -> void:
 	if round_mode:
+		# Not cleared in time: the wave before is over all the same.
+		if not _field_clear:
+			_wave_end()
+		_field_clear = false
 		_return_dead()
 	var training: bool = Rules.activities[activity_id].kind == "training"
 	var first := _next
@@ -1410,8 +1454,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	# Left alone for a while, anyone catches their breath: bruises, not wounds.
 	# (Not with a cursed blade in hand: it feeds on you instead.)
 	if t - p.get("hurt_t", -99.0) > Rules.TUNE.rest_after and p.burn <= 0.0 and not Rules.weapons.get(p.get("weapon", ""), {}).get("cursed", false):
-		# Rest mends bruises, not wounds: those wait for a Healer.
-		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, maxf(p.max_hp - p.get("wound", 0.0), p.hp))
+		p.hp = minf(p.hp + p.max_hp * Rules.TUNE.rest_regen * dt, p.max_hp)
 	# Forming a weave takes concentration: you move at half speed while doing it.
 	p.guard = t - p.parry_at <= Rules.TUNE.parry_window * Rules.soc(p.profile, "parry")
 	var slow: float = Rules.TUNE.form_slow if not p.forming.is_empty() else 1.0
@@ -2250,32 +2293,27 @@ func _hurt(e: Dictionary, dmg: float, by: int, weave: String, quiet := false) ->
 			release(e.id, "dome_of_air")
 	# What each did, a few seconds back: balefire can burn it out of the Pattern.
 	if by != 0 and dmg > 0.0:
-		ledger.append({t = t, by = by, on = e.id, dmg = minf(dmg, maxf(e.hp, 0.0) + (e.get("down_hp", 0.0) if e.get("downed", false) else 0.0)), hp = e.hp, downed = e.get("downed", false)})
+		ledger.append({t = t, by = by, on = e.id, dmg = minf(dmg, maxf(e.hp, 0.0)), hp = e.hp, downed = e.get("downed", false)})
 	if e.kind == "player" and (e.get("circle_of", 0) != 0 or not e.get("circle", []).is_empty()) and dmg >= e.max_hp * 0.25:
 		_drop_from_circle(e)
 	if e.get("downed", false):
-		# Already down: what lands now comes off what is left, half a body more.
-		e.down_hp -= dmg
-		if e.down_hp > 0.0:
+		# Already down. In the waves nothing more lands: you stay down until the wave
+		# ends or someone Heals you (balefire still unmakes you). In a battle one more
+		# blow from the other side finishes you.
+		if battle.is_empty() and weave != "balefire":
 			return
 		e.downed = false
 		e.hp = 0.0
 	else:
 		e.hp -= dmg
-		# A share of every real hurt is a wound: it stays until Healed, and rest
-		# cannot mend past it (bruises mend; cuts and burns wait for a Healer).
-		if e.kind == "player" and dmg > 0.0 and weave != "dream":
-			var w0: float = e.get("wound", 0.0)
-			e.wound = minf(w0 + dmg * 0.3, e.max_hp * 0.6)
-			if int(e.wound * 50.0 / e.max_hp) != int(w0 * 50.0 / e.max_hp):
-				events.append({e = "wound", id = e.id, to = e.id, w = e.wound / e.max_hp})
+		# (Lasting wounds that rest could not mend were dropped, 23 Nov: the hatched end
+		# of the health bar read as something else. Rest mends it all, slowly.)
 		# In a round a player goes down before they die, and a friend can bring them
 		# back. Balefire leaves nothing to bring back.
 		if e.hp <= 0.0 and e.kind == "player" and round_mode and weave != "balefire" and not e.get("finishing", false):
 			e.hp = 0.0
 			e.downed = true
-			e.down_left = Round.DF_DOWN_SECS if df_mode else Round.DOWN_SECS
-			e.down_hp = e.max_hp * 0.5
+			e.down_left = Round.DOWN_SECS
 			e.revive_t = 0.0
 			e.forming = {}; e.swing = {}; e.queued = {}; e.guard = false; e.drawing = false
 			e.was_downed = true
@@ -2790,6 +2828,9 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 		for p in players:
 			if p.get("darkfriend", false) and (e.get("df_side", false) or e.row.get("darkfriend", false)):
 				continue    # they know their own
+			# Nothing more to be done to someone down in the waves; move on.
+			if p.get("downed", false) and battle.is_empty():
+				continue
 			var d: float = p.pos.distance_squared_to(e.pos)
 			# A Warder's cloak takes the colours round it: standing still he is hard
 			# to pick out, and they go for someone else unless he is close.

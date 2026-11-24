@@ -27,13 +27,15 @@ const WIN_LEVEL := 12
 ## Experience for the next team level: XP_BASE * level ^ XP_EXP.
 const XP_BASE := 30.0
 const XP_EXP := 1.35
-## Going down: this long for a friend to reach you, this close, for this long.
+## Going down in the waves: when the wave ends, a friend on their feet this close
+## gets you up on 1 health; nobody, and you die.
+const FRIEND_REACH := 5.0
+## In a battle: this long for a friend to reach you, this close, for this long.
 const DOWN_SECS := 15.0
 const REVIVE_REACH := 1.8
 const REVIVE_SECS := 2.0
-## Darkfriend rounds: a shorter window to be brought back, and roles given out this
-## many seconds in (so everyone who meant to join has).
-const DF_DOWN_SECS := 10.0
+## Darkfriend rounds: roles given out this many seconds in (so everyone who meant to
+## join has).
 const DF_ASSIGN_T := 8.0
 
 ## Standard normal cumulative distribution (Abramowitz and Stegun 7.1.26).
@@ -173,10 +175,14 @@ static func choices(p: Dictionary) -> Array:
 	for f in Rules.forms:
 		if fams.has(Rules.forms[f].family) and not p.get("forms", {}).has(f):
 			out.append({kind = "form", id = f, name = Rules.forms[f].name})
-	if p.get("kit", []).size() < int(Rules.cls(p).carry) + 1:
-		for w in Rules.weapons:
-			if not p.kit.has(w) and Rules.wield_block(p, w) == "":
-				out.append({kind = "weapon", id = w, name = Rules.weapons[w].name})
+	# The next weapon along the tree; it replaces the one of its family in hand.
+	for w in Rules.tree_weapons():
+		if Rules.weapon_open(p, w):
+			var old := ""
+			for k in p.get("kit", []):
+				if Rules.weapons[k].family == Rules.weapons[w].family: old = k
+			if old != "" or p.get("kit", []).size() < int(Rules.cls(p).carry) + 1:
+				out.append({kind = "weapon", id = w, name = Rules.weapons[w].name + ("  (for your %s)" % Rules.weapons[old].name.to_lower() if old != "" else "")})
 	return out
 
 ## Spend a level-up on one choice. "" if done, or why not.
@@ -210,7 +216,15 @@ static func pick(p: Dictionary, choice_kind: String, id: String) -> String:
 		"weapon":
 			if Rules.wield_block(p, id) != "":
 				return Rules.wield_block(p, id)
-			p.kit.append(id)
+			var at := -1
+			for i in p.kit.size():
+				if Rules.weapons[p.kit[i]].family == Rules.weapons[id].family: at = i
+			if at >= 0:
+				p.kit[at] = id
+			else:
+				p.kit.append(id)
+			if not p.has("weapons_learned"): p.weapons_learned = []
+			p.weapons_learned.append(id)
 		_:
 			return "no such choice"
 	r.picks -= 1

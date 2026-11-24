@@ -119,6 +119,7 @@ func _ready() -> void:
 		_creation()
 	if cl.get("show", "") == "tree" and not profile.is_empty():
 		_show_tree(true)
+		if cl.has("page"): tree.page = cl.page   # --page=forms|weapons for a fighter's picture
 	elif cl.get("show", "") == "menu":
 		_show_menu(true)
 	elif cl.get("show", "") == "loadout":
@@ -324,6 +325,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			else: _show_menu(not menu.visible)
 		elif ev.physical_keycode == Keys.k(KEY_TAB):
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif ev.physical_keycode == Keys.k(KEY_T) and not creating and not menu.visible and not profile.is_empty() and profile.get("cls", "channeller") != "channeller":
+			_show_tree(not tree.visible)
 		elif ev.physical_keycode == Keys.k(KEY_E) and _station != "" and not creating and not tree.visible and not menu.visible:
 			_use_station(_station)
 		elif ev.physical_keycode == Keys.k(KEY_H) and not creating and not tree.visible:
@@ -637,6 +640,11 @@ func _sheet() -> void:
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
+		# What is being worked out between rounds, by fighting.
+		var st_id: String = profile.get("study", "")
+		if Rules.lore(profile).has(st_id):
+			_row(side, "Working out", "%s  %d%%" % [Rules.lore(profile)[st_id].name, int(100.0 * float(profile.get("study_done", 0.0)) / Rules.study_cost(profile, st_id))], Color(0.85, 0.87, 0.95))
+		_button(side, "The weapon and form trees  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
 	_button(side, "Loadout: Talents, weaves, affinity", _loadout)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
@@ -1411,14 +1419,22 @@ func _creation(cls_ := "channeller", name_ := "", power_ := "", origin_ := "") -
 		_section(gv, "Weapons  (1 point each)")
 		make.weapon_box = _grid(gv, 2)
 		var probe := {cls = cls_}
+		# You set out with the plain weapon that begins each line of the tree (or what
+		# your calling or a Hunter's kit carries); better ones are worked out on the
+		# tree. Earned weapons are won, not chosen.
+		var starts: Array = Rules.CLASSES[cls_].kit.duplicate()
+		if cls_ == "hunter":
+			for k in Rules.KITS: starts.append_array(Rules.KITS[k].weapons)
 		for w in Rules.weapons:
-			# (Earned weapons are won, not chosen.)
-			if Rules.wield_block(probe, w) == "" and not Rules.weapons[w].get("earned", false):
+			if w.begins_with("_") or w == "practice_sword": continue
+			var root: bool = Rules.weapons[w].get("needs", []).is_empty()
+			if Rules.wield_block(probe, w) == "" and not Rules.weapons[w].get("earned", false) and (root or starts.has(w)):
 				make.weapons[w] = Rules.CLASSES[cls_].kit.slice(0, 2).has(w)
-		_section(gv, "Forms  (2 points each)")
+		_section(gv, "Forms  (2 points each; the first of each tree)")
 		make.form_box = _grid(gv, 1)
 		for f in Rules.forms:
-			make.forms[f] = false
+			if Rules.forms[f].get("needs", []).is_empty():
+				make.forms[f] = false
 		_section(gv, "Body  (1 point each, 2 at most)")
 		make.stat_box = VBoxContainer.new(); gv.add_child(make.stat_box)
 		for st in ["might", "quickness", "endurance"]:
@@ -1502,6 +1518,10 @@ func _refresh_gifts() -> void:
 			if make.weapons[w]: fams[Rules.weapons[w].family] = true
 			_card(make.weapon_box, Rules.weapons[w].name, Rules.weapons[w].family, Icon.new("weapon", Rules.weapons[w].family), make.weapons[w], func() -> void:
 				make.weapons[ww] = not make.weapons[ww]
+				# One weapon of a kind: choosing one puts down the other.
+				if make.weapons[ww]:
+					for o in make.weapons:
+						if o != ww and Rules.weapons[o].family == Rules.weapons[ww].family: make.weapons[o] = false
 				_refresh_gifts(); _creation_changed())
 		_clear(make.form_box)
 		for f in make.forms:
@@ -1609,14 +1629,18 @@ func _appearance() -> void:
 		_select(profile.name, false))
 
 ## The weapons this calling may choose from; `none` adds an empty first choice.
-func _weapon_option(label: String, start: String, none: bool, parent: Control = null, cls_id := "") -> OptionButton:
+func _weapon_option(label: String, start: String, none: bool, parent: Control = null, cls_id := "", owned_only := false) -> OptionButton:
 	var items := {}
 	if none:
 		items[""] = "Nothing"
 	var probe := {cls = cls_id if cls_id != "" else make.cls_id, stats = {might = 8}}
 	for w in Rules.weapons:
-		# Earned weapons only once they are this character's own.
-		var mine: bool = profile.get("weapons_owned", []).has(w)
+		if w.begins_with("_"): continue
+		# Earned weapons only once they are this character's own; in the armoury only
+		# what is yours (better ones are worked out on the weapon tree).
+		var mine: bool = profile.get("weapons_owned", profile.get("kit", [])).has(w) or profile.get("kit", []).has(w)
+		if owned_only and not mine:
+			continue
 		if Rules.wield_block(probe, w) == "" and (not Rules.weapons[w].get("earned", false) or mine) and w != "hands":
 			items[w] = "%s  (%s)" % [Rules.weapons[w].name, Rules.weapons[w].family]
 	var o := _option(parent if parent else side, label, items)
@@ -1631,10 +1655,10 @@ func _armoury() -> void:
 	_clear(menu_box)
 	_text(menu_box, "The armoury", 24)
 	var c: String = profile.get("cls", "channeller")
-	_text(menu_box, "%s carries %d. Your skill is with a family of weapons, not one of them, so changing costs nothing but habit." % ["A " + Rules.CLASSES[c].name.to_lower(), int(Rules.CLASSES[c].carry)], 14, Color(0.7, 0.72, 0.78))
+	_text(menu_box, "%s carries %d. These are the weapons you own, one of each kind; better ones are worked out on the weapon tree (T)." % ["A " + Rules.CLASSES[c].name.to_lower(), int(Rules.CLASSES[c].carry)], 14, Color(0.7, 0.72, 0.78))
 	var picks := []
 	for i in int(Rules.CLASSES[c].carry):
-		picks.append(_weapon_option(["In hand", "Second", "Third"][i], profile.kit[i] if i < profile.kit.size() else "", true, menu_box, c))
+		picks.append(_weapon_option(["In hand", "Second", "Third"][i], profile.kit[i] if i < profile.kit.size() else "", true, menu_box, c, true))
 	var note := _text(menu_box, "", 14, Color(1.0, 0.7, 0.45))
 	_button(menu_box, "Take these", func() -> void:
 		var kit := []

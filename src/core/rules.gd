@@ -375,11 +375,103 @@ static func form_block(p: Dictionary, form_id: String, weapon_id: String) -> Str
 
 ## What a study row is for this character: a weave for a channeller, a form for a
 ## fighter. Both are worked out one at a time, by doing.
+## What a character works out: weaves for a channeller; for a fighter forms and the
+## weapon tree together (their ids never clash), so study, cost and "first you must
+## know" work the same for both.
 static func lore(p: Dictionary) -> Dictionary:
-	return weaves if p.get("cls", "channeller") == "channeller" else forms
+	if p.get("cls", "channeller") == "channeller":
+		return weaves
+	if _arms_lore.is_empty():
+		_arms_lore = forms.duplicate()
+		for w in tree_weapons():
+			_arms_lore[w] = weapons[w]
+	return _arms_lore
+
+static var _arms_lore := {}
 
 static func knows(p: Dictionary, id: String) -> bool:
-	return p.get("weaves" if p.get("cls", "channeller") == "channeller" else "forms", {}).get(id, {}).get("known", false)
+	if p.get("cls", "channeller") == "channeller":
+		return p.get("weaves", {}).get(id, {}).get("known", false)
+	if weapons.has(id) and not forms.has(id):
+		return weapon_known(p, id)
+	return p.get("forms", {}).get(id, {}).get("known", false) or p.get("forms_owned", []).has(id)
+
+# --- the weapon tree ------------------------------------------------------------------
+## Weapons on the tree (not the practice sword, not bare hands).
+static func tree_weapons() -> Array:
+	return weapons.keys().filter(func(w: String) -> bool: return not w.begins_with("_") and weapons[w].get("tree", true))
+
+## Everything a weapon grows out of, all the way back (needs is any-of).
+static func weapon_roots(w: String) -> Dictionary:
+	var out := {}
+	var todo: Array = weapons[w].get("needs", []).duplicate()
+	while not todo.is_empty():
+		var n: String = todo.pop_back()
+		if out.has(n) or not weapons.has(n):
+			continue
+		out[n] = true
+		todo.append_array(weapons[n].get("needs", []))
+	return out
+
+## Known: learned once, carried, or outgrown (something it leads to is yours).
+static func weapon_known(p: Dictionary, w: String) -> bool:
+	var mine: Array = p.get("weapons_learned", []) + p.get("weapons_owned", []) + p.get("kit", [])
+	if mine.has(w):
+		return true
+	for m in mine:
+		if weapons.has(m) and weapon_roots(m).has(w):
+			return true
+	return false
+
+## Open to work out: not known, a weapon this calling may carry (and, if earned, earned),
+## skill enough with its family, and one of what it grows from known.
+static func weapon_open(p: Dictionary, w: String) -> bool:
+	if weapon_known(p, w) or wield_block(p, w) != "" or not weapons[w].get("tree", true):
+		return false
+	if weapons[w].get("earned", false) and not earned_ok(p, w):
+		return false
+	# Skill is grown inside a round (it starts again each one), so it gates only there.
+	if skills_count(p) and skill_level(p, weapons[w].family) < int(weapons[w].get("skill", 0)):
+		return false
+	var needs: Array = weapons[w].get("needs", [])
+	return needs.is_empty() or needs.any(func(n: String) -> bool: return weapon_known(p, n))
+
+## A new weapon: learned, and it takes the place of the one of its family that this
+## character owned and carried (one sword, not a sword, a sabre and a heron-mark blade).
+## Returns the weapon it replaced, or "".
+static func gain_weapon(p: Dictionary, w: String) -> String:
+	var fam: String = weapons[w].family
+	if not p.has("weapons_learned"): p.weapons_learned = []
+	if not p.weapons_learned.has(w): p.weapons_learned.append(w)
+	var old := ""
+	for list_key in ["weapons_owned", "kit"]:
+		if not p.has(list_key): p[list_key] = []
+		var l: Array = p[list_key]
+		var at := -1
+		for i in l.size():
+			if weapons.has(l[i]) and weapons[l[i]].family == fam and l[i] != w:
+				at = i; old = l[i]; break
+		if at >= 0:
+			l[at] = w
+			# (Any second one of the family, from before this rule, goes.)
+			for i in range(l.size() - 1, at, -1):
+				if weapons.has(l[i]) and weapons[l[i]].family == fam: l.remove_at(i)
+		elif not l.has(w) and (list_key == "weapons_owned" or l.size() < int(cls(p).carry)):
+			l.append(w)
+	return old
+
+## Does weapon skill mean anything for this character now? In a round, yes; for a
+## save of the old kind (skill kept between fights), yes; between rounds, no: skill is
+## grown afresh each round.
+static func skills_count(p: Dictionary) -> bool:
+	return p.has("round") or int(p.get("format", 1)) < 2
+
+## A fighter's own weapon of a family, if any.
+static func weapon_of(p: Dictionary, fam: String) -> String:
+	for w in p.get("weapons_owned", p.get("kit", [])):
+		if weapons.has(w) and weapons[w].family == fam:
+			return w
+	return ""
 
 ## [wind-up, recovery] in seconds for this character with this weapon.
 static func move_times(p: Dictionary, weapon_id: String, move_id: String) -> Array:
@@ -428,12 +520,12 @@ static func soc(p: Dictionary, key: String, def := 1.0) -> float:
 const KITS := {
 	two_rivers = {name = "Two Rivers", weapons = ["longbow", "quarterstaff", "belt_knife"],
 		blurb = "A longbow that shoots twice as far as any other, and a quarterstaff."},
-	red_hand = {name = "The Band of the Red Hand", weapons = ["crossbow", "pike", "ashandarei"],
-		blurb = "The Band's crossbows and pikes, and a black-hafted spear with a blade like a sword."},
-	gleeman = {name = "A gleeman's knives", weapons = ["throwing_knives", "daggers", "belt_knife"],
-		blurb = "Knives from the sleeves, two in the hands and one in the belt."},
-	smith = {name = "A blacksmith's arms", weapons = ["hammer", "wood_axe", "throwing_axes"],
-		blurb = "The hammer from the forge and an axe: heavy blows that stagger."},
+	red_hand = {name = "The Band of the Red Hand", weapons = ["crossbow", "ashandarei", "short_sword"],
+		blurb = "The Band's crossbow, a soldier's short sword, and a black-hafted spear with a blade like a sword."},
+	gleeman = {name = "A gleeman's knives", weapons = ["throwing_knives", "daggers", "quarterstaff"],
+		blurb = "Knives from the sleeves, two in the hands, and a walking staff."},
+	smith = {name = "A blacksmith's arms", weapons = ["hammer", "throwing_axes", "belt_knife"],
+		blurb = "The hammer from the forge, axes to throw and a knife: heavy blows that stagger."},
 }
 
 static func has_gift(p: Dictionary, id: String) -> bool:
@@ -445,7 +537,8 @@ static func earned_ok(p: Dictionary, weapon_id: String) -> bool:
 	var e: Dictionary = weapons[weapon_id].get("earn", {})
 	if e.has("renown") and float(p.get("renown", 0.0)) < float(e.renown):
 		return false
-	if e.has("skill") and skill_level(p, String(e.skill[0])) < int(e.skill[1]):
+	# (Skill only counts where it exists: in a round, or an old-format save.)
+	if e.has("skill") and skills_count(p) and skill_level(p, String(e.skill[0])) < int(e.skill[1]):
 		return false
 	return true
 
@@ -500,8 +593,14 @@ static func study_options(p: Dictionary) -> Array:
 		# A fighter works out forms: those whose earlier forms are known and whose
 		# weapon they are skilled enough with.
 		for id in forms:
-			if not knows(p, id) and missing_for(p, id).is_empty() and skill_level(p, forms[id].family) >= int(forms[id].get("skill", 0)):
+			# (Between rounds, where skill is not kept, a form needs a weapon of its kind.)
+			var ready: bool = skill_level(p, forms[id].family) >= int(forms[id].get("skill", 0)) if skills_count(p) else weapon_of(p, forms[id].family) != ""
+			if not knows(p, id) and missing_for(p, id).is_empty() and ready:
 				out.append(id)
+		# And the weapons the tree opens next.
+		for w in tree_weapons():
+			if weapon_open(p, w):
+				out.append(w)
 		return out
 	for id in weaves:
 		if p.weaves.get(id, {}).get("known", false) or weaves[id].book > p.book_limit:
@@ -512,6 +611,10 @@ static func study_options(p: Dictionary) -> Array:
 
 static func missing_for(p: Dictionary, id: String) -> Array:
 	var out := []
+	# A weapon needs any one of what it grows from.
+	if weapons.has(id) and not forms.has(id) and p.get("cls", "channeller") != "channeller":
+		var needs: Array = weapons[id].get("needs", [])
+		return [] if needs.is_empty() or needs.any(func(n: String) -> bool: return weapon_known(p, n)) else needs.duplicate()
 	for n in lore(p)[id].get("needs", []):
 		if not knows(p, n):
 			out.append(n)

@@ -533,8 +533,9 @@ are what the 4:44 review, or the next session, should pick up.
       physical points the same way. Creation: fighters spend 6 points (weapon 1,
       form 2, stat 1, at most 2 in stats); channellers start with 2 + 2 in their
       sex's strong elements and 1 in Spirit, one starting weave in their best element.
-    - Going down: revive within 15 s (10 s in Darkfriend mode); half your health
-      again while down kills; balefire kills outright; a real death drops potential
+    - Going down (changed 23 Nov): you stay down until the wave ends; a friend within
+      5 m then gets you up on 1 health, alone you die; Healing raises you at once;
+      balefire kills outright; a real death drops potential
       and strength by 1d6 levels and you come back at the next wave (no coming back
       in Darkfriend mode). Revived players come back low on health and stamina.
     - The hidden Darkfriend mode (80% with 3 players, 95% with 4+, 60% of two with
@@ -589,3 +590,10 @@ are what the 4:44 review, or the next session, should pick up.
     waist-high walls, with a small hop, as a stopgap). Many solids need adding or
     resizing: the breastwork boxes stand too tall; tents, poles and banners have
     none; check every prop against what it looks like.
+
+## From 23 Nov
+- [ ] Forms for bows and thrown weapons (a volley, a fan of knives): the trees have none yet.
+- [ ] Channellers' study between rounds: the camp chart's "click to study" does nothing for
+      current saves (only a win's unlocks add weaves); fighters now study by fighting.
+- [ ] The hand-and-a-half sword and the earned blades share a column with five steps: if more
+      weapons join a line, the column layout needs a scroll or smaller steps.

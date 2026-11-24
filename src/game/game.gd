@@ -281,6 +281,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			print("GHOST %d key %s selected=%s" % [frame, OS.get_keycode_string(ev.physical_keycode), known[selected] if selected < known.size() else "-"])
 		if ev.physical_keycode == KEY_ESCAPE:
 			pass    # the pause menu (pauser.gd) has it
+		elif args.has("tour") and ev.physical_keycode == KEY_ENTER and _done:
+			_tour_go(1)
 		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
 			_to_camp()
 		elif args.has("tour") and ev.physical_keycode == KEY_F1 and tour_card:
@@ -1688,17 +1690,22 @@ func _on_events(list: Array) -> void:
 					(actors[e.id].node.get_meta("anim") as AnimationPlayer).play("Death01", 0.2)
 					actors[e.id].downed = true
 				if e.id == session.my_id:
-					_banner("You are down\nA friend must stand over you within %d seconds. Half a body more and you are dead." % int(e.secs), 6.0, "warn")
+					if in_battle:
+						_banner("You are down\nA friend must stand over you within %d seconds. One more blow and you are dead." % int(e.secs), 6.0, "warn")
+					else:
+						_banner("You are down\nWhen this wave ends, a friend beside you gets you up. Alone, you die. Healing gets you up at once.", 7.0, "warn")
 				elif actors.has(e.id) and in_battle and int(actors[e.id].get("team", 0)) != my_team:
 					_banner("%s is down\nFinish them before their side brings them back." % actors[e.id].get("name", "One of theirs"), 4.0, "good")
-				elif actors.has(e.id):
+				elif actors.has(e.id) and in_battle:
 					_banner("%s is down\nStand over them to bring them back." % actors[e.id].get("name", "A friend"), 5.0, "warn")
+				elif actors.has(e.id):
+					_banner("%s is down\nBe beside them when the wave ends, or Heal them." % actors[e.id].get("name", "A friend"), 5.0, "warn")
 			"revived":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
 					(actors[e.id].node.get_meta("anim") as AnimationPlayer).play("Idle", 0.3)
 					actors[e.id].downed = false
 				if e.id == session.my_id:
-					_banner("Back on your feet\nHurt and winded: get healed, or rest.", 4.0, "good")
+					_banner("Back on your feet\n%s" % ("On 1 health: get healed, or rest." if e.get("wave", false) else "Hurt and winded: get healed, or rest."), 4.0, "good")
 			"returned":
 				if actors.has(e.id):
 					actors[e.id].dead = false; actors[e.id].downed = false
@@ -1876,6 +1883,10 @@ func _on_events(list: Array) -> void:
 						a.node.queue_free()
 					a.dead = true
 			"hit":
+				# Damage numbers: what you dealt, and (smaller, red) what you took.
+				if hud and not args.has("clean") and float(e.dmg) >= 0.5 and actors.has(e.id) and is_instance_valid(actors[e.id].node) \
+						and (e.by == session.my_id or e.id == session.my_id):
+					hud.pop(e.id, (actors[e.id].node as Node3D).global_position, float(e.dmg), e.id != session.my_id)
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					var a: Dictionary = actors[e.id]
 					if a.node is Walker and not a.get("dead", false):
@@ -3124,10 +3135,12 @@ func _on_finished(success: bool, report: Array) -> void:
 	Launch.last_name = profile.name
 	# A notice, not words across the screen; and the world does not stop: you walk on.
 	if args.has("tour"):
-		Toast.say("Done" if success else "You fell", "%s next   ·   %s again" % [Keys.name(KEY_N), Keys.name(KEY_R)], "good" if success else "warn", 12.0)
+		Toast.say("Done" if success else "You fell", "%s or Enter: next   ·   %s again" % [Keys.name(KEY_N), Keys.name(KEY_R)], "good" if success else "warn", 12.0)
 	else:
 		Toast.say(_ending(success), "\n".join(report), "good" if success else "warn", 12.0)
-	if not args.has("auto") or args.has("homewalk"):
+	# No gateway home in the tour: it was too easy to walk into by accident, and the
+	# camp is no way on to the next station.
+	if (not args.has("auto") or args.has("homewalk")) and not args.has("tour"):
 		get_tree().create_timer(1.5).timeout.connect(_open_home)
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])

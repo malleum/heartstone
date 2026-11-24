@@ -73,6 +73,10 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 	if p.get("study", "") == "" or not Rules.study_options(p).has(p.study):
 		p.study = ""; p.study_done = 0.0
 		for id in Rules.study_options(p):
+			# (A weapon is studied only by choice: picked for you, it would replace
+			# what you carry.)
+			if Rules.weapons.has(id) and not Rules.forms.has(id):
+				continue
 			if p.study == "" or Rules.study_cost(p, id) < Rules.study_cost(p, p.study):
 				p.study = id
 		if p.study != "":
@@ -83,9 +87,16 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 		var fights: bool = p.get("cls", "channeller") != "channeller"
 		p.study_done = p.get("study_done", 0.0) + (tally.get("effort", 0.0) if fights else draw)
 		if p.study_done >= Rules.study_cost(p, p.study):
-			if fights:
+			if fights and Rules.weapons.has(p.study) and not Rules.forms.has(p.study):
+				var old := Rules.gain_weapon(p, p.study)
+				if old != "":
+					out.append("%s replaces your %s" % [Rules.weapons[p.study].name, Rules.weapons[old].name.to_lower()])
+			elif fights:
+				# Kept for good (forms_owned); carried at once if there is room.
 				if not p.has("forms"): p.forms = {}
-				p.forms[p.study] = {known = true}
+				if not p.has("forms_owned"): p.forms_owned = []
+				if not p.forms_owned.has(p.study): p.forms_owned.append(p.study)
+				if p.forms.size() < Profile.FORM_SLOTS: p.forms[p.study] = {known = true}
 			else:
 				p.weaves[p.study] = {known = true, xp = 0.0}
 			out.append("Learned %s" % lore[p.study].name)
@@ -125,6 +136,10 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 	var act: Dictionary = Rules.activities[activity_id]
 	var out: Array[String] = []
 	p.seconds += tally.get("seconds", 0.0)
+	# A fighter works out the weapon or form chosen on the tree by the breath spent
+	# fighting, won or lost.
+	if p.get("cls", "channeller") != "channeller":
+		_study_arms(p, float(tally.get("effort", 0.0)), out)
 	if not success:
 		out.append("The round is lost. Nothing carries over but what you learned of it.")
 		return out
@@ -138,3 +153,32 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 		p.unlocks_owed = int(p.get("unlocks_owed", 0)) + 1
 		out.append("A win: choose something to keep in the camp")
 	return out
+
+## A fighter's study, between rounds: the chosen weapon or form (a form is picked for
+## them if nothing was; a weapon only ever by choice, since it replaces one).
+static func _study_arms(p: Dictionary, effort: float, out: Array[String]) -> void:
+	if effort <= 0.0:
+		return
+	if p.get("study", "") == "" or not Rules.study_options(p).has(p.study):
+		p.study = ""; p.study_done = 0.0
+		for id in Rules.study_options(p):
+			if Rules.forms.has(id) and (p.study == "" or Rules.study_cost(p, id) < Rules.study_cost(p, p.study)):
+				p.study = id
+		if p.study == "":
+			return
+		out.append("You begin working out %s" % Rules.lore(p)[p.study].name)
+	p.study_done = float(p.get("study_done", 0.0)) + effort
+	var name: String = Rules.lore(p)[p.study].name
+	if p.study_done < Rules.study_cost(p, p.study):
+		out.append("%s: %d%% worked out" % [name, int(100.0 * p.study_done / Rules.study_cost(p, p.study))])
+		return
+	if Rules.weapons.has(p.study) and not Rules.forms.has(p.study):
+		var old := Rules.gain_weapon(p, p.study)
+		out.append("Learned %s%s" % [name, (", which replaces your %s" % Rules.weapons[old].name.to_lower()) if old != "" else ""])
+	else:
+		if not p.has("forms"): p.forms = {}
+		if not p.has("forms_owned"): p.forms_owned = []
+		if not p.forms_owned.has(p.study): p.forms_owned.append(p.study)
+		if p.forms.size() < Profile.FORM_SLOTS: p.forms[p.study] = {known = true}
+		out.append("Learned %s" % name)
+	p.study = ""; p.study_done = 0.0

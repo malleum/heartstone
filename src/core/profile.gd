@@ -54,6 +54,10 @@ static func create(opts: Dictionary) -> Dictionary:
 	for w in opts.get("kit", []):
 		if p.kit.size() < int(Rules.CLASSES.channeller.carry) and Rules.wield_block(p, w) == "":
 			p.kit.append(w)
+	# A man who channels sets out with a short sword, the plainest blade there is
+	# (user's ruling, 23 Nov); better ones replace it.
+	if power == "saidin" and p.kit.is_empty():
+		p.kit = ["short_sword"]
 	# You begin knowing the simplest weave of the Power that answers you best; a tie
 	# is settled by chance, fixed by the name so it is the same on every machine.
 	var best: Array = []
@@ -188,6 +192,16 @@ static func valid(p: Dictionary) -> bool:
 static func start_strength(potential: float) -> float:
 	return Rules.strength_of(mini(Rules.level_of(potential) + int(Rules.TUNE.start_gap), 72))
 
+## A kit with two of one family keeps the first.
+static func _one_per_family(p: Dictionary) -> void:
+	var seen := {}
+	var out := []
+	for w in p.get("kit", []):
+		if Rules.weapons.has(w) and not seen.has(Rules.weapons[w].family):
+			seen[Rules.weapons[w].family] = true
+			out.append(w)
+	p.kit = out
+
 ## Saves from before a rules change: lift strength to the new starting floor and
 ## follow weaves that were renamed or removed.
 static func _migrate(p: Dictionary) -> void:
@@ -198,7 +212,26 @@ static func _migrate(p: Dictionary) -> void:
 			p[k[0]] = k[1]
 	p.kit = p.kit.filter(func(w: String) -> bool: return Rules.weapons.has(w))
 	if p.cls != "channeller":
+		# One weapon of a family (23 Nov): the best of each is kept.
+		_one_per_family(p)
+		if p.has("weapons_owned"):
+			var best := {}
+			for w in p.weapons_owned:
+				if not Rules.weapons.has(w): continue
+				var f: String = Rules.weapons[w].family
+				if not best.has(f) or Rules.weapon_roots(w).size() > Rules.weapon_roots(best[f]).size():
+					best[f] = w
+			if not p.has("weapons_learned"): p.weapons_learned = p.weapons_owned.duplicate()
+			p.weapons_owned = p.weapons_owned.filter(func(w: String) -> bool: return Rules.weapons.has(w) and best[Rules.weapons[w].family] == w)
+			for i in p.kit.size():
+				var bw: String = best.get(Rules.weapons[p.kit[i]].family, p.kit[i])
+				p.kit[i] = bw
+			_one_per_family(p)
 		return
+	if p.get("power", "") == "saidin" and p.kit.is_empty():
+		p.kit = ["short_sword"]
+		if p.has("weapons_owned") and not p.weapons_owned.has("short_sword"):
+			p.weapons_owned.append("short_sword")
 	p.strength = maxf(p.strength, start_strength(p.potential))
 	if p.weaves.has("shield_of_air"):
 		p.weaves["dome_of_air"] = p.weaves["shield_of_air"]
@@ -321,14 +354,17 @@ static func make(opts: Dictionary) -> Dictionary:
 		# and an Aes Sedai carries her belt knife. Skill with it stops at 4.
 		if opts.get("origin", "") == "tar_valon":
 			p.kit = ["sword" if power == "saidin" else "belt_knife"]
-			p.weapons_owned = p.kit.duplicate()
+		p.weapons_owned = p.kit.duplicate()
 	else:
 		var stats: Dictionary = opts.get("stats", {})
 		p = create_fighter({name = opts.name, cls = opts.cls, sex = opts.get("sex", "m"), stat_pts = stats, skill_pts = {}, kit = opts.get("kit", []), origin = opts.get("origin", "two_rivers"), look = opts.get("look", {}), style = opts.get("style", {}), gift = opts.get("gift", ""), society = opts.get("society", ""), hunter_kit = opts.get("hunter_kit", "")})
 		p.forms = {}
 		for f in opts.get("forms", []):
 			p.forms[f] = {known = true}
+		# (Not cut to one of a kind here: the camp's creation already does that, and a
+		# tour station hands out three swords on purpose, to try each.)
 		p.weapons_owned = p.kit.duplicate()
+		p.weapons_learned = p.kit.duplicate()
 		p.forms_owned = p.forms.keys()
 	p.unlocks_owed = 0
 	p.format = FORMAT
@@ -354,16 +390,17 @@ static func unlock_offers(p: Dictionary, n: int, rng: RandomNumberGenerator) -> 
 		var fams := {}
 		for w in p.get("weapons_owned", p.kit):
 			fams[Rules.weapons[w].family] = true
-		for w in Rules.weapons:
-			if not p.get("weapons_owned", p.kit).has(w) and Rules.wield_block(p, w) == "":
-				# A blademaster's sword, a Power-wrought blade, a cursed dagger: only
-				# once they are earned (renown, or skill), and said so.
-				if Rules.weapons[w].get("earned", false) and not Rules.earned_ok(p, w):
-					continue
+		# Only what the weapon tree opens next (a blademaster's sword, a Power-wrought
+		# blade, a cursed dagger only once earned); a new one replaces its family's.
+		for w in Rules.tree_weapons():
+			if Rules.weapon_open(p, w):
 				var nm: String = Rules.weapons[w].name + ("  (cursed)" if Rules.weapons[w].get("cursed", false) else ("  (earned)" if Rules.weapons[w].get("earned", false) else ""))
+				var old := Rules.weapon_of(p, Rules.weapons[w].family)
+				if old != "":
+					nm += "  (replaces your %s)" % Rules.weapons[old].name.to_lower()
 				pool.append({kind = "weapon", id = w, name = nm})
 		for f in Rules.forms:
-			if fams.has(Rules.forms[f].family) and not p.get("forms_owned", []).has(f):
+			if fams.has(Rules.forms[f].family) and not Rules.knows(p, f) and Rules.missing_for(p, f).is_empty():
 				pool.append({kind = "form", id = f, name = Rules.forms[f].name})
 	var out := []
 	while not pool.is_empty() and out.size() < n:
@@ -377,6 +414,6 @@ static func take_unlock(p: Dictionary, u: Dictionary) -> void:
 		"weave": p.weaves_owned.append(u.id)
 		"affinity":
 			p.aff_owned[u.id] = int(p.aff_owned.get(u.id, 0)) + 1
-		"weapon": p.weapons_owned.append(u.id)
+		"weapon": Rules.gain_weapon(p, u.id)
 		"form": p.forms_owned.append(u.id)
 	p.unlocks_owed = maxi(int(p.get("unlocks_owed", 0)) - 1, 0)

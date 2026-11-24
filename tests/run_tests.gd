@@ -743,10 +743,13 @@ func _arms_more() -> void:
 			for u in Profile.unlock_offers(p, 50, rng):
 				if u.kind == "weapon" and not ids.has(u.id): ids.append(u.id)
 		return ids
+	f.skills["sword"] = 9.0 * Rules.TUNE.skill_xp
 	var o: Array = offered.call(f)
 	check(not o.has("heron_blade") and not o.has("power_blade") and not o.has("shadar_dagger"), "earned weapons are not offered before they are earned")
-	check(o.has("sword_knife"), "sword and knife is an ordinary weapon")
-	f.renown = 70.0; f.skills["sword"] = 36.0 * Rules.TUNE.skill_xp
+	check(o.has("sword_knife"), "sword and knife is an ordinary weapon (the tree's next after the sword)")
+	# Earned, and the tree reached: a hand-and-a-half sword and paired daggers known.
+	f.renown = 90.0; f.skills["sword"] = 64.0 * Rules.TUNE.skill_xp; f.skills["knife"] = 25.0 * Rules.TUNE.skill_xp
+	f.weapons_learned = ["bastard_sword", "daggers"]
 	o = offered.call(f)
 	check(o.has("heron_blade") and o.has("power_blade") and o.has("shadar_dagger"), "renown and a blademaster's skill earn them")
 	# A Power-wrought blade never dulls.
@@ -1337,17 +1340,25 @@ func _rounds() -> void:
 	ds._waves = []
 	var da := ds.add_player(Profile.create({name = "Down A", power = "saidin", potential_pts = 8}), Vector3(0, 0, 0))   # a man: no Warder to help
 	var db := ds.add_player(Profile.create({name = "Down B", cls = "warder", stat_pts = {might = 3}}), Vector3(8, 0, 0))
-	ds._add_enemy("dummy", Vector3(0, 0, -90))   # something left, so the round goes on
+	ds._add_enemy("trolloc", Vector3(0, 0, -90))   # something left, so the wave goes on
+	ds.ents[ds._next - 1].speed = 0.0
 	var pa: Dictionary = ds.ents[da]
 	ds._hurt(pa, pa.max_hp + 5.0, 0, "")
 	check(pa.alive and pa.downed and ds.request_cast(da, pa.profile.weaves.keys()[0], Vector3(0, 1, 5)) == "you are down", "a player in a round goes down first, and cannot act")
+	ds._hurt(pa, pa.max_hp * 3.0, 0, "")
+	check(pa.alive and pa.downed, "nothing more lands on someone down in the waves")
 	ds.ents[db].pos = Vector3(1.0, 0, 0)
-	var seen := run(ds, Round.REVIVE_SECS + 0.3)
-	check(seen.has("revived") and not pa.downed and pa.hp > 0.0 and pa.hp <= pa.max_hp * 0.3, "a friend standing over you brings you back, low on health")
+	run(ds, 5.0)
+	check(pa.downed, "a friend beside you does not raise you before the wave ends")
+	var seen := {}
+	ds._wave_end()
+	for ev in ds.events:
+		seen[ev.e] = true
+	check(seen.has("revived") and not pa.downed and is_equal_approx(pa.hp, 1.0), "the wave over, a friend beside you gets you up on 1 health")
 	ds.ents[db].pos = Vector3(20, 0, 0)
 	ds._hurt(pa, pa.hp + 1.0, 0, "")
-	ds._hurt(pa, pa.max_hp * 0.5 + 1.0, 0, "")
-	check(not pa.alive and pa.return_next, "half a body more while down kills you")
+	ds._wave_end()
+	check(not pa.alive and pa.return_next, "the wave over with nobody near, you die")
 	var before: float = pa.profile.round.pot_level
 	ds._spawn_wave({t = 0.0, spawn = {}})
 	check(pa.alive and pa.profile.round.pot_level > before and pa.profile.round.pot_level - before <= 6.0, "the dead come back with the next wave, their potential fallen 1 to 6 levels")
@@ -1355,8 +1366,14 @@ func _rounds() -> void:
 	check(not pa.alive and not pa.get("downed", false), "balefire leaves nothing to bring back")
 	ds._spawn_wave({t = 0.0, spawn = {}})
 	ds._hurt(pa, pa.hp + 1.0, 0, "")
-	run(ds, Round.DOWN_SECS + 0.5)
-	check(not pa.alive, "left down too long, you die")
+	ds.ents[db].pos = Vector3(1.5, 0, 0)
+	ds._field_clear = false
+	ds._spawn_wave({t = 0.0, spawn = {}})
+	check(pa.alive and not pa.downed, "the next wave arriving ends the last one: a friend near gets you up")
+	ds._hurt(pa, pa.hp + 1.0, 0, "")
+	ds._hurt(ds.ents[db], ds.ents[db].hp + 1.0, 0, "")
+	run(ds, 0.2)
+	check(not pa.alive and not ds.ents[db].alive and ds.over and not ds.success, "everyone down: nobody to raise anyone, and the round is lost")
 
 	# Friendly fire: in a round a player's fire burns friends as well as foes.
 	var ff := Sim.new("tarwins_gap_watch", 31)
@@ -1464,11 +1481,11 @@ func _rounds() -> void:
 
 	# Rope: a fighter ties a downed player; they cannot walk or strike; anyone unties.
 	var rs := Sim.new("darkfriend", 61)
-	rs._waves = []; rs._add_enemy("dummy", Vector3(0, 0, -90))
+	rs._waves = []; rs._add_enemy("trolloc", Vector3(0, 0, -90)); rs.ents[rs._next - 1].speed = 0.0
 	var rw := rs.add_player(Profile.create({name = "Roper", cls = "warder", stat_pts = {might = 3}}), Vector3(0, 0, 0))
 	var rv := rs.add_player(Profile.create({name = "Roped", power = "saidin"}), Vector3(1.0, 0, 0))
 	check(rs.set_tying(rw, true) != "", "a standing player cannot be tied")
-	rs.ents[rv].downed = true; rs.ents[rv].down_left = 99.0; rs.ents[rv].down_hp = 50.0
+	rs.ents[rv].downed = true; rs.ents[rv].down_left = 99.0
 	check(rs.set_tying(rw, true) == "", "a fighter can begin tying someone who is down")
 	run(rs, Rules.TUNE.rope_secs + 0.2)
 	check(rs.ents[rv].get("tied", false), "after a few seconds they are tied")
@@ -1666,11 +1683,13 @@ func _rounds() -> void:
 	hls.ents[hl1].profile.weaves["healing"] = {known = true, xp = 0.0}
 	hls.ents[hl1].profile.no_roll = true
 	hls.ents[hl1].profile.strength = Rules.strength_of(10.0)
+	hls._add_enemy("trolloc", Vector3(0, 0, -90))   # the wave goes on: only the Healing raises them
+	hls.ents[hls._next - 1].speed = 0.0
 	hls._hurt(hls.ents[hl2], 9999.0, 0, "")
 	check(hls.ents[hl2].get("downed", false), "a round player goes down first")
 	var hwhy := hls.request_cast(hl1, "healing", hls.ents[hl2].pos)
 	run(hls, 4.0)
-	check(hwhy == "" and not hls.ents[hl2].get("downed", false) and hls.ents[hl2].hp > 0.0, "Healing brings a downed friend up (%s)" % hwhy)
+	check(hwhy == "" and not hls.ents[hl2].get("downed", false) and hls.ents[hl2].hp > 1.5, "Healing brings a downed friend up (%s)" % hwhy)
 
 	# A blow at a run lands harder; an edge leaves them bleeding.
 	var rn := Sim.new("practice", 100)
@@ -1694,16 +1713,15 @@ func _rounds() -> void:
 	run(rn, 0.6)
 	check(not rp2.swing.is_empty() or rn.tallies[rnp].blows.get("sword", 0) >= 2, "and comes out of it")
 
-	# Wounds: rest cannot mend them; Healing does.
+	# No lasting wounds: rest mends everything.
 	var wds := Sim.new("practice", 101)
 	wds._waves = [{t = 999.0, spawn = {}}]
 	var wd1 := wds.add_player(Profile.create({name = "Wounded", power = "saidin"}))
 	var wde: Dictionary = wds.ents[wd1]
 	wds._hurt(wde, 60.0, 0, "")
-	var cap: float = wde.max_hp - wde.wound
-	check(wde.wound > 10.0, "a hurt leaves a wound")
-	run(wds, 120.0)
-	check(wde.hp <= cap + 0.01 and wde.hp > cap - 5.0, "rest mends up to the wound and no further (%.0f of %.0f)" % [wde.hp, wde.max_hp])
+	check(wde.get("wound", 0.0) == 0.0, "a hurt leaves no lasting wound")
+	run(wds, 200.0)
+	check(wde.hp > wde.max_hp - 0.5, "rest mends all of it, given time (%.0f of %.0f)" % [wde.hp, wde.max_hp])
 
 	# Fire arrows: drawn beside a watch-fire, an arrow is lit and the grass it
 	# falls in catches.
@@ -1773,7 +1791,7 @@ func _rounds() -> void:
 	var tbs := Sim.new("team_battle", 97)
 	var tbp := tbs.add_player(Profile.make({name = "Banner", power = "saidin"}))
 	var tbt := 0.0
-	while not tbs.over and tbs.t < 800.0:
+	while not tbs.over and tbs.t < 1500.0:
 		Bot.drive(tbs, tbp)
 		tbs.step(1.0 / 15.0)
 		tbs.events.clear()
@@ -1895,6 +1913,7 @@ func _init() -> void:
 	_dream_more()
 	_arms_more()
 	_classes()
+	_arms_tree()
 	_trolloc_blows()
 	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
@@ -1927,7 +1946,7 @@ func _classes() -> void:
 	check(d0 - sim.ents[di].hp < (p0 - sim.ents[pi].hp) * 0.9, "a Stone Dog standing still takes less (%.1f against %.1f)" % [d0 - sim.ents[di].hp, p0 - sim.ents[pi].hp])
 	check(Rules.soc(Profile.create_fighter({name = "Red", cls = "aiel", sex = "m", stat_pts = st, kit = ["aiel_spear"], society = "aethan_dor"}), "parry") > 1.0, "Red Shields parry later")
 	# Hunter kits.
-	var tr := Profile.create_fighter({name = "Perrin", cls = "hunter", stat_pts = st, kit = ["hammer", "wood_axe", "throwing_axes"], hunter_kit = "smith"})
+	var tr := Profile.create_fighter({name = "Perrin", cls = "hunter", stat_pts = st, kit = ["hammer", "throwing_axes", "belt_knife"], hunter_kit = "smith"})
 	check(tr.get("hunter_kit", "") == "smith" and Rules.skill_level(tr, "axe") >= 1 and Rules.skill_level(tr, "thrown") >= 1, "a Hunter with a whole kit starts a level up in its weapons")
 	check(not Profile.create_fighter({name = "Half", cls = "hunter", stat_pts = st, kit = ["hammer"], hunter_kit = "smith"}).has("hunter_kit"), "half a kit is no kit")
 	# The bond: a Warder is bonded to the channeller in the party, and feels her fall.
@@ -1971,3 +1990,56 @@ func _classes() -> void:
 	g2._waves = []
 	run(g2, 2.0)
 	check(g2.over and g2.success, "her weave done wins it")
+
+
+## The weapon tree, one weapon of a family, the man's short sword, and bots that
+## weave only at what they can see.
+func _arms_tree() -> void:
+	print("== the weapon tree")
+	var m := Profile.make({name = "Tree Man", power = "saidin"})
+	check(m.kit == ["short_sword"], "a man who channels starts with a short sword (%s)" % [m.kit])
+	var w := Profile.make({name = "Tree Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
+	check(w.kit.has("sword") and Rules.weapon_known(w, "sabre") and Rules.weapon_known(w, "short_sword"), "carrying a sword, the plainer swords count as outgrown")
+	check(Rules.weapon_open(w, "bastard_sword") and Rules.study_options(w).has("bastard_sword"), "between rounds the next sword is open to study")
+	w.round = {}
+	check(not Rules.weapon_open(w, "bastard_sword"), "in a round it waits on sword skill")
+	w.skills["sword"] = 25.0 * Rules.TUNE.skill_xp
+	check(Rules.weapon_open(w, "bastard_sword"), "and with skill it opens")
+	w.erase("round")
+	check(not Rules.weapon_open(w, "heron_blade"), "a heron-mark blade waits until earned and its sword is known")
+	var old := Rules.gain_weapon(w, "bastard_sword")
+	check(old == "sword" and w.kit.has("bastard_sword") and not w.kit.has("sword") and not w.weapons_owned.has("sword"), "a new sword replaces the old one, in hand and owned")
+	check(w.kit.filter(func(k: String) -> bool: return Rules.weapons[k].family == "sword").size() == 1, "one sword, never two")
+	var offers := Profile.unlock_offers(w, 40, RandomNumberGenerator.new())
+	check(offers.filter(func(o: Dictionary) -> bool: return o.kind == "weapon" and not Rules.weapon_open(w, o.id)).is_empty(), "a win offers only weapons the tree opens")
+	var old_save := {name = "Old Save", cls = "warder", kit = ["sword", "sabre", "belt_knife"], weapons_owned = ["sword", "sabre", "bastard_sword", "belt_knife"], stats = {might = 0, quickness = 0, endurance = 0}, skills = {}, forms = {}, techniques = []}
+	Profile._migrate(old_save)
+	check(old_save.weapons_owned.has("bastard_sword") and not old_save.weapons_owned.has("sword") and old_save.kit.count("bastard_sword") == 1 and old_save.kit.size() == 2, "an old save keeps its best sword (%s / %s)" % [old_save.kit, old_save.weapons_owned])
+	# In a round: the next weapon along the tree takes the place of the one in hand.
+	var r := Profile.make({name = "Round Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
+	r.skills["sword"] = 25.0 * Rules.TUNE.skill_xp
+	r.round = {picks = 1}
+	var ch := Round.choices(r).filter(func(c: Dictionary) -> bool: return c.kind == "weapon" and c.id == "bastard_sword")
+	check(not ch.is_empty() and Round.pick(r, "weapon", "bastard_sword") == "" and r.kit.has("bastard_sword") and not r.kit.has("sword"), "a weapon chosen in a round replaces its family's in hand")
+	# Study: a weapon worked out by fighting replaces the old one.
+	var sw := Profile.make({name = "Study Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
+	sw.skills["sword"] = 25.0 * Rules.TUNE.skill_xp
+	sw.study = "bastard_sword"; sw.study_done = 0.0
+	Progression.award(sw, {effort = 99999.0, seconds = 60.0, draw = 0.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", false)
+	check(sw.kit.has("bastard_sword") and not sw.kit.has("sword"), "a weapon worked out by fighting replaces the old one (a lost round still teaches)")
+	var fw := Profile.make({name = "Form Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
+	Progression.award(fw, {effort = 99999.0, seconds = 60.0, draw = 0.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
+	check(not fw.forms_owned.is_empty() and Rules.knows(fw, fw.forms_owned[0]), "with nothing chosen, fighting works out a form, kept for good (%s)" % [fw.forms_owned])
+	# A bot weaves only at what it can see.
+	var ls := Sim.new("practice", 131)
+	ls._waves = [{t = 999.0, spawn = {}}]
+	var lp := ls.add_player(Profile.make({name = "Sight Bot", power = "saidar"}))
+	ls._add_enemy("trolloc", Vector3(0, 0, 12))
+	var lt: Dictionary = ls.ents[ls._next - 1]
+	lt.speed = 0.0
+	Map._walls.append({x = 0.0, z = 6.0, hx = 4.0, hz = 0.3, h = 3.0, yaw = 0.0, look = "stone"})
+	for i in 60:
+		Bot.drive(ls, lp)
+		ls.step(1.0 / 15.0)
+	check(ls.tallies[lp].casts.is_empty() and ls.ents[lp].forming.is_empty(), "a bot does not weave through a wall at what it cannot see")
+	Map._walls.pop_back()

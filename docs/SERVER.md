@@ -102,15 +102,24 @@ In the camp, under **Server**:
 
 ## Releases and updates (17 Nov)
 Pushing a tag `v*` runs `.github/workflows/release.yml`: it builds Linux and Windows
-with Godot 4.7.2's official templates (any hardware: Vulkan, D3D12, then OpenGL) and
-publishes a GitHub release with `heartstone-linux-x86_64.zip`, `heartstone-windows.zip`
-and the game data alone, `heartstone-engine-4.7.2.pck`.
+with Godot 4.7.2's official templates (any hardware: Vulkan, D3D12, then OpenGL), the
+game data inside each executable (`embed_pck`), checks the Linux build starts without
+script errors, and publishes `heartstone-linux-x86_64.zip`, `heartstone-windows.zip`,
+the bare `heartstone.x86_64` and `heartstone.exe`, and `build.json` (tag, commit, commit
+time).
 
-Installed games do **not** update themselves any more (19 Nov). The updater used to
-download the new pack and restart with `--main-pack`, but Godot's official release
-builds refuse that flag and abort, so after one download every launch died within a
-second (seen on Windows). `Updater.boot` now clears any downloaded pack and returns;
-`Updater.check` only says a newer release is out and where to download it.
+Installed games update themselves (23 Nov, the way malleum/ultimategrapple does it).
+From the camp, `Updater.check` reads the latest release and its `build.json`; if that
+build is newer than the one baked into this executable, the executable for this
+platform downloads next to ours (`<exe>.download`) and is swapped in: Linux renames it
+over the running file (the process keeps its copy); Windows cannot overwrite a running
+.exe but can rename it, so the old one becomes `<exe>.old` and is deleted at the next
+start (`Updater.boot`). Idle in the camp, the game restarts into it at once; otherwise
+the new one is there the next time it is opened. Nothing is done from source, under
+Nix (read-only store), headless, or in `dist/` builds (no tag).
+History: until 19 Nov it downloaded the data alone and restarted with `--main-pack`,
+which official release builds refuse (every launch died); 19-23 Nov it only announced
+new releases. Games from before v0.2.9 still need the new zip once, by hand.
 
 Online, the server refuses a client whose handshake version differs (`Session.version`:
 protocol number plus a hash of `data/*.json`); the client then says which side is
