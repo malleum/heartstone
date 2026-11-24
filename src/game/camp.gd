@@ -84,6 +84,9 @@ func _ready() -> void:
 	# --camyaw=deg: look another way in a render (and --show=none hides the sheet).
 	if Launch.cmdline().has("camyaw"):
 		cam_yaw = deg_to_rad(float(Launch.cmdline().camyaw))
+	# --campitch=deg (negative looks down) and --camdist=m: a view from higher up.
+	if Launch.cmdline().has("campitch"):
+		cam_pitch = deg_to_rad(float(Launch.cmdline().campitch))
 	# --campos=x,z: stand there (pictures of a corner of the camp).
 	if Launch.cmdline().has("campos"):
 		var xz: PackedStringArray = String(Launch.cmdline().campos).split(",")
@@ -411,7 +414,8 @@ func _process(dt: float) -> void:
 	if _phase == 1:
 		move = Vector3.ZERO     # the body is over there now, moved by the fight
 	if move.length() > 0.1:
-		pos = _unblock(pos + move * (7.5 if sprint else 5.0) * dt).limit_length(30.0)
+		# Inside the palisade (Scenery.palisade), never an invisible line in the grass.
+		pos = _unblock(pos + move * (7.5 if sprint else 5.0) * dt).limit_length(Scenery.CAMP_WALL - 1.6)
 		# The doorways' posts are stone: you go between them, not through them.
 		for d in doors:
 			var across := Vector3(d.at.z, 0, -d.at.x).normalized()
@@ -453,7 +457,7 @@ func _process(dt: float) -> void:
 		var depth := (pos - (_pre.A as Transform3D).origin).dot(-(_pre.A as Transform3D).basis.z)
 		cx = lerpf(-1.1, 0.0, clampf((depth + 6.0) / 3.0, 0.0, 1.0))
 	cam_x = move_toward(cam_x, cx, dt * 1.5)
-	cam_back = move_toward(cam_back, 4.6, dt * 1.2)
+	cam_back = move_toward(cam_back, float(cl.get("camdist", 4.6)), dt * (99.0 if cl.has("camdist") else 1.2))
 	var want := pivot + view * Vector3(cam_x, 0.2, cam_back)
 	want.y = maxf(want.y, _height(want.x, want.z) + 0.35)
 	cam.position = cam.position.lerp(want, minf(14.0 * dt, 1.0))

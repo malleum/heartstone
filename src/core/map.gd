@@ -1,18 +1,38 @@
 class_name Map
 ## Where an activity happens, as pure maths: no nodes, so the headless Sim, the
 ## terrain mesh and foot placement all agree on the same ground and the same walls.
-## A map is a corridor running along -Z (enemies come from the far, negative end)
-## whose half-width varies with z. Outside it the ground climbs into cliffs.
+## A map is either a corridor running along -Z (enemies come from the far, negative
+## end) whose half-width varies with z, closed at both ends; or round (`around`),
+## a basin `radius` across. Past the edge the ground climbs into cliffs: what stops
+## you is rock you can see, never an invisible wall. `ledges` are raised ground
+## (plateaus with steep sides and a ramp up, or low shelves a jump reaches).
 
 const MAPS := {
 	open = {},
 	# Tarwin's Gap: a pass between the Mountains of Dhoom. Wide where the Trollocs
-	# gather, pinched at a chokepoint in front of the line the defenders hold.
-	tarwins_gap = {length = 95.0, back = 22.0, wide = 30.0, narrow = 11.0, choke_z = -20.0, choke_len = 16.0, cliff = 46.0, breastwork = true},
+	# gather, pinched at a chokepoint in front of the line the defenders hold. Shelves
+	# of rock along both walls behind the line, a ramp up each: ground to shoot from.
+	tarwins_gap = {length = 125.0, back = 40.0, wide = 40.0, narrow = 14.0, choke_z = -26.0, choke_len = 18.0, cliff = 46.0, breastwork = true,
+		ledges = [{x = -31.0, z = 6.0, rx = 6.0, rz = 14.0, h = 3.2, ramp = Vector2(0.15, 1)}, {x = 29.0, z = 10.0, rx = 7.0, rz = 12.0, h = 2.6, ramp = Vector2(-1, 0.8)},
+			{x = -24.0, z = -62.0, rx = 6.0, rz = 9.0, h = 1.5}, {x = 26.0, z = -80.0, rx = 8.0, rz = 7.0, h = 4.0, ramp = Vector2(-1, 0.2)}]},
 	# A caravan caught in open hills: wagons drawn into a ring, and the Shadow
-	# coming from every side. No pass to hold; the ring is the line.
-	wagon_ring = {length = 58.0, back = 58.0, wide = 58.0, narrow = 58.0, choke_z = 0.0, choke_len = 1.0, cliff = 16.0, ring = 9.5, around = true},
+	# coming from every side. No pass to hold; the ring is the line. Low hills round
+	# about, a knoll to climb.
+	wagon_ring = {around = true, radius = 78.0, cliff = 18.0, ring = 9.5,
+		ledges = [{x = -30.0, z = 26.0, rx = 9.0, rz = 7.0, h = 2.2, ramp = Vector2(0.7, -0.7)}, {x = 36.0, z = 30.0, rx = 6.0, rz = 6.0, h = 1.5}, {x = -12.0, z = -40.0, rx = 11.0, rz = 6.0, h = 3.0, ramp = Vector2(0.1, 1)}]},
+	# The Watch Hill: a broken height in the Borderland hills. A flat-topped hill in
+	# the middle with two ramps up, a ring of lower shelves and knolls round it, and
+	# the Shadow coming up from every side.
+	highlands = {around = true, radius = 85.0, cliff = 20.0,
+		ledges = [{x = 0.0, z = 0.0, rx = 13.0, rz = 11.0, h = 4.0, ramp = Vector2(0, 1)}, {x = 0.0, z = 0.0, rx = 13.0, rz = 11.0, h = 0.0, ramp = Vector2(-1, -0.3)},
+			{x = 30.0, z = -18.0, rx = 8.0, rz = 6.0, h = 2.4, ramp = Vector2(-1, 0)}, {x = -32.0, z = -14.0, rx = 7.0, rz = 9.0, h = 1.5},
+			{x = -26.0, z = 30.0, rx = 10.0, rz = 7.0, h = 3.0, ramp = Vector2(0.8, -0.6)}, {x = 28.0, z = 32.0, rx = 6.0, rz = 6.0, h = 1.4},
+			{x = 4.0, z = -44.0, rx = 12.0, rz = 6.0, h = 2.0, ramp = Vector2(0, 1)}, {x = 50.0, z = 6.0, rx = 6.0, rz = 10.0, h = 3.5, ramp = Vector2(-1, 0.3)}]},
 }
+## A map with nothing named (the training yard, the open fields of the Wild Hunt and
+## the doorway modes): round, this far across before the hills close it in.
+const OPEN_RADIUS := 80.0
+const OPEN_CLIFF := 14.0
 static var id := "open"
 static var m := {}
 
@@ -65,11 +85,18 @@ static func use(map_id: String, activity := "") -> void:
 			# 4.2, its wheels a little wider), not a box round it.
 			_walls.append({x = c.x, z = c.z, hx = 0.95, hz = 2.2, h = 2.1, yaw = a, rot = a + PI * 0.5, look = "wagon"})
 	var rng := RandomNumberGenerator.new(); rng.seed = 23
-	for i in 22:
-		var z := rng.randf_range(-95.0, 30.0) if not m.is_empty() else rng.randf_range(-60.0, 30.0)
-		var side := -1.0 if rng.randf() < 0.5 else 1.0
-		var x := side * (half_width(z) + rng.randf_range(-2.5, 2.0)) if not m.is_empty() else side * rng.randf_range(9.0, 45.0)
+	for i in 30:
+		var x := 0.0; var z := 0.0
+		if corridor():
+			z = rng.randf_range(-float(m.length) + 5.0, float(m.back) - 5.0)
+			x = (-1.0 if rng.randf() < 0.5 else 1.0) * (half_width(z) + rng.randf_range(-2.5, 2.0))
+		else:
+			# Round maps: dead trees scattered out toward the rim, a few nearer.
+			var a := rng.randf() * TAU; var rr := radius() * sqrt(rng.randf_range(0.12, 0.9))
+			x = sin(a) * rr; z = cos(a) * rr
 		var th := rng.randf_range(3.5, 6.5)
+		if rise(x, z) > 0.2 or (m.has("ring") and Vector2(x, z).length() < float(m.ring) + 4.0) or (activity == "camp_training" and Vector2(x, z + 6.0).length() < 24.0):
+			continue
 		# (No tree in a pond.)
 		if water_y(x, z) == -INF and water_y(x + 1.5, z) == -INF and water_y(x - 1.5, z) == -INF:
 			_trees.append({x = x, z = z, r = 0.38, h = th})
@@ -176,7 +203,12 @@ static func _props(activity: String) -> void:
 		_solid(-3.0, 6.5, 0.12, 5.2, "banner_camp")
 		# Places to walk to (camp.gd STATIONS): the armoury, the tailor, the study.
 		for st in STATIONS:
-			_solid(st.x, st.z, st.r, 1.6, st.prop, {yaw = st.yaw})
+			# Drawn from this entry; what stops you is the boxes below, the shape of
+			# what stands there (a single circle let you walk through a rack's ends).
+			_solid(st.x, st.z, 0.05, 1.6, st.prop, {yaw = st.yaw})
+			for part in STATION_SOLIDS[st.id]:
+				var c := Vector2(st.x, st.z) + Vector2(part[0], part[1]).rotated(-float(st.yaw))
+				_walls.append({x = c.x, z = c.y, hx = part[2], hz = part[3], h = part[4], yaw = st.yaw, rot = st.yaw, look = "none"})
 
 ## The camp's places to walk to: each faces the middle of the camp, a few paces
 ## off on the open side (the doorways' arc runs round to the right).
@@ -185,6 +217,14 @@ const STATIONS := [
 	{id = "tailor", prop = "tailor", x = -7.0, z = -5.6, r = 0.9, yaw = PI * 0.5 - 0.6},
 	{id = "study", prop = "study", x = -6.6, z = 4.2, r = 0.8, yaw = PI * 0.5 + 0.6},
 ]
+
+## The solid parts of each station, in its own frame (built facing +z, as Scenery
+## builds it): [x, z, half width, half depth, height].
+const STATION_SOLIDS := {
+	armoury = [[0.0, 0.05, 1.05, 0.2, 2.3], [1.6, 0.2, 0.42, 0.3, 1.7]],
+	tailor = [[0.0, 0.05, 1.05, 0.3, 1.8], [1.7, 0.3, 0.4, 0.32, 1.8]],
+	study = [[0.0, 0.0, 0.78, 0.43, 1.0], [0.0, 0.7, 0.24, 0.24, 0.5]],
+}
 
 ## Solid things standing on the map, as circles: the sim blocks movement and weaves
 ## on them and the view draws a tree at each, so the two cannot disagree.
@@ -243,31 +283,58 @@ static func in_wall(p: Vector3) -> bool:
 	return false
 
 ## The ground as a grid of cells an enemy can or cannot stand in, for finding a
-## way round walls: {x0, z0, nx, nz, cell, blocked}. Built once per map.
+## way round walls, trees, steep rock and water: {x0, z0, nx, nz, cell, blocked}.
+## blocked: 0 open, 1 not to be walked (a wall, a trunk, a cliff edge, deep water,
+## past the edge), 2 shallow water (walked, but Trollocs hate it). Built once per map,
+## each thing laid into the cells it covers (not every cell asking every thing).
 static func grid() -> Dictionary:
-	if not _grid.is_empty() or _walls.is_empty():
+	if not _grid.is_empty():
 		return _grid
 	var cell := 1.25
-	var wx: float = float(m.wide) + 2.0 if not m.is_empty() else 50.0
-	var z0: float = -float(m.length) if not m.is_empty() else -50.0
-	var z1: float = float(m.back) if not m.is_empty() else 50.0
-	var nx := int(ceil(wx * 2.0 / cell)); var nz := int(ceil((z1 - z0) / cell))
+	var ex := extents()
+	var x0: float = ex.position.x; var z0: float = ex.position.y
+	var nx := int(ceil(ex.size.x / cell)); var nz := int(ceil(ex.size.y / cell))
 	var blocked := PackedByteArray(); blocked.resize(nx * nz)
+	# Heights at the cell corners: a cell whose corners differ by more than a steep
+	# climb is a cliff edge, walked round (or up a ramp), not up.
+	var hilly: bool = not m.get("ledges", []).is_empty()
+	var hs := PackedFloat32Array(); hs.resize((nx + 1) * (nz + 1))
+	if hilly:
+		for iz in nz + 1:
+			for ix in nx + 1:
+				hs[iz * (nx + 1) + ix] = Terrain.height(x0 + ix * cell, z0 + iz * cell)
 	for iz in nz:
 		for ix in nx:
-			var p := Vector3(-wx + (ix + 0.5) * cell, 0, z0 + (iz + 0.5) * cell)
-			var bad: bool = absf(p.x) > half_width(p.z) - 0.4
-			for w in _walls:
-				var l := _local(w, p.x, p.z)
-				if absf(l.x) < w.hx + 0.7 and absf(l.y) < w.hz + 0.7:
-					bad = true
-			# Props too, so a way is found round stakes and stores, not into them.
-			for t in _trees:
-				if t.has("prop") and Vector2(p.x - t.x, p.z - t.z).length() < float(t.r) + 0.75:
-					bad = true
-			blocked[iz * nx + ix] = 1 if bad else 0
-	_grid = {x0 = -wx, z0 = z0, nx = nx, nz = nz, cell = cell, blocked = blocked}
+			var px := x0 + (ix + 0.5) * cell; var pz := z0 + (iz + 0.5) * cell
+			var bad := bound_dist(px, pz) > -0.4
+			if not bad and hilly:
+				var a := hs[iz * (nx + 1) + ix]; var b := hs[iz * (nx + 1) + ix + 1]
+				var c := hs[(iz + 1) * (nx + 1) + ix]; var d := hs[(iz + 1) * (nx + 1) + ix + 1]
+				bad = maxf(maxf(a, b), maxf(c, d)) - minf(minf(a, b), minf(c, d)) > cell * STEEP
+			var wd := water_depth(px, pz)
+			if bad or wd == 2:
+				blocked[iz * nx + ix] = 1
+			elif wd == 1:
+				blocked[iz * nx + ix] = 2
+	var mark := func(cx: float, cz: float, reach: float, test: Callable) -> void:
+		var i0 := maxi(int(floor((cx - reach - x0) / cell)), 0); var i1 := mini(int(floor((cx + reach - x0) / cell)), nx - 1)
+		var k0 := maxi(int(floor((cz - reach - z0) / cell)), 0); var k1 := mini(int(floor((cz + reach - z0) / cell)), nz - 1)
+		for kz in range(k0, k1 + 1):
+			for kx in range(i0, i1 + 1):
+				if test.call(x0 + (kx + 0.5) * cell, z0 + (kz + 0.5) * cell):
+					blocked[kz * nx + kx] = 1
+	for w in _walls:
+		mark.call(float(w.x), float(w.z), maxf(float(w.hx), float(w.hz)) + 1.5, func(px: float, pz: float) -> bool:
+			var l := _local(w, px, pz)
+			return absf(l.x) < w.hx + 0.7 and absf(l.y) < w.hz + 0.7)
+	for t in _trees:
+		mark.call(float(t.x), float(t.z), float(t.r) + 1.0, func(px: float, pz: float) -> bool:
+			return Vector2(px - t.x, pz - t.z).length() < float(t.r) + 0.75)
+	_grid = {x0 = x0, z0 = z0, nx = nx, nz = nz, cell = cell, blocked = blocked}
 	return _grid
+
+## A climb steeper than this (rise over run) is a cliff: not walked up.
+const STEEP := 1.15
 
 ## A low wall or a wagon just ahead that can be vaulted: how far along `dir` you must
 ## go to land clear of it (0 if there is none within `reach`).
@@ -355,49 +422,125 @@ static func trees_near(x: float, z: float) -> Array:
 	return out
 
 static func half_width(z: float) -> float:
-	if m.is_empty():
-		return 1e6
+	if not corridor():
+		return radius()
 	var pinch := exp(-pow((z - m.choke_z) / m.choke_len, 2.0))
 	return lerpf(m.wide, m.narrow, pinch) + sin(z * 0.11) * 1.5
 
-## Points round the edge of the walkable ground (for --hitboxes).
-static func edge_points() -> Array:
-	var out := []
-	if m.is_empty():
-		return out
-	var z := -float(m.length)
-	var left := []
-	while z <= float(m.back):
-		out.append(Vector3(half_width(z) - 0.6, Terrain.height(half_width(z) - 0.6, z), z))
-		left.append(Vector3(-half_width(z) + 0.6, Terrain.height(-half_width(z) + 0.6, z), z))
-		z += 2.0
-	left.reverse()
-	out.append_array(left)
-	return out
+## A pass (long, closed at both ends) rather than a round basin.
+static func corridor() -> bool:
+	return m.has("length") and not m.get("around", false)
 
-## Keep a walker inside the pass. Cheap enough to call for every entity every tick.
+## How far a round map reaches from its middle before the hills.
+static func radius() -> float:
+	return float(m.get("radius", OPEN_RADIUS))
+
+## How far (x, z) is past the edge of the walkable ground: negative inside.
+static func bound_dist(x: float, z: float) -> float:
+	if corridor():
+		# The pass, closed behind the defenders and at the far end by the same rock.
+		return maxf(absf(x) - half_width(z), maxf(z - float(m.back), -float(m.length) - z))
+	return Vector2(x, z).length() - radius()
+
+## The walkable ground's bounding box, with room for the cliff foot: (x0, z0, w, d).
+static func extents() -> Rect2:
+	if corridor():
+		var wx: float = float(m.wide) + 2.0
+		return Rect2(-wx, -float(m.length) - 2.0, wx * 2.0, float(m.length) + float(m.back) + 4.0)
+	var r := radius() + 2.0
+	return Rect2(-r, -r, r * 2.0, r * 2.0)
+
+## Keep a walker inside the map. Cheap enough to call for every entity every tick.
 static func clamp_pos(p: Vector3, margin := 0.6) -> Vector3:
-	if m.is_empty():
-		return p
-	var w := half_width(p.z) - margin
-	return Vector3(clampf(p.x, -w, w), p.y, clampf(p.z, -m.length, m.back))
+	if corridor():
+		var w := half_width(p.z) - margin
+		return Vector3(clampf(p.x, -w, w), p.y, clampf(p.z, -float(m.length) + margin, float(m.back) - margin))
+	var flat := Vector2(p.x, p.z)
+	var most := radius() - margin
+	if flat.length() > most:
+		flat = flat.normalized() * most
+	return Vector3(flat.x, p.y, flat.y)
 
-## Extra ground height from the cliffs: zero inside the corridor, steep outside.
+## Extra ground height from the cliffs: zero inside, rising steeply from the edge.
+## The rock starts a little inside the edge, so where walking stops you are already
+## at the foot of a slope too steep to go on up. (Raised ground is `rise`, added
+## flat by Terrain, so the tops of ledges are level.)
 static func ridge(x: float, z: float) -> float:
-	if m.is_empty():
-		return 0.0
-	var out := absf(x) - half_width(z)
+	var out := bound_dist(x, z)
 	var side := smoothstep(-1.5, 14.0, out)
-	# The pass is closed behind the defenders by a gentler rise, not a wall.
-	var behind := smoothstep(m.back, m.back + 30.0, z) * 0.35
-	return (side * side * (3.0 - 2.0 * side) + behind) * m.cliff
+	var cliff: float = float(m.get("cliff", OPEN_CLIFF))
+	return side * side * (3.0 - 2.0 * side) * cliff
 
-## Where a wave appears: spread across the far end of the pass, or, on a map
-## with no pass, anywhere around the rim.
+## Raised ground: each ledge a rounded block `h` high with a steep side a metre wide
+## and, if it has a `ramp` (a direction), a slope up to its top on that side. A ledge
+## with h 0 adds only a ramp to the ledge it shares a middle with.
+static func rise(x: float, z: float) -> float:
+	var best := 0.0
+	var ls: Array = m.get("ledges", [])
+	for L in ls:
+		var dx: float = x - float(L.x); var dz: float = z - float(L.z)
+		var rx: float = float(L.rx); var rz: float = float(L.rz)
+		var h: float = float(L.h)
+		var own := h > 0.0
+		if not own:
+			for L2 in ls:
+				if float(L2.h) > 0.0 and float(L2.x) == float(L.x) and float(L2.z) == float(L.z):
+					h = float(L2.h)
+					break
+		var reach := h / 0.42 + 4.0
+		if absf(dx) > rx + reach or absf(dz) > rz + reach:
+			continue
+		var top := 0.0
+		if own:
+			# Rounded-rectangle distance in metres past the edge (negative inside).
+			var q := Vector2(absf(dx) - rx + 3.0, absf(dz) - rz + 3.0)
+			var e := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0) - 3.0
+			top = h * (1.0 - smoothstep(-0.45, 0.55, e))
+		if L.has("ramp"):
+			var d: Vector2 = (L.ramp as Vector2).normalized()
+			# Out along the ramp from where it leaves the edge, a gentle slope down.
+			var along := dx * d.x + dz * d.y
+			var across := absf(-dx * d.y + dz * d.x)
+			var edge_at := absf(d.x) * rx + absf(d.y) * rz
+			var u := (along - edge_at + 0.6) / (h / 0.42)
+			if across < 2.4 and u > -0.3 and u < 1.0:
+				top = maxf(top, h * clampf(1.0 - u, 0.0, 1.0) * (1.0 - smoothstep(1.8, 2.4, across)))
+		best = maxf(best, top)
+	return best
+
+## Can a walker step from a to b? Not up anything steeper than STEEP, unless the top
+## is within `lift` (a jump's reach: the height it can land on).
+static func step_ok(a: Vector3, b: Vector3, lift := -INF) -> bool:
+	var ha := Terrain.height(a.x, a.z); var hb := Terrain.height(b.x, b.z)
+	var dh := hb - ha
+	if dh <= 0.05:
+		return true
+	var run := Vector2(b.x - a.x, b.z - a.z).length()
+	return dh <= run * STEEP + 0.03 or hb <= lift
+
+## A walker's next place: out of walls and trunks, inside the map, and not up a cliff
+## (it slides along the foot of one instead). walls false while vaulting a low wall.
+static func walk(from: Vector3, to: Vector3, radius_: float, walls := true, lift := -INF) -> Vector3:
+	var p := clamp_pos(unblock(to, radius_, walls))
+	if m.get("ledges", []).is_empty() or step_ok(from, p, lift):
+		return p
+	for q in [Vector3(to.x, to.y, from.z), Vector3(from.x, to.y, to.z)]:
+		var p2 := clamp_pos(unblock(q, radius_, walls))
+		if step_ok(from, p2, lift):
+			return p2
+	return from
+
+## Where a wave appears: spread across the far end of the pass, or, on a round map,
+## anywhere out toward the rim (not on top of a ledge, not in water).
 static func spawn(rng: RandomNumberGenerator) -> Vector3:
-	if m.get("around", false):
-		var a := rng.randf() * TAU
-		return Vector3(sin(a), 0, cos(a)) * rng.randf_range(44.0, 52.0)
+	if not corridor():
+		for attempt in 12:
+			var a := rng.randf() * TAU
+			var at := Vector3(sin(a), 0, cos(a)) * rng.randf_range(radius() * 0.62, radius() * 0.8)
+			if rise(at.x, at.z) < 0.2 and water_depth(at.x, at.z) == 0:
+				return at
+		var a2 := rng.randf() * TAU
+		return Vector3(sin(a2), 0, cos(a2)) * radius() * 0.7
 	var z: float = -m.length + rng.randf_range(2.0, 22.0)
 	var w := half_width(z) - 2.0
 	return Vector3(rng.randf_range(-w, w), 0.0, z)
@@ -429,7 +572,8 @@ static func _waters(activity: String) -> void:
 	elif activity == "wild_hunt":
 		list = [[22.0, -44.0, 46.0, -12.0, 3.2, false]]    # a river across one corner
 	for w in list:
-		var y: float = Terrain.dry((w[0] + w[2]) * 0.5, (w[1] + w[3]) * 0.5) - 0.1
+		# (Water lies on the plain ground, never lifted by a ledge or ramp.)
+		var y: float = Terrain.dry((w[0] + w[2]) * 0.5, (w[1] + w[3]) * 0.5) - rise((w[0] + w[2]) * 0.5, (w[1] + w[3]) * 0.5) - 0.1
 		_water.append({x1 = w[0], z1 = w[1], x2 = w[2], z2 = w[3], r = w[4], deep = w[5], y = y})
 
 static func water() -> Array:
@@ -483,3 +627,23 @@ static func basin(x: float, z: float) -> Dictionary:
 			var bed: float = wt.y - depth * (1.0 - smoothstep(0.35 * wt.r, wt.r, d))
 			return {w = 1.0 - smoothstep(wt.r * 0.9, wt.r * 1.5, d), bed = bed}
 	return {}
+
+## Points round the edge of the walkable ground (for --hitboxes).
+static func edge_points() -> Array:
+	var out := []
+	if not corridor():
+		for i in 96:
+			var a := TAU * i / 96.0
+			var q := Vector3(sin(a), 0, cos(a)) * (radius() - 0.6)
+			q.y = Terrain.height(q.x, q.z)
+			out.append(q)
+		return out
+	var z := -float(m.length)
+	var left := []
+	while z <= float(m.back):
+		out.append(Vector3(half_width(z) - 0.6, Terrain.height(half_width(z) - 0.6, z), z))
+		left.append(Vector3(-half_width(z) + 0.6, Terrain.height(-half_width(z) + 0.6, z), z))
+		z += 2.0
+	left.reverse()
+	out.append_array(left)
+	return out

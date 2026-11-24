@@ -452,6 +452,38 @@ static func camp(g: Node3D) -> void:
 		elif w.look == "log":
 			_cyl(g, 0.17, 0.15, 1.7, _ground(w.x, w.z) + Vector3(0, 0.16, 0), wood, Vector3(PI * 0.5, w.rot, 0), 8)
 	props(g)
+	palisade(g, CAMP_WALL, rng)
+
+## How far the camp's ground reaches before its palisade (camp.gd keeps you inside).
+const CAMP_WALL := 42.0
+
+## A ring of sharpened stakes round the camp: where it ends, seen from anywhere in it.
+static func palisade(g: Node3D, r: float, rng: RandomNumberGenerator) -> void:
+	var stake := CylinderMesh.new(); stake.top_radius = 0.04; stake.bottom_radius = 0.17; stake.height = 2.8; stake.radial_segments = 6; stake.rings = 1
+	stake.material = _mat(Color(0.25, 0.18, 0.11))
+	var xfs := []
+	var n := int(TAU * r / 0.34)
+	for i in n:
+		var a := TAU * i / n
+		var at := Vector3(sin(a) * r, 0, cos(a) * r)
+		var hgt := rng.randf_range(0.85, 1.12)
+		var b := Basis.from_euler(Vector3(rng.randf_range(-0.05, 0.05), rng.randf() * TAU, rng.randf_range(-0.05, 0.05))).scaled(Vector3(1, hgt, 1))
+		xfs.append(Transform3D(b, _ground(at.x, at.z) + Vector3(0, 1.4 * hgt - 0.3, 0)))
+	_multi(g, stake, xfs, true)
+	# A rail lashed along the inside, at waist height and near the top.
+	var rails := []
+	var rail := CylinderMesh.new(); rail.top_radius = 0.06; rail.bottom_radius = 0.06; rail.height = 1.0; rail.radial_segments = 5; rail.rings = 1
+	rail.material = _mat(Color(0.22, 0.16, 0.1))
+	var segs := 120
+	for i in segs:
+		var a0 := TAU * i / segs; var a1 := TAU * (i + 1) / segs
+		var p0 := Vector3(sin(a0), 0, cos(a0)) * (r - 0.22); var p1 := Vector3(sin(a1), 0, cos(a1)) * (r - 0.22)
+		for y in [0.9, 2.0]:
+			var q0 := _ground(p0.x, p0.z) + Vector3(0, y, 0); var q1 := _ground(p1.x, p1.z) + Vector3(0, y, 0)
+			var d := q1 - q0
+			var bb := Basis(Quaternion(Vector3.UP, d.normalized())) * Basis.from_scale(Vector3(1, d.length(), 1))
+			rails.append(Transform3D(bb, (q0 + q1) * 0.5))
+	_multi(g, rail, rails, true)
 
 ## The training yard: a rail fence round the ground, with what a yard has at its
 ## edges. Nothing here is solid, so it is all kept out of the way of the fighting.
@@ -625,13 +657,17 @@ static var _bark: StandardMaterial3D
 static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 23
 	var patch := FastNoiseLite.new(); patch.seed = 5; patch.frequency = 0.05
-	var gap := not Map.m.is_empty()
+	var gap := Map.corridor()
+	var camp := Map.id == "open" and Terrain.amp < 0.5
 	var grass: Array = []; var stones: Array = []
-	for i in 60000:
+	# Over the whole walkable ground (the camp only its own clearing), as thick as ever.
+	var ex: Rect2 = Rect2(-46, -46, 92, 92) if camp else Map.extents().grow(3.0)
+	var tries := int(clampf(60000.0 * ex.get_area() / 12900.0, 20000.0, 150000.0))
+	for i in tries:
 		if tree and i % 4000 == 0:
 			await tree.process_frame
-		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0) if gap else rng.randf_range(-70.0, 40.0)
-		if gap and (absf(x) > Map.half_width(z) + 1.5 or absf(x) < 3.5):
+		var x := rng.randf_range(ex.position.x, ex.end.x); var z := rng.randf_range(ex.position.y, ex.end.y)
+		if Map.bound_dist(x, z) > 1.5 or (gap and absf(x) < 3.5):
 			continue
 		# Keep a clearing where the camp's character stands.
 		if not gap and Vector2(x, z).length() < 3.0:
@@ -643,12 +679,12 @@ static func scatter(g: Node3D, tree: SceneTree = null) -> void:
 	_multi(g, _tuft_mesh(), grass)
 	var stone := SphereMesh.new(); stone.radius = 0.5; stone.height = 0.8; stone.radial_segments = 7; stone.rings = 4
 	stone.material = _mat(Color(0.23, 0.22, 0.2))
-	for i in 900:
-		var x := rng.randf_range(-48.0, 48.0); var z := rng.randf_range(-100.0, 34.0)
-		if (gap and absf(x) > Map.half_width(z) + 4.0) or Map.water_depth(x, z) > 0:
+	for i in int(900.0 * tries / 60000.0):
+		var x := rng.randf_range(ex.position.x, ex.end.x); var z := rng.randf_range(ex.position.y, ex.end.y)
+		if Map.bound_dist(x, z) > 4.0 or Map.water_depth(x, z) > 0:
 			continue
 		# Bigger stones gather at the foot of the cliffs; the road is kept clear.
-		var edge := 0.0 if not gap else smoothstep(Map.half_width(z) - 6.0, Map.half_width(z), absf(x))
+		var edge := 0.0 if camp else smoothstep(-6.0, 0.0, Map.bound_dist(x, z))
 		if absf(x) < 4.0 and gap:
 			continue
 		var s := rng.randf_range(0.12, 0.4) + edge * rng.randf_range(0.2, 1.3)

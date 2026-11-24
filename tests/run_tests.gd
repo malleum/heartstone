@@ -1809,7 +1809,7 @@ func _rounds() -> void:
 
 	# Every setup of every mode's doorway can be fought.
 	var variants := Rules.activities.keys().filter(func(k: String) -> bool: return k.contains("@"))
-	check(variants.size() == 16, "four modes of four setups each (%d)" % variants.size())
+	check(variants.size() == 20, "four modes of five setups each (%d)" % variants.size())
 	for vid in variants:
 		var vs2 := Sim.new(vid, 5)
 		vs2.add_player(Profile.make({name = "Setup " + vid, power = "saidar"}))
@@ -1968,6 +1968,7 @@ func _init() -> void:
 	_arms_more()
 	_classes()
 	_arms_tree()
+	_ground_and_water()
 	_trolloc_blows()
 	_rounds()
 	print("RESULT: %s" % ("ok" if fails == 0 else "%d FAILED" % fails))
@@ -2048,6 +2049,65 @@ func _classes() -> void:
 
 ## The weapon tree, one weapon of a family, the man's short sword, and bots that
 ## weave only at what they can see.
+func _ground_and_water() -> void:
+	print("== ledges, cliffs, the edge of the map, Trollocs and water")
+	var sim := Sim.new("watch_hill", 21)
+	sim._waves = [{t = 999.0, spawn = {}}]
+	var id := sim.add_player(Profile.create({name = "Climber"}), Vector3(20, 0, 0))
+	var p: Dictionary = sim.ents[id]
+	p.pos = Vector3(20, 0, 0)
+	sim.set_input(id, Vector3(-1, 0, 0), -PI * 0.5)
+	for i in 150: sim.step(1.0 / 30.0)
+	check(p.pos.x > 12.0 and Terrain.height(p.pos.x, p.pos.z) < 2.0, "the hill's steep side is not walked up (stopped at x %.1f)" % p.pos.x)
+	p.pos = Vector3(0, 0, 25)
+	sim.set_input(id, Vector3(0, 0, -1), PI)
+	for i in 150: sim.step(1.0 / 30.0)
+	check(Terrain.height(p.pos.x, p.pos.z) > 3.0, "its ramp is (height %.1f)" % Terrain.height(p.pos.x, p.pos.z))
+	p.pos = Vector3(-22, 0, -14)
+	sim.set_input(id, Vector3(-1, 0, 0), -PI * 0.5)
+	for i in 60: sim.step(1.0 / 30.0)
+	check(p.pos.x > -25.5, "a low ledge stops a walker (x %.1f)" % p.pos.x)
+	p.stamina = 500.0
+	var jw := sim.request_jump(id)
+	for i in 30: sim.step(1.0 / 30.0)
+	check(p.pos.x < -26.0 and Terrain.height(p.pos.x, p.pos.z) > 0.7, "but a jump lands on it (x %.1f, %s, top %.2f, foot %.2f)" % [p.pos.x, jw, Terrain.height(-27, -14), Terrain.height(-24, -14)])
+	p.pos = Vector3(0, 0, 70)
+	sim.set_input(id, Vector3(0, 0, 1), 0.0)
+	for i in 120: sim.step(1.0 / 30.0)
+	check(Vector2(p.pos.x, p.pos.z).length() < Map.radius() and Terrain.height(p.pos.x, p.pos.z) > Terrain.height(0, 60) + 0.5, "the edge of the map is a slope of rock, climbing as you reach it")
+	# A Trolloc across a stream from its quarry balks at the water; driven by a Fade, it wades.
+	for driven in [false, true]:
+		var ws := Sim.new("tarwins_gap_watch", 4)
+		ws._waves = [{t = 999.0, spawn = {}}]
+		var wp := ws.add_player(Profile.create({name = "Across"}), Vector3(-11, 0, 18))
+		ws.ents[wp].pos = Vector3(-11, 0, 18); ws.ents[wp].hp = 99999.0; ws.ents[wp].max_hp = 99999.0
+		ws._add_enemy("trolloc", Vector3(-21, 0, 18))
+		var tr: Dictionary = ws.ents[wp + 1]
+		tr.pos = Vector3(-21, 0, 18)
+		if driven:
+			ws._add_enemy("myrddraal", Vector3(-25, 0, 18))
+			ws.ents[wp + 2].speed = 0.0; ws.ents[wp + 2].pos = Vector3(-25, 0, 18)
+		var wet := false
+		for i in 45:
+			ws.step(1.0 / 30.0)
+			if Map.water_depth(tr.pos.x, tr.pos.z) > 0: wet = true
+		check(wet == driven, ("driven by a Myrddraal, a Trolloc wades the stream" if driven else "a Trolloc balks at a stream it could wade"))
+	# Stuck behind something broad: it finds the way round.
+	var st := Sim.new("practice", 8)
+	st._waves = [{t = 999.0, spawn = {}}]
+	var sp := st.add_player(Profile.create({name = "Behind"}), Vector3(0, 0, 0))
+	st.ents[sp].pos = Vector3.ZERO; st.ents[sp].hp = 99999.0; st.ents[sp].max_hp = 99999.0
+	Map._solid(0.0, -5.0, 2.2, 3.0, "crate")
+	Map._grid = {}
+	st._add_enemy("trolloc", Vector3(0, 0, -9))
+	var tr2: Dictionary = st.ents[sp + 1]
+	tr2.pos = Vector3(0, 0, -9)
+	var close := 99.0
+	for i in 240:
+		st.step(1.0 / 30.0)
+		close = minf(close, tr2.pos.distance_to(st.ents[sp].pos))
+	check(close < 2.5, "a Trolloc behind a broad trunk gets round it (came within %.1f m)" % close)
+
 func _arms_tree() -> void:
 	print("== the weapon tree")
 	var m := Profile.make({name = "Tree Man", power = "saidin"})

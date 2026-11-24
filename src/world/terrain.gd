@@ -26,7 +26,7 @@ static func dry(x: float, z: float) -> float:
 	var h := (_n.get_noise_2d(x, z) * 1.1 + _n.get_noise_2d(x * 5.0 + 90.0, z * 5.0) * 0.16) * amp
 	var r := Map.ridge(x, z)
 	# Cliffs get their own craggy noise so they do not look extruded.
-	return h + r * (0.8 + 0.35 * _n.get_noise_2d(x * 2.2 + 300.0, z * 2.2))
+	return h + r * (0.8 + 0.35 * _n.get_noise_2d(x * 2.2 + 300.0, z * 2.2)) + Map.rise(x, z)
 
 static func normal(x: float, z: float) -> Vector3:
 	var e := 0.15
@@ -34,14 +34,14 @@ static func normal(x: float, z: float) -> Vector3:
 
 ## tree: given, the work is spread over frames (a few rows each), so building a
 ## world beside one being played (a camp doorway's far side) never stalls a frame.
-static func build_mesh(size: float, step: float, tree: SceneTree = null) -> MeshInstance3D:
+static func build_mesh(size: float, step: float, tree: SceneTree = null, centre := Vector2.ZERO) -> MeshInstance3D:
 	var n := int(size / step)
 	var verts := PackedVector3Array(); var norms := PackedVector3Array(); var idx := PackedInt32Array()
 	for j in n + 1:
 		if tree and j % 12 == 0:
 			await tree.process_frame
 		for i in n + 1:
-			var x := -size * 0.5 + i * step; var z := -size * 0.5 + j * step
+			var x := centre.x - size * 0.5 + i * step; var z := centre.y - size * 0.5 + j * step
 			verts.append(Vector3(x, height(x, z), z))
 			norms.append(normal(x, z))
 	for j in n:

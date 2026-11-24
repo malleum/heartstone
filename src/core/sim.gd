@@ -678,6 +678,7 @@ func _rise(p: Dictionary, how: String) -> void:
 ## A jump: clear of the ground for a moment, so a low sweep passes under (and it
 ## costs breath, like a roll, so it is not free).
 const JUMP_SECS := 0.55
+const JUMP_REACH := 1.9    # how much higher ground a jump can land on (a low ledge)
 func request_jump(id: int) -> String:
 	var p: Dictionary = ents[id]
 	if not p.alive or p.get("downed", false) or p.down > 0.0 or p.get("tied", false) or p.chained > t or not p.dash.is_empty():
@@ -688,6 +689,7 @@ func request_jump(id: int) -> String:
 		return "out of breath"
 	p.stamina -= 12.0
 	p.air_until = t + JUMP_SECS
+	p.jump_floor = Terrain.height(p.pos.x, p.pos.z)
 	events.append({e = "jump", id = id})
 	return ""
 
@@ -831,7 +833,7 @@ func step(dt: float) -> void:
 		for id in ents:
 			var p: Dictionary = ents[id]
 			if p.kind == "player" and p.alive and not p.get("downed", false):
-				p.pos = Map.clamp_pos(Map.unblock(p.pos + p.move * p.speed * dt, p.radius))
+				p.pos = Map.walk(p.pos, p.pos + p.move * p.speed * dt, p.radius, true, float(p.get("jump_floor", 0.0)) + JUMP_REACH if p.get("air_until", 0.0) > t else -INF)
 		return
 	t += dt
 	# A round's field cleared: that wave is over (the downed get up or die), and the
@@ -1346,48 +1348,101 @@ func _clear_of_trees(a: Vector3, b: Vector3) -> bool:
 
 var _dist := PackedInt32Array()
 var _dist_t := -9.0
+var _fades: Array = []      # where the Myrddraal are (refreshed with the field): they drive Trollocs on
 
-## How far (in grid steps) every open cell is from the nearest player, going
-## round walls: what an enemy with no clear line follows downhill.
+## A step through shallow water costs this many dry ones: Trollocs hate water (the
+## books are full of it), so they go round where there is a way round at all.
+const WATER_COST := 6
+## How long a Trolloc balks at the water's edge before it will wade in undriven.
+const BALK_SECS := 2.5
+
+## How far (in steps, water dearer) every open cell is from the nearest player,
+## going round walls, trunks, cliff edges and water: what an enemy with no clear
+## line follows downhill.
 func _path_field(players: Array) -> void:
 	var g := Map.grid()
 	if g.is_empty() or t - _dist_t < 0.4:
 		return
 	_dist_t = t
+	_fades = []
+	for id in ents:
+		if ents[id].alive and ents[id].get("type", "") == "myrddraal":
+			_fades.append(ents[id].pos)
 	var n: int = g.nx * g.nz
 	_dist.resize(n); _dist.fill(1 << 20)
-	var queue := PackedInt32Array()
+	# Dial's buckets: costs are small whole numbers.
+	var nb := WATER_COST + 1
+	var buckets := []
+	for k in nb:
+		buckets.append([])
+	var pending := 0
 	for p in players:
 		var c := _cell(g, p.pos)
 		if c >= 0:
-			_dist[c] = 0; queue.append(c)
-	var head := 0
+			_dist[c] = 0; buckets[0].append(c); pending += 1
 	var nx: int = g.nx
 	var blocked: PackedByteArray = g.blocked
-	while head < queue.size():
-		var c := queue[head]; head += 1
-		var d := _dist[c] + 1
+	var cur := 0
+	while pending > 0:
+		var b: Array = buckets[cur % nb]
+		if b.is_empty():
+			cur += 1
+			continue
+		var c: int = b.pop_back(); pending -= 1
+		if _dist[c] != cur:
+			continue
 		var cx := c % nx
 		for step in [-nx, nx, -1, 1]:
 			var o: int = c + step
-			if o < 0 or o >= n or (step == -1 and cx == 0) or (step == 1 and cx == nx - 1):
+			if o < 0 or o >= n or (step == -1 and cx == 0) or (step == 1 and cx == nx - 1) or blocked[o] == 1:
 				continue
-			if blocked[o] == 0 and _dist[o] > d:
-				_dist[o] = d; queue.append(o)
+			var d := cur + (WATER_COST if blocked[o] == 2 else 1)
+			if _dist[o] > d:
+				_dist[o] = d; buckets[d % nb].append(o); pending += 1
 
 func _cell(g: Dictionary, p: Vector3) -> int:
 	var ix := int(floor((p.x - g.x0) / g.cell)); var iz := int(floor((p.z - g.z0) / g.cell))
 	return iz * g.nx + ix if ix >= 0 and iz >= 0 and ix < g.nx and iz < g.nz else -1
 
-## Which way an enemy should walk to reach its target: straight at it when
-## nothing is in the way, otherwise along the shortest way round.
+## A Trolloc with a Myrddraal close behind it goes where it is driven, water or no.
+func _driven(e: Dictionary) -> bool:
+	if not String(e.get("type", "")).begins_with("trolloc"):
+		return true
+	if Map.water_depth(e.pos.x, e.pos.z) > 0:
+		return true
+	for f in _fades:
+		if (f as Vector3).distance_squared_to(e.pos) < 225.0:
+			return true
+	return false
+
+## Is the straight way from a to b through a cell not to be walked (or, for one that
+## hates it, water)?
+func _line_blocked(g: Dictionary, a: Vector3, b: Vector3, mind_water: bool) -> bool:
+	var d := Vector2(b.x - a.x, b.z - a.z)
+	var steps := int(d.length() / 0.8)
+	for k in range(1, steps):
+		var q := a + Vector3(d.x, 0, d.y) * (float(k) / steps)
+		var c := _cell(g, q)
+		if c < 0:
+			continue
+		var v: int = g.blocked[c]
+		if v == 1 or (v == 2 and mind_water):
+			return true
+	return false
+
+## Which way an enemy should walk to reach its target: straight at it when nothing
+## is in the way, otherwise along the shortest way round (and round water, for a
+## Trolloc not driven). One that has stood stuck a while goes by the way round too.
 func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 	var to: Vector3 = target.pos - e.pos
 	var g := Map.grid()
-	if g.is_empty() or _dist.is_empty() or not Map.crosses(e.pos, target.pos, e.radius):
+	if g.is_empty() or _dist.is_empty():
+		return to.normalized()
+	var stuck: bool = e.get("stuck_until", 0.0) > t
+	if not stuck and not Map.crosses(e.pos, target.pos, e.radius) and not _line_blocked(g, e.pos, target.pos, not _driven(e)):
 		return to.normalized()
 	var c := _cell(g, e.pos)
-	if c < 0:
+	if c < 0 or _dist[c] >= (1 << 20):
 		return to.normalized()
 	var best := _dist[c]; var dir := Vector3.ZERO
 	for dz in range(-1, 2):
@@ -1396,9 +1451,13 @@ func _steer(e: Dictionary, target: Dictionary) -> Vector3:
 			if (dx == 0 and dz == 0) or ix < 0 or iz < 0 or ix >= g.nx or iz >= g.nz:
 				continue
 			var o: int = iz * g.nx + ix
-			if g.blocked[o] == 0 and _dist[o] < best:
+			if g.blocked[o] != 1 and _dist[o] < best:
 				best = _dist[o]
 				dir = Vector3(g.x0 + (ix + 0.5) * g.cell, 0, g.z0 + (iz + 0.5) * g.cell) - e.pos
+	if dir == Vector3.ZERO and stuck:
+		# Nowhere better on the field: try round the other side for a moment.
+		var side := Vector3(-to.z, 0, to.x).normalized() * (1.0 if e.id % 2 == 0 else -1.0)
+		return (to.normalized() * 0.3 + side).normalized()
 	return dir.normalized() if dir != Vector3.ZERO else to.normalized()
 
 ## A spear held still, point out: whatever runs onto it from the front meets the
@@ -1541,7 +1600,9 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		p.wet = maxf(p.get("wet", 0.0), 3.0)
 	if dream:
 		Dream.step_player(self, p, dt)
-	p.pos = Map.clamp_pos(Map.unblock(p.pos + step, p.radius, not p.dash.get("vault", false)))
+	# Not up a cliff; in the air, onto anything a jump reaches (a low ledge).
+	var lift: float = float(p.get("jump_floor", 0.0)) + JUMP_REACH if p.get("air_until", 0.0) > t else -INF
+	p.pos = Map.walk(p.pos, p.pos + step, p.radius, not p.dash.get("vault", false), lift)
 	_step_holds(p, dt)
 	if not p.get("autos", []).is_empty() and not p.get("downed", false) and p.severed <= t:
 		_step_autos(p)
@@ -3019,7 +3080,7 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 					if e.blow.is_empty():
 						if pressing.get(target.id, 0) >= int(Rules.TUNE.gang):
 							e.move = want
-							e.pos = Map.clamp_pos(Map.unblock(e.pos + e.vel * dt, e.radius))
+							e.pos = Map.walk(e.pos, e.pos + e.vel * dt, e.radius)
 							continue
 						e.blow = _pick_blow(e, target, players)
 						e.victim = target.id
@@ -3055,8 +3116,22 @@ func _step_enemies(foes: Array, players: Array, dt: float) -> void:
 			e.wet = maxf(e.get("wet", 0.0), 3.0)
 		if e.get("wet", 0.0) > 0.0 and e.get("mode", "") == "":
 			want *= 0.6
+		# At the water's edge a Trolloc balks, unless something drives it on.
+		if want.length() > 0.1 and Map.water_depth(e.pos.x + want.x * 0.25, e.pos.z + want.z * 0.25) > 0 and not _driven(e):
+			e.balk = float(e.get("balk", 0.0)) + dt
+			if e.balk < BALK_SECS:
+				want = Vector3(-want.z, 0, want.x).normalized() * e.speed * 0.25 * sin(t * 1.3 + e.id)
+		elif e.get("balk", 0.0) > 0.0 and Map.water_depth(e.pos.x, e.pos.z) == 0:
+			e.balk = maxf(float(e.balk) - dt * 0.5, 0.0)
+		# Stuck: hardly moved in a second while its quarry is still well out of reach
+		# (against a trunk, a wall's end): it goes by the way round for a while.
+		if t >= float(e.get("stuck_t", 0.0)):
+			var moved: float = e.pos.distance_to(e.get("stuck_at", e.pos + Vector3(9, 0, 0)))
+			if free and moved < 0.45 and far > float(e.row.get("reach", 1.5)) * 2.5 + 1.0 and e.get("balk", 0.0) < 0.1:
+				e.stuck_until = t + 4.0
+			e.stuck_at = e.pos; e.stuck_t = t + 1.0
 		e.move = want
-		e.pos = Map.clamp_pos(Map.unblock(e.pos + (want + e.vel) * dt + push * 0.5, e.radius))
+		e.pos = Map.walk(e.pos, e.pos + (want + e.vel) * dt + push * 0.5, e.radius)
 
 ## A Myrddraal does not simply walk up and swing. It circles at a few paces,
 ## watching; then it lunges along a line it has chosen (step off the line and it

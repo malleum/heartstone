@@ -1058,7 +1058,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 	# Behind a camp doorway the world is built a little each frame, so walking up to
 	# it never stalls the camp.
 	var spread: SceneTree = get_tree() if previewing else null
-	var ground: MeshInstance3D = await Terrain.build_mesh(240.0, 0.75, spread)
+	# Ground for the whole map and the cliffs round it.
+	var ext := Map.extents()
+	var ground: MeshInstance3D = await Terrain.build_mesh(maxf(ext.size.x, ext.size.y) + 70.0, 0.75, spread, ext.get_center())
 	add_child(ground)
 	if Map.id == "tarwins_gap":
 		# A low sun behind the defenders: it lights the floor of the pass and the
