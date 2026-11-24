@@ -46,7 +46,15 @@ static func apply() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree and tree.root:
 		tree.root.scaling_3d_scale = [0.67, 0.85, 1.0][clampi(quality, 0, 2)]
-	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 4096][clampi(quality, 0, 2)], true)
+	var q := clampi(quality, 0, 2)
+	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 4096][q], true)
+	# Softer shadow edges cost samples per pixel; ambient occlusion at half size below high.
+	# (High is the project's own settings: medium soft shadows, 4x MSAA, half-size SSAO.)
+	RenderingServer.directional_soft_shadow_filter_set_quality([RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][q])
+	RenderingServer.positional_soft_shadow_filter_set_quality([RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][q])
+	RenderingServer.environment_set_ssao_quality([RenderingServer.ENV_SSAO_QUALITY_VERY_LOW, RenderingServer.ENV_SSAO_QUALITY_LOW, RenderingServer.ENV_SSAO_QUALITY_MEDIUM][q], true, 0.5, 2, 50.0, 300.0)
+	if tree and tree.root:
+		tree.root.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][q]
 
 static func save() -> void:
 	FileAccess.open(FILE, FileAccess.WRITE).store_string(JSON.stringify({volume = volume, quality = quality, story = story, story_open = story_open, first_person = first_person}))

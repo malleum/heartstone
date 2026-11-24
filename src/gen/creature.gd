@@ -441,17 +441,23 @@ static func instantiate(data: Dictionary) -> Walker:
 	root.setup(data, sk)
 	return root
 
+## One mesh per body that was made, shared by every creature built from it (a horde
+## of eighty Trollocs is eight meshes, not eighty), with coarser levels of detail the
+## renderer picks for bodies far off or small on screen (and in shadow passes).
 static func make_mesh(data: Dictionary) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, data.body)
+	if data.has("_mesh"):
+		return data._mesh
 	if _mat == null:
 		_mat = ShaderMaterial.new()
 		_mat.shader = load("res://shaders/body.gdshader")
-	mesh.surface_set_material(0, _mat)
+	if data.has("gear") and _gear_mat == null:
+		_gear_mat = ShaderMaterial.new()
+		_gear_mat.shader = load("res://shaders/gear.gdshader")
+	var im := ImporterMesh.new()
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, data.body, [], {}, _mat)
 	if data.has("gear"):
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, data.gear)
-		if _gear_mat == null:
-			_gear_mat = ShaderMaterial.new()
-			_gear_mat.shader = load("res://shaders/gear.gdshader")
-		mesh.surface_set_material(1, _gear_mat)
+		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, data.gear, [], {}, _gear_mat)
+	im.generate_lods(25.0, 60.0, [])
+	var mesh: ArrayMesh = im.get_mesh()
+	data._mesh = mesh
 	return mesh

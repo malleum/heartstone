@@ -320,13 +320,39 @@ static func unblock(p: Vector3, radius: float, walls := true) -> Vector3:
 			var out := (q - c).normalized() if q.distance_to(c) > 0.01 else Vector2(1, 0)
 			q = c + out * core
 			p.x = q.x; p.z = q.y
-	for t in _trees:
+	for t in trees_near(p.x, p.z):
 		var d := Vector2(p.x - t.x, p.z - t.z)
 		var min_d: float = t.r + radius
 		if d.length_squared() < min_d * min_d and d.length_squared() > 1e-6:
 			d = d.normalized() * min_d
 			p.x = t.x + d.x; p.z = t.z + d.y
 	return p
+
+## Trees (and props) by 4 m cell, so a walker looks at the few beside it and not every
+## one on the map, several times a tick for each of a hundred Trollocs. Rebuilt when the
+## map's list is replaced or grows (trees never move).
+const TREE_CELL := 4.0
+static var _tgrid := {}
+static var _tgrid_src: Array = []
+static var _tgrid_n := -1
+
+static func trees_near(x: float, z: float) -> Array:
+	if not is_same(_tgrid_src, _trees) or _tgrid_n != _trees.size():
+		_tgrid = {}
+		for t in _trees:
+			var k := Vector2i(floori(float(t.x) / TREE_CELL), floori(float(t.z) / TREE_CELL))
+			if not _tgrid.has(k):
+				_tgrid[k] = []
+			_tgrid[k].append(t)
+		_tgrid_src = _trees; _tgrid_n = _trees.size()
+	var c := Vector2i(floori(x / TREE_CELL), floori(z / TREE_CELL))
+	var out := []
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			var l = _tgrid.get(c + Vector2i(dx, dz))
+			if l != null:
+				out.append_array(l)
+	return out
 
 static func half_width(z: float) -> float:
 	if m.is_empty():

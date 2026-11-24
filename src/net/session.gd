@@ -666,9 +666,12 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 			snapshot.emit(sim.snapshot())
 		return
 	# Held: drawn (snapshots go out) but not run, until someone steps through.
+	var us := Time.get_ticks_usec()
 	if not r.get("hold", false):
 		sim.step(dt)
+	Perf.add("sim", Time.get_ticks_usec() - us)
 	r.tick += 1
+	us = Time.get_ticks_usec()
 	_send_events(r, sim)
 	if r.tick % SNAP_EVERY == 0:
 		var s := sim.snapshot()
@@ -682,6 +685,7 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 				_snap.rpc_id(peer, s.t, flat, s.fx, s.round)
 		if not dedicated:
 			snapshot.emit(s)
+	Perf.add("net", Time.get_ticks_usec() - us)
 	if sim.over:
 		r.tick = -1
 		for peer in r.peers:

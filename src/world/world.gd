@@ -14,7 +14,8 @@ static func build(parent: Node, sun_yaw := 40.0, sun_pitch := -28.0, night := fa
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = 0.7
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.ssao_enabled = true
+	# Ambient occlusion only from medium picture quality up (it is half size there).
+	env.ssao_enabled = Settings.quality >= 1
 	env.fog_enabled = true; env.fog_light_color = Color(0.56, 0.52, 0.5); env.fog_density = 0.006
 	env.fog_aerial_perspective = 0.4
 	# Weaves are the brightest things in the world: let them bloom.
@@ -23,7 +24,12 @@ static func build(parent: Node, sun_yaw := 40.0, sun_pitch := -28.0, night := fa
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(sun_pitch, sun_yaw, 0)
 	sun.light_color = Color(1.0, 0.84, 0.68); sun.light_energy = 2.2
-	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 100.0
+	sun.shadow_enabled = true
+	# Fewer, shorter cascades at lower picture quality: every caster is drawn again
+	# for each cascade it falls in.
+	var q := clampi(Settings.quality, 0, 2)
+	sun.directional_shadow_max_distance = [60.0, 80.0, 100.0][q]
+	sun.directional_shadow_mode = [DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS, DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS][q]
 	# The cliffs stand at a grazing angle to the sun: more normal bias stops them
 	# breaking into a grid of dark specks, and blended splits stop a hard-edged
 	# block of shadow where one cascade hands over to the next.

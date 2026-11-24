@@ -38,6 +38,7 @@ var _placed := false
 var _frame := 0
 
 func _ready() -> void:
+	Perf.setup()
 	Rules.load_data()
 	cl = Launch.cmdline()
 	Launch.use_profile_dir()
@@ -366,6 +367,7 @@ func _process(dt: float) -> void:
 	if cam == null or model == null or returning:
 		return
 	Wind.step(dt)
+	Perf.frame()
 	if cl.has("timing") and dt > 0.05:
 		print("TIMING camp frame %d took %d ms (preloading: %s)" % [_frame, int(dt * 1000.0), not _pre.is_empty()])
 	_frame += 1

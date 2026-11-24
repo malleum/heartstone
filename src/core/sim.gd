@@ -866,8 +866,10 @@ func step(dt: float) -> void:
 				away += 1
 				continue
 			(players if e.kind == "player" else foes).append(e)
+	var us := Time.get_ticks_usec()
 	for p in players:
 		_step_player(p, dt)
+	Perf.add("s_players", Time.get_ticks_usec() - us)
 	for e in players + foes:
 		e.charge = maxf(e.get("charge", 0.0) - dt, 0.0)
 		e.daze = maxf(e.get("daze", 0.0) - dt, 0.0)
@@ -881,10 +883,14 @@ func step(dt: float) -> void:
 		if e.get("bleed", 0.0) > 0.0:
 			e.bleed -= dt
 			_hurt(e, e.bleed_dps * dt, e.get("bleed_by", 0), "", true)
+	us = Time.get_ticks_usec()
 	_path_field(players)
+	Perf.add("s_path", Time.get_ticks_usec() - us); us = Time.get_ticks_usec()
 	_step_enemies(foes, players, dt)
+	Perf.add("s_enemies", Time.get_ticks_usec() - us); us = Time.get_ticks_usec()
 	_step_effects(dt)
 	_step_patches(dt)
+	Perf.add("s_fx", Time.get_ticks_usec() - us)
 	# Outcome.
 	if ward != 0:
 		var wd: Dictionary = ents.get(ward, {})
@@ -2438,7 +2444,7 @@ func _fly(fx: Dictionary, owner: Dictionary, dt: float) -> bool:
 		if not fx.get("passed", []).has(e.id) and Vector2(f.x - fx.pos.x, f.z - fx.pos.z).length() < fx.radius * 0.5 + e.radius and fx.pos.y > f.y - 0.3 and fx.pos.y < f.y + (1.3 if e.get("duck", false) else 2.4) and e.get("safe_until", 0.0) <= t:
 			fx.struck = e.id
 			return true
-	for tr in Map.trees():
+	for tr in Map.trees_near(fx.pos.x, fx.pos.z):
 		if Vector2(tr.x - fx.pos.x, tr.z - fx.pos.z).length() < tr.r + 0.25 and fx.pos.y < Terrain.height(tr.x, tr.z) + tr.h:
 			return true
 	# A wall stops what flies below its top: cover from arrows, and from fire.

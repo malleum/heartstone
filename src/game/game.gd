@@ -61,6 +61,7 @@ var _ghost_st := 0
 var holds := {}                   # "caster/weave/target" -> {node, id, weave, target, tied}
 
 func _ready() -> void:
+	Perf.setup()
 	args = Launch.args if not Launch.args.is_empty() else Launch.cmdline()
 	Launch.use_profile_dir()
 	_t0 = Time.get_ticks_msec()
@@ -666,6 +667,11 @@ func _gate_mark_into(st: SurfaceTool, end: Dictionary) -> void:
 		_strip_into(st, o, y, 0.14, 1.4, 0.0)
 
 func _process(dt: float) -> void:
+	var us := Time.get_ticks_usec()
+	_frame_body(dt)
+	Perf.add("game", Time.get_ticks_usec() - us)
+
+func _frame_body(dt: float) -> void:
 	_area_preview()
 	# How far my weaves have come (the HUD's rings): split while two are being made.
 	var split: float = Rules.TUNE.split if not my_form.is_empty() and not my_kept.is_empty() and not my_kept.get("ready", false) else 1.0
@@ -831,7 +837,9 @@ func _process(dt: float) -> void:
 			at = o.pos
 		dp.will = 100.0; dp.shaken = 0.0
 		session.sim.request_dream(session.my_id, order[(frame / 75) % order.size()], at + Vector3(0, 1.2, 0))
+	var pus := Time.get_ticks_usec()
 	_draw_actors(dt)
+	Perf.add("actors", Time.get_ticks_usec() - pus)
 	# --hideme: the player's own figure is not drawn (pictures of a place: postcards).
 	if args.has("hideme") and me:
 		me.visible = false
@@ -844,7 +852,13 @@ func _process(dt: float) -> void:
 			if ap.current_animation != stand_in.clip:
 				ap.play(stand_in.clip)
 			ap.seek(stand_in.at, true)
+	pus = Time.get_ticks_usec()
 	_draw_fx(dt)
+	Perf.add("fx", Time.get_ticks_usec() - pus)
+	if not previewing:
+		Perf.frame()
+		if args.has("census") and frame == 400:
+			_census()
 	if me and not previewing:
 		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
 		# looking down the ground at your feet. The shoulder offset keeps the character
@@ -2883,9 +2897,41 @@ func _draw_actors(dt: float) -> void:
 				walkers.erase(actors[id].node)
 	_draw_holds(dt)
 	_draw_heal_mark()
+	# How often each body is re-posed: every frame near and in view; 60 times a second
+	# a little further; 30 times a second far off or out of view. The time skipped is
+	# carried, so the gait is the same, only coarser where nobody can see it. Posing
+	# fewer skeletons also spares the engine re-skinning them.
+	var due: Array[Walker] = []
+	var steps := PackedFloat32Array()
+	var eye: Vector3 = cam.global_position if cam else Vector3.ZERO
 	for w in walkers:
-		w.compute(dt)
+		# Fallen and settled (the longest fall and its bounce are over by 3.4 s): the
+		# pose holds as it is until the body is taken away.
+		if w.dead > 3.5:
+			continue
+		var owed: float = w.get_meta("owed", 0.0) + dt
+		var gap := 0.0
+		if cam and w.dead < 0.0:
+			var d := eye.distance_to(w.pos)
+			var seen: bool = cam.is_position_in_frustum(w.pos + Vector3(0, 1.0, 0)) or d < 4.0
+			gap = 0.0 if (seen and d < 22.0) else (1.0 / 60.0 if seen and d < 50.0 else 1.0 / 30.0)
+		if owed >= gap:
+			due.append(w); steps.append(minf(owed, 0.1))
+			w.set_meta("owed", 0.0)
+		else:
+			w.set_meta("owed", owed)
+	var wus := Time.get_ticks_usec()
+	if due.size() > 8:
+		# The gait is pure per-body maths, so a crowd spreads across the cores.
+		var task := WorkerThreadPool.add_group_task(func(i: int) -> void: due[i].compute(steps[i]), due.size(), -1, true, "walkers")
+		WorkerThreadPool.wait_for_group_task_completion(task)
+	else:
+		for i in due.size():
+			due[i].compute(steps[i])
+	Perf.add("w_compute", Time.get_ticks_usec() - wus); wus = Time.get_ticks_usec()
+	for w in due:
 		w.apply()
+	Perf.add("w_apply", Time.get_ticks_usec() - wus)
 
 ## A bow being drawn, or a crossbow levelled: the arms are posed for it over
 ## whatever the legs are doing, the string comes back, and an arrow is on it.
@@ -3144,3 +3190,21 @@ func _on_finished(success: bool, report: Array) -> void:
 		get_tree().create_timer(1.5).timeout.connect(_open_home)
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])
+
+## --census: what is drawn, by kind of node and by what owns it (for finding what
+## costs draw calls). Printed once, at frame 400.
+func _census() -> void:
+	var by := {}
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is GeometryInstance3D and (n as GeometryInstance3D).is_visible_in_tree():
+			var owner_name := String(n.get_parent().name).rstrip("0123456789@") if n.get_parent() else "?"
+			var key := "%s/%s%s" % [n.get_class(), owner_name, " shadow" if (n as GeometryInstance3D).cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else ""]
+			by[key] = by.get(key, 0) + 1
+	var keys := by.keys()
+	keys.sort_custom(func(a, b) -> bool: return by[a] > by[b])
+	for k in keys.slice(0, 25):
+		print("CENSUS %5d %s" % [by[k], k])

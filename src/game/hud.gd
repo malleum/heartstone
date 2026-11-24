@@ -179,6 +179,11 @@ func _process(dt: float) -> void:
 func _draw() -> void:
 	if g == null or g.profile.is_empty() or g.session == null:
 		return
+	var pus := Time.get_ticks_usec()
+	_draw_all()
+	Perf.add("hud", Time.get_ticks_usec() - pus)
+
+func _draw_all() -> void:
 	# Laid out for a 720-line screen and scaled to whatever it is shown on.
 	var sc := size.y / 720.0
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sc, sc))
