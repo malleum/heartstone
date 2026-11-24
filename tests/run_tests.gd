@@ -2102,6 +2102,18 @@ func _ground_and_water() -> void:
 	mh.book_limit = 5
 	var wh := Profile.create({name = "Woman Healer"}); wh.book_limit = 5
 	check(Rules.book_of("healing", mh) == 3 and Rules.book_of("healing", wh) == 3, "a man's Healing is open from book 3 like a woman's (the user, 24 Nov: not worth hiding)")
+	# A roll pauses weaving and it goes on afterwards, untouched.
+	var rs := Sim.new("practice", 14)
+	rs._waves = [{t = 999.0, spawn = {}}]
+	var rw := rs.add_player(Profile.create({name = "Roller"}))
+	rs.ents[rw].stamina = 999.0
+	rs.request_cast(rw, "fireball", Vector3(0, 1, -10), false, true)
+	var left0: float = rs.ents[rw].forming.left
+	rs.request_dodge(rw, Vector3(1, 0, 0), true)
+	for i in 6: rs.step(1.0 / 30.0)
+	var paused: bool = not rs.ents[rw].forming.is_empty() and absf(rs.ents[rw].forming.left - left0) < 0.01
+	for i in 60: rs.step(1.0 / 30.0)
+	check(paused and rs.ents[rw].forming.is_empty() and rs.tallies[rw].casts.get("fireball", 0) == 1, "a roll pauses the weaving, which goes on and is loosed after")
 	# What stands about answers: a torch knocked flat and put out by Air, a wagon shoved,
 	# set alight and burnt down.
 	var ev := Sim.new("tarwins_gap_night", 5)

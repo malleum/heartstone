@@ -1764,6 +1764,9 @@ func _advance(p: Dictionary, f: Dictionary, dt: float) -> bool:
 	# still being made, the flows are split between them (the old way; weaves made
 	# together go at full pace).
 	var split: float = Rules.TUNE.split if not p.get("kept", {}).is_empty() and not p.kept.get("ready", false) else 1.0
+	# Rolling (or vaulting) the weaving waits, and goes on by itself when the feet do.
+	if not p.dash.is_empty() and not p.dash.has("lunge"):
+		return false
 	f.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0) * split
 	if f.left > 0.0:
 		return false

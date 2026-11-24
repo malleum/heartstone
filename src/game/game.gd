@@ -833,8 +833,10 @@ func _frame_body(dt: float) -> void:
 	_area_preview()
 	# How far my weaves have come (the HUD's rings): split while two are being made.
 	var split: float = Rules.TUNE.split if not my_form.is_empty() and not my_kept.is_empty() and not my_kept.get("ready", false) else 1.0
+	# (A roll pauses the weaving: the rings wait with it.)
+	var rolling: bool = actors.has(session.my_id) and float(actors[session.my_id].get("roll_until", 0.0)) > clock
 	for f in my_weaving:
-		if not f.get("ready", false):
+		if not f.get("ready", false) and not rolling:
 			f.done = minf(f.get("done", 0.0) + dt, f.time)
 	if not my_kept.is_empty() and not my_kept.get("ready", false):
 		my_kept.done = minf(my_kept.get("done", 0.0) + dt * (Rules.TUNE.split if not my_form.is_empty() else 1.0), my_kept.time)

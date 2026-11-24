@@ -1,4 +1,8 @@
 [
+  {"version": "v0.2.15", "date": "24 Nov", "items": [
+    "Rolling while weaving pauses the weaving for the roll, and it goes on by itself afterwards (it was neither paused nor lost).",
+    "Tab in the dream world: the dream abilities, then your weaves or weapons and forms, then closed. Outside it, Tab opens your tree for everyone."
+  ]},
   {"version": "v0.2.14", "date": "24 Nov", "items": [
     "New keys. Everyone: WASD, Shift rolls, Space jumps (vaults a low wall ahead), Ctrl ducks, Caps Lock throws, Q ties off (fighters: rope), Tab is your inventory and level-up picks (Tab or Esc closes it).",
     "Channellers: hold 1-5, Z X C to weave; several different weaves at once, as your flows allow, at full speed. Click while weaving to aim the weave begun last (hold the click to hold it back); unclicked, it goes where you look when it is whole. Right click lets go of the last weave; with none being made, of the last held weave. Left click with nothing being woven strikes with your weapon.",
