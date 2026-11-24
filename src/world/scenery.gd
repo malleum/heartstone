@@ -95,6 +95,7 @@ static func doorway(g: Node3D, at: Vector3, yaw: float, tint: Color, lit: bool, 
 	for k in 3:
 		var sz := rng.randf_range(0.3, 0.55)
 		_box(n, Vector3(sz * 1.3, sz * 0.7, sz), Vector3((2.2 + rng.randf() * 0.9) * (1.0 if k % 2 == 0 else -1.0), sz * 0.25, rng.randf_range(-0.9, 0.4)), shades[k], Vector3(rng.randf() * 0.3, rng.randf() * TAU, rng.randf() * 0.3))
+	bake(n)    # the stones, before the live surface goes in
 	var q := QuadMesh.new(); q.size = Vector2(1.9, 3.3)
 	var mi := MeshInstance3D.new(); mi.mesh = q; mi.position = Vector3(0, 1.65, 0)
 	var sm := ShaderMaterial.new(); sm.shader = load("res://shaders/portal.gdshader")
@@ -124,6 +125,54 @@ static func walls(g: Node3D) -> void:
 		# Each wall in its own node, so one torn down by a weave can be taken away.
 		var wg := Node3D.new(); wg.name = "wall_%d" % int(w0.get("wid", 0)); g.add_child(wg)
 		_wall(wg, w0, rng, stones, wood, dark)
+		bake(wg)
+
+## Merge every plain mesh under `g` into one mesh per material, in g's own space, and
+## drop the pieces: a wall of forty stones or a wagon of sixty boards becomes a few
+## draw calls (each drawn again in every shadow cascade). Only for things that never
+## move apart afterwards.
+static func bake(g: Node3D) -> void:
+	var tools := {}     # material -> SurfaceTool
+	var shadow := {}    # material -> cast_shadow
+	var mats := {}      # key -> the material itself
+	var pieces := []
+	var stack: Array = [[g, Transform3D.IDENTITY]]
+	while not stack.is_empty():
+		var top: Array = stack.pop_back()
+		var n: Node = top[0]; var xf: Transform3D = top[1]
+		for c in n.get_children():
+			if c is Node3D:
+				stack.append([c, xf * (c as Node3D).transform])
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null or mi.skin != null or not mi.visible:
+			continue
+		for si in mi.mesh.get_surface_count():
+			var mat: Material = mi.material_override if mi.material_override else mi.mesh.surface_get_material(si)
+			# Plain materials made afresh for each box but looking the same share a mesh.
+			var key: Variant = mat
+			if mat is StandardMaterial3D:
+				var sm := mat as StandardMaterial3D
+				key = "%s|%.2f|%.2f|%s|%s|%.1f" % [sm.albedo_color, sm.roughness, sm.metallic, sm.emission_enabled, sm.emission, sm.emission_energy_multiplier]
+			if not tools.has(key):
+				var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				tools[key] = st; shadow[key] = mi.cast_shadow; mats[key] = mat
+			(tools[key] as SurfaceTool).append_from(mi.mesh, si, xf)
+		pieces.append(mi)
+	if pieces.size() < 2:
+		return
+	for mi in pieces:
+		mi.get_parent().remove_child(mi)
+		mi.free()
+	# Empty holders left behind (wheels, wagons) go too.
+	for c in g.get_children():
+		if c is Node3D and not c is VisualInstance3D and c.get_child_count() == 0:
+			g.remove_child(c); c.free()
+	for key in tools:
+		var out := MeshInstance3D.new()
+		out.mesh = (tools[key] as SurfaceTool).commit()
+		out.material_override = mats[key]
+		out.cast_shadow = shadow[key]
+		g.add_child(out)
 
 static func _wall(g: Node3D, w: Dictionary, rng: RandomNumberGenerator, stones: Array, wood: Material, dark: Material) -> void:
 		if w.look == "rubble":
@@ -264,6 +313,7 @@ static func station(g: Node3D, at: Vector3, kind: String, yaw: float) -> void:
 				var a := k * TAU / 3.0
 				_box(n, Vector3(0.05, 0.46, 0.05), Vector3(sin(a) * 0.14, 0.23, 0.7 + cos(a) * 0.14), wood)
 
+	bake(n)
 static func props(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 41
 	var wood := _mat(Color(0.16, 0.11, 0.07))
@@ -314,6 +364,7 @@ static func barrel(g: Node3D, at: Vector3, rng: RandomNumberGenerator, lying := 
 	_cyl(b, 0.25 * k, 0.25 * k, 0.02, Vector3(0, 0.83 * k, 0), _mat(Color(0.2, 0.13, 0.07)))
 	for y in [0.2, 0.64]:
 		_cyl(b, 0.325 * k, 0.325 * k, 0.05, Vector3(0, y * k, 0), iron)
+	bake(n)
 
 ## A packing crate: boards with a frame of battens and one across each face.
 static func crate(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
@@ -332,6 +383,7 @@ static func crate(g: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
 			_box(n, Vector3(t, t, d + 0.03), Vector3(sx * (w - t) * 0.515, sy * (h - t) + t * 0.5, 0), batten)
 	for sz in [-1.0, 1.0]:
 		_box(n, Vector3(t, sqrt(w * w + h * h) - 0.1, 0.03), Vector3(0, h * 0.5, sz * d * 0.51), batten, Vector3(0, 0, atan2(w, h)))
+	bake(n)
 
 ## Sacks of grain slumped on one another.
 static func sacks(g: Node3D, at: Vector3, rng: RandomNumberGenerator, count := 3) -> void:
@@ -351,6 +403,7 @@ static func bale(g: Node3D, at: Vector3, yaw: float) -> void:
 	_box(n, Vector3(1.1, 0.5, 0.6), Vector3(0, 0.25, 0), _mat(Color(0.62, 0.5, 0.22), 1.0))
 	for sx in [-0.3, 0.3]:
 		_box(n, Vector3(0.03, 0.52, 0.62), Vector3(sx, 0.25, 0), _mat(Color(0.3, 0.22, 0.1)))
+	bake(n)
 
 ## A practice post: a man-high pell, hacked about, bound in rope where blows
 ## land, a crossbar for arms and a straw-stuffed sack for a head.
@@ -384,6 +437,7 @@ static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator,
 		# Guy ropes to pegs.
 		for sx: float in [-1.0, 1.0]:
 			_box(n, Vector3(0.02, 2.3 * k, 0.02), Vector3(sx * 0.95 * k, 0.95 * k, sz * 2.1 * k), _mat(Color(0.5, 0.44, 0.3)), Vector3(sz * -0.42, 0, sx * -0.85))
+	bake(n)
 
 ## What stands about the camp behind the doorways' ground: tents, the stores by
 ## the fire, logs to sit on, a banner.
@@ -532,28 +586,37 @@ static func _multi(g: Node3D, mesh: Mesh, xfs: Array, shadows := false) -> void:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(mi)
 
-## A leafless tree: this close to the Blight nothing is in leaf.
+## A leafless tree: this close to the Blight nothing is in leaf. Built as one mesh
+## (trunk, limbs and twigs together): as separate pieces, each tree was a dozen and
+## more draw calls in every shadow cascade.
 static func dead_tree(g: Node3D, at: Vector3, rng: RandomNumberGenerator, hgt := 5.0) -> void:
-	var bark := _mat(Color(0.12, 0.1, 0.085))
-	var root := Node3D.new(); g.add_child(root); root.position = at; root.rotation.y = rng.randf() * TAU
-	var limb := func(parent: Node3D, from: Vector3, dir: Vector3, len: float, r: float) -> Node3D:
-		var mi := MeshInstance3D.new(); var c := CylinderMesh.new()
+	if _bark == null:
+		_bark = _mat(Color(0.12, 0.1, 0.085))
+	var root := MeshInstance3D.new(); g.add_child(root); root.position = at; root.rotation.y = rng.randf() * TAU
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Each limb: a tapered cylinder standing on `from` (in its parent's frame), along
+	# `dir`; returns its own frame, for what grows from it.
+	var limb := func(parent: Transform3D, from: Vector3, dir: Vector3, len: float, r: float) -> Transform3D:
+		var c := CylinderMesh.new()
 		c.top_radius = r * 0.45; c.bottom_radius = r; c.height = len; c.radial_segments = 6; c.rings = 1
-		mi.mesh = c; mi.material_override = bark
-		var n := Node3D.new(); parent.add_child(n); n.position = from
-		n.basis = Basis(Quaternion(Vector3.UP, dir.normalized()))
-		n.add_child(mi); mi.position.y = len * 0.5
-		return n
-	var trunk: Node3D = limb.call(root, Vector3.ZERO, Vector3(rng.randf_range(-0.15, 0.15), 1, rng.randf_range(-0.15, 0.15)), hgt, 0.3)
+		var frame := parent * Transform3D(Basis(Quaternion(Vector3.UP, dir.normalized())), from)
+		st.append_from(c, 0, frame * Transform3D(Basis.IDENTITY, Vector3(0, len * 0.5, 0)))
+		return frame
+	var trunk: Transform3D = limb.call(Transform3D.IDENTITY, Vector3.ZERO, Vector3(rng.randf_range(-0.15, 0.15), 1, rng.randf_range(-0.15, 0.15)), hgt, 0.3)
 	for i in rng.randi_range(4, 7):
 		var y := hgt * rng.randf_range(0.4, 0.98)
 		var a := rng.randf() * TAU
 		var d := Vector3(cos(a), rng.randf_range(0.3, 0.9), sin(a))
 		var len := rng.randf_range(1.0, 2.4)
-		var br: Node3D = limb.call(trunk, Vector3(0, y, 0), d, len, 0.09)
+		var br: Transform3D = limb.call(trunk, Vector3(0, y, 0), d, len, 0.09)
 		for k in 2:
 			var a2 := rng.randf() * TAU
 			limb.call(br, Vector3(0, len * rng.randf_range(0.5, 0.95), 0), Vector3(cos(a2), 0.8, sin(a2)), len * 0.5, 0.04)
+	root.mesh = st.commit()
+	root.material_override = _bark
+
+static var _bark: StandardMaterial3D
 
 ## Dress whatever map is loaded: grass where the ground is flat and off the road,
 ## stones everywhere, dead trees at the margins.

@@ -368,6 +368,8 @@ func _process(dt: float) -> void:
 		return
 	Wind.step(dt)
 	Perf.frame()
+	if cl.has("census") and _frame == 600:
+		Perf.census(self)
 	if cl.has("timing") and dt > 0.05:
 		print("TIMING camp frame %d took %d ms (preloading: %s)" % [_frame, int(dt * 1000.0), not _pre.is_empty()])
 	_frame += 1

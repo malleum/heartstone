@@ -114,6 +114,11 @@ working on abilities; the user's rulings there are final).
   or form is worked out by effort spent fighting (`Progression._study_arms`); skill gates apply
   only in a round (`Rules.skills_count`). Camp: T or the sheet's button; `--show=tree --page=forms`.
 - Damage numbers: `hud.gd` `pop()` from the `hit` event (yours, and smaller red for hurts taken).
+- Speed: `-- --perf` prints a line every 2 s (fps, draw calls, triangles, nodes, and the game's
+  parts timed by `Perf.add`); `--census` lists what is drawn by kind and owner (game frame 400,
+  camp 600). Measure with `NOMOVIE=1 TIMEOUT=35 tools/render.sh ... -- --perf --uncap` and one
+  run at a time (a killed render.sh leaves its Godot running). Static scenery is merged with
+  `Scenery.bake(node)` (one mesh per material); creature meshes are shared per body with LODs.
 - First person: F5 in play (`Settings.first_person`); `--fp` for a run, `--fpout` shows its arm
   poses from outside; bench `--mode=heroes --looks=x --arms=w --pose=ready|weave --kind=blade|pole|fist`.
 - `--at=x,z` puts the bot there (pictures of one place, e.g. by a pond); `--demo2=weave:m`

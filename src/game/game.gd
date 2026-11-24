@@ -858,7 +858,7 @@ func _frame_body(dt: float) -> void:
 	if not previewing:
 		Perf.frame()
 		if args.has("census") and frame == 400:
-			_census()
+			Perf.census(self)
 	if me and not previewing:
 		# Orbit camera: the view direction itself pitches, so looking up shows the sky and
 		# looking down the ground at your feet. The shoulder offset keeps the character
@@ -1880,11 +1880,11 @@ func _on_events(list: Array) -> void:
 						# It falls away from whatever struck it last, harder for a heavy blow.
 						var from: Vector3 = a.get("last_from", me.position if me else Vector3.ZERO)
 						(a.node as Walker).die(a.node.position - from, a.get("last_force", 1.0))
-						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
+						_clear_body(e.id, a.node, 6.0)
 					elif a.node is Hound:
 						(a.node as Hound).vel = Vector3.ZERO
 						(a.node as Hound).die(a.node.position - (me.position if me else Vector3.ZERO))
-						get_tree().create_timer(6.0).timeout.connect(a.node.queue_free)
+						_clear_body(e.id, a.node, 6.0)
 					elif a.kind == "player":
 						# The pack has one death: vary its pace and turn the body as it
 						# goes, so two players do not fall the same.
@@ -2463,7 +2463,13 @@ func _on_events(list: Array) -> void:
 				var wn := get_node_or_null("wall_%d" % int(e.wid))
 				if wn:
 					# Thrown down: the stones scatter and sink.
-					Weavefx.blast(self, wn.get_child(0).global_position if wn.get_child_count() > 0 else wn.position, 1.5, "heave_the_ground")
+					# (Its stones are one baked mesh: the blast goes where the mesh is.)
+					var at: Vector3 = wn.global_position
+					for c in wn.get_children():
+						if c is MeshInstance3D:
+							at = (c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb().get_center()
+							break
+					Weavefx.blast(self, at, 1.5, "heave_the_ground")
 					wn.queue_free()
 			"wall_up":
 				if not session.is_host:
@@ -2473,6 +2479,7 @@ func _on_events(list: Array) -> void:
 				for k in 5: sts.append(Scenery._mat(Color(0.25, 0.22, 0.19) * (0.65 + k * 0.17)))
 				var rr := RandomNumberGenerator.new(); rr.seed = int(e.wall.wid)
 				Scenery._wall(wg, e.wall, rr, sts, null, null)
+				Scenery.bake(wg)
 				wg.scale.y = 0.05
 				wg.create_tween().tween_property(wg, "scale:y", 1.0, 0.35)
 			"fx_end":
@@ -3191,20 +3198,11 @@ func _on_finished(success: bool, report: Array) -> void:
 	if args.has("auto"):
 		print("GAME over success=%s %s" % [success, report])
 
-## --census: what is drawn, by kind of node and by what owns it (for finding what
-## costs draw calls). Printed once, at frame 400.
-func _census() -> void:
-	var by := {}
-	var stack: Array[Node] = [self]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		for c in n.get_children():
-			stack.append(c)
-		if n is GeometryInstance3D and (n as GeometryInstance3D).is_visible_in_tree():
-			var owner_name := String(n.get_parent().name).rstrip("0123456789@") if n.get_parent() else "?"
-			var key := "%s/%s%s" % [n.get_class(), owner_name, " shadow" if (n as GeometryInstance3D).cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else ""]
-			by[key] = by.get(key, 0) + 1
-	var keys := by.keys()
-	keys.sort_custom(func(a, b) -> bool: return by[a] > by[b])
-	for k in keys.slice(0, 25):
-		print("CENSUS %5d %s" % [by[k], k])
+## A fallen enemy's body is taken away after a while, and its entry with it, so a long
+## night of waves does not leave thousands of dead entries walked over every frame.
+func _clear_body(id: int, node: Node, after: float) -> void:
+	get_tree().create_timer(after).timeout.connect(func() -> void:
+		if is_instance_valid(node):
+			node.queue_free()
+		if actors.has(id) and actors[id].get("node") == node:
+			actors.erase(id))

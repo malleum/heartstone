@@ -39,3 +39,24 @@ static func frame() -> void:
 		int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576),
 		" ".join(parts)])
 	_acc = {}; _n = 0; _t0 = now
+
+## --census: what is drawn, by kind of node and by what owns it (for finding what
+## costs draw calls). Printed once, at frame 400.
+static func census(root: Node) -> void:
+	var by := {}
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is GeometryInstance3D and (n as GeometryInstance3D).is_visible_in_tree():
+			var owner_name := String(n.get_parent().name).rstrip("0123456789@") if n.get_parent() else "?"
+			var what := ""
+			if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+				what = " " + (n as MeshInstance3D).mesh.get_class() + ("(%s)" % String(n.name).rstrip("0123456789@"))
+			var key := "%s/%s%s%s" % [n.get_class(), owner_name, what, " shadow" if (n as GeometryInstance3D).cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else ""]
+			by[key] = by.get(key, 0) + 1
+	var keys := by.keys()
+	keys.sort_custom(func(a, b) -> bool: return by[a] > by[b])
+	for k in keys.slice(0, 25):
+		print("CENSUS %5d %s" % [by[k], k])

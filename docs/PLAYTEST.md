@@ -96,6 +96,7 @@ continue; play it and change the number if it feels wrong. Tick items off here.
 | 90 | The weapon and form trees (camp: T, or the sheet's button): one weapon of each kind, a new one replaces the old; between rounds the chosen one is worked out by fighting, won or lost. Is the pace right? A root weapon 300, sword 1500, hand-and-a-half 3500, heron-mark 9000 effort (a round is roughly 4000). | Rules tested; trees rendered | `data/weapons.json` needs/study, `weavetree.gd` |
 | 91 | A man who channels starts with a short sword. | Rules tested | `Profile.create` |
 | 92 | Auto-update: from v0.2.9 on, a newer release downloads in the background in the camp, swaps the executable and restarts (idle) or applies next launch. Install v0.2.9 by hand once. | Not testable here (needs a newer release); workflow and logic copied from ultimategrapple | `updater.gd`, release.yml |
+| 93 | Speed: everything should run noticeably smoother (draw calls halved in fights, about a quarter in the camp). On Windows, try Medium and Low in the pause menu: they now also cut shadows, ambient occlusion and anti-aliasing. Anything look different (walls, wagons, doorways, trees, far-off Trollocs)? | Rendered and compared; measured here only | `Scenery.bake`, `Creature.make_mesh`, `Settings.apply` |
 1. (17 Nov) Cloak and hair in motion: the cloak eases back over about a second as you
    speed up (no snap on the first step), ripples run down it, and a light stir stays
    while standing. Hair tips drift back and stir, more when running. Assumed amounts:

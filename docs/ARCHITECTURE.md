@@ -540,6 +540,15 @@ outlasts it.
 - **Bots weave like people** (`Bot.drive`): only at what they can see (they go round
   otherwise), a pause between weaves and an aim error; human-paced against players,
   steadier against Shadowspawn (they are the test stand-in for winnable rounds).
+- **Speed pass (23-24 Nov).** Measured with `--perf` (80 Trollocs, 1080p, RX 7700 XT,
+  uncapped): walkers posed on worker threads, and every frame only near and in view (60 Hz
+  further, 30 Hz far or out of view; settled corpses frozen); one shared mesh per creature
+  body with generated LODs (`Creature.make_mesh`); trees found by grid cell in the sim
+  (`Map.trees_near`); dead trees, walls, wagons, doorway stones, stations, barrels, crates
+  and tents merged into one mesh per material (`Scenery.bake`); debris as four multimeshes.
+  Draw calls: fight about 2200 to 1100-1350, camp 1870 to about 500; nodes in the camp 1260
+  to 320. Fight fps about 105 to 260 at the start. Picture quality now also sets shadow
+  cascades and distance, soft-shadow filtering, SSAO quality and MSAA (High as before).
 - **Fighters' trees** (`MELEE.md`, "The weapon and form trees"): the weapon tree is data on
   each weapon row; one weapon of each kind; studied between rounds by effort.
 - **Balefire** burns its victim's last moments out of the Pattern (`Sim._unmake`):
