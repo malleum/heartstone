@@ -107,7 +107,7 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 	var channels: bool = p.get("cls", "channeller") == "channeller"
 	if success:
 		for id in (act.get("shows", []) if channels else []):
-			if not p.seen.has(id) and not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
+			if not p.seen.has(id) and not p.weaves.has(id) and Rules.book_of(id, p) <= p.book_limit:
 				p.seen.append(id)
 				out.append("You saw %s woven" % Rules.weaves[id].name)
 		var first: bool = not p.done.has(activity_id)
@@ -123,7 +123,7 @@ static func award(p: Dictionary, tally: Dictionary, activity_id: String, success
 				out.append({tie_off = "You have learned to tie off a weave (G): it holds without you for a while, and frees your flows"}.get(g, "Learned " + g))
 		# The training yard hands its weaves over outright.
 		for id in (act.get("teaches", []) if channels else []):
-			if not p.weaves.has(id) and Rules.weaves[id].book <= p.book_limit:
+			if not p.weaves.has(id) and Rules.book_of(id, p) <= p.book_limit:
 				p.weaves[id] = {known = true, xp = 0.0}
 				out.append("Learned %s" % Rules.weaves[id].name)
 	return out

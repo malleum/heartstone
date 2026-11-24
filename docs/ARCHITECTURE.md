@@ -856,3 +856,18 @@ and drop a bow draw for the blade within 2.5 m. See MELEE.md.
 5. Balance by play: weave_scale, Rolling Ring, health, Healing's cost.
 6. (Water and held Balefire built 20 Nov.) The Air wall weave, gateway placement.
 7. The super backlog: multi-stage runs; casting by drawing (see VISION.md).
+
+## Maps with edges and heights (24 Nov)
+- Every map ends in rock you can see: a corridor (Tarwin's Gap) is closed at both ends by the
+  same cliffs as its sides, a round map (the wagon ring, the open fields, the Watch Hill) by a ring
+  of hills (`Map.bound_dist` drives both the cliff height and where walking stops, so the stop is
+  always at the foot of a slope too steep to go on). The camp has a palisade (`Scenery.palisade`).
+- Ledges are data (`ledges` on a map: a rounded block `h` high with an optional `ramp`
+  direction), added flat to the ground by `Terrain.dry` so their tops are level and their sides a
+  metre-wide cliff. `Map.walk` refuses a step up anything steeper than `STEEP` (1.15) unless it is
+  within a jump's reach; the path grid marks those edges, so enemies go round by the ramps.
+- Why not physics: the sim stays pure maths shared by server and clients; heights are one function.
+
+## Things that answer the fight (24 Nov)
+- `Env` (src/core/env.gd) changes Map's props and walls when weaves land near them and tells the
+  view by event; the view keeps each prop in its own node. Late joiners do not yet get that state.

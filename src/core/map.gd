@@ -388,6 +388,8 @@ static func unblock(p: Vector3, radius: float, walls := true) -> Vector3:
 			q = c + out * core
 			p.x = q.x; p.z = q.y
 	for t in trees_near(p.x, p.z):
+		if t.get("gone", false):
+			continue
 		var d := Vector2(p.x - t.x, p.z - t.z)
 		var min_d: float = t.r + radius
 		if d.length_squared() < min_d * min_d and d.length_squared() > 1e-6:

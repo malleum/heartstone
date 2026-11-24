@@ -829,6 +829,9 @@ func _step_holds(p: Dictionary, dt: float) -> void:
 
 func step(dt: float) -> void:
 	if over:
+		# (The clock runs on: what burns burns down.)
+		t += dt
+		Env.step(self)
 		# The fight is done but the world is not frozen: the living still walk.
 		for id in ents:
 			var p: Dictionary = ents[id]
@@ -893,6 +896,7 @@ func step(dt: float) -> void:
 			_hurt(e, e.bleed_dps * dt, e.get("bleed_by", 0), "", true)
 	us = Time.get_ticks_usec()
 	_path_field(players)
+	Env.step(self)
 	Perf.add("s_path", Time.get_ticks_usec() - us); us = Time.get_ticks_usec()
 	_step_enemies(foes, players, dt)
 	Perf.add("s_enemies", Time.get_ticks_usec() - us); us = Time.get_ticks_usec()
@@ -1300,8 +1304,41 @@ func _return_dead() -> void:
 		events.append({e = "returned", id = id, lost = lost, strength = Rules.level_of(Rules.strength(p.profile))})
 		events.append(_intro(p))
 
+## How hard this round's waves come: harder for a stronger potential among the
+## channellers who have come in, and for each extra player. Both are the most seen so
+## far (someone joining late counts from the next wave; nobody losing strength, or
+## leaving, makes it easier).
+var _peak_level := 999
+var _peak_party := 0
+func threat() -> float:
+	for id in ents:
+		var e: Dictionary = ents[id]
+		if e.kind != "player" or e.get("bot", false) or e.get("away", false) or e.get("looked_only", false):
+			continue
+		if e.profile.get("cls", "channeller") == "channeller":
+			_peak_level = mini(_peak_level, Rules.level_of(float(e.profile.get("potential", 1.0))))
+	var party := 0
+	for id in ents:
+		var e2: Dictionary = ents[id]
+		if e2.kind == "player" and not e2.get("bot", false) and not e2.get("away", false) and e2.alive:
+			party += 1
+	_peak_party = maxi(_peak_party, party)
+	var strong := maxf(0.0, Round.POT_MEAN - float(_peak_level)) if _peak_level < 999 else 0.0
+	return (1.0 + THREAT_PER_LEVEL * strong) * (1.0 + THREAT_PER_PLAYER * maxf(_peak_party - 1, 0))
+
+const THREAT_PER_LEVEL := 0.035    # each level of potential above the usual roll
+const THREAT_PER_PLAYER := 0.3     # each player past the first
+
 func _spawn_wave(w: Dictionary) -> void:
 	if round_mode:
+		# Scaled to who is here (and has been): counts grow, fractions by chance.
+		var k := threat()
+		if k > 1.001:
+			var scaled := {}
+			for type in w.spawn:
+				var want := float(w.spawn[type]) * k
+				scaled[type] = int(want) + (1 if rng.randf() < want - floorf(want) else 0)
+			w = {t = w.get("t", t), spawn = scaled}
 		# Not cleared in time: the wave before is over all the same.
 		if not _field_clear:
 			_wave_end()
@@ -1927,6 +1964,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 		"cone":
 			if _power_of(weave) == "air":
 				_blow_out(p.pos, b.range * kr, dir, float(b.arc))
+			Env.hit(self, p.pos + dir * b.range * kr * 0.55, b.range * kr * 0.6, _power_of(weave), dir, b.damage * k)
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				# Thrown back, some are knocked to a knee.
@@ -1945,6 +1983,10 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			events.append({e = "sweep_on", id = p.id, fx = effects[-1].id})
 		"line", "beam", "lash":
 			var reach_m: float = b.range * kr
+			var sweep_at := 2.0
+			while sweep_at < minf(reach_m, reach3 * cos(pitch) + 1.0):
+				Env.hit(self, p.pos + dir * sweep_at, b.width * kr + 0.6, _power_of(weave) if _power_of(weave) != "" else "blow", dir, b.damage * k)
+				sweep_at += 2.5
 			match _power_of(weave):
 				"water":
 					var s := 3.0
@@ -2354,6 +2396,7 @@ func aim_missile(from: Dictionary, weapon: String, target: Dictionary) -> Vector
 func _blast(owner: int, weave: String, at: Vector3, radius: float, dmg: float) -> void:
 	events.append({e = "blast", weave = weave, pos = at, radius = radius})
 	_mark_ground(owner, weave, at, radius)
+	Env.hit(self, at, radius, _power_of(weave) if _power_of(weave) != "" else "blow", Vector3.ZERO, dmg)
 	for e in _struck(ents[owner]):
 		if (_feet(e) + Vector3(0, 1.0, 0)).distance_to(at) < radius + e.radius + 0.5 and e.get("safe_until", 0.0) <= t:
 			_hurt(e, dmg, owner, weave)
@@ -2788,6 +2831,8 @@ func _step_effects(dt: float) -> void:
 					elif fx.get("lit", false):
 						# A fire arrow in the grass: it catches.
 						_ignite(fx.pos, 1.4, fx.owner)
+					if fx.get("lit", false):
+						Env.hit(self, fx.pos, 0.8, "fire")
 					if fx.get("blast", 0.0) > 0.0:
 						# Woven fire: it bursts where it lands, and scorches who stands near.
 						events.append({e = "blast", weave = "fireball" if Rules.weapons.has(fx.weapon) else fx.weapon, pos = fx.pos, radius = fx.blast})

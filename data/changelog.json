@@ -1,0 +1,44 @@
+[
+  {"version": "v0.2.12", "date": "24 Nov", "items": [
+    "Forms have their own row beside the bar, for the weapon in your hand: Z, X, R, then Shift and a number. Each is drawn as the path it cuts.",
+    "Fire Arrow: a bow form that bursts where it strikes and leaves them burning.",
+    "Balefire, the Lash of Water and Hammer of Air go where you aim them, up a slope or down off a wall.",
+    "Maps are bigger and closed by cliffs you can see: both ends of Tarwin's Gap, a ring of hills round the wagon ring and the open fields, a palisade round the camp.",
+    "Ledges and plateaus: ramps up, steep sides you cannot walk up, low shelves you can jump onto. Shelves along the walls of Tarwin's Gap.",
+    "A new place in every doorway: the Watch Hill, a flat-topped hill in the Borderland hills, attacked from every side.",
+    "Trollocs hate water: they go round a stream if they can and balk at the bank, unless a Myrddraal drives them on.",
+    "Enemies stuck behind a tree or a wall's end find the way round.",
+    "First person: your head still casts its shadow, and looking down you see your chest, arms and legs.",
+    "The armoury, tailor and study block you as their shapes; tent ropes no longer hang upside down.",
+    "Lightning arcs between enemies are seen online again (they were being dropped).",
+    "The camp is the training yard: practice posts to the west of the doorways; click to strike or weave at them, Space to roll. Nobody else in the camp can be struck. (No more training doorway.)",
+    "Things react to the fight: Air knocks torches flat and shoves them, puts torches and fires out; Fire lights them again; crates and barrels are shoved, burnt or smashed; wagons shoved, set alight (they burn down) or wrecked.",
+    "Waves grow for a stronger channeller and for every friend who joins, and never shrink back.",
+    "The tree pages have your bar along the bottom: drag things on, along and off, and choose whether new things go on by themselves.",
+    "With the sheet put away, a faded corner keeps your name and renown, and a mark when something is new.",
+    "Balefire needs the first weave of every Power. A man's Healing uses his flows (Spirit, Fire and Earth) and comes in book 8.",
+    "This list, under Esc."
+  ]},
+  {"version": "v0.2.11", "date": "24 Nov", "items": [
+    "Bow and thrown forms: Snap Shot, Two on the String, Through the Line, Hail of Shafts, the Heart Shot; Flick of the Wrist, a Fan of Steel, Hard and Low, the Gleeman's Juggle.",
+    "Channellers work out the chosen weave between rounds by what they channel, won or lost.",
+    "The Esc menu shows your version, the server's, and each friend's.",
+    "Dream duels: a friend still at the doorway no longer ends the duel; alone, your shade comes (on the server too); only the winner is told they won.",
+    "The server proves it knows the word before your game sends anything.",
+    "Twenty forms that used a stand-in punch have their own arm strokes; flurries change hands blow by blow.",
+    "The weapon and form trees fit the screen however long a column grows."
+  ]},
+  {"version": "v0.2.10", "date": "24 Nov", "items": [
+    "Much faster: about twice the frame rate in a big fight, half the draw calls; the camp a quarter.",
+    "Picture quality Medium and Low now also lighten shadows, ambient shading and anti-aliasing.",
+    "The standalone keeps its data beside the executable again."
+  ]},
+  {"version": "v0.2.9", "date": "23 Nov", "items": [
+    "Going down: you stay down until the wave ends; a friend beside you then brings you back at 1 health, otherwise you die. Healing gets you up at once.",
+    "Damage numbers, bigger and brighter the harder the hit.",
+    "Enemies leave the downed alone; bot channellers need to see you, pause between weaves and miss sometimes.",
+    "Fighters have two trees, weapons and forms; a better weapon of a kind replaces the old one.",
+    "Men who channel start with a short sword.",
+    "Installed games update themselves."
+  ]}
+]

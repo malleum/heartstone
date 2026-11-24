@@ -6,12 +6,20 @@ extends Control
 ## each weave to the ones that must be known first.
 
 signal chosen(id: String)
+signal bar_changed     # the hotbar was rearranged here (bar_edit)
 
 const ORDER := ["fire", "air", "water", "spirit", "earth"]   # neighbours are the Powers most often woven together
 const RADII := [1.0, 0.67, 0.4, 0.2]
 
 var profile := {}
 var pickable := false   # in a round: a known weave can be chosen too (to grow it)
+## In the camp: the hotbar along the bottom; drag what you know onto it, along it to
+## reorder, off it to take it away; a switch for whether new things go on by themselves.
+var bar_edit := false
+var _drag := ""          # what is being dragged
+var _drag_from := -1     # its slot on the bar, or -1 from the tree
+var _drag_at := Vector2.ZERO
+var _press_at := Vector2.ZERO
 var t := 0.0
 var hover := ""
 var _pos := {}       # weave id -> Vector2
@@ -42,10 +50,11 @@ func _sz() -> Vector2:
 	return size / _k()
 
 func _centre() -> Vector2:
-	return Vector2(_sz().x * 0.4, _sz().y * 0.52)
+	return Vector2(_sz().x * 0.4, _sz().y * (0.48 if bar_edit and not _forms() else 0.52))
 
+## (A little smaller with the hotbar strip under it, so the two stay apart.)
 func _radius() -> float:
-	return minf(_sz().x * 0.33, _sz().y * (0.33 if _forms() else 0.37))
+	return minf(_sz().x * 0.33, _sz().y * (0.33 if _forms() else 0.37)) * (0.86 if bar_edit and not _forms() else 1.0)
 
 func _dir(e: String) -> Vector2:
 	var a := -PI * 0.5 + ORDER.find(e) * TAU / 5.0
@@ -88,7 +97,7 @@ func _shown() -> Array:
 	for id in Rules.weaves:
 		# Past the reading limit a weave is not drawn at all, even one owned (only
 		# the weave a channeller was born knowing is never hidden).
-		if not str(id).begins_with("_") and (Rules.weaves[id].book <= profile.book_limit or profile.get("starter", "") == id):
+		if not str(id).begins_with("_") and (Rules.book_of(id, profile) <= profile.book_limit or profile.get("starter", "") == id):
 			out.append(id)
 	return out
 
@@ -217,13 +226,118 @@ func _gui_input(ev: InputEvent) -> void:
 		for id in _pos:
 			if (ev.position / _k()).distance_to(_pos[id]) < _node_r() * 1.25:
 				hover = id
+		_drag_at = ev.position / _k()
+	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed and _drag != "":
+		_drop(ev.position / _k())
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		var at: Vector2 = ev.position / _k()
 		for pg in _tabs:
-			if (_tabs[pg] as Rect2).has_point(ev.position / _k()):
+			if (_tabs[pg] as Rect2).has_point(at):
 				page = pg
+				return
+		if bar_edit:
+			if _auto_rect().has_point(at):
+				profile.bar_auto = not profile.get("bar_auto", true)
+				if not profile.bar_auto:
+					# From now on only what is dragged: start from the bar as it stands.
+					profile.hotbar = Profile.bar(profile)
+				Profile.bar(profile)
+				bar_changed.emit()
+				return
+			var slot := _slot_at(at)
+			if slot >= 0:
+				_drag = Profile.bar(profile)[slot]; _drag_from = slot; _drag_at = at; _press_at = at
+				return
+			if hover != "" and _state(hover) == "known" and Profile.bar_usable(profile).has(hover):
+				_drag = hover; _drag_from = -1; _drag_at = at; _press_at = at
 				return
 		if hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known")):
 			chosen.emit(hover)
+
+# --- the hotbar strip (camp) ---------------------------------------------------------
+
+const SLOT := 48.0
+
+func _strip_y() -> float:
+	return _sz().y - 44.0
+
+func _slot_x(i: int, n: int) -> float:
+	return _sz().x * 0.42 - SLOT * (n - 1) * 0.5 + i * SLOT
+
+func _slot_at(at: Vector2) -> int:
+	var bar := Profile.bar(profile)
+	for i in bar.size():
+		if at.distance_to(Vector2(_slot_x(i, bar.size()), _strip_y())) < SLOT * 0.45:
+			return i
+	return -1
+
+func _auto_rect() -> Rect2:
+	var n := Profile.bar(profile).size()
+	return Rect2(_slot_x(n, n) + 10.0, _strip_y() - 14.0, 200.0, 28.0)
+
+## Let go of what was dragged: onto the bar (at the slot under it, or the end), or off
+## it (taken away). A press and let-go without moving, on the tree, still picks.
+func _drop(at: Vector2) -> void:
+	var id := _drag; var from := _drag_from
+	_drag = ""; _drag_from = -1
+	var bar: Array = Profile.bar(profile).duplicate()
+	var on_strip := absf(at.y - _strip_y()) < SLOT * 0.8
+	if at.distance_to(_press_at) < 4.0:
+		if from < 0 and hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known")):
+			chosen.emit(hover)
+		return
+	if from >= 0:
+		bar.remove_at(from)
+	if on_strip:
+		var idx := bar.size()
+		for i in bar.size():
+			if at.x < _slot_x(i, bar.size() + 1) + SLOT * 0.5:
+				idx = i
+				break
+		bar.erase(id)
+		bar.insert(mini(idx, bar.size()), id)
+	profile.hotbar = bar
+	var seen: Array = profile.get("bar_seen", [])
+	if not seen.has(id): seen.append(id)
+	profile.bar_seen = seen
+	bar_changed.emit()
+
+func _icon(id: String, at: Vector2, r: float, a: float) -> void:
+	if Rules.weaves.has(id):
+		Glyph.weave(self, at, r, Rules.flows_of(Rules.weaves[id], profile), a)
+	elif Rules.forms.has(id):
+		Glyph.weapon(self, at, r * 0.8, Rules.forms[id].family, a)
+		draw_arc(at, r * 0.95, 0, TAU, 28, Color(Glyph.GOLD, a), 1.6, true)
+	elif Rules.weapons.has(id):
+		Glyph.weapon(self, at, r, Rules.weapons[id].family, a)
+
+func _draw_strip() -> void:
+	var sans := Glyph.sans()
+	var bar := Profile.bar(profile)
+	var n := bar.size()
+	var y := _strip_y()
+	var x0 := _slot_x(0, n) - SLOT * 0.6
+	var x1 := _slot_x(maxi(n - 1, 0), n) + SLOT * 0.6
+	draw_rect(Rect2(x0, y - SLOT * 0.62, maxf(x1 - x0, SLOT), SLOT * 1.24), Color(0.04, 0.04, 0.06, 0.7))
+	draw_rect(Rect2(x0, y - SLOT * 0.62, maxf(x1 - x0, SLOT), SLOT * 1.24), Color(Glyph.GOLD, 0.35), false, 1.2)
+	Glyph.text(self, sans, Vector2(x0, y - SLOT * 0.62 - 8.0), "Your bar: drag here from the tree, along it to reorder, off it to take away", 12, Color(Glyph.GOLD, 0.8))
+	for i in n:
+		var c := Vector2(_slot_x(i, n), y)
+		draw_circle(c, SLOT * 0.4, Color(0.08, 0.08, 0.1, 0.9))
+		if i == _drag_from:
+			continue
+		_icon(bar[i], c, SLOT * 0.3, 1.0)
+		if i < 9:
+			Glyph.text(self, sans, c + Vector2(0, -SLOT * 0.45), str(i + 1), 10, Color(0.7, 0.7, 0.75), 0)
+	if n == 0:
+		Glyph.text(self, sans, Vector2(x0 + 8.0, y + 4.0), "(empty)", 12, Color(0.6, 0.6, 0.65))
+	var ar := _auto_rect()
+	var auto: bool = profile.get("bar_auto", true)
+	draw_rect(ar, Color(0.08, 0.08, 0.1, 0.85))
+	draw_rect(ar, Color(Glyph.GOLD, 0.5 if auto else 0.25), false, 1.0)
+	Glyph.text(self, sans, ar.position + Vector2(8, 19), "New things go on the bar: %s" % ("on" if auto else "off"), 12, Glyph.GOLD if auto else Color(0.7, 0.7, 0.75))
+	if _drag != "":
+		_icon(_drag, _drag_at, SLOT * 0.32, 0.85)
 
 func _draw() -> void:
 	if profile.is_empty():
@@ -347,13 +461,15 @@ func _draw() -> void:
 	if not _forms():
 		var hidden := 0
 		for id in Rules.weaves:
-			if not str(id).begins_with("_") and Rules.weaves[id].book > profile.book_limit and profile.get("starter", "") != id:
+			if not str(id).begins_with("_") and Rules.book_of(id, profile) > profile.book_limit and profile.get("starter", "") != id:
 				hidden += 1
 		# Said only to someone who has opened the later books themselves: to anyone
 		# else even the count is a hint.
 		if hidden > 0 and Settings.story_open:
 			Glyph.text(self, sans, Vector2(42, 126), "%d more from later books, hidden in this fight" % hidden, 13, Color(0.55, 0.57, 0.65))
 	_card(hover if hover != "" else profile.get("study", ""))
+	if bar_edit:
+		_draw_strip()
 
 ## The panel on the right: what the weave under the pointer is and what it asks.
 func _card(id: String) -> void:

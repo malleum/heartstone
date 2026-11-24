@@ -131,19 +131,12 @@ func _ready() -> void:
 				if profile.kit.any(func(w: String) -> bool: return Rules.weapons[w].family == Rules.forms[f].family):
 					profile.forms[f] = {known = true}
 	# The bar holds what you can do with your hands: weaves, then what you carry.
-	known = profile.weaves.keys().filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= int(profile.get("book_limit", 14)) or profile.get("starter", "") == w) + profile.get("kit", [])
-	# Forms are not things in the hand: they are what is done with the weapon in it,
-	# on a row of their own over the bar (Z, X, R; Shift and a number past those).
-	my_forms = profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
-	# The order the player chose in the camp's loadout, if any.
-	var order: Array = profile.get("hotbar", [])
-	if not order.is_empty():
-		# Stable: what the order does not name keeps its own place after what it does.
-		var first := known.duplicate()
-		known.sort_custom(func(x: String, y: String) -> bool:
-			var a := (order.find(x) if order.has(x) else 99) * 1000 + first.find(x)
-			var b := (order.find(y) if order.has(y) else 99) * 1000 + first.find(y)
-			return a < b)
+	# The bar as the player arranged it (Profile.bar: dragged in on the tree pages, or
+	# new things added by themselves). Forms are not things in the hand: they are what
+	# is done with the weapon in it, on a row of their own (Z, X, R; Shift and a number).
+	var bar_all := Profile.bar(profile)
+	known = bar_all.filter(func(x: String) -> bool: return not Rules.forms.has(x))
+	my_forms = bar_all.filter(func(x: String) -> bool: return Rules.forms.has(x))
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
@@ -260,7 +253,7 @@ func _input(ev: InputEvent) -> void:
 				var chosen: String = known[selected] if selected < known.size() else ""
 				known[drag_slot] = known[i]; known[i] = moving
 				selected = maxi(known.find(chosen), 0)
-				_save_pref("hotbar", known.duplicate())
+				_save_pref("hotbar", known + my_forms)
 			drag_slot = -1
 			get_viewport().set_input_as_handled()
 	elif ev is InputEventMouseMotion and drag_slot >= 0:
@@ -1821,7 +1814,7 @@ func _on_events(list: Array) -> void:
 				# is neither usable nor drawn.
 				profile.book_limit = mini(int(profile.get("book_limit", 14)), int(e.limit))
 				# Off the bar too: a weave past the limit is not there to choose.
-				known = known.filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= profile.book_limit or profile.get("starter", "") == w)
+				known = known.filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.book_of(w, profile) <= profile.book_limit or profile.get("starter", "") == w)
 				selected = mini(selected, maxi(known.size() - 1, 0))
 				if not mirror.is_empty():
 					mirror.book_limit = mini(int(mirror.get("book_limit", 14)), int(e.limit))
@@ -2503,9 +2496,19 @@ func _on_events(list: Array) -> void:
 			"wound":
 				if e.id == session.my_id:
 					my_wound = float(e.w)
+			"prop_fall", "prop_move", "prop_lit", "prop_burn", "prop_gone", "wall_move", "wall_burn":
+				_env_event(e)
 			"prop_out":
 				if not session.is_host and e.index < Map.trees().size():
 					Map.trees()[e.index].out = true
+				# A torch's flame (it may lie fallen): its fire and light go, a puff of smoke.
+				var tn := get_node_or_null("prop_%d" % int(e.index))
+				if tn:
+					for c in tn.find_children("*", "", true, false):
+						if c is GPUParticles3D or c is OmniLight3D:
+							var where: Vector3 = (c as Node3D).global_position
+							c.queue_free()
+							Weavefx._once(Weavefx._particles(Color(0.45, 0.45, 0.45), 16, 1.4, 0.3, 1.0, 0.6, 40.0, false), self, where)
 				var pf := get_node_or_null("propfire_%d" % int(e.index))
 				if pf:
 					for c in pf.get_children():
@@ -2536,7 +2539,7 @@ func _on_events(list: Array) -> void:
 						if c is MeshInstance3D:
 							at = (c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb().get_center()
 							break
-					Weavefx.blast(self, at, 1.5, "heave_the_ground")
+					Weavefx.blast(self, at, 1.5, "fireball" if e.get("how", "") == "burnt" else "heave_the_ground")
 					wn.queue_free()
 			"wall_up":
 				if not session.is_host:
@@ -2637,6 +2640,99 @@ func _patch(e: Dictionary) -> void:
 		disc.rotation.y = randf() * TAU
 	patches[e.id] = n
 
+## What a fight does to what stands about (Env): the sim has changed Map; a machine
+## that only watches changes its copy, and everyone's view shows it.
+func _env_event(e: Dictionary) -> void:
+	var trees := Map.trees()
+	var tr: Dictionary = trees[int(e.index)] if e.has("index") and int(e.index) < trees.size() else {}
+	var pn := get_node_or_null("prop_%d" % int(e.get("index", -1))) as Node3D
+	match e.e:
+		"prop_fall":
+			if not session.is_host and not tr.is_empty():
+				tr.fallen = true; tr.r = 0.12; tr.h = 0.3
+			if pn and not tr.is_empty():
+				# Over it goes, about its foot, the way it was struck.
+				var foot := _ground(Vector3(tr.x, 0, tr.z))
+				var pivot := Node3D.new(); pivot.name = "pivot"; pn.add_child(pivot); pivot.global_position = foot
+				for c in pn.get_children():
+					if c != pivot:
+						var gt: Transform3D = (c as Node3D).global_transform if c is Node3D else Transform3D.IDENTITY
+						c.reparent(pivot)
+						if c is Node3D: (c as Node3D).global_transform = gt
+				var yaw := float(e.yaw)
+				var axis := Vector3(cos(yaw), 0, -sin(yaw))
+				var tw := pivot.create_tween()
+				tw.tween_method(func(a: float) -> void:
+					if is_instance_valid(pivot): pivot.basis = Basis(axis, a), 0.0, PI * 0.47, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				Sfx.play(self, "thud", foot, -2.0, 0.8)
+		"prop_move":
+			if not session.is_host and not tr.is_empty():
+				tr.x = float(e.x); tr.z = float(e.z)
+			if pn:
+				var shift := Vector3(float(e.x) - float(e.fx), 0, float(e.z) - float(e.fz))
+				shift.y = Terrain.height(float(e.x), float(e.z)) - Terrain.height(float(e.fx), float(e.fz))
+				pn.create_tween().tween_property(pn, "position", pn.position + shift, 0.35).set_ease(Tween.EASE_OUT)
+		"prop_lit":
+			if not session.is_host and not tr.is_empty():
+				tr.out = false
+			var pf := get_node_or_null("propfire_%d" % int(e.index))
+			if pf:
+				Scenery.fire(pf, _ground(Vector3(tr.x, 0, tr.z)))
+			elif pn and tr.get("prop", "") == "torch":
+				# The torch's head: at the top of the pole, standing or lying.
+				var head := _ground(Vector3(tr.x, 0, tr.z)) + Vector3(0, 2.25, 0)
+				var pv := pn.get_node_or_null("pivot") as Node3D
+				if pv:
+					head = pv.global_transform * Vector3(0, 2.25, 0)
+				var f := Weavefx.flame(14, 0.2, 0.9)
+				(pv if pv else pn).add_child(f); f.global_position = head
+				var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.58, 0.28); l.light_energy = 2.4; l.omni_range = 10.0
+				(pv if pv else pn).add_child(l); l.global_position = head + Vector3(0, 0.15, 0)
+		"prop_burn":
+			if not session.is_host and not tr.is_empty():
+				tr.burn_until = 1.0
+			if pn and not tr.is_empty():
+				var f := Weavefx.flame(18, 0.35, 1.0)
+				pn.add_child(f); f.global_position = _ground(Vector3(tr.x, 0, tr.z)) + Vector3(0, 0.4, 0)
+				var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.55, 0.25); l.light_energy = 2.0; l.omni_range = 7.0
+				pn.add_child(l); l.global_position = f.global_position + Vector3(0, 0.6, 0)
+		"prop_gone":
+			if not session.is_host and not tr.is_empty():
+				tr.gone = true; tr.r = 0.0; tr.h = 0.0
+			if pn:
+				var where := _ground(Vector3(tr.get("x", 0.0), 0, tr.get("z", 0.0)))
+				if e.get("how", "") == "ash":
+					Weavefx._once(Weavefx._particles(Color(0.25, 0.22, 0.2), 30, 2.2, 0.5, 1.2, 0.6, 50.0, false), self, where + Vector3(0, 0.4, 0))
+				else:
+					Weavefx._once(Weavefx._particles(Color(0.42, 0.3, 0.18), 34, 1.0, 0.18, 6.0, -12.0, 70.0, false), self, where + Vector3(0, 0.5, 0))
+					Sfx.play(self, "crack", where, 0.0, 0.9)
+				pn.queue_free()
+		"wall_move":
+			if not session.is_host:
+				for w in Map.walls():
+					if int(w.wid) == int(e.wid):
+						w.x = float(e.x); w.z = float(e.z)
+			var wn := get_node_or_null("wall_%d" % int(e.wid)) as Node3D
+			if wn:
+				var d := Vector3(float(e.x) - float(e.fx), 0, float(e.z) - float(e.fz))
+				wn.create_tween().tween_property(wn, "position", wn.position + d, 0.3).set_ease(Tween.EASE_OUT)
+			Sfx.play(self, "thud", Vector3(float(e.x), Terrain.height(float(e.x), float(e.z)), float(e.z)), 0.0, 0.6)
+		"wall_burn":
+			var wn2 := get_node_or_null("wall_%d" % int(e.wid)) as Node3D
+			if wn2:
+				for w in Map.walls():
+					if int(w.wid) == int(e.wid):
+						var rot: float = float(w.get("rot", 0.0))
+						for k in [-1.4, 0.0, 1.4]:
+							var lp := Map._world(w, Vector2(0.0, k))
+							var f := Weavefx.flame(22, 0.5, 1.6)
+							wn2.add_child(f); f.global_position = Vector3(lp.x, Terrain.height(lp.x, lp.y) + 1.4, lp.y)
+						var l := OmniLight3D.new(); l.light_color = Color(1.0, 0.5, 0.2); l.light_energy = 3.5; l.omni_range = 12.0
+						wn2.add_child(l); l.global_position = Vector3(w.x, Terrain.height(w.x, w.z) + 2.5, w.z)
+						var sm := Weavefx._particles(Color(0.18, 0.17, 0.17), 40, 4.0, 0.9, 1.2, 1.6, 20.0, false)
+						wn2.add_child(sm); sm.global_position = Vector3(w.x, Terrain.height(w.x, w.z) + 2.6, w.z)
+						break
+
 ## The weave someone was making has left their hands (or come to nothing).
 ## First person: the camera at the eyes. Your own head, hair, eyes and cloak are put on
 ## a layer this camera does not draw (they would fill the view); everything else, the arms
@@ -2656,9 +2752,11 @@ func _first_person(on: bool) -> void:
 	for m: MeshInstance3D in me.find_children("*", "MeshInstance3D", true, false):
 		var n := String(m.name)
 		var head := n.begins_with("SuperHero") or n.begins_with("Superhero") or n.begins_with("Eyes") or n.begins_with("Eyebrows") \
-			or n.begins_with("Hair") or n == "Cloak" or m.get_parent() is BoneAttachment3D and String(m.get_parent().name) == "Veil"
+			or n.begins_with("Hair") or n.contains("_Head") or n == "Cloak" or m.get_parent() is BoneAttachment3D and String(m.get_parent().name) == "Veil"
 		if head:
-			m.layers = FP_LAYER if on else 1
+			# Not seen from inside, but still casting its shadow (on its own layer it
+			# cast none: a headless shadow on the ground).
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if on else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 ## Where the eyes are: over the body, at the head's height (followed, so ducking, falling
 ## and rising carry the view), a hand's width forward of the head along the look.
@@ -2673,7 +2771,10 @@ func _eye(view: Basis, dt: float) -> Vector3:
 			# the body never comes up in front of the eyes.
 			at = (sk.global_transform * sk.get_bone_global_pose(hb)).origin + Vector3(0, 0.09, 0)
 	var flat := Vector3(-sin(cam_yaw), 0, -cos(cam_yaw))
-	var want := at + flat * 0.14 + (view * Vector3(0, 0, -1)) * 0.04
+	# Looking ahead the eyes are a hand's width before the head; looking down they
+	# draw back over the body, so the chest, arms and legs are there below you.
+	var down := clampf(-cam_pitch / 0.9, 0.0, 1.0)
+	var want := at + flat * lerpf(0.14, 0.02, down) + (view * Vector3(0, 0, -1)) * 0.04 + Vector3(0, 0.04 * down, 0)
 	_eye_at = want if _eye_at == Vector3.ZERO else _eye_at.lerp(want, minf(22.0 * dt, 1.0))
 	return _eye_at
 

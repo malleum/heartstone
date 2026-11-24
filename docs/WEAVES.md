@@ -169,7 +169,7 @@ cannot make the weaves they could that morning.
 | Weave | Flows | Effect | Cite | Book | Conf. |
 | --- | --- | --- | --- | --- | --- |
 | **Simple Healing (saidar)** | Spirit + Water + Air | Battlefield Healing; draws on the patient. | TDR ch.15 | 3 | Canon |
-| **Simple Healing (saidin)** | Spirit + Fire + Earth | Rough and hot; flows are the Depository's guess. | TPoD (flows inferred) | 8 | Wiki |
+| **Simple Healing (saidin)** | Spirit + Fire + Earth | Rough and hot; flows are the Depository's guess. In the game: a man's Healing uses these flows (its strength and cost follow his Fire and Earth), is drawn in them, and is not offered before book 8 (`book_saidin`). | TPoD (flows inferred) | 8 | Wiki |
 | Complex Healing | Fire + Earth + Water + Air + Spirit | Different weave per wound. | TFoH ch.35 | 5 | Canon |
 | Healing stilling | Spirit + Fire | Bridge the cut. | LoC ch.29 | 6 | Canon |
 | Delving | Spirit + Water + Air | Examine someone's health. | NS ch.2 | NS | Canon |
@@ -255,7 +255,7 @@ woven halves the work. "Work" is in the game's draw units: a bot channels about
 | Blossoms of Fire | Arrows of Fire, Hammer of Air | 30,000 |
 | Gateway | Shield from the Source | 40,000 |
 | Deathgate | Gateway, Arrows of Fire | 80,000 |
-| Balefire | Lightning, Blossoms of Fire, Healing | 250,000 |
+| Balefire | the first weave of every Power (Fireball, Hammer of Air, Heave the Ground, Lash of Water, Blade of Spirit; the user, 24 Nov), Lightning, Blossoms of Fire, Healing | 250,000 |
 
 ### What each Power does to those it strikes (game choice)
 | Power | Effect | Weaves |

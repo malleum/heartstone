@@ -14,6 +14,7 @@ KEEP_EVERY=900 tools/render.sh renders/ghost_place 520 -- --activity=camp_traini
 KEEP_EVERY=900 tools/render.sh renders/ghost_dream 520 -- --activity=dream_spar --name=GhostD --class=warder --ghost=dream >"$out/dream" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_camp 600 -- --who=Bot --ghost=camp >"$out/camp" 2>&1
 KEEP_EVERY=900 tools/render.sh renders/ghost_flow 520 -- --ghost=flow >"$out/flow" 2>&1
+KEEP_EVERY=900 tools/render.sh renders/ghost_yard 260 -- --who=Ghostc --show=none --offline --campos=-17,-7 --camyaw=60 --ghost=yard >"$out/yard" 2>&1
 # A server on this machine, and the camp going through it: store a character, ask
 # who is playing, walk through a doorway into a fight the server hosts.
 HEARTSTONE_WORD=tinker timeout 120 godot --headless --path . -s src/net/server.gd -- --port=24699 >"$out/srv" 2>&1 &
@@ -30,12 +31,13 @@ want weaves "GHOST 6[3-9][0-9] cast fireball"
 for w in "airwall pts=7" "gate_mark" "gate_open turn=0\\.2[0-9]"; do want place "GHOST [0-9]+ $w"; done
 for w in "dream dream_spear" "dream dream_wall" "dream dream_pit" "shift $" "deny $"; do want dream "GHOST [0-9]+ $w"; done
 want dream "GHOST 26[0-9] (dream dream_chains|refused)"; [ "$(grep -cE 'GHOST [0-9]+ shift' "$out/dream")" -ge 3 ] || { echo "  FAIL (dream): fewer than three steps"; fail=1; }
+for w in "yard cast fireball" "yard form fireball" "yard die" "yard dodge"; do want yard "GHOST $w"; done
 for w in "menu=true" "sheet=false" "pos=\([-0-9.]+, 0.0, -([2-9]|1[0-9])"; do want camp "$w"; done
 # The camp's screens: make a character, change kit and looks, choose a study, make
 # a second character, walk through a doorway into the game.
-for w in "created: Ghost Maiden cls=aiel" "loadout: kit=\[\"" "appearance: look=" "unlock: .* owed=0" "second: Ghost Weaver power=saidin" "entered camp_training as Ghost Weaver"; do want flow "GHOST flow $w"; done
-want online "GHOST online sync: Ghost Net is kept on"; want online "GHOST flow entered camp_training as Ghost Net \(joined a host\)"
-want srv "SERVER keeps Ghost Net"; want srv "SERVER begins camp_training for Ghost Net"
+for w in "created: Ghost Maiden cls=aiel" "loadout: kit=\[\"" "appearance: look=" "unlock: .* owed=0" "second: Ghost Weaver power=saidin" "entered holdout@[a-z_]+ as Ghost Weaver"; do want flow "GHOST flow $w"; done
+want online "GHOST online sync: Ghost Net is kept on"; want online "GHOST flow entered holdout@[a-z_]+ as Ghost Net \(joined a host\)"
+want srv "SERVER keeps Ghost Net"; want srv "SERVER begins holdout@[a-z_]+ for Ghost Net"
 if grep -hE "SCRIPT ERROR|^ERROR" -A2 "$out"/arms "$out"/weaves "$out"/place "$out"/camp "$out"/flow "$out"/online; then fail=1; fi
 [[ $fail -eq 0 ]] && echo "GHOST RESULT: ok" || echo "GHOST RESULT: FAILED"
 rm -rf "$out"

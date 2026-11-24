@@ -431,6 +431,7 @@ static func forming(_g: Node3D, who: Node3D, weave: String, secs: float, power :
 		fx.HANDS = Vector3(0, 1.55, 0.72)
 	fx.secs = maxf(secs, 0.15)
 	fx.weave = weave
+	fx.power = power
 	who.add_child(fx)
 	flows(fx, power)
 	return fx
@@ -443,6 +444,7 @@ static func forming(_g: Node3D, who: Node3D, weave: String, secs: float, power :
 class FormFx extends Node3D:
 	var secs := 1.0
 	var weave := ""
+	var power := ""            # saidin: a weave a man makes with other flows (Healing) shows his
 	var age := 0.0
 	var parts: Array = []      # [node, element, index]
 	var core: MeshInstance3D
@@ -455,7 +457,8 @@ class FormFx extends Node3D:
 	var HANDS := Vector3(0, 1.25, 0.5)
 
 	func _ready() -> void:
-		var fl: Dictionary = Rules.weaves[weave].flows
+		var row: Dictionary = Rules.weaves[weave]
+		var fl: Dictionary = row.flows_saidin if power == "saidin" and row.has("flows_saidin") else row.flows
 		var k := 0
 		for e in fl:
 			# A big weave shows more threads of each Power, so it looks like more work.
@@ -1195,11 +1198,14 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			Sfx.play(g, "chime", from, -2.0, 0.8)
 		"heal":
 			# Healing: threads of Spirit, Water and Air go from the hands into the one
-			# healed, then wind up round them from the feet to over the head.
+			# healed (a man's are Spirit, Fire and Earth, rough and hot), then wind up
+			# round them from the feet to over the head.
 			var who: Vector3 = g._ground(e.at)
-			var gold := Color(0.75, 1.0, 0.7)
+			var man: bool = e.get("power", "") == "saidin"
+			var gold := Color(1.0, 0.82, 0.55) if man else Color(0.75, 1.0, 0.7)
+			var threads: Array = [TINT.spirit, TINT.fire, TINT.earth] if man else [TINT.spirit, TINT.water, TINT.air]
 			for i in 3:
-				Flowfx.streak(fg, from, who + Vector3(0, 1.2, 0), 0.25 + 0.06 * i, [TINT.spirit, TINT.water, TINT.air][i], 0.1, Vector3(randf_range(-0.6, 0.6), 0.5 + 0.3 * i, randf_range(-0.6, 0.6)), 2.5, 0.2)
+				Flowfx.streak(fg, from, who + Vector3(0, 1.2, 0), 0.25 + 0.06 * i, threads[i], 0.1, Vector3(randf_range(-0.6, 0.6), 0.5 + 0.3 * i, randf_range(-0.6, 0.6)), 2.5, 0.2)
 			for i in 3:
 				var r := Flowfx.Ribbon.new(gold, 0.12, 26, 2.2, 0.25)
 				r.follow = false; fg.add_child(r)

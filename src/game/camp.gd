@@ -17,6 +17,13 @@ const DOOR_TINT := {training = Color(1.0, 0.85, 0.55), holdout = Color(1.0, 0.38
 var profile := {}
 var model: Node3D
 var side: VBoxContainer       # left column: who you are
+var mini: PanelContainer      # its faded corner while it is put away
+var yard: CampYard            # the practice posts beside the doorways, with a sim of your own
+var yard_slot := 0            # which thing on the bar the yard's clicks use
+var _yard_told := false
+var mini_name: Label
+var mini_ren: Label
+var mini_new: Label
 var menu: PanelContainer      # Esc: server, friends, quit
 var menu_box: VBoxContainer
 var tree: WeaveTree
@@ -208,11 +215,33 @@ func _ui() -> void:
 	side.minimum_size_changed.connect(fit)
 	root.resized.connect(fit)
 	tree = WeaveTree.new(); root.add_child(tree); tree.visible = false
+	tree.bar_edit = true
+	tree.bar_changed.connect(func() -> void:
+		if not Launch.dev():
+			Profile.save(profile))
 	tree.chosen.connect(func(id: String) -> void:
 		# Changing your mind loses what was worked out so far.
 		profile.study = id; profile.study_done = 0.0
 		Profile.save(profile)
 		_sheet())
+	# The sheet put away (H): a small faded corner of it stays, with who you are and
+	# a mark when something is new since you last looked (click it for the sheet).
+	mini = Glyph.card(Color(Glyph.GOLD, 0.2), 0.55); root.add_child(mini)
+	mini.anchor_left = 0.0; mini.anchor_top = 0.0; mini.offset_left = 18; mini.offset_top = 18
+	mini.modulate.a = 0.78
+	mini.mouse_filter = Control.MOUSE_FILTER_STOP
+	var mv := VBoxContainer.new(); mini.add_child(mv)
+	mv.add_theme_constant_override("separation", 0)
+	mini_name = _text(mv, "", 20); mini_name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	mini_ren = _text(mv, "", 13, Color(0.75, 0.75, 0.78))
+	mini_new = _text(mv, "●  New since you last looked", 12, Glyph.GOLD)
+	for l in [mini_ren, mini_new]:
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	mini.custom_minimum_size.x = 210
+	mini.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			side.get_parent().get_parent().visible = true)
+	mini.visible = false
 	menu = _column(root, 0.5, -240, 240)
 	menu_box = menu.get_meta("box")
 	menu.offset_top = 70; menu.offset_bottom = -70
@@ -322,8 +351,20 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseMotion and captured:
 		cam_yaw -= ev.relative.x * 0.003
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.1, 0.5)
+	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and captured and _in_yard():
+		_yard_use()
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and not creating and not menu.visible and not tree.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode == Keys.k(KEY_SPACE):
+		var v := Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
+		var d := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
+		yard.roll(d.normalized() if d.length() > 0.1 else -Vector3(sin(cam_yaw), 0, cos(cam_yaw)))
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and Keys.slot_of(ev.physical_keycode) >= 0:
+		var bar := Profile.bar(profile).filter(func(x: String) -> bool: return not Rules.forms.has(x))
+		var n: int = Keys.slot_of(ev.physical_keycode)
+		if n < bar.size():
+			yard_slot = n
+			Toast.say(_yard_name(bar[n]), "", "info", 1.2)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.physical_keycode == KEY_ESCAPE:
 			if tree.visible: _show_tree(false)
@@ -340,6 +381,81 @@ func _unhandled_input(ev: InputEvent) -> void:
 			side.get_parent().get_parent().visible = not side.get_parent().get_parent().visible
 
 var _station := ""   # the camp station within reach (Map.STATIONS), or ""
+
+## In the yard, ready to strike or weave (not making or menuing).
+func _in_yard() -> bool:
+	return yard != null and not creating and not menu.visible and not tree.visible and yard.near(pos)
+
+func _yard_name(id: String) -> String:
+	return Rules.weaves[id].name if Rules.weaves.has(id) else (Rules.weapons[id].name if Rules.weapons.has(id) else id)
+
+## A click in the yard: the chosen thing on the bar, at what the crosshair is on (or
+## the nearest post).
+func _yard_use() -> void:
+	var bar := Profile.bar(profile).filter(func(x: String) -> bool: return not Rules.forms.has(x))
+	if bar.is_empty():
+		return
+	var id: String = bar[clampi(yard_slot, 0, bar.size() - 1)]
+	var from := cam.global_position
+	var dir := -cam.global_transform.basis.z
+	var aim := yard.nearest_post(pos)
+	var best := 2.0
+	for pid in yard.posts:
+		if yard.sim.ents.has(pid) and yard.sim.ents[pid].alive:
+			var c: Vector3 = yard.sim.ents[pid].pos
+			c.y = Terrain.height(c.x, c.z) + 1.2
+			var along := (c - from).dot(dir)
+			if along > 1.0:
+				var miss := (c - (from + dir * along)).length()
+				if miss < best:
+					best = miss; aim = c
+	face = atan2(aim.x - pos.x, aim.z - pos.z)
+	if Rules.weaves.has(id):
+		yard.cast(id, aim)
+	elif Rules.weapons.has(id):
+		yard.sim.equip(yard.me, id)
+		yard.attack(aim, false)
+
+## The yard, made for the character in hand (again when another is chosen).
+func _yard_for(p: Dictionary) -> void:
+	if yard:
+		yard.queue_free()
+		yard = null
+	if p.is_empty() or (Launch.cmdline().has("ghost") and Launch.cmdline().ghost != "yard"):
+		return
+	yard = CampYard.new(); add_child(yard)
+	yard.setup(self, p.duplicate(true))
+	yard.sim.ents[yard.me].profile = p
+
+## What the sheet shows that can be new: weaves, forms and weapons known, techniques,
+## a win's unlock waiting, what is being worked out.
+func _sheet_mark() -> String:
+	var known := []
+	for w in profile.get("weaves", {}):
+		if profile.weaves[w].get("known", false): known.append(w)
+	known.sort()
+	var forms: Array = profile.get("forms_owned", profile.get("forms", {}).keys()).duplicate(); forms.sort()
+	var arms: Array = profile.get("weapons_owned", profile.get("kit", [])).duplicate(); arms.sort()
+	var tech: Array = profile.get("techniques", []).duplicate(); tech.sort()
+	return str([known, forms, arms, tech, int(profile.get("unlocks_owed", 0)), profile.get("talents", [])]).md5_text()
+
+## The faded corner: shown while the sheet is away; the sheet seen open marks all as seen.
+func _mini_step() -> void:
+	if mini == null or profile.is_empty():
+		if mini: mini.visible = false
+		return
+	var sheet_open: bool = side.get_parent().get_parent().visible
+	var mark := _sheet_mark()
+	if sheet_open:
+		if profile.get("sheet_seen", "") != mark:
+			profile.sheet_seen = mark
+			if not Launch.dev():
+				Profile.save(profile)
+	mini.visible = not sheet_open and not creating and not tree.visible
+	if mini.visible:
+		mini_name.text = String(profile.get("name", ""))
+		mini_ren.text = "Renown %d" % int(profile.get("renown", 0.0))
+		mini_new.visible = profile.get("sheet_seen", "") != mark
 
 ## What each station opens.
 func _use_station(id: String) -> void:
@@ -398,6 +514,7 @@ func _process(dt: float) -> void:
 		if idle.current_animation != "Idle":
 			idle.play("Idle", 0.15)
 		return
+	_mini_step()
 	if not _hinted and not cl.has("ghost") and not returning:
 		_hinted = true
 		Toast.say("The camp", "%s walk · click to look around · walk through a doorway to begin · %s hide the sheet · Esc menu" % [Keys.move(), Keys.name(KEY_H)], "info", 9.0)
@@ -438,6 +555,11 @@ func _process(dt: float) -> void:
 			# ...and if its far side is not made yet, you wait on the sill.
 			if absf(lateral) < 1.3 and not _pre.game.portal_ready() and depth > -0.3 and depth < 0.6:
 				pos -= fwd * (depth + 0.3)
+	if yard:
+		pos = yard.step(dt, pos, face)
+		if yard.near(pos) and not _yard_told and not cl.has("ghost"):
+			_yard_told = true
+			Toast.say("The yard", "Click: strike or weave at the posts (%s choose from your bar) · %s roll. Nobody else can be struck here." % ["1-9", Keys.name(KEY_SPACE)], "info", 8.0)
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
 	# Eased, so the first step does not throw it back at once.
@@ -445,6 +567,9 @@ func _process(dt: float) -> void:
 	Hero.cloak_motion(model, _cloak_speed)
 	var ap: AnimationPlayer = model.get_meta("anim")
 	var clip := ("Sprint" if sprint and ap.has_animation("Sprint") else "Jog_Fwd") if move.length() > 0.1 else "Idle"
+	# (A blow or a roll in the yard plays out before walking takes the legs back.)
+	if Time.get_ticks_msec() / 1000.0 < float(get_meta("busy_until", 0.0)):
+		clip = ap.current_animation
 	if ap.current_animation != clip:
 		ap.play(clip, 0.15)
 	# The same orbit camera as in a fight, a little further back to take in the doorways.
@@ -511,7 +636,8 @@ func _doors() -> void:
 		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false):
 			ids.append(id)
 	# One doorway per mode, in this order (training first, the duel last).
-	var order := ["camp_training", "holdout", "guard_door", "darkfriend_door", "endless_door", "team_battle", "dream_spar"]
+	# (The training yard is in the camp itself now: CampYard, off to the side.)
+	var order := ["holdout", "guard_door", "darkfriend_door", "endless_door", "team_battle", "dream_spar"]
 	ids.sort_custom(func(x: String, y: String) -> bool: return (order.find(x) if order.has(x) else 50) < (order.find(y) if order.has(y) else 50))
 	var open := Rules.available(profile)
 	for i in ids.size():
@@ -613,6 +739,7 @@ func _select(name_: String, sync := true) -> void:
 	model.set_meta("held", held)
 	_doors()
 	tree.profile = profile
+	_yard_for(profile)
 	_sheet()
 
 ## The left column: who you are, what you own, and what you take into a fight.
@@ -741,7 +868,7 @@ func _loadout() -> void:
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
 		_section(menu_box, "Weaves (up to %d besides %s)" % [Profile.WEAVE_SLOTS, Rules.weaves[profile.starter].name])
 		var wv := {}
-		for w in profile.get("weaves_owned", []).filter(func(x: String) -> bool: return Rules.weaves.has(x) and Rules.weaves[x].book <= int(profile.get("book_limit", 14))):
+		for w in profile.get("weaves_owned", []).filter(func(x: String) -> bool: return Rules.weaves.has(x) and Rules.book_of(x, profile) <= int(profile.get("book_limit", 14))):
 			wv[w] = _check(menu_box, Rules.weaves[w].name, profile.weaves.has(w))
 		if wv.is_empty():
 			_text(menu_box, "None yet: a win can bring one.", 13, Color(0.66, 0.67, 0.72))
@@ -1169,6 +1296,9 @@ func _menu_fill() -> void:
 			if not Launch.dev() and not profile.is_empty():
 				profile.book_limit = Settings.book_limit(); Profile.save(profile)
 			_menu_fill())
+	_section(menu_box, "What's new")
+	var news := VBoxContainer.new(); menu_box.add_child(news)
+	Changelog.build(news, 340.0)
 	if not profile.is_empty():
 		_section(menu_box, "Characters")
 		for n in _saved():

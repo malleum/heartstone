@@ -169,6 +169,14 @@ static func _json(path: String) -> Dictionary:
 	return d
 
 ## Flows of a weave for this character (gateways differ for saidin and saidar).
+## The book a weave is first seen in, for this character: a man's version may come
+## later than a woman's (Simple Healing: book 3 for saidar, book 8 for saidin).
+static func book_of(id: String, p: Dictionary) -> int:
+	var w: Dictionary = weaves.get(id, {})
+	if p.get("power", "saidar") == "saidin" and w.has("book_saidin"):
+		return int(w.book_saidin)
+	return int(w.get("book", 1))
+
 static func flows_of(w: Dictionary, p: Dictionary) -> Dictionary:
 	if p.power == "saidin" and w.has("flows_saidin"):
 		return w.flows_saidin
@@ -246,7 +254,7 @@ static func cast_block(p: Dictionary, weave_id: String, free_slots: int, stamina
 	if not p.weaves.get(weave_id, {}).get("known", false):
 		return "not learned"
 	# The weave you were born knowing is never hidden by the spoiler setting.
-	if w.book > p.book_limit and p.get("starter", "") != weave_id:
+	if book_of(weave_id, p) > p.book_limit and p.get("starter", "") != weave_id:
 		return "beyond your reading"
 	# A strength gate is written as a Companion level; the Talent for the weave
 	# waives it (Androl makes gateways his strength should not allow).
@@ -603,7 +611,7 @@ static func study_options(p: Dictionary) -> Array:
 				out.append(w)
 		return out
 	for id in weaves:
-		if p.weaves.get(id, {}).get("known", false) or weaves[id].book > p.book_limit:
+		if p.weaves.get(id, {}).get("known", false) or book_of(id, p) > p.book_limit:
 			continue
 		if missing_for(p, id).is_empty():
 			out.append(id)

@@ -2092,6 +2092,57 @@ func _ground_and_water() -> void:
 			ws.step(1.0 / 30.0)
 			if Map.water_depth(tr.pos.x, tr.pos.z) > 0: wet = true
 		check(wet == driven, ("driven by a Myrddraal, a Trolloc wades the stream" if driven else "a Trolloc balks at a stream it could wade"))
+	# Balefire waits on the first weave of every Power; a man's Healing is his own.
+	var bw := Profile.create({name = "Bale Seeker"})
+	for wid in ["lightning", "blossoms_of_fire", "healing", "fireball", "hammer_of_air", "water_lash", "blade_of_spirit"]:
+		bw.weaves[wid] = {known = true, xp = 0.0}
+	check(Rules.missing_for(bw, "balefire") == ["heave_the_ground"], "Balefire still waits on Heave the Ground (%s)" % [Rules.missing_for(bw, "balefire")])
+	var mh := Profile.create({name = "Man Healer", power = "saidin"})
+	check(Rules.flows_of(Rules.weaves.healing, mh).has("fire") and Rules.flows_of(Rules.weaves.healing, mh).has("earth") and not Rules.flows_of(Rules.weaves.healing, mh).has("water"), "a man heals with Spirit, Fire and Earth")
+	mh.book_limit = 5
+	var wh := Profile.create({name = "Woman Healer"}); wh.book_limit = 5
+	check(Rules.book_of("healing", mh) == 8 and Rules.book_of("healing", wh) == 3, "a man's Healing comes in book 8, a woman's in book 3")
+	# What stands about answers: a torch knocked flat and put out by Air, a wagon shoved,
+	# set alight and burnt down.
+	var ev := Sim.new("tarwins_gap_night", 5)
+	ev._waves = [{t = 999.0, spawn = {}}]
+	var ti := -1
+	for i in Map.trees().size():
+		if Map.trees()[i].get("prop", "") == "torch":
+			ti = i; break
+	var torch: Dictionary = Map.trees()[ti]
+	Env.hit(ev, Vector3(torch.x + 1.0, 0, torch.z), 2.5, "air", Vector3(-1, 0, 0))
+	check(torch.get("fallen", false) and torch.get("out", false), "a blow of Air knocks a torch flat and puts it out")
+	var tx: float = torch.x
+	Env.hit(ev, Vector3(torch.x + 1.0, 0, torch.z), 2.5, "air", Vector3(-1, 0, 0))
+	check(torch.x < tx - 1.0, "and shoves it along the ground")
+	Env.hit(ev, Vector3(torch.x, 0, torch.z), 1.5, "fire")
+	check(not torch.get("out", true), "Fire lights a torch again, fallen or not")
+	var wr := Sim.new("wagon_ring", 6)
+	wr._waves = [{t = 999.0, spawn = {}}]
+	var wag: Dictionary = {}
+	for w in Map.walls():
+		if w.look == "wagon": wag = w; break
+	var wx: float = wag.x; var wz: float = wag.z
+	Env.hit(wr, Vector3(wag.x, 0, wag.z) - Vector3(wag.x, 0, wag.z).normalized() * 2.0, 3.0, "air", Vector3(wag.x, 0, wag.z).normalized())
+	check(Vector2(wag.x - wx, wag.z - wz).length() > 0.5, "Air shoves a wagon")
+	Env.hit(wr, Vector3(wag.x, 0, wag.z), 2.0, "fire")
+	check(wag.has("burn_until"), "Fire sets it alight")
+	var wid: int = wag.wid
+	for i in int(Env.WAGON_BURN * 10) + 10: wr.step(0.1)
+	check(Map.walls().filter(func(w: Dictionary) -> bool: return int(w.wid) == wid).is_empty(), "and it burns down")
+	# Waves grow for a stronger channeller, and for each player, and never shrink back.
+	var th := Sim.new("holdout@tarwins_day", 3)
+	var a1 := th.add_player(Profile.create({name = "Strong One"}))
+	th.ents[a1].profile.potential = Rules.strength_of(Round.POT_MEAN)
+	var k0 := th.threat()
+	th.ents[a1].profile.potential = Rules.strength_of(Round.POT_MEAN - 12.0)
+	var k1 := th.threat()
+	th.ents[a1].profile.potential = Rules.strength_of(Round.POT_MEAN + 10.0)
+	var k2 := th.threat()
+	th.add_player(Profile.create({name = "Late Friend"}))
+	var k3 := th.threat()
+	check(absf(k0 - 1.0) < 0.01 and k1 > 1.3 and is_equal_approx(k2, k1) and k3 > k2 * 1.2, "waves: harder for a strong potential (%.2f), not easier when it falls (%.2f), harder again for a late friend (%.2f)" % [k1, k2, k3])
 	# Stuck behind something broad: it finds the way round.
 	var st := Sim.new("practice", 8)
 	st._waves = [{t = 999.0, spawn = {}}]

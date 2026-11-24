@@ -48,6 +48,10 @@ const SCRIPTS := {
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
 		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y], [320, "tap", KEY_I]],
+	# The camp's yard: take the mouse, strike or weave at a post, roll, again.
+	yard = [[30, "mouse", MOUSE_BUTTON_LEFT, true], [31, "mouse", MOUSE_BUTTON_LEFT, false], [45, "tap", KEY_3],
+		[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],
+		[150, "tap", KEY_SPACE], [200, "mouse", MOUSE_BUTTON_LEFT, true], [201, "mouse", MOUSE_BUTTON_LEFT, false]],
 	# The camp: hide and show the sheet, open and close the menu, walk at a doorway.
 	camp = [[30, "tap", KEY_H], [60, "tap", KEY_H], [100, "tap", KEY_ESCAPE], [140, "tap", KEY_ESCAPE],
 		[180, "key", KEY_W, true], [520, "key", KEY_W, false]],

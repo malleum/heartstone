@@ -25,6 +25,7 @@
   "short_watch": {"map": "tarwins_gap", "hidden": true, "name": "Tarwin's Gap: a short watch (tests)", "kind": "holdout", "blurb": "Three waves and done: the old watch, kept for the tests and the tour.",
     "requires": {}, "renown": 10, "teaches": [], "grants": ["tie_off"], "shows": ["dome_of_air", "bonds_of_air", "arrows_of_fire", "lightning"], "yield": {"strength": 1.0, "mastery": 1.0},
     "waves": [{"t": 2, "spawn": {"trolloc": 8}}, {"t": 30, "spawn": {"trolloc": 14}}, {"t": 65, "spawn": {"trolloc": 18, "trolloc_brute": 1}}]},
+  "camp_yard": {"name": "The camp's yard", "hidden": true, "kind": "training", "bare_ground": true, "blurb": "Practice posts beside the doorways: weave, strike and roll at them in the camp itself.", "requires": {}, "renown": 0, "teaches": [], "yield": {"strength": 0.5, "mastery": 1.0}, "waves": []},
   "practice": {"name": "Practice ground (tests)", "hidden": true, "kind": "training", "blurb": "The training yard without its rolls: a fixed sandbox for the rules tests.",
     "requires": {}, "renown": 0, "teaches": [], "yield": {"strength": 0.5, "mastery": 1.0}, "waves": [{"t": 0, "spawn": {"dummy": 6}}]},
   "dream_spar": {"name": "Sparring in Tel'aran'rhiod", "kind": "spar", "dream": true, "blurb": "Duel a friend in the World of Dreams. Nothing here can truly harm you.",

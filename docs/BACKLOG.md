@@ -599,6 +599,15 @@ are what the 4:44 review, or the next session, should pick up.
       side), circles shrink with the step, side-by-side steps take less room.
 
 ## From 24 Nov
+- [x] Hitboxes checked on every map with --hitboxes (stations fixed); maps bigger and closed by
+      cliffs (a palisade round the camp); ledges, ramps and the Watch Hill; Trollocs hate water;
+      stuck enemies go round; first person head shadow and body; things react to fighting (Env);
+      waves scale with potential and party; hotbar on the tree pages; What's new; the sheet's
+      faded corner. PLAYTEST 103-110.
+- [x] The camp as the training yard (CampYard): posts west of the doorways, weaves, rolls and
+      blows in the camp (a sim of your own: no friendly fire), the training doorway gone. Not yet:
+      parry, forms and Shift-sprint rolls there; friends do not see your yard blows.
+- [ ] Env state is not sent to someone who joins a fight late (they see torches standing).
 - [x] Versions of the server and every player in the Esc menu (PLAYTEST 96).
 - [x] Dream duel: two friends could not walk in one after the other, it ended at once
       (PLAYTEST 97).

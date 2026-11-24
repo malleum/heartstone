@@ -100,10 +100,18 @@ func _main() -> void:
 		_show_all(false))
 	_row("Keys", _keys)
 	_row("Sound", _sound)
+	_row("What's new", _whats_new)
 	_row("Back to the camp", func() -> void:
 		close()
 		g._to_camp())
 	_row("Quit the game", func() -> void: get_tree().quit())
+
+## What changed in the last few versions, each opening to its bullet points.
+func _whats_new() -> void:
+	_clear()
+	_title("What's new")
+	_row("Back", _main)
+	Changelog.build(box)
 
 func _keys() -> void:
 	_clear()

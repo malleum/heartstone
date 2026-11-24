@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 command -v godot >/dev/null || exec nix develop -c "$0" "$@"
 mkdir -p assets/postcards
 # setup name  activity  camera yaw (deg)  pitch (deg)
-ALL="tarwins_day:holdout@tarwins_day:20:-6 tarwins_night:holdout@tarwins_night:20:-6 wagon_ring:holdout@wagon_ring:0:-8 wild_hunt:holdout@wild_hunt:0:-6 camp_training:camp_training:0:-8 dream_spar:dream_spar:0:-6 team_battle:team_battle:0:-6"
+ALL="tarwins_day:holdout@tarwins_day:20:-6 tarwins_night:holdout@tarwins_night:20:-6 wagon_ring:holdout@wagon_ring:0:-8 wild_hunt:holdout@wild_hunt:0:-6 watch_hill:holdout@watch_hill:0:-6 camp_training:camp_training:0:-8 dream_spar:dream_spar:0:-6 team_battle:team_battle:0:-6"
 want=("$@")
 for row in $ALL; do
 	IFS=: read -r name act yaw pitch <<<"$row"

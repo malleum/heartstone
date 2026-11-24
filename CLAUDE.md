@@ -119,6 +119,18 @@ working on abilities; the user's rulings there are final).
   camps report theirs to the server, which lists each player's in the lobby.
 - The server proves the word first (`Session._challenge` / `_vouch`, on the client's own
   number) before a client sends its proof, profile or character.
+- Maps (`Map`): `corridor()` or round (`radius()`), `bound_dist`, `extents`, `ridge` (cliffs past the
+  edge) and `rise` (ledges, added flat in `Terrain.dry`); `Map.walk` is how everything moves (not up
+  a cliff unless a jump's `lift`); the path grid marks walls, trunks, cliff edges and water (2 =
+  shallow). `--hitboxes` draws what the sim collides with. New map: a row in `Map.MAPS` and a setup
+  in `data/activities.json` `_setups` (and `tools/postcards.sh`).
+- `src/core/env.gd`: props and wagons react to weaves (events prop_fall/move/out/lit/burn/gone,
+  wall_move/burn/gone; view in `game.gd` `_env_event`; props drawn in `prop_<index>` nodes).
+- `Sim.threat()`: round waves scaled by the strongest potential and the largest party seen.
+- The bar is `Profile.bar(p)` (hotbar order, `bar_auto`, `bar_seen`); the camp's tree pages edit it.
+- The camp's yard: `src/game/campyard.gd` (a Sim of the player and six posts, activity `camp_yard`,
+  stepped by camp.gd; Map state kept as the camp's); `--ghost=yard` tests it.
+- What's new: `data/changelog.json` (add the release's points when tagging), shown by `Changelog.build`.
 - Forms are not on the bar (`known`): `my_forms`, shown for the weapon in hand beside it
   (`hud.gd` `_form_icon`), Z/X/R then Shift+number (`game.gd` `_use_form`). Beams, lashes and
   cones are pitched by the aim (`Sim.aim_pitch`, `_reach_to_ground`, `_at_height`).

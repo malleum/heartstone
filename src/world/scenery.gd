@@ -321,28 +321,33 @@ static func props(g: Node3D) -> void:
 	for ti in trees.size():
 		var t: Dictionary = trees[ti]
 		var at := _ground(t.x, t.z)
+		if t.get("gone", false):
+			continue
+		# Each prop in a node of its own ("prop_<index>"), so what a fight does to it (a
+		# torch knocked flat, a crate shoved or burnt) can be shown on it alone (Env).
+		var pn := Node3D.new(); pn.name = "prop_%d" % ti; g.add_child(pn)
 		match t.get("prop", ""):
 			"fire":
 				# In a node of its own, so a weave that puts it out can take its flame.
 				var fn := Node3D.new(); fn.name = "propfire_%d" % ti; g.add_child(fn)
 				fire(fn, at)
-			"torch": torch(g, at)
+			"torch": torch(pn, at)
 			"crate":
-				crate(g, at, rng); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw
+				crate(pn, at, rng); pn.get_child(pn.get_child_count() - 1).rotation.y = t.yaw
 			"barrel":
-				barrel(g, at, rng, t.get("lying", false)); g.get_child(g.get_child_count() - 1).rotation.y = t.yaw
-			"sacks": sacks(g, at, rng, t.get("count", 3))
-			"armoury", "tailor", "study": station(g, at, t.prop, t.yaw)
-			"bale": bale(g, at, t.yaw)
+				barrel(pn, at, rng, t.get("lying", false)); pn.get_child(pn.get_child_count() - 1).rotation.y = t.yaw
+			"sacks": sacks(pn, at, rng, t.get("count", 3))
+			"armoury", "tailor", "study": station(pn, at, t.prop, t.yaw)
+			"bale": bale(pn, at, t.yaw)
 			"stake":
 				# Driven in at the near end, leaning out at whatever comes.
-				_box(g, Vector3(0.09, 2.0, 0.09), at + Vector3(0, 0.6, 0), wood, Vector3(-0.85, t.yaw, 0))
+				_box(pn, Vector3(0.09, 2.0, 0.09), at + Vector3(0, 0.6, 0), wood, Vector3(-0.85, t.yaw, 0))
 			"banner", "banner_camp":
 				var hgt: float = t.h
-				_box(g, Vector3(0.1, hgt, 0.1), at + Vector3(0, hgt * 0.5, 0), wood)
+				_box(pn, Vector3(0.1, hgt, 0.1), at + Vector3(0, hgt * 0.5, 0), wood)
 				# The cloth streams downwind from the pole and waves in it.
 				var wv := Wind.way("camp" if t.prop == "banner_camp" else Map.id)
-				var fl := Node3D.new(); g.add_child(fl)
+				var fl := Node3D.new(); pn.add_child(fl)
 				fl.position = at + Vector3(0, hgt - 1.0, 0)
 				fl.rotation.y = atan2(wv.x, wv.z) - PI * 0.5
 				var q := QuadMesh.new(); q.size = Vector2(1.3, 1.6); q.subdivide_width = 10; q.subdivide_depth = 4

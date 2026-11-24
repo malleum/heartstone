@@ -268,6 +268,36 @@ const AFF_BASE := 5          # affinity room with both Talent slots filled
 const TALENT_SLOTS := 2
 const WEAVE_SLOTS := 3       # weaves beyond the starting one, per game
 const WEAPON_SLOTS := 3
+## What may go on the bar: weaves known (within the books read), the weapons carried,
+## the forms known.
+static func bar_usable(p: Dictionary) -> Array:
+	var out := []
+	for w in p.get("weaves", {}):
+		if p.weaves[w].get("known", false) and (not Rules.weaves.has(w) or Rules.book_of(w, p) <= int(p.get("book_limit", 14)) or p.get("starter", "") == w):
+			out.append(w)
+	out.append_array(p.get("kit", []))
+	for f in p.get("forms", {}):
+		if Rules.forms.has(f) and not out.has(f):
+			out.append(f)
+	return out
+
+## The bar, in the player's order: what they put there, still usable; with `bar_auto`
+## (on unless turned off) anything new is added once, at the end. Something taken off
+## stays off (it is remembered in bar_seen).
+static func bar(p: Dictionary) -> Array:
+	var usable := bar_usable(p)
+	var hb: Array = p.get("hotbar", []).filter(func(x) -> bool: return x is String and usable.has(x))
+	if p.get("bar_auto", true):
+		var seen: Array = p.get("bar_seen", [])
+		for x in usable:
+			if not seen.has(x):
+				seen.append(x)
+				if not hb.has(x):
+					hb.append(x)
+		p.bar_seen = seen
+	p.hotbar = hb
+	return hb
+
 const FORM_SLOTS := 3
 const FIGHTER_POINTS := 6    # weapon 1, form 2, stat 1 (at most 2 in stats)
 
