@@ -79,11 +79,11 @@ Generated from `src/game/launch.gd` by `tools/tourdoc.py`.
 
 | # | Station | Test | Notes |
 |---|---|---|---|
-| 48 | Sword forms, first four | Keys 2-5: Parting the Silk, the Boar Rushes, Apple Blossoms, Heron Wading. | Each has its own path, streak and colour; Heron Wading is on one foot. Each has a cooldown. |
-| 49 | Sword forms, last four | Keys 6-9: the Swallow, the Courtier's Fan, Arc of the Moon, Sheathing the Sword. |  |
+| 48 | Sword forms, first four | Forms are the row beside the bar (the sword in hand): Z, X, then Shift 3 and 4 (R is the tour's): Parting the Silk, the Boar Rushes, Apple Blossoms, Heron Wading. | Each has its own path, streak and colour; Heron Wading is on one foot. Each has a cooldown. |
+| 49 | Sword forms, last four | Shift 5 to 8: the Swallow, the Courtier's Fan, Arc of the Moon, Sheathing the Sword. |  |
 | 50 | Spear forms | The Dance of Spears (three thrusts) and Set Against the Charge. |  |
 | 51 | Whirling Staff, Hew, Flurry | Staff, axe and knife (paired daggers) forms. | Flurry is four quick wounds. |
-| 52 | Bow forms | With the longbow in hand: Snap Shot (no draw), Two on the String, Through the Line (wait till they line up), Hail of Shafts, the Heart Shot. | Through the Line should go through two or three in a row; the Heart Shot knocks one back. |
+| 52 | Bow forms | Longbow in hand, forms beside the bar (Z, X, Shift 3-6): Snap Shot (no draw), Two on the String, Through the Line (wait till they line up), Fire Arrow (bursts and burns), Hail of Shafts, the Heart Shot. | Through the Line should go through two or three in a row; the Heart Shot knocks one back. |
 | 53 | Thrown forms | Throwing knives: Flick of the Wrist, a Fan of Steel (five at once), Hard and Low, the Gleeman's Juggle. Gather them up again after. | The fan should spread across a rank; the juggle stops when the knives run out. |
 
 ## Callings

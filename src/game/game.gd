@@ -39,6 +39,10 @@ var hud: Hud
 var hurt_t := 0.0              # 1 when just struck, fading: the HUD reddens the edges
 var banner: Label
 var known: Array = []
+var my_forms: Array = []         # forms known, in order (only the hand's weapon's are shown)
+var pending_form := ""           # a form asked for before its weapon was in hand
+var pending_until := 0.0
+const FORM_KEYS := [KEY_Z, KEY_X, KEY_R]
 var last_refusal := ""
 var refusal_t := 0.0
 var my_hp := 100.0
@@ -127,7 +131,10 @@ func _ready() -> void:
 				if profile.kit.any(func(w: String) -> bool: return Rules.weapons[w].family == Rules.forms[f].family):
 					profile.forms[f] = {known = true}
 	# The bar holds what you can do with your hands: weaves, then what you carry.
-	known = profile.weaves.keys().filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= int(profile.get("book_limit", 14)) or profile.get("starter", "") == w) + profile.get("kit", []) + profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
+	known = profile.weaves.keys().filter(func(w: String) -> bool: return not Rules.weaves.has(w) or Rules.weaves[w].book <= int(profile.get("book_limit", 14)) or profile.get("starter", "") == w) + profile.get("kit", [])
+	# Forms are not things in the hand: they are what is done with the weapon in it,
+	# on a row of their own over the bar (Z, X, R; Shift and a number past those).
+	my_forms = profile.get("forms", {}).keys().filter(func(f: String) -> bool: return Rules.forms.has(f))
 	# The order the player chose in the camp's loadout, if any.
 	var order: Array = profile.get("hotbar", [])
 	if not order.is_empty():
@@ -333,8 +340,19 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif ev.physical_keycode == Keys.k(KEY_F) and _armed() and me:
 			session.attack("throw", _aim_point())
 			_face(_aim_point())
+		var fi := -1
+		for k in FORM_KEYS.size():
+			if ev.physical_keycode == Keys.k(FORM_KEYS[k]):
+				fi = k
 		var n: int = Keys.slot_of(ev.physical_keycode)
-		if n >= 0 and n < known.size():
+		if ev.shift_pressed and n >= 0:
+			fi = n
+			n = -1
+		if fi >= 0 and me:
+			var hf := _hand_forms()
+			if fi < hf.size():
+				_use_form(hf[fi])
+		elif n >= 0 and n < known.size():
 			_select(n)
 	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode == Keys.k(KEY_K):
 		session.tie_rope(false)
@@ -403,7 +421,34 @@ func hand() -> String:
 	var w: String = actors[session.my_id].get("weapon", "") if actors.has(session.my_id) else ""
 	return w if Rules.weapons.has(w) else ""
 
-## The form chosen on the bar, or "".
+## The forms that go with the weapon in hand (or, with empty hands, with the
+## weapon chosen last): what the row over the bar shows, in order.
+func _hand_forms() -> Array:
+	var w := hand()
+	if w == "" and selected < known.size() and Rules.weapons.has(known[selected]):
+		w = known[selected]
+	if w == "":
+		return []
+	var fam: String = Rules.weapons[w].family
+	return my_forms.filter(func(f: String) -> bool: return Rules.forms[f].family == fam)
+
+## Do a form now, with the weapon in hand; with another in hand, take up one of the
+## form's kind first and do it as soon as it is there.
+func _use_form(id: String) -> void:
+	if ready_at.get(id, 0.0) > clock:
+		last_refusal = "%s: not ready" % Rules.forms[id].name; refusal_t = 1.2
+		return
+	if hand() != "" and Rules.weapons[hand()].family == Rules.forms[id].family:
+		session.attack("form:" + id, _aim_point())
+		_face(_aim_point())
+		return
+	for i in known.size():
+		if Rules.weapons.has(known[i]) and Rules.weapons[known[i]].family == Rules.forms[id].family:
+			_select(i)
+			pending_form = id; pending_until = clock + 1.5
+			return
+
+## The form chosen on the bar, or "" (forms have their own row now; kept for old paths).
 func _form() -> String:
 	return known[selected] if selected < known.size() and Rules.forms.has(known[selected]) else ""
 
@@ -704,6 +749,13 @@ func _frame_body(dt: float) -> void:
 	refusal_t -= dt
 	if session.my_id == 0:
 		return
+	if pending_form != "":
+		if clock > pending_until:
+			pending_form = ""
+		elif hand() != "" and Rules.weapons[hand()].family == Rules.forms[pending_form].family:
+			var pf := pending_form
+			pending_form = ""
+			_use_form(pf)
 	if _ally != 0 and session.sim.ents.has(_ally):
 		Bot.dream(session.sim, _ally)
 		Bot.drive(session.sim, _ally)
@@ -1027,6 +1079,9 @@ func _on_started(_my_id: int, activity: String) -> void:
 	await Scenery.scatter(self, spread)
 	_stamp("grass and stones")
 	_world_ready = true
+	# --hitboxes: what the sim collides with, over what is drawn.
+	if args.has("hitboxes"):
+		Hitboxes.draw(self)
 	if _pending_gate != null and is_instance_valid(_pending_gate):
 		_portal_side(_pending_gate)
 	dreaming = Rules.activities[activity].get("dream", false)
@@ -1309,8 +1364,10 @@ func _round_picked(e: Dictionary) -> void:
 		Round.pick(mirror, e.kind, e.choice)
 	if not mirror.is_empty():
 		mirror.round.picks = e.picks
-	# New arms and forms go on the bar.
-	if e.kind in ["weapon", "form", "learn"] and not known.has(e.choice):
+	# New arms go on the bar, new forms on their row.
+	if e.kind == "form" and not my_forms.has(e.choice):
+		my_forms.append(e.choice)
+	elif e.kind in ["weapon", "learn"] and not known.has(e.choice) and not Rules.forms.has(e.choice):
 		known.append(e.choice)
 		if e.kind == "weapon":
 			var row: Dictionary = Rules.weapons[e.choice]
@@ -1869,7 +1926,7 @@ func _on_events(list: Array) -> void:
 						if _hinted or args.has("tour"):
 							pass
 						elif not profile.get("kit", []).is_empty():
-							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand   F5: first person" % [Keys.name(KEY_V), Keys.name(KEY_F)], 9.0)
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand   %s %s %s: forms   F5: first person" % [Keys.name(KEY_V), Keys.name(KEY_F), Keys.name(KEY_Z), Keys.name(KEY_X), Keys.name(KEY_R)], 9.0)
 						elif not known.is_empty():
 							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll   F5: first person" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
 						_hinted = true
@@ -2759,6 +2816,8 @@ func _on_snapshot(s: Dictionary) -> void:
 		n.set_meta("flown", true)
 		if n.has_method("set_r"):
 			n.call("set_r", f[4], f[7] if f.size() > 7 else 0.0)
+		if n.has_method("set_pitch") and f.size() > 9:
+			n.call("set_pitch", f[9])
 
 ## Show what the sim says has happened to someone: 1 burning, 2 down, 4 stunned,
 ## 8 thrown.

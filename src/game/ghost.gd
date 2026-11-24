@@ -22,7 +22,7 @@ const SCRIPTS := {
 		[540, "key", KEY_CTRL, true], [560, "mouse", MOUSE_BUTTON_LEFT, true], [562, "mouse", MOUSE_BUTTON_LEFT, false], [600, "key", KEY_CTRL, false],
 		[630, "tap", KEY_2], [660, "mouse", MOUSE_BUTTON_LEFT, true], [720, "mouse", MOUSE_BUTTON_LEFT, false],
 		[760, "tap", KEY_3], [790, "tap", KEY_F],
-		[830, "tap", KEY_4], [850, "mouse", MOUSE_BUTTON_LEFT, true], [852, "mouse", MOUSE_BUTTON_LEFT, false],
+		[830, "tap", KEY_1], [850, "tap", KEY_Z],
 		[900, "tap", KEY_1]],
 	# A channeller: throw fire, raise the dome, bind, tie off, let go.
 	weaves = [[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],

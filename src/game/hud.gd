@@ -381,6 +381,49 @@ func _draw_all() -> void:
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
 				Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+		# The forms of the weapon in hand: a row of their own beside the bar, not things
+		# to hold. Each is drawn as the path it cuts, in its colour; Z, X, R, then Shift
+		# and a number.
+		var hf: Array = g._hand_forms()
+		if not hf.is_empty():
+			var fx0 := x0 + gap * (n - 1) + maxf(gap, 60.0) + 24.0
+			var fgap := 62.0
+			var fy := y
+			var fam: String = Rules.forms[hf[0]].family
+			draw_line(Vector2(fx0 - 34.0, fy - 26.0), Vector2(fx0 - 34.0, fy + 26.0), Color(Glyph.GOLD, 0.35), 1.2)
+			Glyph.text(self, sans, Vector2(fx0 - 26.0, fy - 46.0), "Forms · %s" % fam.capitalize(), 11, Color(Glyph.GOLD, 0.75), -1)
+			for i in hf.size():
+				var fid: String = hf[i]
+				var fr: Dictionary = Rules.forms[fid]
+				var c := Vector2(fx0 + i * fgap, fy)
+				var wait: float = g.ready_at.get(fid, 0.0) - g.clock
+				var ok := wait <= 0.0
+				var tint: Color = Color(fr.tint[0], fr.tint[1], fr.tint[2]) if fr.has("tint") else Glyph.GOLD
+				draw_circle(c, 23.0, Color(0.05, 0.04, 0.03, 0.55))
+				draw_arc(c, 23.0, 0, TAU, 36, Color(tint, 0.85 if ok else 0.3), 1.6, true)
+				_form_icon(c, 15.0, fr, Color(tint.lerp(Color.WHITE, 0.25), 1.0 if ok else 0.35))
+				if not ok:
+					var total := maxf(float(fr.cooldown), 0.01)
+					var pts := PackedVector2Array([c])
+					var frac := clampf(wait / total, 0.0, 1.0)
+					for k in 25:
+						pts.append(c + Vector2(0, -23.0).rotated(TAU * frac * k / 24.0))
+					if frac > 0.02:
+						draw_colored_polygon(pts, Color(0, 0, 0, 0.55))
+					Glyph.text(self, sans, c + Vector2(0, 5), "%.0f" % ceilf(wait), 13, Color.WHITE, 0)
+				var key := ""
+				if i < g.FORM_KEYS.size():
+					key = Keys.name(g.FORM_KEYS[i])
+				elif i < 9:
+					key = "⇧" + Keys.name(KEY_1 + i)
+				Glyph.text(self, sans, c + Vector2(0, -30), key, 12, Color(0.95, 0.9, 0.7) if ok else Color(0.55, 0.55, 0.6), 0)
+				var nm: String = fr.name
+				if nm.begins_with("The "):
+					nm = nm.substr(4)
+				if nm.length() > 16:
+					nm = nm.left(15) + "…"
+				# Every other name a line lower, so neighbours' names do not run together.
+				Glyph.text(self, sans, c + Vector2(0, 37 + (12 if i % 2 == 1 else 0)), nm, 10, Color(0.85, 0.85, 0.9, 0.9 if ok else 0.45), 0)
 		if not g.my_kept.is_empty():
 			# What is kept, and how to have it.
 			var kw: Dictionary = Rules.weaves.get(g.my_kept.weave, {})
@@ -584,3 +627,59 @@ func _point_at(at: Vector3, col: Color, r: float, W: float, H: float, sc: float)
 	var sd := Vector2(-d.y, d.x)
 	draw_colored_polygon(PackedVector2Array([tip, e + d * (r + 3.0) + sd * 5.0, e + d * (r + 3.0) - sd * 5.0]), col)
 	Glyph.text(self, Glyph.sans(), e - d * (r + 16.0) + Vector2(-10, 4), "%d m" % int(dist), 11, Color(col, 0.8))
+
+## A form's mark: the path it cuts (its trail), or for a missile form the shots it
+## looses (a fan, one through a rank, a fire arrow); dots under it for each blow of a
+## flurry.
+func _form_icon(c: Vector2, r: float, f: Dictionary, col: Color) -> void:
+	var w := maxf(r * 0.16, 1.6)
+	var arrow := func(a: Vector2, b: Vector2) -> void:
+		draw_line(a, b, col, w, true)
+		var d := (b - a).normalized()
+		draw_line(b, b - d.rotated(0.5) * r * 0.38, col, w, true)
+		draw_line(b, b - d.rotated(-0.5) * r * 0.38, col, w, true)
+	if f.get("missile", false):
+		var n := int(f.get("count", 1))
+		var spread := deg_to_rad(float(f.get("spread", 0.0))) * 1.6 + (0.5 if n > 1 else 0.0)
+		for i in n:
+			var a := -PI * 0.25 + (spread * ((i + 0.5) / n - 0.5) if n > 1 else 0.0)
+			var dir := Vector2(cos(a), sin(a))
+			arrow.call(c - dir * r * 0.85, c + dir * r * 0.85)
+		if int(f.get("pierce", 0)) > 0:
+			for k in mini(int(f.pierce), 3):
+				var at := c + Vector2(r * 0.15 + k * r * 0.3, -r * 0.15 - k * r * 0.3)
+				draw_line(at + Vector2(-r * 0.25, -r * 0.25), at + Vector2(r * 0.25, r * 0.25), col, w * 0.8, true)
+		if f.get("lit", false):
+			var tip := c + Vector2(r * 0.6, -r * 0.6)
+			draw_circle(tip, r * 0.3, Color(1.0, 0.55, 0.15, col.a))
+			draw_circle(tip + Vector2(0, -r * 0.12), r * 0.16, Color(1.0, 0.9, 0.5, col.a))
+	else:
+		match String(f.get("trail", "arc")):
+			"lance":
+				arrow.call(c + Vector2(-r, r) * 0.7, c + Vector2(r, -r) * 0.75)
+			"down":
+				arrow.call(c + Vector2(0.15, -1.0) * r, c + Vector2(-0.1, 0.9) * r)
+			"low":
+				draw_arc(c + Vector2(0, -r * 0.35), r * 0.95, 0.35, PI - 0.35, 20, col, w, true)
+			"wide":
+				draw_arc(c + Vector2(0, r * 0.7), r * 1.25, -PI + 0.55, -0.55, 24, col, w, true)
+			"ring":
+				draw_arc(c, r * 0.75, 0.4, TAU - 0.2, 28, col, w, true)
+				arrow.call(c + Vector2(r * 0.75, 0).rotated(TAU - 0.6), c + Vector2(r * 0.75, 0).rotated(TAU - 0.15))
+			"cross":
+				draw_line(c + Vector2(-r, -r) * 0.7, c + Vector2(r, r) * 0.7, col, w, true)
+				draw_line(c + Vector2(r, -r) * 0.7, c + Vector2(-r, r) * 0.7, col, w, true)
+			"fan":
+				for k in 3:
+					var a := -PI * 0.5 + (k - 1) * 0.55
+					draw_line(c + Vector2(0, r * 0.8), c + Vector2(0, r * 0.8) + Vector2(cos(a), sin(a)) * r * 1.5, col, w, true)
+			_:
+				draw_arc(c, r * 0.8, -PI + 0.5, -0.4, 22, col, w, true)
+				var tip := c + Vector2(r * 0.8, 0).rotated(-0.4)
+				draw_line(tip, tip + Vector2(-r * 0.35, -r * 0.1), col, w, true)
+	var reps := int(f.get("repeat", 1))
+	if reps > 1:
+		for k in mini(reps, 6):
+			draw_circle(c + Vector2((k - (mini(reps, 6) - 1) * 0.5) * r * 0.32, r * 1.05), r * 0.08, col)
+	if float(f.get("spin", 0.0)) > 0.0 and String(f.get("trail", "")) != "ring":
+		draw_arc(c, r * 1.1, -0.3, 1.4, 12, Color(col, col.a * 0.6), w * 0.6, true)

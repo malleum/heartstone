@@ -604,5 +604,7 @@ are what the 4:44 review, or the next session, should pick up.
       (PLAYTEST 97).
 - [x] The server proves it is the real one (PLAYTEST 98).
 - [x] `tools/ghost.sh` place waits for the game (ready, marked) instead of fixed frames.
+- [x] Fire Arrow bow form; forms on a row of their own beside the bar, drawn as what they
+      do, used with the weapon in hand (PLAYTEST 100, 101); weaves aimed up and down (102).
 - [x] Written strokes for the twenty forms that had none (PLAYTEST 99). Still stand-ins: the
       legs (the pack's clips), and the bow forms use the plain loose and throw clips.

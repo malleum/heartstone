@@ -434,9 +434,11 @@ static func tent(g: Node3D, at: Vector3, yaw: float, rng: RandomNumberGenerator,
 	var wood := _mat(Color(0.22, 0.15, 0.09))
 	for sz: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.07, 2.1 * k, 0.07), Vector3(0, 1.05 * k, sz * 1.72 * k), wood)
-		# Guy ropes to pegs.
+		# Guy ropes from the pole top down and out to pegs (the top leans in, over
+		# the ridge; it used to lean out, the rope upside down).
 		for sx: float in [-1.0, 1.0]:
-			_box(n, Vector3(0.02, 2.3 * k, 0.02), Vector3(sx * 0.95 * k, 0.95 * k, sz * 2.1 * k), _mat(Color(0.5, 0.44, 0.3)), Vector3(sz * -0.42, 0, sx * -0.85))
+			_box(n, Vector3(0.02, 2.9 * k, 0.02), Vector3(sx * 0.95 * k, 1.05 * k, sz * 2.1 * k), _mat(Color(0.5, 0.44, 0.3)), Vector3(sz * -0.25, 0, sx * 0.72))
+			_box(n, Vector3(0.05, 0.25, 0.05), Vector3(sx * 1.9 * k, 0.08, sz * 2.48 * k), wood)
 	bake(n)
 
 ## What stands about the camp behind the doorways' ground: tents, the stores by

@@ -666,6 +666,10 @@ class Sweep extends Node3D:
 		len = maxf(r, 1.0)
 		rotation.y = yaw
 
+	## Tilted up or down after the aim (it goes where it is aimed, not only level).
+	func set_pitch(p: float) -> void:
+		rotation.x = -p
+
 	func _process(_dt: float) -> void:
 		var boil := 1.0 + 0.12 * sin(Time.get_ticks_msec() * 0.031) + 0.08 * sin(Time.get_ticks_msec() * 0.077)
 		for i in parts.size():
@@ -1076,7 +1080,9 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			if g.has_method("shake_at"): g.shake_at(from, 2.0)
 		"beam":
 			# Balefire: a white-hot bar with a wider halo that lingers as an afterimage.
-			var to: Vector3 = from + e.dir * b.range
+			# Along the aim, up or down, and no further than the ground it meets.
+			var d3: Vector3 = e.get("dir3", e.dir)
+			var to: Vector3 = from + d3 * float(e.get("reach", b.range))
 			# Liquid white fire: a hard white core, a wider body that boils along its
 			# length, a few loose threads round it, and a wide pale ghost of it that
 			# hangs in the air after the bar itself is gone.
@@ -1085,9 +1091,10 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			for i in 3:
 				Flowfx.beam(g, from, to, b.width * 0.35, Color(1.0, 0.9, 0.6), 2.5, 0.3, 0.5 + 0.1 * i, b.width * 0.9)
 			Flowfx.beam(g, from, to, b.width * 3.5, Color(0.6, 0.5, 0.9), 0.35, 0.6, 1.8)
-			_once(_particles(Color(1.0, 0.95, 0.8), 40, 0.6, 0.1, 6.0, 0.0), g, from + e.dir * 1.5)
+			_once(_particles(Color(1.0, 0.95, 0.8), 40, 0.6, 0.1, 6.0, 0.0), g, from + d3 * 1.5)
+			_once(_particles(Color(1.0, 0.95, 0.8), 30, 0.5, 0.15, 5.0, 0.0), g, to)
 			var l := _light(Color(1, 0.97, 0.9), 14.0, 30.0)
-			g.add_child(l); l.position = from + e.dir * 6.0
+			g.add_child(l); l.position = from + d3 * 6.0
 			var tw := g.create_tween(); tw.tween_property(l, "light_energy", 0.0, 0.6); tw.tween_callback(l.queue_free)
 			Sfx.play(g, "crack", from, 2.0, 0.6)
 			if g.has_method("shake_at"): g.shake_at(from, 2.5)
@@ -1126,7 +1133,8 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 				r.fixed = true; r.taper = 0.75
 				r.pts.resize(count); g.add_child(r)
 			var side: Vector3 = e.dir.cross(Vector3.UP)
-			var reach: float = b.range
+			var d3l: Vector3 = e.get("dir3", e.dir)
+			var reach: float = float(e.get("reach", b.range))
 			var tw := g.create_tween()
 			tw.tween_method(func(f: float) -> void:
 				if not is_instance_valid(rope) or not is_instance_valid(vein):
@@ -1136,14 +1144,14 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 				for i in count:
 					var u := i / float(count - 1)
 					var wave := sin(u * 9.0 - f * 26.0) * 0.55 * u * (1.0 - smoothstep(0.1, 0.3, f) * 0.6)
-					var p: Vector3 = from + e.dir * (0.4 + reach * ext * u) + side * wave + Vector3(0, -0.7 * u * ext + 0.3 * sin(u * PI) * (1.0 - f) + 0.25 * cos(u * 7.0 - f * 20.0) * u * (1.0 - f), 0)
+					var p: Vector3 = from + d3l * (0.4 + reach * ext * u) + side * wave + Vector3(0, -0.7 * u * ext * (1.0 - absf(d3l.y)) + 0.3 * sin(u * PI) * (1.0 - f) + 0.25 * cos(u * 7.0 - f * 20.0) * u * (1.0 - f), 0)
 					rope.pts[i] = p; vein.pts[i] = p
 				rope.gain = 1.0 - smoothstep(0.8, 1.0, f); vein.gain = rope.gain, 0.0, 1.0, 0.75)
 			tw.tween_callback(func() -> void:
 				for m in [rope, vein]:
 					if is_instance_valid(m): m.queue_free())
 			for i in 5:
-				var p: Vector3 = g._ground(feet + e.dir * (reach * (i + 1) / 5.0)) + Vector3(0, 0.7, 0)
+				var p: Vector3 = from + d3l * (reach * (i + 1) / 5.0) + Vector3(0, -0.5, 0)
 				g.get_tree().create_timer(0.03 * i).timeout.connect(func() -> void:
 					if is_instance_valid(g):
 						_once(_particles(TINT.water.lerp(Color.WHITE, 0.3), 26, 0.6, 0.16, 4.0, -9.0, 120.0), g, p))
@@ -1156,11 +1164,12 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			var ring := TorusMesh.new(); ring.inner_radius = 0.85; ring.outer_radius = 1.0
 			var mi := _mesh(ring, Color(col.lerp(Color.WHITE, 0.35), 0.5), 2.5)
 			fg.add_child(mi)
-			mi.position = from + e.dir * 0.8
-			mi.basis = Basis.looking_at(e.dir, Vector3.UP) * Basis(Vector3.RIGHT, PI * 0.5)
+			var d3c: Vector3 = e.get("dir3", e.dir)
+			mi.position = from + d3c * 0.8
+			mi.basis = Basis.looking_at(d3c, Vector3.UP) * Basis(Vector3.RIGHT, PI * 0.5)
 			mi.scale = Vector3.ONE * 0.4
 			var tw := g.create_tween().set_parallel()
-			tw.tween_property(mi, "position", from + e.dir * b.range, 0.28)
+			tw.tween_property(mi, "position", from + d3c * float(e.get("reach", b.range)), 0.28)
 			tw.tween_property(mi, "scale", Vector3.ONE * b.range * 0.45, 0.28)
 			tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.3)
 			tw.chain().tween_callback(mi.queue_free)
@@ -1169,7 +1178,7 @@ static func cast(g: Node3D, e: Dictionary) -> void:
 			var sd: Vector3 = e.dir.cross(up).normalized()
 			for i in 9:
 				var ang := (i - 4) * 0.11
-				var d: Vector3 = (e.dir * cos(ang) + sd * sin(ang)).normalized()
+				var d: Vector3 = (d3c * cos(ang) + sd * sin(ang)).normalized()
 				var lift := Vector3(0, randf_range(-0.5, 0.9), 0)
 				Flowfx.streak(fg, from + sd * (i - 4) * 0.08, from + d * b.range + lift, 0.2 + randf() * 0.1, col.lerp(Color.WHITE, 0.3), 0.3, (sd * randf_range(-1, 1) + up * randf_range(-0.4, 0.6)) * 0.8, 1.6, 0.6)
 			# Water goes out as spray; Air only lifts the dust.

@@ -360,6 +360,21 @@ static func half_width(z: float) -> float:
 	var pinch := exp(-pow((z - m.choke_z) / m.choke_len, 2.0))
 	return lerpf(m.wide, m.narrow, pinch) + sin(z * 0.11) * 1.5
 
+## Points round the edge of the walkable ground (for --hitboxes).
+static func edge_points() -> Array:
+	var out := []
+	if m.is_empty():
+		return out
+	var z := -float(m.length)
+	var left := []
+	while z <= float(m.back):
+		out.append(Vector3(half_width(z) - 0.6, Terrain.height(half_width(z) - 0.6, z), z))
+		left.append(Vector3(-half_width(z) + 0.6, Terrain.height(-half_width(z) + 0.6, z), z))
+		z += 2.0
+	left.reverse()
+	out.append_array(left)
+	return out
+
 ## Keep a walker inside the pass. Cheap enough to call for every entity every tick.
 static func clamp_pos(p: Vector3, margin := 0.6) -> Vector3:
 	if m.is_empty():

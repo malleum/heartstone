@@ -779,14 +779,16 @@ func _send_events(r: Dictionary, sim: Sim) -> void:
 		# Some news is for one player only (`to`: a Darkfriend's role); it goes to
 		# that player's machine and no other.
 		for peer in r.peers:
-			var mine := ev.filter(func(e: Dictionary) -> bool: return not e.has("to") or e.to == r.peers[peer])
+			# (Only a player's id in `to` makes news private: a lightning arc's `to` is
+			# where it leapt to, for everyone.)
+			var mine := ev.filter(func(e: Dictionary) -> bool: return not (e.get("to") is int) or e.to == r.peers[peer])
 			if peer != 1:
 				if not mine.is_empty():
 					_events.rpc_id(peer, mine)
 			elif not dedicated:
 				events.emit(mine)
 		if not dedicated and not r.peers.has(1):
-			events.emit(ev.filter(func(e: Dictionary) -> bool: return not e.has("to")))
+			events.emit(ev.filter(func(e: Dictionary) -> bool: return not (e.get("to") is int)))
 
 # --- the camp link ---------------------------------------------------------------
 # A camp keeps a connection of its own to the server while it is open (camp.gd,

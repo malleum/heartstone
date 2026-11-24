@@ -379,7 +379,15 @@ func _card(id: String) -> void:
 		yy += 26.0
 	elif _forms():
 		Glyph.text(self, sans, Vector2(x, yy), "%s form   ·   every %d s" % [w.family.capitalize(), int(w.cooldown)], 15, Color(0.85, 0.87, 0.92))
-		yy += 26.0
+		yy += 22.0
+		# A form is done with the weapon in hand, and hits as hard as that weapon does.
+		var with_w := Rules.weapon_of(profile, w.family)
+		if with_w != "":
+			var hits := int(w.get("repeat", 1)) * int(w.get("count", 1))
+			Glyph.text(self, sans, Vector2(x, yy), "With your %s: %d%s" % [Rules.weapons[with_w].name.to_lower(), int(Rules.blow(profile, with_w, id)), (" × %d" % hits) if hits > 1 else " a blow"], 13, Glyph.GOLD)
+		else:
+			Glyph.text(self, sans, Vector2(x, yy), "Needs a %s in hand (you carry none)" % w.family, 13, Color(1.0, 0.7, 0.45))
+		yy += 24.0
 		# The note, wrapped by hand to the card's width.
 		var line := ""
 		for word in (w.get("note", "") as String).split(" "):

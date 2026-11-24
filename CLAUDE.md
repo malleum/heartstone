@@ -119,7 +119,10 @@ working on abilities; the user's rulings there are final).
   camps report theirs to the server, which lists each player's in the lobby.
 - The server proves the word first (`Session._challenge` / `_vouch`, on the client's own
   number) before a client sends its proof, profile or character.
-- Missile forms (`missile` true on a form): `count` and `spread` (a fan), `pierce`; bow forms
+- Forms are not on the bar (`known`): `my_forms`, shown for the weapon in hand beside it
+  (`hud.gd` `_form_icon`), Z/X/R then Shift+number (`game.gd` `_use_form`). Beams, lashes and
+  cones are pitched by the aim (`Sim.aim_pitch`, `_reach_to_ground`, `_at_height`).
+- Missile forms (`missile` true on a form; `lit`, `blast`, `burn`, `burn_dps` for a fire arrow): `count` and `spread` (a fan), `pierce`; bow forms
   are fully drawn in their own wind. Ghost scripts can wait on the game: `[frame, "when", flag,
   rows]` with `Ghost.flags` set by game.gd (ready, marked).
 - Speed: `-- --perf` prints a line every 2 s (fps, draw calls, triangles, nodes, and the game's

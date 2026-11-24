@@ -372,6 +372,35 @@ func _held_balefire() -> void:
 	for fx in sim.effects:
 		if fx.kind == "sweep": left = true
 	check(not left, "let go, it goes out")
+	# Aimed: up over a Trolloc's head it passes over; at its chest it burns it.
+	var up := Sim.new("practice", 9)
+	up._waves = []
+	var ui := up.add_player(p, Vector3(0, 0, 0))
+	var um: Dictionary = up.ents[ui]
+	up._add_enemy("dummy", Vector3(0, 0, -10)); var tgt: int = up._next - 1
+	up._add_enemy("dummy", Vector3(0, 0, 60))
+	var ground := Terrain.height(0, -10)
+	up._cast(um, "balefire", Vector3(0, ground + 12.0, -10))
+	up.step(0.05)
+	check(up.ents[tgt].alive, "Balefire aimed up over a head passes over it")
+	um.cd = {}; um.stamina = um.stamina_max
+	up._cast(um, "balefire", Vector3(0, ground + 1.2, -10))
+	up.step(0.05)
+	check(not up.ents[tgt].alive, "and aimed at the chest, it burns")
+	# A fire arrow sets what it strikes alight, wherever it is loosed.
+	var fa := Sim.new("practice", 12)
+	fa._waves = [{t = 999.0, spawn = {}}]
+	var arch := Profile.make({name = "Fire Archer", cls = "hunter", kit = ["longbow", "belt_knife"]})
+	arch.forms = {bow_fire = {known = true}}
+	var fi := fa.add_player(arch)
+	fa.ents[fi].pos = Vector3.ZERO; fa.ents[fi].weapon = "longbow"; fa.ents[fi].ammo["longbow"] = 30
+	fa._add_enemy("trolloc", Vector3(0, 0, 12)); fa.ents[fi + 1].speed = 0.0; fa.ents[fi + 1].hp = 9999.0
+	var fwhy := fa.request_attack(fi, "form:bow_fire", Vector3(0, Terrain.height(0, 12) + 1.3, 12))
+	var burnt := false
+	for i in 60:
+		fa.step(1.0 / 30.0)
+		if fa.ents[fi + 1].burn > 0.0: burnt = true
+	check(fwhy == "" and burnt, "a Fire Arrow leaves what it strikes burning (%s)" % fwhy)
 
 func _fasten_players() -> void:
 	print("== Bonds of Air can fasten on a player in any mode")

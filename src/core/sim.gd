@@ -1648,7 +1648,8 @@ func _strike(p: Dictionary) -> void:
 		var on: Dictionary = m.get("on_hit", {})
 		var n := mini(int(m.get("count", 1)), p.ammo[sw.weapon] + 1)
 		p.ammo[sw.weapon] -= n - 1
-		var lit: bool = w.family == "bow" and not w.shot.get("crank", false) and _by_fire(p.pos)
+		# A fire arrow form is lit wherever it is loosed; a plain arrow only by a fire.
+		var lit: bool = m.get("lit", false) or (w.family == "bow" and not w.shot.get("crank", false) and _by_fire(p.pos))
 		for i in n:
 			var a := deg_to_rad(float(m.get("spread", 0.0))) * ((i + 0.5) / n - 0.5)
 			var way := throw.rotated(Vector3.UP, a)
@@ -1656,7 +1657,7 @@ func _strike(p: Dictionary) -> void:
 				dmg = dmg * lerpf(0.15, 1.0, pull * pull), radius = 0.5, left = shot.range * lerpf(0.4, 1.0, pull), gravity = shot.gravity,
 				stagger = maxf(float(shot.get("stagger", 0.0)), float(on.get("stagger", 0.0))) * pull,
 				push = maxf(float(shot.get("push", 0.0)), float(on.get("push", 0.0))) * pull, id = _fx_id(), lit = lit,
-				pierce = int(m.get("pierce", 0)), passed = []})
+				pierce = int(m.get("pierce", 0)), passed = [], blast = float(m.get("blast", 0.0)), burn_secs = float(m.get("burn", 3.0)), burn_dps = float(m.get("burn_dps", 6.0))})
 		events.append({e = "loose", id = p.id, weapon = sw.weapon, left = p.ammo[sw.weapon], pull = pull, lit = lit, form = Rules.forms.has(sw.move)})
 		# Out of shafts mid-flurry: the hands stop.
 		if p.ammo[sw.weapon] <= 0:
@@ -1828,7 +1829,13 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	throw = throw.normalized() if throw.length() > 0.5 else dir
 	# Lofted weaves leave the hand tilted up and then fall, so range is a skill.
 	throw = (throw + Vector3.UP * tan(deg_to_rad(b.get("loft", 0.0)))).normalized()
-	events.append({e = "cast", id = p.id, weave = weave, kind = w.kind, pos = from, at = at, dir = dir, k = k})
+	# Beams, lashes and blows of Air go where they are aimed, up a slope or down off
+	# a wall, not only level: a pitch from the aim (30 degrees down to 40 up), and
+	# they stop where they meet the ground.
+	var pitch := aim_pitch(hand, aim)
+	var dir3 := dir * cos(pitch) + Vector3.UP * sin(pitch)
+	var reach3: float = _reach_to_ground(hand, dir3, float(b.get("range", 0.0)) * clampf(sqrt(k), 0.5, 2.2))
+	events.append({e = "cast", id = p.id, weave = weave, kind = w.kind, pos = from, at = at, dir = dir, k = k, dir3 = dir3, reach = reach3})
 	if w.get("hold", false):
 		# breaks: when the one held can throw it off (0 = never, while it is held).
 		p.held.append({weave = weave, target = p.get("fasten", 0) if w.kind in ["bind", "sever"] else 0, tied = 0.0, breaks = 0.0})
@@ -1864,14 +1871,15 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 				# Thrown back, some are knocked to a knee.
 				if e.kind == "enemy" and d.length() < b.range * kr and rng.randf() < 0.35:
 					e.down = maxf(e.down, 0.9)
-				if d.length() < b.range * kr and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc:
+				if d.length() < b.range * kr and absf(rad_to_deg(dir.signed_angle_to(d.normalized(), Vector3.UP))) < b.arc \
+						and _at_height(hand.y + d.length() * tan(pitch), e, 1.0 + d.length() * 0.45):
 					e.vel = d.normalized() * b.push
 					e.stagger = maxf(e.stagger, 0.3 + b.push * 0.04)
 					_hurt(e, b.damage * k, p.id, weave)
 		"beam" when w.get("sweep", false):
 			# Balefire held: a bar of it that burns while the weaver holds on (at least
 			# a moment), swinging after the aim at a walk, paid for each second.
-			effects.append({kind = "sweep", owner = p.id, weave = weave, pos = p.pos, yaw = atan2(dir.x, dir.z), aim = aim, holding = p.get("beam_hold", false),
+			effects.append({kind = "sweep", owner = p.id, weave = weave, pos = p.pos, yaw = atan2(dir.x, dir.z), pitch = pitch, aim = aim, holding = p.get("beam_hold", false),
 				age = 0.0, left = float(b.sweep_secs) * kr, rad = float(b.range), width = float(b.width), dmg = b.damage * k, hit = [], id = _fx_id()})
 			events.append({e = "sweep_on", id = p.id, fx = effects[-1].id})
 		"line", "beam", "lash":
@@ -1888,9 +1896,12 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 						_wreck_walls(p.pos + dir * s2, b.width * kr + 0.6)
 						s2 += 1.5
 					_raise_rubble(p.pos + dir * (reach_m * 0.55), dir, minf(6.0, reach_m * 0.4))
+			var aimed: bool = w.kind != "line"
 			for e in _struck(p):
 				var d: Vector3 = e.pos - p.pos
 				var along := d.dot(dir)
+				if aimed and (along > reach3 * cos(pitch) + e.radius or not _at_height(hand.y + along * tan(pitch), e, b.width * kr)):
+					continue
 				if along > 0.0 and along < b.range * kr and (d - dir * along).length() < b.width * kr + e.radius:
 					e.stagger = maxf(e.stagger, b.get("stagger", 0.0))
 					e.vel += dir * b.get("push", 0.0)
@@ -2232,6 +2243,29 @@ func _targets(p: Dictionary) -> Array:
 	return out
 
 ## Where an entity stands in the world: the sim plane lifted onto the terrain.
+## The pitch from the hand to an aim (radians, up positive), 30 degrees down to 40
+## up; level when the aim is at the weaver's own feet.
+static func aim_pitch(hand: Vector3, aim: Vector3) -> float:
+	var flat := Vector2(aim.x - hand.x, aim.z - hand.z).length()
+	if flat < 1.0:
+		return 0.0
+	return clampf(atan2(aim.y - hand.y, flat), deg_to_rad(-30.0), deg_to_rad(40.0))
+
+## How far along `dir` from `from` before the ground is met (or `most`).
+static func _reach_to_ground(from: Vector3, dir: Vector3, most: float) -> float:
+	var s := 0.5
+	while s < most:
+		var q := from + dir * s
+		if q.y < Terrain.height(q.x, q.z) - 0.05:
+			return s
+		s += 0.5
+	return most
+
+## Is a height (a beam's, at that body) somewhere on the body, with `slack` either way?
+func _at_height(y: float, e: Dictionary, slack: float) -> bool:
+	var f := _feet(e).y
+	return y > f - 0.4 - slack and y < f + 2.4 + slack
+
 func _feet(e: Dictionary) -> Vector3:
 	return Vector3(e.pos.x, Terrain.height(e.pos.x, e.pos.z), e.pos.z)
 
@@ -2689,13 +2723,13 @@ func _step_effects(dt: float) -> void:
 						_wound(ents[fx.struck], fx.dmg, fx.owner, fx.weapon, mon, flat.normalized())
 						if fx.get("lit", false):
 							var hit_e: Dictionary = ents[fx.struck]
-							hit_e.burn = maxf(hit_e.burn, 3.0); hit_e.burn_dps = maxf(hit_e.burn_dps, 6.0); hit_e.burn_by = fx.owner
+							hit_e.burn = maxf(hit_e.burn, float(fx.get("burn_secs", 3.0))); hit_e.burn_dps = maxf(hit_e.burn_dps, float(fx.get("burn_dps", 6.0))); hit_e.burn_by = fx.owner
 					elif fx.get("lit", false):
 						# A fire arrow in the grass: it catches.
 						_ignite(fx.pos, 1.4, fx.owner)
 					if fx.get("blast", 0.0) > 0.0:
 						# Woven fire: it bursts where it lands, and scorches who stands near.
-						events.append({e = "blast", weave = fx.weapon, pos = fx.pos, radius = fx.blast})
+						events.append({e = "blast", weave = "fireball" if Rules.weapons.has(fx.weapon) else fx.weapon, pos = fx.pos, radius = fx.blast})
 						for o in _struck(owner):
 							if o.id != fx.get("struck", 0) and _feet(o).distance_to(fx.pos) < fx.blast + o.radius and o.get("safe_until", 0.0) <= t:
 								_hurt(o, fx.dmg * 0.6, fx.owner, "")
@@ -2751,6 +2785,12 @@ func _step_effects(dt: float) -> void:
 				var dyaw := wrapf(want - fx.yaw, -PI, PI)
 				fx.yaw += clampf(dyaw, -deg_to_rad(float(bw.turn)) * dt, deg_to_rad(float(bw.turn)) * dt)
 				owner.yaw = fx.yaw
+				# Up and down after the aim as well, at the same pace.
+				var hand_s := _feet(owner) + Vector3(0, 1.4, 0)
+				var want_p := aim_pitch(hand_s, fx.aim)
+				fx.pitch = float(fx.get("pitch", 0.0)) + clampf(want_p - float(fx.get("pitch", 0.0)), -deg_to_rad(float(bw.turn)) * dt, deg_to_rad(float(bw.turn)) * dt)
+				var sweep_reach := _reach_to_ground(hand_s, Vector3(sin(fx.yaw), 0, cos(fx.yaw)) * cos(fx.pitch) + Vector3.UP * sin(fx.pitch), fx.rad)
+				fx.bar_len = sweep_reach
 				var upkeep: float = Rules.draw_of(owner.profile, fx.weave, owner.stamina) * float(bw.upkeep) * dt
 				owner.stamina = maxf(owner.stamina - upkeep, 0.0)
 				if tallies.has(owner.id): tallies[owner.id].draw += upkeep
@@ -2760,7 +2800,8 @@ func _step_effects(dt: float) -> void:
 						continue
 					var off: Vector3 = e.pos - owner.pos
 					var along := off.dot(fwd)
-					if along > 0.0 and along < fx.rad and (off - fwd * along).length() < fx.width + e.radius:
+					if along > 0.0 and along < sweep_reach * cos(fx.pitch) + e.radius and (off - fwd * along).length() < fx.width + e.radius \
+							and _at_height(hand_s.y + along * tan(fx.pitch), e, fx.width):
 						fx.hit.append(e.id)
 						_hurt(e, fx.dmg, fx.owner, fx.weave)
 				alive = owner.alive and owner.stamina > 0.0 and fx.left > 0.0 and owner.severed <= t and not owner.get("downed", false) \
@@ -3400,5 +3441,5 @@ func snapshot() -> Dictionary:
 			es.append([id, e.pos.x, e.pos.z, e.yaw, e.hp, e.get("stamina", 0.0), st, e.get("will", 0.0), e.max_hp])
 	var fx := []
 	for f in effects:
-		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("rad", f.get("r", 0.0)), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0), f.get("owner", 0)])
+		fx.append([f.id, f.kind, f.pos.x, f.pos.z, f.get("bar_len", f.get("rad", f.get("r", 0.0))), f.pos.y, f.get("weave", f.get("weapon", "")) + (":lit" if f.get("lit", false) else ""), f.get("yaw", 0.0), f.get("owner", 0), f.get("pitch", 0.0)])
 	return {t = t, ents = es, fx = fx, round = round_meter()}
