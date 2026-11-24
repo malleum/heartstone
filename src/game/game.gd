@@ -2539,7 +2539,8 @@ func _on_events(list: Array) -> void:
 						if c is MeshInstance3D:
 							at = (c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb().get_center()
 							break
-					Weavefx.blast(self, at, 1.5, "fireball" if e.get("how", "") == "burnt" else "heave_the_ground")
+					if e.get("how", "") != "quiet":
+						Weavefx.blast(self, at, 1.5, "fireball" if e.get("how", "") == "burnt" else "heave_the_ground")
 					wn.queue_free()
 			"wall_up":
 				if not session.is_host:
@@ -2661,10 +2662,14 @@ func _env_event(e: Dictionary) -> void:
 						if c is Node3D: (c as Node3D).global_transform = gt
 				var yaw := float(e.yaw)
 				var axis := Vector3(cos(yaw), 0, -sin(yaw))
-				var tw := pivot.create_tween()
-				tw.tween_method(func(a: float) -> void:
-					if is_instance_valid(pivot): pivot.basis = Basis(axis, a), 0.0, PI * 0.47, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-				Sfx.play(self, "thud", foot, -2.0, 0.8)
+				if e.get("quiet", false):
+					# (Already lying there when you came: no fall, no sound.)
+					pivot.basis = Basis(axis, PI * 0.47)
+				else:
+					var tw := pivot.create_tween()
+					tw.tween_method(func(a: float) -> void:
+						if is_instance_valid(pivot): pivot.basis = Basis(axis, a), 0.0, PI * 0.47, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+					Sfx.play(self, "thud", foot, -2.0, 0.8)
 		"prop_move":
 			if not session.is_host and not tr.is_empty():
 				tr.x = float(e.x); tr.z = float(e.z)
@@ -2701,7 +2706,9 @@ func _env_event(e: Dictionary) -> void:
 				tr.gone = true; tr.r = 0.0; tr.h = 0.0
 			if pn:
 				var where := _ground(Vector3(tr.get("x", 0.0), 0, tr.get("z", 0.0)))
-				if e.get("how", "") == "ash":
+				if e.get("how", "") == "quiet":
+					pass
+				elif e.get("how", "") == "ash":
 					Weavefx._once(Weavefx._particles(Color(0.25, 0.22, 0.2), 30, 2.2, 0.5, 1.2, 0.6, 50.0, false), self, where + Vector3(0, 0.4, 0))
 				else:
 					Weavefx._once(Weavefx._particles(Color(0.42, 0.3, 0.18), 34, 1.0, 0.18, 6.0, -12.0, 70.0, false), self, where + Vector3(0, 0.5, 0))

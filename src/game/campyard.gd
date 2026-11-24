@@ -129,6 +129,9 @@ func _events() -> void:
 	for e in ev:
 		if Launch.cmdline().has("ghost") and e.e in ["form", "cast", "blow", "strike", "dodge", "die"] and e.get("id", me) in [me] + posts.keys():
 			print("GHOST yard %s %s" % [e.e, e.get("weave", e.get("move", ""))])
+		# Friends in the camp see your practice on your figure in theirs.
+		if e.get("id", -9) == me and e.e in ["blow", "cast", "dodge"] or e.e == "blast":
+			camp.call("yard_share", e)
 		match e.e:
 			"form":
 				if e.id == me and is_instance_valid(model):

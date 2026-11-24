@@ -393,7 +393,13 @@ func _arms(what: String, a: Array) -> void:
 ## The fight a peer is in, and which body in it is theirs: [Sim or null, entity id].
 func _seat(peer: int) -> Array:
 	var r: Dictionary = _rooms.get(_room_of.get(peer, "?"), {})
+	_room_map(r)
 	return [r.get("sim"), r.get("peers", {}).get(peer, 0)]
+
+## Put this room's place in Map (a dedicated server's rooms each have their own).
+func _room_map(r: Dictionary) -> void:
+	if dedicated and r.has("map"):
+		Map.set_state(r.map)
 
 func _do_arms(peer: int, what: String, a: Array) -> void:
 	var seat := _seat(peer)
@@ -486,12 +492,16 @@ func _hello(their_profile: Dictionary, want: String, proof: String, their_versio
 		var act: String = want if Rules.activities.has(want) and not want.begins_with("_") else "tarwins_gap_watch"
 		# A fight started from a camp doorway waits until someone steps through it.
 		_rooms[room] = {sim = Sim.new(act, randi()), activity = act, peers = {}, tick = 0, hold = hold}
+		# Each room its own place: Map is one set of statics, and a server runs fights
+		# on different maps at once (the last made used to be everyone's ground).
+		_rooms[room].map = Map.state()
 		print("SERVER begins %s for %s%s" % [act, their_profile.name, " in room '%s'" % room if room != "" else ""])
 	var r: Dictionary = _rooms[room]
 	if r.peers.size() >= ROOM_SIZE:
 		_rejected.rpc_id(peer, "that fight is full")
 		return
 	var spot := Vector3((r.peers.size() % 5 - 2) * 2.0, 0, 2.0)
+	_room_map(r)
 	r.peers[peer] = r.sim.add_player(their_profile, spot)
 	_room_of[peer] = room
 	# Only looking through a doorway at a fight already going: the body is there to
@@ -725,6 +735,7 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 	var sim: Sim = r.sim
 	if sim.over and r.tick < 0:
 		# Done and paid: keep the world moving (and drawn) for whoever is still in it.
+		_room_map(r)
 		sim.step(dt)
 		r.tick -= 1
 		# Its news still goes out: without it, what anyone wove after the end was
@@ -736,8 +747,11 @@ func _step_room(room: String, r: Dictionary, dt: float) -> void:
 		return
 	# Held: drawn (snapshots go out) but not run, until someone steps through.
 	var us := Time.get_ticks_usec()
+	_room_map(r)
 	if not r.get("hold", false):
 		sim.step(dt)
+	if dedicated and r.has("map"):
+		r.map = Map.state()   # (the grid may have been rebuilt, walls added or thrown down)
 	Perf.add("sim", Time.get_ticks_usec() - us)
 	r.tick += 1
 	us = Time.get_ticks_usec()
@@ -854,6 +868,29 @@ func _send_looks() -> void:
 		looks[_camp_peers[peer].name] = _camp_peers[peer].look
 	for peer in _camp_peers:
 		_camp_looks_to.rpc_id(peer, looks)
+
+## Practice in a camp's yard, shown to everyone else in the camp: a blow, a weave, a
+## burst, a roll. Small and checked; the server passes it on and keeps nothing.
+signal camp_act(name: String, act: Dictionary)
+
+func camp_act_send(act: Dictionary) -> void:
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	_camp_act.rpc_id(1, act)
+
+@rpc("any_peer", "reliable")
+func _camp_act(act: Dictionary) -> void:
+	var from := multiplayer.get_remote_sender_id()
+	if not dedicated or not _camp_peers.has(from) or JSON.stringify(act).length() > 900 or not String(act.get("e", "")) in ["blow", "cast", "blast", "dodge"]:
+		return
+	for peer in _camp_peers:
+		if peer != from:
+			_camp_act_to.rpc_id(peer, _camp_peers[from].name, act)
+
+@rpc("authority", "reliable")
+func _camp_act_to(name: String, act: Dictionary) -> void:
+	camp_act.emit(name, act)
 
 @rpc("authority", "unreliable_ordered")
 func _camp_walkers_to(list: Array) -> void:

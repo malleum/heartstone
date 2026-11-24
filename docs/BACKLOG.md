@@ -607,7 +607,9 @@ are what the 4:44 review, or the next session, should pick up.
 - [x] The camp as the training yard (CampYard): posts west of the doorways, weaves, rolls and
       blows in the camp (a sim of your own: no friendly fire), the training doorway gone. Not yet:
       parry, forms and Shift-sprint rolls there; friends do not see your yard blows.
-- [ ] Env state is not sent to someone who joins a fight late (they see torches standing).
+- [x] (24 Nov) Env state goes to someone who joins a fight late (Env.roster).
+- [x] (24 Nov) A dedicated server's rooms each keep their own Map state (Session._room_map): fights on
+      different maps at once used to share the last-made map.
 - [x] Versions of the server and every player in the Esc menu (PLAYTEST 96).
 - [x] Dream duel: two friends could not walk in one after the other, it ended at once
       (PLAYTEST 97).

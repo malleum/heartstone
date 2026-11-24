@@ -355,6 +355,24 @@ static func props(g: Node3D) -> void:
 				fm.set_shader_parameter("cloth", Color(0.55, 0.1, 0.08) if t.prop == "banner" else Color(0.5, 0.09, 0.07))
 				var qi := MeshInstance3D.new(); qi.mesh = q; qi.material_override = fm; fl.add_child(qi)
 				qi.position = Vector3(0.7, 0, 0)
+		# Drawn as it stands now (someone joining a fight already going): lying where it
+		# fell, put out, burning.
+		if t.get("fallen", false):
+			var pivot := Node3D.new(); pivot.name = "pivot"; pn.add_child(pivot); pivot.position = at
+			for c in pn.get_children():
+				if c != pivot and c is Node3D:
+					var gt: Transform3D = (c as Node3D).transform
+					pn.remove_child(c); pivot.add_child(c)
+					(c as Node3D).transform = Transform3D(Basis.IDENTITY, -at) * gt
+			var fy := float(t.get("fall_yaw", 0.0))
+			pivot.basis = Basis(Vector3(cos(fy), 0, -sin(fy)), PI * 0.47)
+		if t.get("out", false) and t.get("prop", "") == "torch":
+			for c in pn.find_children("*", "", true, false):
+				if c is GPUParticles3D or c is OmniLight3D:
+					c.queue_free()
+		if t.has("burn_until"):
+			var f := Weavefx.flame(18, 0.35, 1.0)
+			pn.add_child(f); f.position = at + Vector3(0, 0.4, 0)
 
 ## A cask: staves bulging at the middle, two iron hoops.
 static func barrel(g: Node3D, at: Vector3, rng: RandomNumberGenerator, lying := false) -> void:

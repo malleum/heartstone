@@ -33,8 +33,8 @@ static func hit(sim: Sim, at: Vector3, r: float, power: String, dir := Vector3.Z
 		var away: Vector2 = Vector2(dir.x, dir.z).normalized() if dir != Vector3.ZERO else (off.normalized() if off.length() > 0.05 else Vector2(1, 0))
 		if prop in POLES:
 			if not tr.get("fallen", false) and (power == "air" or heavy or (power == "water" and prop == "torch")):
-				tr.fallen = true; tr.r = 0.12; tr.h = 0.3
-				sim.events.append({e = "prop_fall", index = i, yaw = atan2(away.x, away.y)})
+				tr.fallen = true; tr.r = 0.12; tr.h = 0.3; tr.fall_yaw = atan2(away.x, away.y)
+				sim.events.append({e = "prop_fall", index = i, yaw = tr.fall_yaw})
 				moved = true
 			elif tr.get("fallen", false) and power == "air":
 				_shove(sim, i, tr, away * 1.6)
@@ -102,6 +102,8 @@ static func step(sim: Sim) -> void:
 static func _shove(sim: Sim, i: int, tr: Dictionary, by: Vector2) -> void:
 	var to := Map.clamp_pos(Vector3(tr.x + by.x, 0, tr.z + by.y))
 	var fx: float = tr.x; var fz: float = tr.z
+	if not tr.has("home_x"):
+		tr.home_x = fx; tr.home_z = fz
 	tr.x = to.x; tr.z = to.z
 	sim.events.append({e = "prop_move", index = i, x = tr.x, z = tr.z, fx = fx, fz = fz})
 
@@ -111,4 +113,35 @@ static func _gone(sim: Sim, i: int, tr: Dictionary, how: String) -> void:
 
 static func _wreck(sim: Sim, w: Dictionary) -> void:
 	if Map.remove_wall(int(w.wid)):
+		sim.gone_walls.append(int(w.wid))
 		sim.events.append({e = "wall_gone", wid = w.wid, how = "burnt" if w.has("burn_until") else "wrecked"})
+
+## What has changed, as the events that made it (moved, fallen, out, lit, burning,
+## gone), for someone joining a fight already going: their map is built as the map
+## began, and this brings it to how it stands.
+static func roster(sim: Sim) -> Array:
+	var out := []
+	var trees := Map.trees()
+	for i in trees.size():
+		var tr: Dictionary = trees[i]
+		if tr.get("gone", false):
+			out.append({e = "prop_gone", index = i, how = "quiet"})
+			continue
+		if tr.has("home_x"):
+			out.append({e = "prop_move", index = i, x = tr.x, z = tr.z, fx = tr.home_x, fz = tr.home_z})
+		if tr.get("fallen", false):
+			out.append({e = "prop_fall", index = i, yaw = float(tr.get("fall_yaw", 0.0)), quiet = true})
+		if tr.get("out", false):
+			out.append({e = "prop_out", index = i})
+		if tr.has("burn_until"):
+			out.append({e = "prop_burn", index = i})
+	for wid in sim.gone_walls:
+		out.append({e = "wall_gone", wid = wid, how = "quiet"})
+	for w in Map.walls():
+		if w.has("home"):
+			out.append({e = "wall_move", wid = w.wid, x = w.x, z = w.z, fx = (w.home as Vector2).x, fz = (w.home as Vector2).y})
+		if w.has("burn_until"):
+			out.append({e = "wall_burn", wid = w.wid})
+		if w.has("until"):
+			out.append({e = "wall_up", wall = w})
+	return out

@@ -2101,7 +2101,7 @@ func _ground_and_water() -> void:
 	check(Rules.flows_of(Rules.weaves.healing, mh).has("fire") and Rules.flows_of(Rules.weaves.healing, mh).has("earth") and not Rules.flows_of(Rules.weaves.healing, mh).has("water"), "a man heals with Spirit, Fire and Earth")
 	mh.book_limit = 5
 	var wh := Profile.create({name = "Woman Healer"}); wh.book_limit = 5
-	check(Rules.book_of("healing", mh) == 8 and Rules.book_of("healing", wh) == 3, "a man's Healing comes in book 8, a woman's in book 3")
+	check(Rules.book_of("healing", mh) == 3 and Rules.book_of("healing", wh) == 3, "a man's Healing is open from book 3 like a woman's (the user, 24 Nov: not worth hiding)")
 	# What stands about answers: a torch knocked flat and put out by Air, a wagon shoved,
 	# set alight and burnt down.
 	var ev := Sim.new("tarwins_gap_night", 5)
@@ -2131,6 +2131,8 @@ func _ground_and_water() -> void:
 	var wid: int = wag.wid
 	for i in int(Env.WAGON_BURN * 10) + 10: wr.step(0.1)
 	check(Map.walls().filter(func(w: Dictionary) -> bool: return int(w.wid) == wid).is_empty(), "and it burns down")
+	var ros := wr.roster().filter(func(e: Dictionary) -> bool: return e.e == "wall_gone" and int(e.wid) == wid)
+	check(not ros.is_empty(), "someone joining later is told the wagon is gone")
 	# Waves grow for a stronger channeller, and for each player, and never shrink back.
 	var th := Sim.new("holdout@tarwins_day", 3)
 	var a1 := th.add_player(Profile.create({name = "Strong One"}))

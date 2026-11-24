@@ -1,4 +1,13 @@
 [
+  {"version": "v0.2.13", "date": "24 Nov", "items": [
+    "Joining a fight already going, you see it as it stands: torches knocked down or put out, crates burnt, wagons shoved, burning or gone.",
+    "The yard: right click parries, Z X R do the forms of your weapon, as in a fight.",
+    "Friends in the camp see your practice in the yard: your blows, weaves, bursts and rolls.",
+    "A man's Healing is open from book 3, like a woman's (still woven with his own flows).",
+    "Channellers can open their weave tree in the camp (T, or the sheet's button), with the bar along the bottom to drag things on and off.",
+    "Running in the camp eases in and out at a fight's pace, as it does in a fight.",
+    "On the server, fights on different maps at once each keep their own ground (one could end up fought on another's map)."
+  ]},
   {"version": "v0.2.12", "date": "24 Nov", "items": [
     "Forms have their own row beside the bar, for the weapon in your hand: Z, X, R, then Shift and a number. Each is drawn as the path it cuts.",
     "Fire Arrow: a bow form that bursts where it strikes and leaves them burning.",
@@ -16,7 +25,7 @@
     "Waves grow for a stronger channeller and for every friend who joins, and never shrink back.",
     "The tree pages have your bar along the bottom: drag things on, along and off, and choose whether new things go on by themselves.",
     "With the sheet put away, a faded corner keeps your name and renown, and a mark when something is new.",
-    "Balefire needs the first weave of every Power. A man's Healing uses his flows (Spirit, Fire and Earth) and comes in book 8.",
+    "Balefire needs the first weave of every Power. A man's Healing uses his own flows (Spirit, Fire and Earth) and is drawn in them.",
     "This list, under Esc."
   ]},
   {"version": "v0.2.11", "date": "24 Nov", "items": [

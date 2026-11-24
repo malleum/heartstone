@@ -189,11 +189,15 @@ func _intro(e: Dictionary) -> Dictionary:
 	return {round = round_view, team = e.get("team", 0), e = "player", id = e.id, name = pr.name, look = pr.get("look", ""), power = pr.power, origin = pr.get("origin", ""), cls = pr.get("cls", "channeller"), weapon = e.weapon, style = pr.get("style", {}), pos = e.pos, bond = e.get("bond", 0), society = pr.get("society", ""), ward_until = ward_until if e.get("ward", false) else 0.0}
 
 ## Introductions for everyone alive, for a player who joins part-way through.
+var gone_walls: Array = []     # walls thrown down or burnt so far (Env.roster tells latecomers)
+
 func roster() -> Array:
 	var out: Array = [{e = "story", limit = story}]
 	for id in ents:
 		if ents[id].alive:
 			out.append(_intro(ents[id]))
+	# What the fight has done to the place so far.
+	out.append_array(Env.roster(self))
 	return out
 
 ## What a Trolloc carries, by id, so the view can show the same thing in its hand
@@ -2727,6 +2731,7 @@ func _wreck_walls(at: Vector3, r: float) -> void:
 		var dx := maxf(absf(l.x) - float(w.hx), 0.0); var dz := maxf(absf(l.y) - float(w.hz), 0.0)
 		if Vector2(dx, dz).length() < r:
 			Map.remove_wall(int(w.wid))
+			if not w.has("until"): gone_walls.append(int(w.wid))
 			events.append({e = "wall_gone", wid = w.wid})
 
 ## A low ridge of rubble thrown up along a line of Earth: cover, for a while.

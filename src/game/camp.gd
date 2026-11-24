@@ -18,6 +18,7 @@ var profile := {}
 var model: Node3D
 var side: VBoxContainer       # left column: who you are
 var mini: PanelContainer      # its faded corner while it is put away
+var _vel := Vector3.ZERO      # walking, eased
 var yard: CampYard            # the practice posts beside the doorways, with a sim of your own
 var yard_slot := 0            # which thing on the bar the yard's clicks use
 var _yard_told := false
@@ -353,6 +354,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.1, 0.5)
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and captured and _in_yard():
 		_yard_use()
+	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and captured and _in_yard():
+		# A parry, as in a fight (only a blow can be parried; the posts strike nothing).
+		yard.sim.set_guard(yard.me, ev.pressed)
+		if ev.pressed and is_instance_valid(model):
+			var apg: AnimationPlayer = model.get_meta("anim")
+			for clip in ["Sword_Block", "Block", "Sword_Defend"]:
+				if apg.has_animation(clip):
+					apg.play(clip, 0.08); set_meta("busy_until", Time.get_ticks_msec() / 1000.0 + 0.5); break
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode in [Keys.k(KEY_Z), Keys.k(KEY_X), Keys.k(KEY_R)]:
+		_yard_form([Keys.k(KEY_Z), Keys.k(KEY_X), Keys.k(KEY_R)].find(ev.physical_keycode))
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and not creating and not menu.visible and not tree.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode == Keys.k(KEY_SPACE):
@@ -372,7 +383,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			else: _show_menu(not menu.visible)
 		elif ev.physical_keycode == Keys.k(KEY_TAB):
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		elif ev.physical_keycode == Keys.k(KEY_T) and not creating and not menu.visible and not profile.is_empty() and profile.get("cls", "channeller") != "channeller":
+		elif ev.physical_keycode == Keys.k(KEY_T) and not creating and not menu.visible and not profile.is_empty():
 			_show_tree(not tree.visible)
 		elif ev.physical_keycode == Keys.k(KEY_E) and _station != "" and not creating and not tree.visible and not menu.visible:
 			_use_station(_station)
@@ -415,6 +426,25 @@ func _yard_use() -> void:
 	elif Rules.weapons.has(id):
 		yard.sim.equip(yard.me, id)
 		yard.attack(aim, false)
+
+## A form in the yard (Z, X, R): the forms of the weapon chosen on the bar, as in a fight.
+func _yard_form(i: int) -> void:
+	var bar := Profile.bar(profile)
+	var arms := bar.filter(func(x: String) -> bool: return Rules.weapons.has(x))
+	var w: String = yard.sim.ents[yard.me].weapon
+	if w == "" and not arms.is_empty():
+		w = arms[0]
+	if w == "":
+		return
+	var mine := bar.filter(func(x: String) -> bool: return Rules.forms.has(x) and Rules.forms[x].family == Rules.weapons[w].family)
+	if i >= mine.size():
+		return
+	yard.sim.equip(yard.me, w)
+	var aim := yard.nearest_post(pos)
+	face = atan2(aim.x - pos.x, aim.z - pos.z)
+	var why := yard.sim.request_attack(yard.me, "form:" + String(mine[i]), aim)
+	if why != "" and why != "busy":
+		Toast.say(why.capitalize(), "", "warn", 1.5)
 
 ## The yard, made for the character in hand (again when another is chosen).
 func _yard_for(p: Dictionary) -> void:
@@ -530,9 +560,15 @@ func _process(dt: float) -> void:
 	var sprint := Keys.down(KEY_SHIFT)
 	if _phase == 1:
 		move = Vector3.ZERO     # the body is over there now, moved by the fight
-	if move.length() > 0.1:
+	# Walking eases in and out, as a body in a fight does (there the figure closes on
+	# where the sim has it), and at a fight's pace (5.2 a second, the jog clip's own);
+	# starting dead and stopping dead was what made the camp's running look stiff.
+	_vel = _vel.lerp(move * (7.5 if sprint else Rules.TUNE.get("walk_speed", 5.2)), minf(12.0 * dt, 1.0))
+	if _vel.length() < 0.05:
+		_vel = Vector3.ZERO
+	if _vel.length() > 0.05:
 		# Inside the palisade (Scenery.palisade), never an invisible line in the grass.
-		pos = _unblock(pos + move * (7.5 if sprint else 5.0) * dt).limit_length(Scenery.CAMP_WALL - 1.6)
+		pos = _unblock(pos + _vel * dt).limit_length(Scenery.CAMP_WALL - 1.6)
 		# The doorways' posts are stone: you go between them, not through them.
 		for d in doors:
 			var across := Vector3(d.at.z, 0, -d.at.x).normalized()
@@ -541,7 +577,8 @@ func _process(dt: float) -> void:
 				var off := pos - post
 				if off.length() < 0.8 and off.length() > 0.001:
 					pos = post + off.normalized() * 0.8
-		face = atan2(move.x, move.z)
+		if move.length() > 0.1:
+			face = atan2(move.x, move.z)
 		if not _pre.is_empty():
 			var A: Transform3D = _pre.A
 			var fwd := -A.basis.z
@@ -563,15 +600,17 @@ func _process(dt: float) -> void:
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
 	# Eased, so the first step does not throw it back at once.
-	_cloak_speed = lerpf(_cloak_speed, (7.5 if sprint else 5.0) if move.length() > 0.1 else 0.0, minf(3.0 * dt, 1.0))
+	_cloak_speed = lerpf(_cloak_speed, minf(_vel.length(), 9.0), minf(3.0 * dt, 1.0))
 	Hero.cloak_motion(model, _cloak_speed)
 	var ap: AnimationPlayer = model.get_meta("anim")
-	var clip := ("Sprint" if sprint and ap.has_animation("Sprint") else "Jog_Fwd") if move.length() > 0.1 else "Idle"
+	# The clip from how fast the body is actually going, as in a fight (not the keys).
+	var spd := _vel.length()
+	var clip := ("Sprint" if spd > 6.5 and ap.has_animation("Sprint") else "Jog_Fwd") if spd > 0.6 else "Idle"
 	# (A blow or a roll in the yard plays out before walking takes the legs back.)
 	if Time.get_ticks_msec() / 1000.0 < float(get_meta("busy_until", 0.0)):
 		clip = ap.current_animation
 	if ap.current_animation != clip:
-		ap.play(clip, 0.15)
+		ap.play(clip, 0.12)
 	# The same orbit camera as in a fight, a little further back to take in the doorways.
 	var pivot := model.position + Vector3(0, 1.55, 0)
 	var view := Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch)
@@ -781,7 +820,9 @@ func _sheet() -> void:
 		var st_id: String = profile.get("study", "")
 		if Rules.lore(profile).has(st_id):
 			_row(side, "Working out", "%s  %d%%" % [Rules.lore(profile)[st_id].name, int(100.0 * float(profile.get("study_done", 0.0)) / Rules.study_cost(profile, st_id))], Color(0.85, 0.87, 0.95))
-		_button(side, "The weapon and form trees  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
+		_button(side, "The weapon and form trees, and your bar  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
+	if channels:
+		_button(side, "The weave tree, and your bar  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
 	_button(side, "Loadout: Talents, weaves, affinity", _loadout)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:
@@ -1146,6 +1187,7 @@ func _camp_link(dt: float) -> void:
 		# to each side's multiplayer root).
 		_link = Session.new(); _link.name = "Session"; _link_branch.add_child(_link)
 		_link.camp_walkers.connect(_heard_walkers)
+		_link.camp_act.connect(_heard_act)
 		_link.camp_looks.connect(func(looks: Dictionary) -> void: _looks = looks)
 		var drop := func(_why := "") -> void:
 			# Gone (or never there): close it and try again in a while.
@@ -1183,6 +1225,41 @@ func _close_link() -> void:
 		_link_branch.queue_free()
 	_link = null; _link_branch = null; _link_mp = null
 	_link_closing = false
+
+## My yard's practice, for the others in the camp to see.
+func yard_share(e: Dictionary) -> void:
+	if not _linked():
+		return
+	var act := {}
+	for k in ["e", "move", "wind", "recover", "weapon", "weave", "kind", "pos", "at", "dir", "dir3", "reach", "k", "radius"]:
+		if e.has(k):
+			act[k] = e[k]
+	_link.camp_act_send(act)
+
+## A friend's practice in their yard, played on their figure here.
+func _heard_act(name: String, act: Dictionary) -> void:
+	if not others.has(name) or not is_instance_valid(others[name].node):
+		return
+	var node: Node3D = others[name].node
+	var ap: AnimationPlayer = node.get_meta("anim")
+	others[name].busy = Time.get_ticks_msec() / 1000.0 + 0.9
+	match String(act.get("e", "")):
+		"blow":
+			var m: Dictionary = Rules.moves.get(String(act.get("move", "")), {})
+			var clip: String = m.get("clip", "Sword_Attack")
+			if ap.has_animation(clip): ap.play(clip, 0.08)
+			Hero.stroke(node, String(act.get("move", "")), float(act.get("wind", 0.3)), float(act.get("recover", 0.3)) * 0.8, String(act.get("weapon", "")))
+		"cast":
+			var cc := Hero.cast_clip(name, String(act.get("weave", "")))
+			if ap.has_animation(cc): ap.play(cc, 0.1)
+			if Rules.weaves.has(String(act.get("weave", ""))) and act.has("pos") and act.has("dir"):
+				var e := act.duplicate(); e.id = -1; e.power = ""
+				Weavefx.cast(self, e)
+		"blast":
+			if act.has("pos"):
+				Weavefx.blast(self, act.pos, float(act.get("radius", 1.5)), String(act.get("weave", "fireball")))
+		"dodge":
+			if ap.has_animation("Roll"): ap.play("Roll", 0.05, 1.6)
 
 ## Ten times a second from the link: where everyone else is.
 func _heard_walkers(list: Array) -> void:
@@ -1246,6 +1323,8 @@ func _walk_others(dt: float) -> void:
 			node.rotation.y = lerp_angle(node.rotation.y, float(o.yaw), minf(dt * 4.0, 1.0))
 		var ap: AnimationPlayer = node.get_meta("anim")
 		var clip := ("Sprint" if speed > 4.5 and ap.has_animation("Sprint") else "Jog_Fwd") if moving else "Idle"
+		if Time.get_ticks_msec() / 1000.0 < float(o.get("busy", 0.0)) and not moving:
+			clip = ap.current_animation
 		if ap.current_animation != clip:
 			ap.play(clip, 0.2)
 		Hero.cloak_motion(node, speed if moving else 0.0)
