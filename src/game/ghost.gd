@@ -18,43 +18,41 @@ const SCRIPTS := {
 		[200, "mouse", MOUSE_BUTTON_LEFT, true], [202, "mouse", MOUSE_BUTTON_LEFT, false],
 		[260, "mouse", MOUSE_BUTTON_LEFT, true], [300, "mouse", MOUSE_BUTTON_LEFT, false],
 		[360, "mouse", MOUSE_BUTTON_RIGHT, true], [420, "mouse", MOUSE_BUTTON_RIGHT, false],
-		[440, "tap", KEY_SPACE],
+		[440, "tap", KEY_SHIFT],
 		[540, "key", KEY_CTRL, true], [560, "mouse", MOUSE_BUTTON_LEFT, true], [562, "mouse", MOUSE_BUTTON_LEFT, false], [600, "key", KEY_CTRL, false],
 		[630, "tap", KEY_2], [660, "mouse", MOUSE_BUTTON_LEFT, true], [720, "mouse", MOUSE_BUTTON_LEFT, false],
-		[760, "tap", KEY_3], [790, "tap", KEY_F],
-		[830, "tap", KEY_1], [850, "tap", KEY_Z],
+		[760, "tap", KEY_3], [790, "tap", KEY_CAPSLOCK],
+		[830, "tap", KEY_1], [850, "tap", KEY_5],
 		[900, "tap", KEY_1]],
-	# A channeller: throw fire, raise the dome, bind, tie off, let go.
+	# A channeller (the held-key way): 1 weaves fire, 2 raises the dome, Q ties it off,
+	# 3 binds nobody; a fireball clicked and held, loosed on letting go; a roll mid-weave
+	# keeps the weave; then fire and the dome made together.
 	weaves = [[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],
-		[90, "tap", KEY_1], [100, "mouse", MOUSE_BUTTON_LEFT, true], [101, "mouse", MOUSE_BUTTON_LEFT, false],
-		[160, "tap", KEY_2], [170, "mouse", MOUSE_BUTTON_LEFT, true], [171, "mouse", MOUSE_BUTTON_LEFT, false],
-		[240, "tap", KEY_G],
-		[280, "tap", KEY_3], [290, "mouse", MOUSE_BUTTON_LEFT, true], [291, "mouse", MOUSE_BUTTON_LEFT, false],
-		[360, "tap", KEY_2], [370, "mouse", MOUSE_BUTTON_LEFT, true], [371, "mouse", MOUSE_BUTTON_LEFT, false],
-		[420, "tap", KEY_E], [430, "tap", KEY_Q], [436, "tap", KEY_1],
-		[440, "mouse", MOUSE_BUTTON_LEFT, true], [500, "mouse", MOUSE_BUTTON_LEFT, false], [510, "tap", KEY_SPACE],
-		# Keep a fireball aside (another slot while it is in hand), take it back up, loose it.
-		[540, "tap", KEY_1], [550, "mouse", MOUSE_BUTTON_LEFT, true], [575, "tap", KEY_2], [580, "mouse", MOUSE_BUTTON_LEFT, false],
-		[610, "tap", KEY_1], [630, "mouse", MOUSE_BUTTON_LEFT, true], [632, "mouse", MOUSE_BUTTON_LEFT, false]],
+		[90, "tap", KEY_1],
+		[160, "tap", KEY_2],
+		[240, "tap", KEY_Q],
+		[280, "tap", KEY_3],
+		[360, "tap", KEY_2],
+		[436, "tap", KEY_1], [440, "mouse", MOUSE_BUTTON_LEFT, true], [470, "tap", KEY_SHIFT], [500, "mouse", MOUSE_BUTTON_LEFT, false],
+		[540, "tap", KEY_2], [560, "tap", KEY_1], [565, "tap", KEY_2]],
 	# Placing: the other shape, a Wall of Air round you; then a gateway held until
 	# whole, let go for the near end, the wheel turning the far end, a click for it.
-	place = [[60, "tap", KEY_T], [80, "mouse", MOUSE_BUTTON_LEFT, true], [150, "mouse", MOUSE_BUTTON_LEFT, false],
-		[180, "tap", KEY_2], [190, "tap", KEY_T],
-		[200, "mouse", MOUSE_BUTTON_LEFT, true],
-		[210, "when", "ready", [[5, "mouse", MOUSE_BUTTON_LEFT, false]]],
-		[210, "when", "marked", [[10, "mouse", MOUSE_BUTTON_WHEEL_UP, true], [11, "mouse", MOUSE_BUTTON_WHEEL_UP, false],
+	place = [[60, "tap", KEY_1], [70, "mouse", MOUSE_BUTTON_MIDDLE, true], [71, "mouse", MOUSE_BUTTON_MIDDLE, false],
+		[200, "tap", KEY_2], [215, "mouse", MOUSE_BUTTON_LEFT, true], [216, "mouse", MOUSE_BUTTON_LEFT, false],
+		[220, "when", "marked", [[10, "mouse", MOUSE_BUTTON_WHEEL_UP, true], [11, "mouse", MOUSE_BUTTON_WHEEL_UP, false],
 			[30, "mouse", MOUSE_BUTTON_LEFT, true], [32, "mouse", MOUSE_BUTTON_LEFT, false]]]],
 	# A duel in the dream: every dream key once, most of them before the shade
 	# arrives (4 s in), stepping behind it and chaining it after.
-	dream = [[40, "tap", KEY_T], [52, "tap", KEY_H], [64, "tap", KEY_U], [76, "tap", KEY_X], [88, "tap", KEY_V],
-		[100, "tap", KEY_SHIFT], [150, "tap", KEY_Z], [260, "tap", KEY_Y], [320, "tap", KEY_I]],
+	dream = [[40, "tap", KEY_T], [52, "tap", KEY_5], [64, "tap", KEY_Z], [76, "tap", KEY_V], [88, "tap", KEY_X],
+		[100, "tap", KEY_E], [150, "tap", KEY_R], [260, "tap", KEY_F], [320, "tap", KEY_TAB]],
+	# Jumps: standing, then running (pictures of the leap).
+	jumps = [[30, "tap", KEY_SPACE], [70, "key", KEY_W, true], [95, "tap", KEY_SPACE], [140, "key", KEY_W, false]],
 	# Pictures of the forms row: the sword in hand and its forms; a form; the bow and
 	# its forms; another; the knife.
 	formsdemo = [[40, "tap", KEY_1], [90, "tap", KEY_Z], [160, "tap", KEY_2], [210, "tap", KEY_X], [290, "tap", KEY_3]],
 	# The camp's yard: take the mouse, strike or weave at a post, roll, again.
-	yard = [[30, "mouse", MOUSE_BUTTON_LEFT, true], [31, "mouse", MOUSE_BUTTON_LEFT, false], [45, "tap", KEY_3],
-		[60, "mouse", MOUSE_BUTTON_LEFT, true], [61, "mouse", MOUSE_BUTTON_LEFT, false],
-		[150, "tap", KEY_SPACE], [200, "mouse", MOUSE_BUTTON_LEFT, true], [201, "mouse", MOUSE_BUTTON_LEFT, false]],
+	yard = [[30, "mouse", MOUSE_BUTTON_LEFT, true], [31, "mouse", MOUSE_BUTTON_LEFT, false],
+		[60, "tap", KEY_3], [150, "tap", KEY_SHIFT], [200, "tap", KEY_3]],
 	# The camp: hide and show the sheet, open and close the menu, walk at a doorway.
 	camp = [[30, "tap", KEY_H], [60, "tap", KEY_H], [100, "tap", KEY_ESCAPE], [140, "tap", KEY_ESCAPE],
 		[180, "key", KEY_W, true], [520, "key", KEY_W, false]],

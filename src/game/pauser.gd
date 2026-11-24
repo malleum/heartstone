@@ -43,6 +43,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_main()
 		elif card.visible:
 			close()
+		elif g.has_method("close_overlay") and g.close_overlay():
+			pass    # Esc closed what Tab had opened
 		else:
 			open()
 

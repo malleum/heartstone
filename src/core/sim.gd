@@ -266,6 +266,11 @@ func free_slots(p: Dictionary) -> int:
 		used += Rules.slots_of(Rules.weaves[w], p.profile)
 	if not p.get("kept", {}).is_empty():
 		used += Rules.slots_of(Rules.weaves[p.kept.weave], p.profile)
+	# Weaves being made together (Sim.request_cast `together`): each holds its flows.
+	for f in p.get("weaving", []):
+		used += Rules.slots_of(Rules.weaves[f.weave], p.profile)
+	if not p.forming.is_empty() and not p.get("weaving", []).is_empty():
+		used += Rules.slots_of(Rules.weaves[p.forming.weave], p.profile)
 	return Rules.flow_capacity(p.profile) + 2 * p.get("circle", []).size() - used
 
 ## Who a held weave aimed at `aim` would fasten on: the nearest body the weave can
@@ -397,7 +402,7 @@ func cancel_weave(id: int) -> String:
 	if p.is_empty() or p.forming.is_empty():
 		return "nothing being woven"
 	events.append({e = "cancel", id = id, weave = p.forming.weave})
-	p.forming = {}
+	p.forming = p.weaving.pop_back() if not p.get("weaving", []).is_empty() else {}
 	return ""
 
 ## A weave left going on its own (G on a weave that strikes): it keeps the flows it
@@ -447,9 +452,19 @@ func _step_autos(p: Dictionary) -> void:
 ## Start forming a weave at an aim point. Returns "" or the reason it was refused.
 ## `hold`: the weave, once made, waits in the hands until aim_cast lets it go
 ## (a held mouse button); without it the weave leaves the moment it is whole.
-func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String:
+##
+## `together` (a player's hands, not a bot's): another weave may be begun while
+## others are still being made, if it is a different weave and the flows allow; it
+## goes at its own pace and, unless aimed by aim_weave, leaves where the weaver is
+## looking (set_look) when it is whole.
+func request_cast(id: int, weave: String, aim: Vector3, hold := false, together := false) -> String:
 	var p: Dictionary = ents[id]
-	if not p.alive or not p.forming.is_empty() or not p.swing.is_empty() or not p.dash.is_empty() or p.reel_until > t:
+	if together and not p.forming.is_empty():
+		if p.forming.weave == weave or p.get("weaving", []).any(func(f: Dictionary) -> bool: return f.weave == weave):
+			return "already weaving that"
+		if p.forming.has("end_a") or Rules.weaves[p.forming.weave].get("sweep", false):
+			return "busy"
+	if not p.alive or (not p.forming.is_empty() and not together) or not p.swing.is_empty() or (not p.dash.is_empty() and not together) or p.reel_until > t:
 		return "busy"
 	if p.get("entranced", 0.0) > t:
 		return "the song has you"
@@ -487,12 +502,62 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 		return "not ready"
 	if row.get("kind", "") == "heal" and _heal_target(p, aim, row.base.range).is_empty():
 		return "no one there to Heal (you cannot Heal yourself)"
-	var why := Rules.cast_block(p.profile, weave, free_slots(p), p.stamina)
+	var free := free_slots(p)
+	if together and not p.forming.is_empty() and p.get("weaving", []).is_empty():
+		free -= Rules.slots_of(Rules.weaves[p.forming.weave], p.profile)
+	var why := Rules.cast_block(p.profile, weave, free, p.stamina)
 	if why != "":
-		return why
-	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim, target = target, hold = hold, ready = false}
+		return "not enough flows free for that as well" if together and not p.forming.is_empty() and why.contains("flow") else why
+	if together and not p.forming.is_empty():
+		if not p.has("weaving"): p.weaving = []
+		p.weaving.append(p.forming)
+	p.forming = {weave = weave, left = Rules.form_time(p.profile, weave), aim = aim, target = target, hold = hold, ready = false, free = together}
 	events.append({e = "form", id = id, weave = weave, time = p.forming.left})
 	return ""
+
+## Where a weave being made will go (a player clicked there), and whether it is held
+## back until the button is let go. Any of the weaves in progress, by name.
+func aim_weave(id: int, weave: String, aim: Vector3, hold: bool) -> void:
+	var p: Dictionary = ents.get(id, {})
+	if p.is_empty():
+		return
+	var f := _weaving_of(p, weave)
+	if f.is_empty():
+		return
+	f.clicked = true
+	_aim_forming(p, f, aim, hold)
+
+## Where the weaver is looking: weaves made together and not clicked leave there.
+func set_look(id: int, at: Vector3) -> void:
+	if ents.has(id):
+		ents[id].look = at
+
+func _weaving_of(p: Dictionary, weave: String) -> Dictionary:
+	if not p.forming.is_empty() and p.forming.weave == weave:
+		return p.forming
+	for f in p.get("weaving", []):
+		if f.weave == weave:
+			return f
+	return {}
+
+## Let go of the held weave woven most lately (right click with nothing being made).
+func release_latest(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	for i in range(p.get("held", []).size() - 1, -1, -1):
+		var h: Dictionary = p.held[i]
+		if h.tied == 0.0:
+			release(id, h.weave, h.target)
+			return ""
+	return "nothing held"
+
+## Tie off the held weave woven most lately (Q).
+func tie_latest(id: int) -> String:
+	var p: Dictionary = ents.get(id, {})
+	for i in range(p.get("held", []).size() - 1, -1, -1):
+		var h: Dictionary = p.held[i]
+		if h.tied == 0.0:
+			return tie(id, h.weave)
+	return "nothing held to tie off"
 
 ## Where the weave being made will go, and whether it is still being held back.
 ## Aim is taken when the weave leaves, not when it was begun: weaving takes time,
@@ -500,28 +565,35 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false) -> String
 func aim_cast(id: int, aim: Vector3, hold: bool) -> void:
 	var p: Dictionary = ents[id]
 	if not p.forming.is_empty():
-		var f: Dictionary = p.forming
-		f.aim = aim
-		if f.get("wait_b", false):
-			# A gateway's near end is set: it stays in the hands until the next press
-			# and release, which sets the far end.
-			if hold:
-				f.wait_b = false
-			return
-		var let_go: bool = f.get("hold", false) and not hold
-		f.hold = hold
-		# A gateway held until whole is placed one end at a time: this release sets
-		# the near end where the crosshair is, shaped and turned as chosen.
-		if let_go and f.get("ready", false) and Rules.weaves[f.weave].kind == "gate" and not f.has("end_a"):
-			f.end_a = gate_end(p.pos, p.yaw, aim, true, p.get("shape_alt", false), p.get("turn", 0.0), 0.0)
-			f.hold = true; f.wait_b = true
-			events.append({e = "gate_mark", id = id, end = f.end_a})
+		_aim_forming(p, p.forming, aim, hold)
 		return
 	# Balefire burning: it follows the aim, and goes out when let go.
 	for fx in effects:
 		if fx.kind == "sweep" and fx.owner == id:
 			fx.aim = aim
 			fx.holding = hold
+
+func _aim_forming(p: Dictionary, f: Dictionary, aim: Vector3, hold: bool) -> void:
+	var id: int = p.id
+	f.aim = aim
+	if f.get("wait_b", false):
+		# A gateway's near end is set: it stays in the hands until the next press
+		# and release, which sets the far end.
+		if hold:
+			f.wait_b = false
+		return
+	var let_go: bool = f.get("hold", false) and not hold
+	f.hold = hold
+	# A gateway held until whole is placed one end at a time: this release sets
+	# the near end where the crosshair is, shaped and turned as chosen.
+	if let_go and f.get("ready", false) and Rules.weaves[f.weave].kind == "gate" and not f.has("end_a"):
+		f.end_a = gate_end(p.pos, p.yaw, aim, true, p.get("shape_alt", false), p.get("turn", 0.0), 0.0)
+		f.hold = true; f.wait_b = true
+		events.append({e = "gate_mark", id = id, end = f.end_a})
+	elif let_go and f.get("clicked", false) and Rules.weaves[f.weave].kind == "gate" and not f.has("end_a"):
+		# Clicked before it was whole: the near end is set there when it is.
+		f.mark_a = aim
+		f.hold = true
 
 # --- arms: intent ---------------------------------------------------------------------
 
@@ -683,7 +755,9 @@ func _rise(p: Dictionary, how: String) -> void:
 ## costs breath, like a roll, so it is not free).
 const JUMP_SECS := 0.55
 const JUMP_REACH := 1.9    # how much higher ground a jump can land on (a low ledge)
-func request_jump(id: int) -> String:
+const LEAP := 1.6          # extra metres a running jump carries a channeller
+const LEAP_FIGHTER := 2.8  # and a fighter
+func request_jump(id: int, dir := Vector3.ZERO) -> String:
 	var p: Dictionary = ents[id]
 	if not p.alive or p.get("downed", false) or p.down > 0.0 or p.get("tied", false) or p.chained > t or not p.dash.is_empty():
 		return "busy"
@@ -691,10 +765,26 @@ func request_jump(id: int) -> String:
 		return "busy"
 	if p.stamina < 12.0:
 		return "out of breath"
+	dir.y = 0.0
+	# A low wall or a wagon right ahead: over it, hand on the top, not a jump.
+	if dir.length() > 0.1:
+		var over := Map.vault_over(p.pos, dir.normalized(), 1.6, p.radius)
+		if over > 0.0:
+			p.stamina -= 12.0
+			var secs := maxf(0.45, over / 7.0)
+			p.dash = {vel = dir.normalized() * (over / secs), left = secs, vault = true}
+			p.safe_until = t + secs
+			events.append({e = "dodge", id = id, roll = false, back = false, dir = dir.normalized(), time = secs, vault = true})
+			return ""
 	p.stamina -= 12.0
 	p.air_until = t + JUMP_SECS
 	p.jump_floor = Terrain.height(p.pos.x, p.pos.z)
-	events.append({e = "jump", id = id})
+	# Running, it carries you on: farther for one who fights with the body.
+	var far := 0.0
+	if dir.length() > 0.1:
+		far = LEAP_FIGHTER if p.profile.get("cls", "channeller") != "channeller" else LEAP
+		p.leap = {vel = dir.normalized() * (far / JUMP_SECS), left = JUMP_SECS}
+	events.append({e = "jump", id = id, far = far})
 	return ""
 
 ## Drawing a bow: known to the sim only so that everyone can see it, and so that
@@ -751,16 +841,12 @@ func request_dodge(id: int, dir: Vector3, rolling := false) -> String:
 	if p.stamina < d.cost * 0.5:
 		return "too tired"
 	p.stamina = maxf(p.stamina - d.cost, 0.0)
-	# Leaving is always possible: it abandons a blow or a weave half made.
-	p.swing = {}; p.queued = {}; p.forming = {}; p.guard = false; p.drawing = false
+	# Leaving is always possible: it abandons a blow (weaves go on being made: the
+	# hands roll with them).
+	p.swing = {}; p.queued = {}; p.guard = false; p.drawing = false
 	p.dash = {vel = dir * (d.dist / d.time), left = d.time}
-	# A low wall or a wagon right ahead: over it, not into it.
-	var over := Map.vault_over(p.pos, dir, 1.6, p.radius) if not back else 0.0
-	if over > 0.0:
-		var secs := maxf(d.time, over / 7.0)
-		p.dash = {vel = dir * (over / secs), left = secs, vault = true}
-	p.safe_until = t + maxf(d.safe, p.dash.left if over > 0.0 else 0.0)
-	events.append({e = "dodge", id = id, roll = rolling, back = back, dir = dir, time = p.dash.left, vault = over > 0.0})
+	p.safe_until = t + d.safe
+	events.append({e = "dodge", id = id, roll = rolling, back = back, dir = dir, time = p.dash.left, vault = false})
 	return ""
 
 ## The friend a Healing aimed here would reach: the most hurt within reach of the
@@ -1631,6 +1717,11 @@ func _step_player(p: Dictionary, dt: float) -> void:
 				p.queued = {}
 				p.rolled_at = t
 				request_attack(p.id, q.kind, q.aim, q.charge)
+	if not p.get("leap", {}).is_empty():
+		step += p.leap.vel * dt
+		p.leap.left -= dt
+		if p.leap.left <= 0.0:
+			p.leap = {}
 	if p.get("bound_by", 0) != 0 or p.chained > t:
 		step = Vector3.ZERO
 	elif p.get("mired", 0.0) > t:
@@ -1655,27 +1746,49 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	var drain: float = float(Rules.weapons.get(p.get("weapon", ""), {}).get("drain_hp", 0.0))
 	if drain > 0.0 and p.hp > p.max_hp * 0.33:
 		p.hp = maxf(p.hp - drain * dt, p.max_hp * 0.33)
+	# Weaves made together go on at their own pace; the one begun last is in the hands
+	# (p.forming), and when it is done the one before it takes its place.
+	if not p.get("weaving", []).is_empty():
+		for f in p.weaving.duplicate():
+			if _advance(p, f, dt):
+				p.weaving.erase(f)
 	if p.forming.is_empty():
 		return
+	if _advance(p, p.forming, dt):
+		p.forming = p.weaving.pop_back() if not p.get("weaving", []).is_empty() else {}
+
+## A weave being made, one tick on: true when it is done with (loosed or come to
+## nothing).
+func _advance(p: Dictionary, f: Dictionary, dt: float) -> bool:
 	# Held by an Eyeless gaze, the weave comes slowly; with a second weave kept and
-	# still being made, the flows are split between them.
+	# still being made, the flows are split between them (the old way; weaves made
+	# together go at full pace).
 	var split: float = Rules.TUNE.split if not p.get("kept", {}).is_empty() and not p.kept.get("ready", false) else 1.0
-	p.forming.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0) * split
-	if p.forming.left > 0.0:
-		return
+	f.left -= dt * (0.6 if p.get("afraid", 0.0) > t else 1.0) * split
+	if f.left > 0.0:
+		return false
+	# Clicked before it was whole, a gateway's near end goes where it was clicked.
+	if f.has("mark_a") and not f.has("end_a") and Rules.weaves[f.weave].kind == "gate":
+		f.end_a = gate_end(p.pos, p.yaw, f.mark_a, true, p.get("shape_alt", false), p.get("turn", 0.0), 0.0)
+		f.erase("mark_a")
+		f.hold = true; f.wait_b = true; f.ready = true
+		events.append({e = "ready", id = p.id, weave = f.weave})
+		events.append({e = "gate_mark", id = p.id, end = f.end_a})
+		return false
 	# A weave that sweeps (Balefire) goes as soon as it is whole: holding on is what
 	# keeps it burning (`sweep` effect), not what holds it back.
-	var sweeps: bool = Rules.weaves[p.forming.weave].get("sweep", false)
-	p.beam_hold = p.forming.hold and sweeps
-	if p.forming.hold and not sweeps:
+	var sweeps: bool = Rules.weaves[f.weave].get("sweep", false)
+	p.beam_hold = f.hold and sweeps
+	if f.hold and not sweeps:
 		# Whole, and held back in the hands until it is let go.
-		if not p.forming.ready:
-			p.forming.ready = true
-			events.append({e = "ready", id = p.id, weave = p.forming.weave})
-		return
-	var weave: String = p.forming.weave
-	var aim: Vector3 = p.forming.aim
-	p.fasten = p.forming.get("target", 0)
+		if not f.ready:
+			f.ready = true
+			events.append({e = "ready", id = p.id, weave = f.weave})
+		return false
+	var weave: String = f.weave
+	# Made together and never clicked: where the weaver is looking now it is whole.
+	var aim: Vector3 = p.get("look", f.aim) if f.get("free", false) and not f.get("clicked", false) else f.aim
+	p.fasten = f.get("target", 0)
 	var row: Dictionary = Rules.weaves[weave]
 	if row.kind in ["bind", "sever"]:
 		# It fastens on whoever it is aimed at when it leaves, if anyone.
@@ -1683,12 +1796,10 @@ func _step_player(p: Dictionary, dt: float) -> void:
 		if now != 0:
 			p.fasten = now
 		if not (ents.has(p.fasten) and ents[p.fasten].alive):
-			p.forming = {}
 			events.append({e = "fizzle", id = p.id, weave = weave})
-			return
+			return true
 	# A gateway placed end by end: its near end goes with it into the cast.
-	p.gate_a = p.forming.get("end_a", {})
-	p.forming = {}
+	p.gate_a = f.get("end_a", {})
 	var cost := Rules.draw_of(p.profile, weave, p.stamina)
 	p.stamina = maxf(p.stamina - cost, 0.0)
 	var tl: Dictionary = tallies[p.id]
@@ -1696,6 +1807,7 @@ func _step_player(p: Dictionary, dt: float) -> void:
 	tl.casts[weave] = tl.casts.get(weave, 0) + 1
 	p.cd[weave] = t + Rules.cooldown(p.profile, weave)
 	_cast(p, weave, aim)
+	return true
 
 ## A blow in progress: wind-up, the instant it lands, recovery, then whatever was
 ## asked for meanwhile.

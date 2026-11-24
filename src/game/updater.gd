@@ -21,7 +21,7 @@ const MIN_SIZE := 8 * 1024 * 1024   # the real thing is around a hundred MB
 ## The release this code is, or the one being made: raised just before a v* tag is
 ## pushed (the release workflow refuses a tag that does not match). Every build knows
 ## it, the server's from source too, so each can say which version it is.
-const VERSION := "0.2.13"
+const VERSION := "0.2.14"
 
 static var checked := false
 static var newest := ""          # the latest release's tag, once known

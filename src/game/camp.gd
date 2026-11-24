@@ -353,7 +353,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		cam_yaw -= ev.relative.x * 0.003
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.1, 0.5)
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and captured and _in_yard():
-		_yard_use()
+		_yard_use(true)
 	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and captured and _in_yard():
 		# A parry, as in a fight (only a blow can be parried; the posts strike nothing).
 		yard.sim.set_guard(yard.me, ev.pressed)
@@ -362,27 +362,35 @@ func _unhandled_input(ev: InputEvent) -> void:
 			for clip in ["Sword_Block", "Block", "Sword_Defend"]:
 				if apg.has_animation(clip):
 					apg.play(clip, 0.08); set_meta("busy_until", Time.get_ticks_msec() / 1000.0 + 0.5); break
-	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode in [Keys.k(KEY_Z), Keys.k(KEY_X), Keys.k(KEY_R)]:
-		_yard_form([Keys.k(KEY_Z), Keys.k(KEY_X), Keys.k(KEY_R)].find(ev.physical_keycode))
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and profile.get("cls", "channeller") != "channeller" and _yard_key(ev.physical_keycode, [KEY_5, KEY_Z, KEY_X, KEY_C]) >= 0:
+		_yard_form(_yard_key(ev.physical_keycode, [KEY_5, KEY_Z, KEY_X, KEY_C]))
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and not creating and not menu.visible and not tree.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode == Keys.k(KEY_SPACE):
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and ev.physical_keycode == Keys.k(KEY_SHIFT):
 		var v := Vector2(float(Keys.down(KEY_D)) - float(Keys.down(KEY_A)), float(Keys.down(KEY_S)) - float(Keys.down(KEY_W)))
 		var d := Basis(Vector3.UP, cam_yaw) * Vector3(v.x, 0, v.y)
 		yard.roll(d.normalized() if d.length() > 0.1 else -Vector3(sin(cam_yaw), 0, cos(cam_yaw)))
-	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and Keys.slot_of(ev.physical_keycode) >= 0:
-		var bar := Profile.bar(profile).filter(func(x: String) -> bool: return not Rules.forms.has(x))
-		var n: int = Keys.slot_of(ev.physical_keycode)
+	elif ev is InputEventKey and ev.pressed and not ev.echo and _in_yard() and _yard_key(ev.physical_keycode, YARD_KEYS if profile.get("cls", "channeller") == "channeller" else [KEY_1, KEY_2, KEY_3, KEY_4]) >= 0:
+		# As in a fight: a channeller's key weaves that weave at once (at the post under
+		# the crosshair); a fighter's 1-4 take up that weapon.
+		var weaver: bool = profile.get("cls", "channeller") == "channeller"
+		var bar := Profile.bar(profile).filter(func(x: String) -> bool: return Rules.weaves.has(x) if weaver else (Rules.weapons.has(x) and not Rules.forms.has(x)))
+		var n: int = _yard_key(ev.physical_keycode, YARD_KEYS if weaver else [KEY_1, KEY_2, KEY_3, KEY_4])
 		if n < bar.size():
 			yard_slot = n
-			Toast.say(_yard_name(bar[n]), "", "info", 1.2)
+			if weaver:
+				_yard_use()
+			else:
+				yard.sim.equip(yard.me, bar[n])
+				Toast.say(_yard_name(bar[n]), "", "info", 1.0)
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.physical_keycode == KEY_ESCAPE:
 			if tree.visible: _show_tree(false)
 			elif captured: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			else: _show_menu(not menu.visible)
-		elif ev.physical_keycode == Keys.k(KEY_TAB):
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif ev.physical_keycode == Keys.k(KEY_TAB) and not creating and not menu.visible and not profile.is_empty():
+			# Tab: your inventory, the trees (with the bar along the bottom).
+			_show_tree(not tree.visible)
 		elif ev.physical_keycode == Keys.k(KEY_T) and not creating and not menu.visible and not profile.is_empty():
 			_show_tree(not tree.visible)
 		elif ev.physical_keycode == Keys.k(KEY_E) and _station != "" and not creating and not tree.visible and not menu.visible:
@@ -393,6 +401,14 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 var _station := ""   # the camp station within reach (Map.STATIONS), or ""
 
+const YARD_KEYS := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_Z, KEY_X, KEY_C]
+
+func _yard_key(code: int, keys: Array) -> int:
+	for i in keys.size():
+		if code == Keys.k(keys[i]):
+			return i
+	return -1
+
 ## In the yard, ready to strike or weave (not making or menuing).
 func _in_yard() -> bool:
 	return yard != null and not creating and not menu.visible and not tree.visible and yard.near(pos)
@@ -402,11 +418,19 @@ func _yard_name(id: String) -> String:
 
 ## A click in the yard: the chosen thing on the bar, at what the crosshair is on (or
 ## the nearest post).
-func _yard_use() -> void:
-	var bar := Profile.bar(profile).filter(func(x: String) -> bool: return not Rules.forms.has(x))
+func _yard_use(click := false) -> void:
+	var weaver: bool = profile.get("cls", "channeller") == "channeller"
+	var bar := Profile.bar(profile).filter(func(x: String) -> bool: return Rules.weaves.has(x) if weaver else (Rules.weapons.has(x) and not Rules.forms.has(x)))
 	if bar.is_empty():
 		return
 	var id: String = bar[clampi(yard_slot, 0, bar.size() - 1)]
+	if click and weaver:
+		# A click is the weapon, as in a fight (weaves are their keys).
+		id = ""
+		for w in profile.get("kit", []):
+			if Rules.weapons.has(w): id = w; break
+		if id == "":
+			return
 	var from := cam.global_position
 	var dir := -cam.global_transform.basis.z
 	var aim := yard.nearest_post(pos)
@@ -557,7 +581,7 @@ func _process(dt: float) -> void:
 		var to: Vector3 = doors[int(cl.stroll)].at * 1.4 - pos   # on through, not to the sill
 		move = to.normalized()
 		cam_yaw = lerp_angle(cam_yaw, atan2(-move.x, -move.z), 2.0 * dt)
-	var sprint := Keys.down(KEY_SHIFT)
+	var sprint := true    # (no sprint key: always at a run, the user's choice)
 	if _phase == 1:
 		move = Vector3.ZERO     # the body is over there now, moved by the fight
 	# Walking eases in and out, as a body in a fight does (there the figure closes on
@@ -596,7 +620,7 @@ func _process(dt: float) -> void:
 		pos = yard.step(dt, pos, face)
 		if yard.near(pos) and not _yard_told and not cl.has("ghost"):
 			_yard_told = true
-			Toast.say("The yard", "Click: strike or weave at the posts (%s choose from your bar) · %s roll. Nobody else can be struck here." % ["1-9", Keys.name(KEY_SPACE)], "info", 8.0)
+			Toast.say("The yard", ("1-5, Z X C: weave at the posts · click: your weapon" if profile.get("cls", "channeller") == "channeller" else "1-4: weapons · 5 Z X C: forms · click: strike, hold: heavy") + " · right click: parry · %s: roll. Nobody else can be struck here." % Keys.name(KEY_SHIFT), "info", 8.0)
 	model.position = _ground(pos)
 	model.rotation.y = lerp_angle(model.rotation.y, face, minf(10.0 * dt, 1.0))
 	# Eased, so the first step does not throw it back at once.
@@ -820,9 +844,9 @@ func _sheet() -> void:
 		var st_id: String = profile.get("study", "")
 		if Rules.lore(profile).has(st_id):
 			_row(side, "Working out", "%s  %d%%" % [Rules.lore(profile)[st_id].name, int(100.0 * float(profile.get("study_done", 0.0)) / Rules.study_cost(profile, st_id))], Color(0.85, 0.87, 0.95))
-		_button(side, "The weapon and form trees, and your bar  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
+		_button(side, "The weapon and form trees, and your bar  (%s)" % Keys.name(KEY_TAB), func() -> void: _show_tree(true))
 	if channels:
-		_button(side, "The weave tree, and your bar  (%s)" % Keys.name(KEY_T), func() -> void: _show_tree(true))
+		_button(side, "The weave tree, and your bar  (%s)" % Keys.name(KEY_TAB), func() -> void: _show_tree(true))
 	_button(side, "Loadout: Talents, weaves, affinity", _loadout)
 	_button(side, "Appearance: dress, hair, build", _appearance)
 	if Launch.report.size() > 0:

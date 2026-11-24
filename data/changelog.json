@@ -1,4 +1,14 @@
 [
+  {"version": "v0.2.14", "date": "24 Nov", "items": [
+    "New keys. Everyone: WASD, Shift rolls, Space jumps (vaults a low wall ahead), Ctrl ducks, Caps Lock throws, Q ties off (fighters: rope), Tab is your inventory and level-up picks (Tab or Esc closes it).",
+    "Channellers: hold 1-5, Z X C to weave; several different weaves at once, as your flows allow, at full speed. Click while weaving to aim the weave begun last (hold the click to hold it back); unclicked, it goes where you look when it is whole. Right click lets go of the last weave; with none being made, of the last held weave. Left click with nothing being woven strikes with your weapon.",
+    "Walls and gateway ends: the wheel turns them, middle click changes their shape; a gateway takes a click for each end.",
+    "Fighters: weapons on 1-4 (or the wheel), the forms of the one in hand on 5 Z X C (four per weapon).",
+    "A roll no longer loses the weave being made.",
+    "Jumps leave the ground: a take-off, an arc and a landing; running, a leap, farther for fighters.",
+    "The dream world: E R F V T and 5 Z X C (E is Deny); Tab chooses the abilities.",
+    "The camp: always at a run; Tab opens the trees."
+  ]},
   {"version": "v0.2.13", "date": "24 Nov", "items": [
     "Joining a fight already going, you see it as it stands: torches knocked down or put out, crates burnt, wagons shoved, burning or gone.",
     "The yard: right click parries, Z X R do the forms of your weapon, as in a fight.",

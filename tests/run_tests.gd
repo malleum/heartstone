@@ -843,7 +843,7 @@ func _dream_more() -> void:
 	print("== Tel'aran'rhiod: the other sixteen, and the dream bar")
 	Map.use("open")
 	Dream.load_data()
-	check(Dream.moves.size() == 24 and Dream.tune.bar.size() == 8 and Dream.tune.bar_keys.size() == 8, "twenty-four things to do, eight on the bar")
+	check(Dream.moves.size() == 24 and Dream.tune.bar.size() == 9 and Dream.tune.bar_keys.size() == 9 and Dream.tune.bar_keys[0] == "E" and Dream.tune.bar[0] == "deny", "twenty-four things to do, nine on the bar, E the Deny")
 	for mv in Dream.tune.bar:
 		check(Dream.moves.has(mv), "the default bar names a real move (%s)" % mv)
 	var d := _dpair(); var sim: Sim = d[0]; var pa: Dictionary = d[1]; var pb: Dictionary = d[2]
@@ -1582,7 +1582,7 @@ func _rounds() -> void:
 	var vp := vs.add_player(Profile.create({name = "Vaulter", power = "saidin"}))
 	vs.ents[vp].pos = Vector3(wg.x, 0, wg.z + 1.3)
 	vs.ents[vp].stamina = 999.0
-	check(vs.request_dodge(vp, Vector3(0, 0, -1), true) == "" and vs.ents[vp].dash.get("vault", false), "Space by the breastwork is a vault")
+	check(vs.request_jump(vp, Vector3(0, 0, -1)) == "" and vs.ents[vp].dash.get("vault", false), "Space (jump) by the breastwork is a vault")
 	run(vs, 1.0)
 	check(vs.ents[vp].pos.z < wg.z - 0.3, "and lands on the far side")
 	var ws := Sim.new("wagon_ring", 94)

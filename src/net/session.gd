@@ -317,9 +317,33 @@ func link() -> void:
 	else: _arms.rpc_id(1, "link", [])
 
 ## Jump (Sim.request_jump): a low sweep passes under.
-func jump() -> void:
-	if is_host: _do_arms(1, "jump", [])
-	else: _arms.rpc_id(1, "jump", [])
+func jump(dir := Vector3.ZERO) -> void:
+	if is_host: _do_arms(1, "jump", [dir])
+	else: _arms.rpc_id(1, "jump", [dir])
+
+## Begin a weave alongside any being made (the held-key way: Sim.request_cast together).
+func cast_together(weave: String, at: Vector3) -> void:
+	if is_host: _do_arms(1, "cast2", [weave, at])
+	else: _arms.rpc_id(1, "cast2", [weave, at])
+
+## Where one of the weaves being made goes (a click), held back while the button is down.
+func aim_weave(weave: String, at: Vector3, hold: bool) -> void:
+	if is_host: _do_arms(1, "aimw", [weave, at, hold])
+	else: _arms.rpc_id(1, "aimw", [weave, at, hold])
+
+## Where I am looking, for weaves not clicked anywhere (a few times a second while weaving).
+func look(at: Vector3) -> void:
+	if is_host: _do_arms(1, "look", [at])
+	else: _arms.rpc_id(1, "look", [at])
+
+## Let go of the held weave woven last; tie it off (Q).
+func let_go_held() -> void:
+	if is_host: _do_arms(1, "letgo", [])
+	else: _arms.rpc_id(1, "letgo", [])
+
+func tie_latest() -> void:
+	if is_host: _do_arms(1, "tiel", [])
+	else: _arms.rpc_id(1, "tiel", [])
 
 ## Keep the weave in the hands aside, ready (Sim.stow); take the kept one back up (Sim.swap_kept).
 func stow() -> void:
@@ -433,6 +457,17 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 			why = sim.request_link(ent)
 		"cancel":
 			why = sim.cancel_weave(ent)
+		"cast2":
+			if a.size() == 2 and a[0] is String and a[1] is Vector3 and Rules.weaves.has(a[0]):
+				why = sim.request_cast(ent, a[0], a[1], false, true)
+		"aimw":
+			if a.size() == 3 and a[0] is String and a[1] is Vector3 and a[2] is bool: sim.aim_weave(ent, a[0], a[1], a[2])
+		"look":
+			if a.size() == 1 and a[0] is Vector3: sim.set_look(ent, a[0])
+		"letgo":
+			why = sim.release_latest(ent)
+		"tiel":
+			why = sim.tie_latest(ent)
 		"stow":
 			why = sim.stow(ent)
 		"swap":
@@ -442,7 +477,7 @@ func _do_arms(peer: int, what: String, a: Array) -> void:
 		"rope":
 			if a.size() == 1 and a[0] is bool: why = sim.set_tying(ent, a[0])
 		"jump":
-			why = sim.request_jump(ent)
+			why = sim.request_jump(ent, a[0] if a.size() == 1 and a[0] is Vector3 else Vector3.ZERO)
 		"df_gate":
 			why = sim.request_df_gate(ent)
 		"pick":

@@ -335,7 +335,7 @@ func _draw_all() -> void:
 				if uses:
 					Glyph.text(self, sans, c + Vector2(r * 0.75, r * 0.95), str(left), 13, Color.WHITE if left > 0 else Color(1.0, 0.5, 0.4), 0)
 				if i < 9:
-					Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+					Glyph.text(self, sans, c + Vector2(0, -r - 9), g.slot_key_name(i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
 				continue
 			var is_form: bool = Rules.forms.has(id)
 			var total: float = float(Rules.forms[id].cooldown) if is_form else Rules.cooldown(p, id)
@@ -350,7 +350,9 @@ func _draw_all() -> void:
 				var hs: int = g.holding(id)
 				# In the hands or kept aside: a ring that fills as it is made, gold and
 				# beating when whole. "kept" under a weave put aside for later.
-				var inh: Dictionary = g.my_form if not g.my_form.is_empty() and g.my_form.weave == id else (g.my_kept if not g.my_kept.is_empty() and g.my_kept.weave == id else {})
+				var inh: Dictionary = {}
+				for wf in g.my_weaving:
+					if wf.weave == id: inh = wf
 				if not inh.is_empty():
 					var whole: bool = inh.get("ready", false)
 					var ff: float = 1.0 if whole else clampf(inh.get("done", 0.0) / maxf(inh.get("time", 1.0), 0.05), 0.0, 1.0)
@@ -380,7 +382,7 @@ func _draw_all() -> void:
 					draw_colored_polygon(pts, Color(0, 0, 0, 0.62))
 				Glyph.text(self, sans, c + Vector2(0, 5), "%.1f" % wait, 14, Color.WHITE, 0)
 			if i < 9:
-				Glyph.text(self, sans, c + Vector2(0, -r - 9), Keys.name(KEY_1 + i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
+				Glyph.text(self, sans, c + Vector2(0, -r - 9), g.slot_key_name(i), 12, Glyph.GOLD if sel else Color(0.7, 0.7, 0.75), 0)
 		# The forms of the weapon in hand: a row of their own beside the bar, not things
 		# to hold. Each is drawn as the path it cuts, in its colour; Z, X, R, then Shift
 		# and a number.
@@ -414,9 +416,7 @@ func _draw_all() -> void:
 					Glyph.text(self, sans, c + Vector2(0, 5), "%.0f" % ceilf(wait), 13, Color.WHITE, 0)
 				var key := ""
 				if i < g.FORM_KEYS.size():
-					key = Keys.name(g.FORM_KEYS[i])
-				elif i < 9:
-					key = "⇧" + Keys.name(KEY_1 + i)
+					key = Keys.name(Keys.k(g.FORM_KEYS[i]))
 				Glyph.text(self, sans, c + Vector2(0, -30), key, 12, Color(0.95, 0.9, 0.7) if ok else Color(0.55, 0.55, 0.6), 0)
 				var nm: String = fr.name
 				if nm.begins_with("The "):
@@ -449,15 +449,15 @@ func _draw_all() -> void:
 		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 40, Glyph.GOLD if f >= 1.0 else col, 3.0, true)
 		if f >= 1.0:
 			draw_arc(cc, 20.0 + 2.0 * sin(t * 12.0), 0, TAU, 40, Color(Glyph.GOLD, 0.55), 1.5, true)
-			var say := "let go to loose" if g.weaving else ""
+			var say := "let go to loose" if g.aiming != "" else ""
 			if g.my_form.get("marked", false):
 				say = "click for the far end"
-			elif g.weaving and Rules.weaves[g.my_form.weave].kind == "gate":
-				say = "let go: the near end"
+			elif Rules.weaves[g.my_form.weave].kind == "gate":
+				say = "click: the near end, then the far"
 			Glyph.text(self, sans, cc + Vector2(0, 44), say, 13, Color(Glyph.GOLD, 0.9), 0)
 		if g._placing():
 			# A wall or a gateway end: how it will stand, and the keys that change it.
-			Glyph.text(self, sans, cc + Vector2(0, 62), "%s   ·   %s: shape   ·   wheel: turn" % [g._shape_name(), Keys.name(KEY_T)], 12, Color(1, 1, 1, 0.75), 0)
+			Glyph.text(self, sans, cc + Vector2(0, 62), "%s   ·   middle click: shape   ·   wheel: turn" % g._shape_name(), 12, Color(1, 1, 1, 0.75), 0)
 	elif n > 0 and Rules.forms.has(known[g.selected]) and g.held_since < 0.0:
 		var id: String = known[g.selected]
 		var total: float = float(Rules.forms[id].cooldown)
@@ -477,6 +477,18 @@ func _draw_all() -> void:
 		var need: float = Rules.draw_time(p, g.hand()) if in_hand.has("shot") else 0.35
 		var f: float = clampf((g.clock - g.held_since) / need, 0.0, 1.0)
 		draw_arc(cc, 15.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Glyph.GOLD if f >= 1.0 else Color(1, 1, 1, 0.8), 2.5, true)
+	# Several weaves being made: a small ring for each beyond the one in the middle,
+	# filling as it is made, ticked once it has been clicked somewhere.
+	if g.my_weaving.size() > 1:
+		for k in g.my_weaving.size() - 1:
+			var wf: Dictionary = g.my_weaving[k]
+			var rc := cc + Vector2(-30.0 - k * 18.0, 22.0)
+			var ff: float = 1.0 if wf.get("ready", false) else clampf(wf.get("done", 0.0) / maxf(wf.get("time", 1.0), 0.05), 0.0, 1.0)
+			var wc: Color = Weavefx.colour(wf.weave).lerp(Color.WHITE, 0.3)
+			draw_arc(rc, 6.5, 0, TAU, 20, Color(0, 0, 0, 0.5), 3.0, true)
+			draw_arc(rc, 6.5, -PI * 0.5, -PI * 0.5 + TAU * ff, 20, Glyph.GOLD if ff >= 1.0 else wc, 2.2, true)
+			if wf.get("clicked", false):
+				draw_circle(rc, 1.8, Color.WHITE)
 	if g.refusal_t > 0.0:
 		Glyph.text(self, sans, cc + Vector2(0, 58), g.last_refusal, 17, Color(1.0, 0.6, 0.5, clampf(g.refusal_t * 2.0, 0.0, 1.0)), 0)
 	if g.flash_t > 0.0 and g.flash_text != "":

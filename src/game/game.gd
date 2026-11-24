@@ -42,7 +42,6 @@ var known: Array = []
 var my_forms: Array = []         # forms known, in order (only the hand's weapon's are shown)
 var pending_form := ""           # a form asked for before its weapon was in hand
 var pending_until := 0.0
-const FORM_KEYS := [KEY_Z, KEY_X, KEY_R]
 var last_refusal := ""
 var refusal_t := 0.0
 var my_hp := 100.0
@@ -135,7 +134,12 @@ func _ready() -> void:
 	# new things added by themselves). Forms are not things in the hand: they are what
 	# is done with the weapon in it, on a row of their own (Z, X, R; Shift and a number).
 	var bar_all := Profile.bar(profile)
-	known = bar_all.filter(func(x: String) -> bool: return not Rules.forms.has(x))
+	# A channeller's bar is weaves (eight keys: 1-5, Z X C; a weapon is a click with
+	# nothing being woven); one who fights has weapons (1-4) and their forms (5 Z X C).
+	if profile.get("cls", "channeller") == "channeller":
+		known = bar_all.filter(func(x: String) -> bool: return Rules.weaves.has(x)).slice(0, 8)
+	else:
+		known = bar_all.filter(func(x: String) -> bool: return Rules.weapons.has(x) and not Rules.forms.has(x)).slice(0, 4)
 	my_forms = bar_all.filter(func(x: String) -> bool: return Rules.forms.has(x))
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
@@ -280,134 +284,240 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed and not ev.echo:
 		if args.has("ghost"):
 			print("GHOST %d key %s selected=%s" % [frame, OS.get_keycode_string(ev.physical_keycode), known[selected] if selected < known.size() else "-"])
-		if ev.physical_keycode == KEY_ESCAPE:
-			pass    # the pause menu (pauser.gd) has it
-		elif args.has("tour") and ev.physical_keycode == KEY_ENTER and _done:
+		var code: int = ev.physical_keycode
+		if code == KEY_ESCAPE:
+			pass    # the pause menu (pauser.gd) has it (and closes what Tab opened)
+		elif args.has("tour") and code == KEY_ENTER and _done:
 			_tour_go(1)
-		elif (ev.physical_keycode == KEY_ENTER and _done) or ev.physical_keycode == KEY_F10:
+		elif (code == KEY_ENTER and _done) or code == KEY_F10:
 			_to_camp()
-		elif args.has("tour") and ev.physical_keycode == KEY_F1 and tour_card:
+		elif args.has("tour") and code == KEY_F1 and tour_card:
 			tour_card.visible = not tour_card.visible
-		elif args.has("tour") and ev.physical_keycode in [KEY_N, KEY_B, KEY_R]:
-			_tour_go(1 if ev.physical_keycode == KEY_N else (-1 if ev.physical_keycode == KEY_B else 0))
-		elif ev.physical_keycode == KEY_F5:
+		elif args.has("tour") and code in [KEY_N, KEY_B]:
+			_tour_go(1 if code == KEY_N else -1)
+		elif code == KEY_F5:
 			# Through your own eyes, or over the shoulder.
 			Settings.first_person = not Settings.first_person
 			Settings.save()
 			_first_person(Settings.first_person)
 			Toast.say("First person" if Settings.first_person else "Over the shoulder", "%s to change back." % Keys.name(KEY_F5), "info", 2.5)
-		elif ev.physical_keycode == Keys.k(KEY_L):
+		elif code == Keys.k(KEY_L):
 			session.link()
-		elif ev.physical_keycode == Keys.k(KEY_K):
-			session.tie_rope(true)
-		elif ev.physical_keycode == Keys.k(KEY_J) and darkfriend:
+		elif code == Keys.k(KEY_J) and darkfriend:
 			session.df_gate()
-		elif ev.physical_keycode == Keys.k(KEY_TAB):
-			if profile.get("cls", "channeller") == "channeller":
-				_show_tree(tree_view == null or not tree_view.visible)
-			elif not team_meter.is_empty():
-				_show_picks(pick_card == null or not pick_card.visible)
-		elif dreaming and ev.physical_keycode == Keys.k(KEY_I):
-			_show_dream_inventory(dream_inv == null or not dream_inv.visible)
-		elif dreaming and dream_keys.has(ev.physical_keycode) and me:
-			session.dream(dream_bar[dream_keys[ev.physical_keycode]], _aim_point())
-		elif ev.physical_keycode == Keys.k(KEY_V) and not dreaming and me:
-			session.jump()   # a low sweep (the yellow wedge) passes under
-		elif ev.physical_keycode == Keys.k(KEY_Q):
-			_select(posmod(selected - 1, n_known))
-		elif ev.physical_keycode == Keys.k(KEY_E):
-			_select(posmod(selected + 1, n_known))
-		elif ev.physical_keycode == Keys.k(KEY_SPACE) and me:
+		elif code == Keys.k(KEY_TAB):
+			_inventory()
+		elif dreaming and dream_keys.has(code) and me:
+			# In the World of Dreams the dream bar's keys are dream abilities first.
+			session.dream(dream_bar[dream_keys[code]], _aim_point())
+		elif code == Keys.k(KEY_SPACE) and me:
+			# A jump; by a low wall, over it; running, a leap.
+			session.jump(_move_dir())
+		elif code == Keys.k(KEY_SHIFT) and me:
 			# Roll the way you are moving; standing still, step back.
 			session.dodge(_move_dir(), false)
-		elif ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
+		elif code == Keys.k(KEY_CTRL):
 			session.duck(true)
-		elif ev.physical_keycode == Keys.k(KEY_T):
-			# The other shape for walls and gateway ends: round you or flat, upright or laid down.
-			place_alt = not place_alt
-			session.place(place_alt, place_turn)
-			if _placing():
-				Toast.say(_shape_name(), "", "info", 1.2)
-		elif ev.physical_keycode == Keys.k(KEY_G) and selected < known.size() and Rules.weaves.has(known[selected]):
-			session.tie(known[selected])
-		elif ev.physical_keycode == Keys.k(KEY_F) and _armed() and me:
-			session.attack("throw", _aim_point())
-			_face(_aim_point())
-		var fi := -1
-		for k in FORM_KEYS.size():
-			if ev.physical_keycode == Keys.k(FORM_KEYS[k]):
-				fi = k
-		var n: int = Keys.slot_of(ev.physical_keycode)
-		if ev.shift_pressed and n >= 0:
-			fi = n
-			n = -1
-		if fi >= 0 and me:
-			var hf := _hand_forms()
-			if fi < hf.size():
-				_use_form(hf[fi])
-		elif n >= 0 and n < known.size():
-			_select(n)
-	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode == Keys.k(KEY_K):
+		elif code == Keys.k(KEY_Q):
+			# Tie off the weave held last; one who fights ties people up with rope (held).
+			if _weaver(): session.tie_latest()
+			else: session.tie_rope(true)
+		elif code == Keys.k(KEY_CAPSLOCK) and me:
+			# Throw what is in the hand (the key at Caps Lock's place, whatever it sends).
+			var tw := hand() if hand() != "" else _click_weapon()
+			if tw != "":
+				if hand() != tw: session.equip(tw)
+				session.attack("throw", _aim_point())
+				_face(_aim_point())
+		elif _weaver():
+			var wi := _key_index(code, WEAVE_KEYS)
+			if wi >= 0 and wi < known.size() and me:
+				_weave_key(wi)
+		else:
+			var ai := _key_index(code, ARM_KEYS)
+			var fi := _key_index(code, FORM_KEYS)
+			if ai >= 0 and ai < known.size():
+				_select(ai)
+			elif fi >= 0 and me:
+				var hf := _hand_forms()
+				if fi < hf.size():
+					_use_form(hf[fi])
+	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode == Keys.k(KEY_Q) and not _weaver():
 		session.tie_rope(false)
-	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode in [Keys.k(KEY_CTRL), KEY_C]:
+	elif ev is InputEventKey and not ev.pressed and ev.physical_keycode == Keys.k(KEY_CTRL):
 		session.duck(false)
 	elif ev is InputEventMouseButton:
 		if not ev.pressed:
-			# Letting go of the attack: a tap is a light blow, a hold a heavy one, and
-			# with a bow the hold is the draw.
-			if ev.button_index == MOUSE_BUTTON_LEFT and held_since >= 0.0 and _armed() and me:
-				var held := clock - held_since
-				var at := _aim_point()
-				if Rules.weapons[hand()].has("shot"):
-					if not Rules.weapons[hand()].shot.get("crank", false):
-						session.attack("light", at, clampf(held / Rules.draw_time(profile, hand()), 0.0, 1.0))
-				else:
-					session.attack("heavy" if held > 0.35 else "light", at)
-				_face(at)
 			if ev.button_index == MOUSE_BUTTON_LEFT:
-				if held_since >= 0.0 and hand() != "" and Rules.weapons[hand()].has("shot"):
-					session.draw(false)
-				held_since = -1.0
-				if weaving and me:
-					# Let it go: it leaves as soon as it is whole, where the crosshair is then.
-					weaving = false
+				if aiming != "":
+					# Let go: that weave leaves where the crosshair is now, as soon as it is whole.
+					session.aim_weave(aiming, _aim_point(), false)
+					aiming = ""
+				elif _sweeping and me:
 					session.aim(_aim_point(), false)
+				elif held_since >= 0.0 and me:
+					# Letting go of the attack: a tap is a light blow, a hold a heavy one,
+					# and with a bow the hold is the draw.
+					var w := hand() if hand() != "" else held_weapon
+					var held := clock - held_since
+					var at := _aim_point()
+					if Rules.weapons.has(w) and Rules.weapons[w].has("shot"):
+						if not Rules.weapons[w].shot.get("crank", false):
+							session.attack("light", at, clampf(held / Rules.draw_time(profile, w), 0.0, 1.0))
+						session.draw(false)
+					elif w != "":
+						session.attack("heavy" if held > 0.35 else "light", at)
+					_face(at)
+				held_since = -1.0
 		elif Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		elif ev.button_index == MOUSE_BUTTON_LEFT:
-			if _form() != "" and ready_at.get(_form(), 0.0) <= clock and me:
-				# A form goes at once; while it rests, the same click is a plain blow.
-				session.attack("form:" + _form(), _aim_point())
-				_face(_aim_point())
-			elif _armed() and Rules.weapons[hand()].get("shot", {}).get("crank", false) and me:
-				# A crossbow is spanned or it is not: the click looses it.
-				session.attack("light", _aim_point(), 1.0)
-				_face(_aim_point())
-			elif _armed():
-				held_since = clock
-				if Rules.weapons[hand()].has("shot"):
-					session.draw(true)
+		elif ev.button_index == MOUSE_BUTTON_LEFT and me:
+			var next := _unclicked_weave()
+			if next != "":
+				# While weaving, a click is where the weave goes: the one begun last that
+				# has not been aimed. Held, it waits until let go.
+				aiming = next
+				for f in my_weaving:
+					if f.weave == next: f.clicked = true
+				session.aim_weave(next, _aim_point(), true)
+			elif _sweeping:
+				session.aim(_aim_point(), true)
 			else:
-				_cast_selected()
-		elif ev.button_index == MOUSE_BUTTON_RIGHT and (weaving or not my_form.is_empty() or not my_kept.is_empty()) and me:
-			# Right click while weaving: let it go, unloosed.
-			weaving = false
-			session.cancel_weave()
-		elif ev.button_index == MOUSE_BUTTON_RIGHT and hand() != "" and me:
-			# A parry is the press, not the hold.
-			if Rules.guard_share(profile, hand()) <= 0.0:
-				last_refusal = "Nothing to parry with: roll instead"; refusal_t = 1.5
-			else:
-				_face(_aim_point())
-				session.guard(true)
+				# Not weaving: the weapon (taken up first if the hands are empty).
+				var w := hand() if hand() != "" else _click_weapon()
+				if w == "":
+					last_refusal = "Nothing in hand: weave with %s" % ", ".join(WEAVE_KEYS.slice(0, mini(known.size(), 8)).map(func(k: int) -> String: return Keys.name(k))) if _weaver() else "Nothing in hand"
+					refusal_t = 1.5
+				else:
+					if hand() != w:
+						session.equip(w)
+					held_weapon = w
+					if Rules.weapons[w].get("shot", {}).get("crank", false):
+						# A crossbow is spanned or it is not: the click looses it.
+						session.attack("light", _aim_point(), 1.0)
+						_face(_aim_point())
+					else:
+						held_since = clock
+						if Rules.weapons[w].has("shot"):
+							session.draw(true)
+		elif ev.button_index == MOUSE_BUTTON_RIGHT and me:
+			if not my_weaving.is_empty():
+				# Let go of the weave begun last, unloosed.
+				if aiming == my_weaving.back().weave: aiming = ""
+				session.cancel_weave()
+			elif _holds_any():
+				# Nothing being made: let go of the weave held last.
+				session.let_go_held()
+			elif hand() != "":
+				# A parry is the press, not the hold.
+				if Rules.guard_share(profile, hand()) <= 0.0:
+					last_refusal = "Nothing to parry with: roll instead"; refusal_t = 1.5
+				else:
+					_face(_aim_point())
+					session.guard(true)
+		elif ev.button_index == MOUSE_BUTTON_MIDDLE and _placing():
+			# The other shape for walls and gateway ends: round you or flat, upright or laid down.
+			place_alt = not place_alt
+			session.place(place_alt, place_turn)
+			Toast.say(_shape_name(), "", "info", 1.2)
 		elif ev.button_index in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP] and _placing():
 			# Weaving a wall or a gateway: the wheel turns it.
 			place_turn = wrapf(place_turn + deg_to_rad(15.0) * (1.0 if ev.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0), -PI, PI)
 			session.place(place_alt, place_turn)
-		elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_select(posmod(selected + 1, n_known))
-		elif ev.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_select(posmod(selected - 1, n_known))
+		elif ev.button_index in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP] and not _weaver() and not known.is_empty():
+			_select(posmod(selected + (1 if ev.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1), mini(known.size(), ARM_KEYS.size())))
+
+## The keys of the bar. A channeller weaves by holding one (1-5, then Z X C for the
+## rest); one who fights has weapons on 1-4 and the forms of the one in hand on 5 Z X C.
+const WEAVE_KEYS := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_Z, KEY_X, KEY_C]
+const ARM_KEYS := [KEY_1, KEY_2, KEY_3, KEY_4]
+const FORM_KEYS := [KEY_5, KEY_Z, KEY_X, KEY_C]
+var my_weaving: Array = []       # my weaves being made, oldest first: {weave, since, time, ready, done, clicked, marked}
+var aiming := ""                 # the weave the held left button is aiming
+var held_weapon := ""            # the weapon a held left button will strike with
+
+func _key_index(code: int, keys: Array) -> int:
+	for i in keys.size():
+		if code == Keys.k(keys[i]):
+			return i
+	return -1
+
+func _weaver() -> bool:
+	return profile.get("cls", "channeller") == "channeller"
+
+## What a click with empty hands strikes with: the first weapon carried.
+func _click_weapon() -> String:
+	for w in profile.get("kit", []):
+		if Rules.weapons.has(w):
+			return w
+	return ""
+
+func _holds_any() -> bool:
+	for key in holds:
+		if holds[key].id == session.my_id and not holds[key].tied:
+			return true
+	return false
+
+## A weave's key pressed: begun at once (beside any others being made), aimed where
+## the crosshair is when it is whole unless clicked somewhere first.
+func _weave_key(i: int) -> void:
+	var weave: String = known[i]
+	selected = i
+	if not Rules.weaves.has(weave):
+		return
+	if my_weaving.any(func(f: Dictionary) -> bool: return f.weave == weave):
+		return
+	session.cast_together(weave, _aim_point())
+	_face(_aim_point())
+
+## The weave begun last that has not been clicked anywhere yet, or "".
+func _unclicked_weave() -> String:
+	# A gateway whose near end is set waits for its far end: the next click is that.
+	for f in my_weaving:
+		if f.get("marked", false) and not f.get("far", false):
+			f.far = true
+			return f.weave
+	for i in range(my_weaving.size() - 1, -1, -1):
+		if not my_weaving[i].get("clicked", false):
+			return my_weaving[i].weave
+	return ""
+
+## Tab: what you carry (the chart of weaves) and, in a round, what a level-up can grow.
+func _inventory() -> void:
+	var open: bool = (tree_view != null and tree_view.visible) or (pick_card != null and pick_card.visible) or (dream_inv != null and dream_inv.visible)
+	if open:
+		close_overlay()
+		return
+	if dreaming:
+		_show_dream_inventory(true)
+	elif _weaver():
+		_show_tree(true)
+	elif not team_meter.is_empty():
+		_show_picks(true)
+
+## Esc or Tab with something open over the fight: close it. True if anything was.
+func close_overlay() -> bool:
+	var any := false
+	if tree_view != null and tree_view.visible:
+		_show_tree(false); any = true
+	if pick_card != null and pick_card.visible:
+		_show_picks(false); any = true
+	if dream_inv != null and dream_inv.visible:
+		_show_dream_inventory(false); any = true
+	return any
+
+## The list of my weaves being made changed: my_form is the one begun last.
+func _weaving_changed() -> void:
+	my_form = my_weaving.back() if not my_weaving.is_empty() else {}
+	if args.has("ghost") and my_weaving.size() >= 2:
+		print("GHOST %d together %s" % [frame, " ".join(my_weaving.map(func(f: Dictionary) -> String: return f.weave))])
+	if aiming != "" and not my_weaving.any(func(f: Dictionary) -> bool: return f.weave == aiming):
+		aiming = ""
+
+func _weaving_drop(weave: String) -> void:
+	my_weaving = my_weaving.filter(func(f: Dictionary) -> bool: return f.weave != weave)
+	_weaving_changed()
+
 
 ## What is in my hand, as the sim last said ("" if nothing).
 func hand() -> String:
@@ -423,7 +533,7 @@ func _hand_forms() -> Array:
 	if w == "":
 		return []
 	var fam: String = Rules.weapons[w].family
-	return my_forms.filter(func(f: String) -> bool: return Rules.forms[f].family == fam)
+	return my_forms.filter(func(f: String) -> bool: return Rules.forms[f].family == fam).slice(0, FORM_KEYS.size())
 
 ## Do a form now, with the weapon in hand; with another in hand, take up one of the
 ## form's kind first and do it as soon as it is there.
@@ -480,10 +590,14 @@ func _select(i: int) -> void:
 	else:
 		session.equip("")
 
-## The key that chooses this thing on the bar ("" past the ninth slot).
+## The key that chooses this thing on the bar ("" past the last key).
 func _slot_key(id: String) -> String:
-	var n := known.find(id)
-	return Keys.name(KEY_1 + n) if n >= 0 and n < 9 else ""
+	return slot_key_name(known.find(id))
+
+## The key of a slot on the bar, by its place.
+func slot_key_name(n: int) -> String:
+	var keys: Array = WEAVE_KEYS if _weaver() else ARM_KEYS
+	return Keys.name(Keys.k(keys[n])) if n >= 0 and n < keys.size() else ""
 
 func _move_dir() -> Vector3:
 	var v := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -713,8 +827,9 @@ func _frame_body(dt: float) -> void:
 	_area_preview()
 	# How far my weaves have come (the HUD's rings): split while two are being made.
 	var split: float = Rules.TUNE.split if not my_form.is_empty() and not my_kept.is_empty() and not my_kept.get("ready", false) else 1.0
-	if not my_form.is_empty() and not my_form.get("ready", false):
-		my_form.done = minf(my_form.get("done", 0.0) + dt * split, my_form.time)
+	for f in my_weaving:
+		if not f.get("ready", false):
+			f.done = minf(f.get("done", 0.0) + dt, f.time)
 	if not my_kept.is_empty() and not my_kept.get("ready", false):
 		my_kept.done = minf(my_kept.get("done", 0.0) + dt * (Rules.TUNE.split if not my_form.is_empty() else 1.0), my_kept.time)
 	if controlled:
@@ -808,15 +923,19 @@ func _frame_body(dt: float) -> void:
 			var bat := _aim_point()
 			face_yaw = atan2(bat.x - me.position.x, bat.z - me.position.z)
 			aim_t = 0.3
-		if (not my_form.is_empty() or _sweeping) and me:
-			# Face where the weave will go, and keep the host told (a few times a second).
-			# (Balefire burning: the same, so it swings after the crosshair.)
+		if (not my_weaving.is_empty() or _sweeping) and me:
+			# Face where the weave will go, and keep the host told (a few times a second):
+			# where I look (for weaves not clicked), the held click's weave following the
+			# crosshair, Balefire burning swinging after it.
 			var at := _aim_point()
 			face_yaw = atan2(at.x - me.position.x, at.z - me.position.z)
 			aim_t = 0.3
 			if frame % 4 == 0:
-				# (Taken back up from keeping, it waits for a click, not for the button.)
-				session.aim(at, weaving or my_form.get("waiting", false))
+				session.look(at)
+				if aiming != "":
+					session.aim_weave(aiming, at, true)
+				elif _sweeping:
+					session.aim(at, Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT))
 		# Through your own eyes the body faces where you look, so the hands are before you.
 		if first_person and me:
 			face_yaw = wrapf(cam_yaw + PI, -PI, PI)
@@ -1804,11 +1923,20 @@ func _on_events(list: Array) -> void:
 						ra.busy = 0.45 if e.how == "guard" else 0.65
 			"jump":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node) and actors[e.id].kind == "player":
+					# Off the ground for real: a take-off, the body in the air on an arc, a
+					# landing. A running leap is longer and flatter; one who fights with the
+					# body leaps like it (the athletic clips) and carries farther.
 					var ja: Dictionary = actors[e.id]
+					var far := float(e.get("far", 0.0))
+					var athletic: bool = far >= Sim.LEAP_FIGHTER - 0.01
+					ja.jump = {t = 0.0, time = Sim.JUMP_SECS, h = 0.42 if far <= 0.0 else (0.55 if athletic else 0.45), pre = "NinjaJump" if athletic else "Jump", phase = 0}
 					var jap: AnimationPlayer = ja.node.get_meta("anim")
-					if jap.has_animation("Jump"):
-						jap.play("Jump", 0.08, 1.7)
-						ja.busy = 0.55
+					var start: String = ja.jump.pre + "_Start"
+					if jap.has_animation(start):
+						# (The crouch is skipped: the press is the take-off.)
+						jap.play(start, 0.05, 2.6)
+						jap.seek(jap.get_animation(start).length * 0.45, true)
+					ja.busy = Sim.JUMP_SECS + 0.25
 			"story":
 				# The fight's reading limit (the least-read player's): what is past it
 				# is neither usable nor drawn.
@@ -1868,7 +1996,7 @@ func _on_events(list: Array) -> void:
 					_banner("%s %s" % [Rules.weaves[e.weave].name, "goes on by itself\nIt keeps its flows and weaves itself at the nearest foe. %s again stops it." % Keys.name(KEY_G) if e.on else "stops"], 3.0, "info")
 			"cancel":
 				if e.id == session.my_id:
-					my_form = {}
+					_weaving_drop(e.get("weave", ""))
 				if actors.has(e.id):
 					_end_form(actors[e.id])
 			"tied", "untied":
@@ -1994,7 +2122,9 @@ func _on_events(list: Array) -> void:
 						a.form_since = clock
 					Sfx.play(self, "hum", _ground(a.target) + Vector3(0, 1.4, 0), -8.0, clampf(1.6 / maxf(e.time, 0.4), 0.5, 1.6))
 					if e.id == session.my_id:
-						my_form = {weave = e.weave, since = clock, time = e.time, ready = false, done = 0.0}
+						my_weaving = my_weaving.filter(func(f: Dictionary) -> bool: return f.weave != e.weave)
+						my_weaving.append({weave = e.weave, since = clock, time = e.time, ready = false, done = 0.0})
+						_weaving_changed()
 			"ready":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
 					Sfx.play(self, "chime", actors[e.id].node.position + Vector3(0, 1.4, 0), -4.0, 1.5)
@@ -2002,7 +2132,8 @@ func _on_events(list: Array) -> void:
 					if e.get("kept", false):
 						my_kept.ready = true; my_kept.done = my_kept.get("time", 1.0)
 					else:
-						my_form.ready = true
+						for f in my_weaving:
+							if f.weave == e.weave: f.ready = true
 			"stow":
 				if e.id == session.my_id:
 					var tm: float = my_form.get("time", 1.0)
@@ -2052,7 +2183,7 @@ func _on_events(list: Array) -> void:
 				if actors.has(e.id):
 					_end_form(actors[e.id])
 				if e.id == session.my_id:
-					my_form = {}
+					_weaving_drop(e.get("weave", ""))
 					last_refusal = "No one there to hold"; refusal_t = 1.5
 			"attack":
 				# How the one struck takes it depends on what struck them (see "hit").
@@ -2323,7 +2454,8 @@ func _on_events(list: Array) -> void:
 					gate_mark = {}
 			"gate_mark":
 				if e.id == session.my_id:
-					my_form.marked = true
+					for f in my_weaving:
+						if Rules.weaves.get(f.weave, {}).get("kind", "") == "gate": f.marked = true
 					gate_mark = e.end
 					place_turn = 0.0
 					session.place(place_alt, place_turn)
@@ -2463,8 +2595,8 @@ func _on_events(list: Array) -> void:
 					# Each channeller has their own gesture for each weave.
 					_end_form(actors[e.id])
 					_play(actors[e.id], Hero.cast_clip(actors[e.id].get("name", ""), e.weave), true)
-				if e.id == session.my_id:
-					my_form = {}
+				if e.id == session.my_id and not e.get("auto", false):
+					_weaving_drop(e.get("weave", ""))
 				e.power = _power_of(e.id)
 				Weavefx.cast(self, e)
 				# A weave mostly of Air blows outward from the one who made it.
@@ -2949,7 +3081,8 @@ func _status(a: Dictionary, bits: int) -> void:
 	if a.has("form_fx") and not (bits & 2048) and clock - a.get("form_since", 0.0) > 0.3:
 		_end_form(a)
 		if a.get("node") == me:
-			my_form = {}
+			my_weaving = []
+			_weaving_changed()
 	for pair in [["burn", 1], ["stun", 4], ["fester", 256], ["charge", 512], ["daze", 1024], ["wet", 4096]]:
 		var key: String = "fx_" + pair[0]
 		var on: bool = bits & pair[1] and not a.get("dead", false)
@@ -3024,6 +3157,24 @@ func _draw_actors(dt: float) -> void:
 			var tgt := _ground(a.target)
 			var speed := n.position.distance_to(tgt) / maxf(dt, 0.001)
 			n.position = n.position.lerp(tgt, minf(12.0 * dt, 1.0))
+			if a.has("jump"):
+				var jp: Dictionary = a.jump
+				jp.t += dt
+				var jk: float = clampf(jp.t / maxf(jp.time, 0.01), 0.0, 1.0)
+				n.position.y += sin(jk * PI) * float(jp.h)
+				var jap2: AnimationPlayer = n.get_meta("anim")
+				if jp.phase == 0 and jp.t > 0.12:
+					jp.phase = 1
+					var air: String = jp.pre + "_Idle" if jap2.has_animation(jp.pre + "_Idle") else "NinjaJump_Idle"
+					if jap2.has_animation(air): jap2.play(air, 0.08, 1.0)
+				elif jp.phase == 1 and jk >= 0.92:
+					jp.phase = 2
+					var land: String = jp.pre + "_Land"
+					if jap2.has_animation(land):
+						jap2.play(land, 0.05, 2.2)
+						jap2.seek(jap2.get_animation(land).length * 0.15, true)
+				if jp.t > jp.time + 0.25:
+					a.erase("jump")
 			if a.has("vault"):
 				# Up and over: an arc on top of the ground.
 				a.vault.t += dt

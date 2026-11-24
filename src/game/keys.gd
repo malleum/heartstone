@@ -12,13 +12,11 @@ extends RefCounted
 const FILE := "user://keys.json"
 const ACTIONS := [
 	[KEY_W, "Walk forward"], [KEY_S, "Walk back"], [KEY_A, "Walk left"], [KEY_D, "Walk right"],
-	[KEY_SPACE, "Roll"], [KEY_CTRL, "Duck"], [KEY_V, "Jump"], [KEY_F, "Throw"], [KEY_G, "Tie off a held weave"],
-	[KEY_Q, "Previous on the bar"], [KEY_E, "Next on the bar"], [KEY_TAB, "Choose at a level-up"],
-	[KEY_Z, "Form 1 (of the weapon in hand)"], [KEY_X, "Form 2"], [KEY_R, "Form 3"],
-	[KEY_T, "Shape of a wall or gateway end (camp: the trees)"], [KEY_I, "Dream: every ability, to choose the bar"],
-	[KEY_J, "The Darkfriend's gateway"], [KEY_K, "Tie or untie with rope (hold)"], [KEY_L, "Link (offer, lead, let go)"], [KEY_H, "Hide the camp sheet"],
-	[KEY_1, "Bar slot 1"], [KEY_2, "Bar slot 2"], [KEY_3, "Bar slot 3"], [KEY_4, "Bar slot 4"], [KEY_5, "Bar slot 5"],
-	[KEY_6, "Bar slot 6"], [KEY_7, "Bar slot 7"], [KEY_8, "Bar slot 8"], [KEY_9, "Bar slot 9"]]
+	[KEY_SHIFT, "Roll"], [KEY_SPACE, "Jump (over a low wall: vault)"], [KEY_CTRL, "Duck"], [KEY_CAPSLOCK, "Throw"],
+	[KEY_Q, "Tie off the weave held last (fighters: rope, held)"], [KEY_TAB, "Inventory, and choosing at a level-up"],
+	[KEY_J, "The Darkfriend's gateway"], [KEY_L, "Link (offer, lead, let go)"], [KEY_H, "Hide the camp sheet"],
+	[KEY_1, "Weave 1 / weapon 1"], [KEY_2, "Weave 2 / weapon 2"], [KEY_3, "Weave 3 / weapon 3"], [KEY_4, "Weave 4 / weapon 4"],
+	[KEY_5, "Weave 5 / form 1"], [KEY_Z, "Weave 6 / form 2"], [KEY_X, "Weave 7 / form 3"], [KEY_C, "Weave 8 / form 4"]]
 static var _map := {}
 static var _loaded := false
 
