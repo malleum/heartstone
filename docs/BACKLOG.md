@@ -6,6 +6,16 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 
+## Immediate to-do (asked 25 Nov, not started)
+- [ ] Fighters' Tab at a level-up still opens the old plain picks card (`game.gd` `_show_picks`): show the
+      choices on the weapon and form trees instead (the tree design, `WeaveTree` pages weapons/forms,
+      pickable), as the weave chart already does for channellers.
+- [ ] The hotbar strip on the tree pages is hard to see, so it is not clear it can be rearranged there:
+      make it stand out (bigger slots, a clearer panel and heading, a hint to drag).
+- [ ] Alt held in a fight or the camp (not in a menu or tree): gives the cursor back; while held, the
+      bar's slots can be dragged to reorder them, or off the bar to take them away, without opening the
+      inventory. Let go of Alt: the mouse is captured again.
+
 ## For a lighter model (19 Nov): well-defined tasks, with briefs
 Each is local, has a pattern to copy, and is easy to check. Follow CLAUDE.md: check,
 `tools/test.sh`, render and look, update the docs, commit and push, rebuild `dist/`.
