@@ -238,6 +238,9 @@ var drag_at := Vector2.ZERO
 ## Kept as the character's bar order.
 var alt_free := false
 func _input(ev: InputEvent) -> void:
+	# A fight still only seen through a camp doorway hears nothing until stepped into.
+	if previewing:
+		return
 	if ev is InputEventKey and ev.physical_keycode == Keys.k(KEY_ALT) and not ev.echo:
 		var overlay: bool = (tree_view != null and tree_view.visible) or (pick_card != null and pick_card.visible) or (dream_inv != null and dream_inv.visible) or (pause_menu != null and pause_menu.is_open())
 		if ev.pressed and not overlay and not args.has("auto"):
@@ -295,7 +298,7 @@ func _save_pref(key: String, value: Variant) -> void:
 		Profile.save(stored)
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if session == null:
+	if session == null or previewing:
 		return
 	var n_known := maxi(known.size(), 1)
 	if ev is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -451,7 +454,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 ## (eight keys: 1-5, Z X C; a weapon is a click with nothing being woven); one who
 ## fights has weapons (1-4) and their forms (5 Z X C, four of each kind).
 func _build_bar() -> void:
-	var bar_all := Profile.bar(profile)
+	# The round's character (what this round's picks taught is on it too).
+	var bar_all := Profile.bar(view_profile())
 	var chosen: String = known[selected] if selected < known.size() else ""
 	if profile.get("cls", "channeller") == "channeller":
 		known = bar_all.filter(func(x: String) -> bool: return Rules.weaves.has(x)).slice(0, Profile.BAR_WEAVES)
@@ -464,8 +468,28 @@ func _build_bar() -> void:
 func _bar_changed(from: Dictionary) -> void:
 	for k in ["hotbar", "bar_auto", "bar_seen"]:
 		if from.has(k):
-			profile[k] = from[k].duplicate() if from[k] is Array else from[k]
+			_bar_key(k, from[k])
 			_save_pref(k, profile[k])
+	_build_bar()
+
+## One of the bar's settings onto every copy of the character this fight holds (the
+## kept one, the round's mirror, the host sim's), so the bar and the tree agree.
+func _bar_key(k: String, v: Variant) -> void:
+	var copies := [profile, mirror, view_profile()]
+	for c in copies:
+		if c is Dictionary and (c == profile or not c.is_empty()):
+			c[k] = v.duplicate() if v is Array else v
+
+## Stepping in from the camp: the bar as the camp left it (it may have been changed
+## after this fight was opened behind the doorway; the end of the round saves the
+## whole character, which would put the old bar back).
+func _bar_from_camp() -> void:
+	if args.has("name") or args.has("tour") or args.has("auto"):
+		return
+	var stored := Profile.load_profile(String(profile.get("name", "")))
+	for k in ["hotbar", "bar_auto", "bar_seen"]:
+		if stored.has(k):
+			_bar_key(k, stored[k])
 	_build_bar()
 
 ## The keys of the bar. A channeller weaves by holding one (1-5, then Z X C for the
@@ -873,7 +897,7 @@ func _frame_body(dt: float) -> void:
 	# How far my weaves have come (the HUD's rings): split while two are being made.
 	var split: float = Rules.TUNE.split if not my_form.is_empty() and not my_kept.is_empty() and not my_kept.get("ready", false) else 1.0
 	# (A roll pauses the weaving: the rings wait with it.)
-	var rolling: bool = actors.has(session.my_id) and float(actors[session.my_id].get("roll_until", 0.0)) > clock
+	var rolling: bool = session != null and actors.has(session.my_id) and float(actors[session.my_id].get("roll_until", 0.0)) > clock
 	for f in my_weaving:
 		if not f.get("ready", false) and not rolling:
 			f.done = minf(f.get("done", 0.0) + dt, f.time)
@@ -1809,6 +1833,7 @@ func drive_camera(xf: Transform3D, fov: float, to_door: float) -> void:
 ## The player's feet have crossed: their keys move them here now, looking the way
 ## the camp's camera looks.
 func take_control(yaw: float, pitch: float) -> void:
+	_bar_from_camp()
 	controlled = true
 	Wind.setup(Map.id, self)
 	RenderingServer.global_shader_parameter_set("near_fade", 1.5)
