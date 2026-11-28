@@ -6,15 +6,33 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 
-## Immediate to-do (asked 25 Nov, not started)
+## Immediate to-do (asked 25 and 27 Nov, not started)
 - [ ] Fighters' Tab at a level-up still opens the old plain picks card (`game.gd` `_show_picks`): show the
       choices on the weapon and form trees instead (the tree design, `WeaveTree` pages weapons/forms,
       pickable), as the weave chart already does for channellers.
 - [ ] The hotbar strip on the tree pages is hard to see, so it is not clear it can be rearranged there:
-      make it stand out (bigger slots, a clearer panel and heading, a hint to drag).
+      make it stand out (bigger slots, a clearer panel and heading, a hint to drag). In the camp's trees
+      AND in a fight's (Tab), with the "new things go on the bar" switch in both.
+- [ ] Never more on the bar than the class has keys for: a channeller 8 weaves (1-5, Z X C); a fighter
+      4 weapons (1-4) and 4 forms per weapon (5 Z X C). Dragging past that is refused; auto-add stops there.
 - [ ] Alt held in a fight or the camp (not in a menu or tree): gives the cursor back; while held, the
       bar's slots can be dragged to reorder them, or off the bar to take them away, without opening the
       inventory. Let go of Alt: the mouse is captured again.
+- [ ] Overreaching: trying to begin a weave without enough flows free makes every weave being made fall
+      apart at once, with animations for it (a stagger, the threads snapping), so spamming 1 2 3 costs.
+- [ ] Weaves vary much more in range, width and blast radius with current effective strength (today
+      `Rules.reach` is the root of strength, clamped 0.5-2.2).
+
+## Later, after the batch above and only on the user's go-ahead
+- [ ] Performance in later waves online: since the big terrain update the server maxes one core and
+      play struggles once Trollocs pile up (it did not before). Bots may join online to load it; look at
+      the server's stats over `ssh minimus`. (Suspects: the path field every 0.4 s on the bigger grids,
+      Env.hit on every blast, Map.walk's two height samples per walker, per-room Map.set_state copies.)
+- [ ] Puddles that float above the ground (they should lie on it).
+- [ ] The fighter / melee experience, worked over.
+- [ ] Character creation: the figure turns when looking through clothes, and a better UI for it.
+- [ ] Stamina reworked: it does not fit how the game has turned out.
+- [ ] Guard the Aes Sedai: she needs an actual doorway (or similar) to be working on.
 
 ## For a lighter model (19 Nov): well-defined tasks, with briefs
 Each is local, has a pattern to copy, and is easy to check. Follow CLAUDE.md: check,
