@@ -506,8 +506,18 @@ func request_cast(id: int, weave: String, aim: Vector3, hold := false, together 
 	if together and not p.forming.is_empty() and p.get("weaving", []).is_empty():
 		free -= Rules.slots_of(Rules.weaves[p.forming.weave], p.profile)
 	var why := Rules.cast_block(p.profile, weave, free, p.stamina)
+	if why != "" and together and not p.forming.is_empty() and why.contains("flow"):
+		# Reaching for more than the flows can hold: everything being woven falls
+		# apart at once, and the weaver reels (the user, 27 Nov: no spamming 1 2 3).
+		var lost: Array = [p.forming.weave]
+		for f in p.get("weaving", []):
+			lost.append(f.weave)
+		p.forming = {}; p.weaving = []
+		p.reel_until = maxf(p.reel_until, t + OVERREACH_REEL)
+		events.append({e = "overreach", id = id, weaves = lost, tried = weave})
+		return "too much at once: the weaves fall apart"
 	if why != "":
-		return "not enough flows free for that as well" if together and not p.forming.is_empty() and why.contains("flow") else why
+		return why
 	if together and not p.forming.is_empty():
 		if not p.has("weaving"): p.weaving = []
 		p.weaving.append(p.forming)
@@ -755,6 +765,7 @@ func _rise(p: Dictionary, how: String) -> void:
 ## costs breath, like a roll, so it is not free).
 const JUMP_SECS := 0.55
 const JUMP_REACH := 1.9    # how much higher ground a jump can land on (a low ledge)
+const OVERREACH_REEL := 0.9   # seconds reeling when weaves fall apart from reaching too far
 const LEAP := 1.6          # extra metres a running jump carries a channeller
 const LEAP_FIGHTER := 2.8  # and a fighter
 func request_jump(id: int, dir := Vector3.ZERO) -> String:
@@ -2051,14 +2062,14 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 	# they stop where they meet the ground.
 	var pitch := aim_pitch(hand, aim)
 	var dir3 := dir * cos(pitch) + Vector3.UP * sin(pitch)
-	var reach3: float = _reach_to_ground(hand, dir3, float(b.get("range", 0.0)) * clampf(sqrt(k), 0.5, 2.2))
+	var reach3: float = _reach_to_ground(hand, dir3, float(b.get("range", 0.0)) * Rules.reach_of(k))
 	events.append({e = "cast", id = p.id, weave = weave, kind = w.kind, pos = from, at = at, dir = dir, k = k, dir3 = dir3, reach = reach3})
 	if w.get("hold", false):
 		# breaks: when the one held can throw it off (0 = never, while it is held).
 		p.held.append({weave = weave, target = p.get("fasten", 0) if w.kind in ["bind", "sever"] else 0, tied = 0.0, breaks = 0.0})
 		events.append({e = "hold", id = p.id, weave = weave, target = p.held[-1].target})
 	# Size, reach and duration grow with the root of power (Rules.reach).
-	var kr := clampf(sqrt(k), 0.5, 2.2)
+	var kr := Rules.reach_of(k)
 	match w.kind:
 		"bind":
 			# Bonds of Air: wrapped and held where they stand. The strong strain
@@ -2143,7 +2154,7 @@ func _cast(p: Dictionary, weave: String, aim: Vector3) -> void:
 			# opens into a wide, low, slowly turning wheel of fire. The stronger the
 			# weaver, the wider it opens (10 to 30 feet).
 			effects.append({kind = "blossom", owner = p.id, weave = weave, pos = Vector3(at.x, 0, at.z), r = b.pillar_radius, age = 0.0,
-				max = clampf(b.radius * sqrt(k), b.radius_min, b.radius_max), pillar = b.pillar, open = b.open, left = b.pillar + b.open + b.duration,
+				max = clampf(b.radius * Rules.reach_of(k), b.radius_min * 0.7, b.radius_max * 1.4), pillar = b.pillar, open = b.open, left = b.pillar + b.open + b.duration,
 				dps = b.dps * k, dmg = b.damage * k, id = _fx_id()})
 		"ring":
 			# It rolls out the way it was thrown, a wedge and not a circle.

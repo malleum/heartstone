@@ -6,21 +6,23 @@ Move an item to "Done" with the date when it is built, and say what was assumed 
 `PLAYTEST.md`. Items found by looking at the game go at the bottom.
 
 
-## Immediate to-do (asked 25 and 27 Nov, not started)
-- [ ] Fighters' Tab at a level-up still opens the old plain picks card (`game.gd` `_show_picks`): show the
+## Immediate to-do (asked 25 and 27 Nov; done 27 Nov, v0.2.16)
+- [x] (27 Nov) Learning by practice removed (the user): what is kept comes from a win's unlock or a level-up pick.
+- [x] (27 Nov) A doorway's notice shows above it, not at the side; the training yard's doorway is gone.
+- [x] (27 Nov) Fighters' Tab at a level-up still opens the old plain picks card (`game.gd` `_show_picks`): show the
       choices on the weapon and form trees instead (the tree design, `WeaveTree` pages weapons/forms,
       pickable), as the weave chart already does for channellers.
-- [ ] The hotbar strip on the tree pages is hard to see, so it is not clear it can be rearranged there:
+- [x] (27 Nov) The hotbar strip on the tree pages is hard to see, so it is not clear it can be rearranged there:
       make it stand out (bigger slots, a clearer panel and heading, a hint to drag). In the camp's trees
       AND in a fight's (Tab), with the "new things go on the bar" switch in both.
-- [ ] Never more on the bar than the class has keys for: a channeller 8 weaves (1-5, Z X C); a fighter
+- [x] (27 Nov) Never more on the bar than the class has keys for: a channeller 8 weaves (1-5, Z X C); a fighter
       4 weapons (1-4) and 4 forms per weapon (5 Z X C). Dragging past that is refused; auto-add stops there.
-- [ ] Alt held in a fight or the camp (not in a menu or tree): gives the cursor back; while held, the
+- [x] (27 Nov) Alt held in a fight or the camp (not in a menu or tree): gives the cursor back; while held, the
       bar's slots can be dragged to reorder them, or off the bar to take them away, without opening the
       inventory. Let go of Alt: the mouse is captured again.
-- [ ] Overreaching: trying to begin a weave without enough flows free makes every weave being made fall
+- [x] (27 Nov) Overreaching: trying to begin a weave without enough flows free makes every weave being made fall
       apart at once, with animations for it (a stagger, the threads snapping), so spamming 1 2 3 costs.
-- [ ] Weaves vary much more in range, width and blast radius with current effective strength (today
+- [x] (27 Nov) Weaves vary much more in range, width and blast radius with current effective strength (today
       `Rules.reach` is the root of strength, clamped 0.5-2.2).
 
 ## Later, after the batch above and only on the user's go-ahead

@@ -45,6 +45,8 @@ const SCRIPTS := {
 	# arrives (4 s in), stepping behind it and chaining it after.
 	dream = [[40, "tap", KEY_T], [52, "tap", KEY_5], [64, "tap", KEY_Z], [76, "tap", KEY_V], [88, "tap", KEY_X],
 		[100, "tap", KEY_E], [150, "tap", KEY_R], [260, "tap", KEY_F], [320, "tap", KEY_TAB]],
+	# The inventory in a fight (pictures).
+	tab = [[40, "tap", KEY_TAB]],
 	# Jumps: standing, then running (pictures of the leap).
 	jumps = [[30, "tap", KEY_SPACE], [70, "key", KEY_W, true], [95, "tap", KEY_SPACE], [140, "key", KEY_W, false]],
 	# Pictures of the forms row: the sword in hand and its forms; a form; the bow and

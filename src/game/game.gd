@@ -133,14 +133,7 @@ func _ready() -> void:
 	# The bar as the player arranged it (Profile.bar: dragged in on the tree pages, or
 	# new things added by themselves). Forms are not things in the hand: they are what
 	# is done with the weapon in it, on a row of their own (Z, X, R; Shift and a number).
-	var bar_all := Profile.bar(profile)
-	# A channeller's bar is weaves (eight keys: 1-5, Z X C; a weapon is a click with
-	# nothing being woven); one who fights has weapons (1-4) and their forms (5 Z X C).
-	if profile.get("cls", "channeller") == "channeller":
-		known = bar_all.filter(func(x: String) -> bool: return Rules.weaves.has(x)).slice(0, 8)
-	else:
-		known = bar_all.filter(func(x: String) -> bool: return Rules.weapons.has(x) and not Rules.forms.has(x)).slice(0, 4)
-	my_forms = bar_all.filter(func(x: String) -> bool: return Rules.forms.has(x))
+	_build_bar()
 	for w in profile.get("kit", []):
 		var row: Dictionary = Rules.weapons[w]
 		ammo[w] = int(row.get("shot", row.get("throw", {})).get("ammo", 0))
@@ -240,10 +233,24 @@ func _ground(p: Vector3) -> Vector3:
 var drag_slot := -1               # the bar slot being dragged to a new place (weave chart open)
 var drag_at := Vector2.ZERO
 
-## With the weave chart open (the mouse free), the bar can be rearranged: drag a slot
-## onto another and they change places. Kept as the character's bar order.
+## With the cursor free (the chart open, or Alt held in play) the bar can be
+## rearranged: drag a slot to another place on it, or up off it to take it away.
+## Kept as the character's bar order.
+var alt_free := false
 func _input(ev: InputEvent) -> void:
-	if hud == null or tree_view == null or not tree_view.visible:
+	if ev is InputEventKey and ev.physical_keycode == Keys.k(KEY_ALT) and not ev.echo:
+		var overlay: bool = (tree_view != null and tree_view.visible) or (pick_card != null and pick_card.visible) or (dream_inv != null and dream_inv.visible) or (pause_menu != null and pause_menu.is_open())
+		if ev.pressed and not overlay and not args.has("auto"):
+			alt_free = true
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif not ev.pressed and alt_free:
+			alt_free = false
+			drag_slot = -1
+			if not overlay and DisplayServer.get_name() != "headless":
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		return
+	var free: bool = alt_free or (tree_view != null and tree_view.visible)
+	if hud == null or not free:
 		drag_slot = -1
 		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
@@ -252,16 +259,29 @@ func _input(ev: InputEvent) -> void:
 			drag_slot = i; drag_at = ev.position
 			get_viewport().set_input_as_handled()
 		elif not ev.pressed and drag_slot >= 0:
+			var moving: String = known[drag_slot]
+			var bar := Profile.bar(profile)
+			var rest := bar.filter(func(x: String) -> bool: return not known.has(x))
+			var order: Array = known.duplicate()
 			if i >= 0 and i != drag_slot:
-				var moving: String = known[drag_slot]
-				var chosen: String = known[selected] if selected < known.size() else ""
-				known[drag_slot] = known[i]; known[i] = moving
-				selected = maxi(known.find(chosen), 0)
-				_save_pref("hotbar", known + my_forms)
+				order.erase(moving)
+				order.insert(i, moving)
+			elif i < 0 and hud.off_bar(ev.position):
+				# Up off the bar: taken away (and not put back by itself).
+				order.erase(moving)
+				Toast.say("%s off the bar" % _bar_name(moving), "Drag it back from Tab (your inventory).", "info", 2.0)
+			var seen: Array = profile.get("bar_seen", []).duplicate()
+			if not seen.has(moving): seen.append(moving)
+			_bar_changed({hotbar = order + rest, bar_seen = seen})
 			drag_slot = -1
+			if tree_view != null and tree_view.visible:
+				tree_view.profile.hotbar = profile.hotbar
 			get_viewport().set_input_as_handled()
 	elif ev is InputEventMouseMotion and drag_slot >= 0:
 		drag_at = ev.position
+
+func _bar_name(id: String) -> String:
+	return Rules.weaves[id].name if Rules.weaves.has(id) else (Rules.weapons[id].name if Rules.weapons.has(id) else id)
 
 ## A preference changed in a fight (the bar's order, the dream bar) goes onto the
 ## character as saved, not the fight's copy of it; a throwaway has nothing to save.
@@ -427,6 +447,27 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif ev.button_index in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP] and not _weaver() and not known.is_empty():
 			_select(posmod(selected + (1 if ev.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1), mini(known.size(), ARM_KEYS.size())))
 
+## The bar from the character's arrangement (Profile.bar). A channeller's is weaves
+## (eight keys: 1-5, Z X C; a weapon is a click with nothing being woven); one who
+## fights has weapons (1-4) and their forms (5 Z X C, four of each kind).
+func _build_bar() -> void:
+	var bar_all := Profile.bar(profile)
+	var chosen: String = known[selected] if selected < known.size() else ""
+	if profile.get("cls", "channeller") == "channeller":
+		known = bar_all.filter(func(x: String) -> bool: return Rules.weaves.has(x)).slice(0, Profile.BAR_WEAVES)
+	else:
+		known = bar_all.filter(func(x: String) -> bool: return Rules.weapons.has(x) and not Rules.forms.has(x)).slice(0, Profile.BAR_WEAPONS)
+	my_forms = bar_all.filter(func(x: String) -> bool: return Rules.forms.has(x))
+	selected = maxi(known.find(chosen), 0) if chosen != "" else mini(selected, maxi(known.size() - 1, 0))
+
+## The bar rearranged (the tree's strip, or Alt and drag): kept on the character.
+func _bar_changed(from: Dictionary) -> void:
+	for k in ["hotbar", "bar_auto", "bar_seen"]:
+		if from.has(k):
+			profile[k] = from[k].duplicate() if from[k] is Array else from[k]
+			_save_pref(k, profile[k])
+	_build_bar()
+
 ## The keys of the bar. A channeller weaves by holding one (1-5, then Z X C for the
 ## rest); one who fights has weapons on 1-4 and the forms of the one in hand on 5 Z X C.
 const WEAVE_KEYS := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_Z, KEY_X, KEY_C]
@@ -496,8 +537,6 @@ func _inventory() -> void:
 		return
 	if dreaming:
 		_show_dream_inventory(true)
-	elif not _weaver() and not team_meter.is_empty() and view_profile().get("round", {}).get("picks", 0) > 0:
-		_show_picks(true)
 	else:
 		_show_tree(true)
 
@@ -640,7 +679,7 @@ func _cast_selected() -> void:
 		session.place(place_alt, place_turn)
 	if Rules.weaves.has(known[selected]) and Rules.weaves[known[selected]].kind in PLACED and not told.has("placing"):
 		told.placing = true
-		Toast.say("Walls and gateways", "%s: the other shape (round or flat; upright or laid flat). Wheel: turn it. A gateway held until whole is placed end by end: let go for the near end, click again for the far." % Keys.name(KEY_T), "info", 8.0)
+		Toast.say("Walls and gateways", "Middle click: the other shape (round or flat; upright or laid flat). Wheel: turn it. A gateway: click once for the near end, again for the far.", "info", 8.0)
 	# The weave is begun now and held back for as long as the button is: it goes
 	# where the crosshair is when it is let go, not where it was when it was begun.
 	session.cast(known[selected], at, true)
@@ -707,7 +746,7 @@ func _area_preview() -> void:
 		return
 	var b: Dictionary = w.base
 	var k := Rules.scale(profile, my_form.weave, my_stamina) if not profile.is_empty() else 1.0
-	var kr := clampf(sqrt(k), 0.5, 2.2)
+	var kr := Rules.reach_of(k)
 	var at := _aim_point()
 	var feet := Vector3(me.position.x, 0, me.position.z)
 	var to := Vector3(at.x, 0, at.z) - feet
@@ -725,7 +764,7 @@ func _area_preview() -> void:
 			sides = 0.0
 		"blossom":
 			var c := feet + to.limit_length(float(b.range))
-			mesh = _ground_sector(c, 0.0, clampf(float(b.radius) * sqrt(k), float(b.radius_min), float(b.radius_max)), -PI, PI, 0.0, 48)
+			mesh = _ground_sector(c, 0.0, clampf(float(b.radius) * Rules.reach_of(k), float(b.radius_min) * 0.7, float(b.radius_max) * 1.4), -PI, PI, 0.0, 48)
 			sides = 0.0
 		"line", "lash":
 			mesh = _ground_strip(feet, yaw, float(b.width) * kr * 2.0, float(b.range) * kr)
@@ -1227,7 +1266,7 @@ func _on_started(_my_id: int, activity: String) -> void:
 		var keys: Array = Dream.keys_of(profile)
 		for i in keys.size():
 			dream_keys[OS.find_keycode_from_string(keys[i])] = i
-		Toast.say("Tel'aran'rhiod", "Your dream abilities are on the bar at the right, each on its key. %s: all of them, to choose which eight." % Keys.name(KEY_I), "info", 7.0)
+		Toast.say("Tel'aran'rhiod", "Your dream abilities are on the bar at the right, each on its key. %s: all of them, to choose which nine (Tab again: your weaves or weapons)." % Keys.name(Keys.k(KEY_TAB)), "info", 7.0)
 		# --foe=mirror|warder|aiel|hunter|channeller: someone to duel when no friend
 		# is here. Entering a duel alone meets your own shade.
 		# (Alone in a duel with no --foe, the sim itself brings your shade.)
@@ -1486,6 +1525,8 @@ func _round_picked(e: Dictionary) -> void:
 		Round.pick(mirror, e.kind, e.choice)
 	if not mirror.is_empty():
 		mirror.round.picks = e.picks
+	if tree_view != null and tree_view.visible:
+		_tree_choices.call_deferred()
 	# New arms go on the bar, new forms on their row.
 	if e.kind == "form" and not my_forms.has(e.choice):
 		my_forms.append(e.choice)
@@ -1508,9 +1549,18 @@ func _show_tree(on: bool) -> void:
 	if tree_view == null:
 		tree_view = WeaveTree.new(); hud_layer.add_child(tree_view)
 		tree_view.pickable = true
+		tree_view.bar_edit = true
+		tree_view.bar_changed.connect(func() -> void: _bar_changed(tree_view.profile))
 		tree_view.chosen.connect(func(id: String) -> void:
 			var vp := view_profile()
-			if vp.get("round", {}).get("picks", 0) <= 0 or not _weaver():
+			if vp.get("round", {}).get("picks", 0) <= 0:
+				return
+			if not _weaver():
+				# A fighter's level-up on the trees: a point of skill, a form, a weapon.
+				if id.begins_with("skill:"): session.pick("skill", id.trim_prefix("skill:"))
+				elif Rules.forms.has(id): session.pick("form", id)
+				elif Rules.weapons.has(id): session.pick("weapon", id)
+				_tree_choices.call_deferred()
 				return
 			session.pick("weave" if Rules.knows(vp, id) else "learn", id))
 		tree_note = Label.new(); hud_layer.add_child(tree_note)
@@ -1522,11 +1572,33 @@ func _show_tree(on: bool) -> void:
 	tree_note.visible = on
 	if on:
 		tree_view.profile = view_profile()
+		# The bar is the character's arrangement, whatever round copy the chart shows.
+		for k in ["hotbar", "bar_auto", "bar_seen"]:
+			if profile.has(k): tree_view.profile[k] = profile[k]
+		_tree_choices()
 		var left: int = view_profile().get("round", {}).get("picks", 0)
 		tree_note.text = ("%d to choose: a weave you know grows, an open one is learned   ·   Tab closes" % left) if left > 0 and _weaver() else ("What you carry   ·   Tab or Esc closes" if not _weaver() else "The weave chart   ·   drag the bar's slots to rearrange them   ·   Tab or Esc closes")
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not args.has("auto") and DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+## A fighter with level-up picks: what can be taken, lit on the trees.
+func _tree_choices() -> void:
+	if tree_view == null:
+		return
+	var vp := view_profile()
+	tree_view.choice_ids = []; tree_view.skill_fams = []
+	if _weaver() and vp.get("round", {}).get("picks", 0) > 0:
+		# A channeller's level-up: the weaves it can grow or teach, lit.
+		for c in Round.choices(vp):
+			if c.kind in ["weave", "learn"]: tree_view.choice_ids.append(c.id)
+	if not _weaver() and vp.get("round", {}).get("picks", 0) > 0:
+		for c in Round.choices(vp):
+			if c.kind in ["weapon", "form"]: tree_view.choice_ids.append(c.id)
+			elif c.kind == "skill": tree_view.skill_fams.append(c.id)
+		tree_note.text = "%d to choose: a lit weapon or form, or + skill over a kind   ·   Tab closes" % int(vp.round.picks)
+	elif not _weaver() and tree_note:
+		tree_note.text = "What you carry   ·   your bar along the bottom   ·   Tab or Esc closes"
 
 ## Tab: what this level-up can grow, from your tree (Round.choices).
 func _show_picks(on: bool) -> void:
@@ -1609,7 +1681,7 @@ func _fill_dream_inventory() -> void:
 	title.add_theme_font_override("font", Glyph.serif()); title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(0.9, 0.88, 1.0))
 	var note := Label.new(); box.add_child(note)
-	note.text = "Click an ability, then a slot on the bar, to put it there (one already on the bar changes places).   %s closes." % Keys.name(KEY_I)
+	note.text = "Click an ability, then a slot on the bar, to put it there (one already on the bar changes places).   %s: your weaves or weapons   Esc closes." % Keys.name(Keys.k(KEY_TAB))
 	note.add_theme_font_size_override("font_size", 13); note.add_theme_color_override("font_color", Color(0.78, 0.78, 0.86))
 	var desc := Label.new()
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; desc.custom_minimum_size = Vector2(820, 44)
@@ -2001,7 +2073,24 @@ func _on_events(list: Array) -> void:
 				if e.id == session.my_id:
 					if e.on: autos[e.weave] = true
 					else: autos.erase(e.weave)
-					_banner("%s %s" % [Rules.weaves[e.weave].name, "goes on by itself\nIt keeps its flows and weaves itself at the nearest foe. %s again stops it." % Keys.name(KEY_G) if e.on else "stops"], 3.0, "info")
+					_banner("%s %s" % [Rules.weaves[e.weave].name, "goes on by itself\nIt keeps its flows and weaves itself at the nearest foe. %s again stops it." % Keys.name(Keys.k(KEY_Q)) if e.on else "stops"], 3.0, "info")
+			"overreach":
+				# Reached for more than the flows hold: every weave in the hands snaps
+				# apart, threads of each flying off in its colour, and the weaver reels.
+				if actors.has(e.id) and is_instance_valid(actors[e.id].node):
+					var oa: Dictionary = actors[e.id]
+					_end_form(oa)
+					_play(oa, "Hit_Head", true)
+					var hands: Vector3 = oa.node.position + Vector3(0, 1.3, 0) + Vector3(sin(oa.node.rotation.y), 0, cos(oa.node.rotation.y)) * 0.45
+					for w in e.get("weaves", []) + [e.get("tried", "")]:
+						if Rules.weaves.has(w):
+							Weavefx._once(Weavefx._particles(Weavefx.colour(w).lerp(Color.WHITE, 0.25), 30, 0.7, 0.1, 7.5, -5.0, 180.0), self, hands)
+					Sfx.play(self, "crack", hands, 0.0, 1.4)
+				if e.id == session.my_id:
+					my_weaving = []
+					_weaving_changed()
+					shake = maxf(shake, 0.45)
+					_banner("Too much at once\nYour weaves fall apart: there are not flows enough to hold them all.", 2.5, "warn")
 			"cancel":
 				if e.id == session.my_id:
 					_weaving_drop(e.get("weave", ""))
@@ -2057,9 +2146,9 @@ func _on_events(list: Array) -> void:
 						if _hinted or args.has("tour"):
 							pass
 						elif not profile.get("kit", []).is_empty():
-							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\nSpace: roll (standing: step back)   Ctrl: duck   %s: jump   %s: throw   1-9: change what is in hand   %s %s %s: forms   F5: first person" % [Keys.name(KEY_V), Keys.name(KEY_F), Keys.name(KEY_Z), Keys.name(KEY_X), Keys.name(KEY_R)], 9.0)
+							_banner("Left click: attack (hold for a heavy blow, or to draw a bow)   Right click: parry, just before the blow lands\n1-4: weapons (or the wheel)   5 Z X C: forms   %s: roll   %s: jump   Ctrl: duck   Caps Lock: throw   %s: rope   Tab: inventory" % [Keys.name(Keys.k(KEY_SHIFT)), Keys.name(Keys.k(KEY_SPACE)), Keys.name(Keys.k(KEY_Q))], 9.0)
 						elif not known.is_empty():
-							_banner("Hold left click to weave; let go to loose it where you are looking\n1-9 or %s / %s: choose the weave   %s: tie off a held weave   Space: roll   F5: first person" % [Keys.name(KEY_Q), Keys.name(KEY_E), Keys.name(KEY_G)], 9.0)
+							_banner("Hold 1-5 or Z X C to weave (several at once, as your flows allow); click to aim the last one\nRight click: let it go   %s: tie off a held weave   %s: roll   %s: jump   Left click with nothing woven: your weapon   Tab: inventory" % [Keys.name(Keys.k(KEY_Q)), Keys.name(Keys.k(KEY_SHIFT)), Keys.name(Keys.k(KEY_SPACE))], 9.0)
 						_hinted = true
 			"die":
 				if actors.has(e.id) and is_instance_valid(actors[e.id].node):

@@ -136,13 +136,8 @@ static func _award_round(p: Dictionary, tally: Dictionary, activity_id: String, 
 	var act: Dictionary = Rules.activities[activity_id]
 	var out: Array[String] = []
 	p.seconds += tally.get("seconds", 0.0)
-	# The weave, weapon or form chosen on the tree is worked out between rounds, won
-	# or lost: a channeller's by what they channelled, a fighter's by the breath spent
-	# fighting.
-	if p.get("cls", "channeller") != "channeller":
-		_study_arms(p, float(tally.get("effort", 0.0)), out)
-	else:
-		_study_weave(p, float(tally.get("draw", 0.0)), out)
+	# (Nothing is learned by practice between rounds any more, the user, 27 Nov: what is
+	# kept comes from a win's unlock, chosen in the camp.)
 	if not success:
 		out.append("The round is lost. Nothing carries over but what you learned of it.")
 		return out

@@ -281,6 +281,21 @@ static func bar_usable(p: Dictionary) -> Array:
 			out.append(f)
 	return out
 
+## Room on the bar for `x`: never more than the class has keys for (a channeller
+## eight weaves; one who fights four weapons and four forms of each kind).
+const BAR_WEAVES := 8
+const BAR_WEAPONS := 4
+const BAR_FORMS := 4
+static func bar_room(p: Dictionary, hb: Array, x: String) -> bool:
+	if Rules.forms.has(x):
+		var fam: String = Rules.forms[x].family
+		return hb.filter(func(y) -> bool: return Rules.forms.has(y) and Rules.forms[y].family == fam).size() < BAR_FORMS
+	if Rules.weaves.has(x):
+		return hb.filter(func(y) -> bool: return Rules.weaves.has(y)).size() < BAR_WEAVES
+	if Rules.weapons.has(x):
+		return hb.filter(func(y) -> bool: return Rules.weapons.has(y) and not Rules.forms.has(y)).size() < BAR_WEAPONS
+	return true
+
 ## The bar, in the player's order: what they put there, still usable; with `bar_auto`
 ## (on unless turned off) anything new is added once, at the end. Something taken off
 ## stays off (it is remembered in bar_seen).
@@ -292,7 +307,7 @@ static func bar(p: Dictionary) -> Array:
 		for x in usable:
 			if not seen.has(x):
 				seen.append(x)
-				if not hb.has(x):
+				if not hb.has(x) and bar_room(p, hb, x):
 					hb.append(x)
 		p.bar_seen = seen
 	p.hotbar = hb

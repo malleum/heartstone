@@ -166,6 +166,10 @@ func _draw_pops(sc: float) -> void:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(sc, sc))
 
 ## Which bar slot is under this point on screen (-1 if none).
+## Released this far above the bar: dragged off it.
+func off_bar(pos: Vector2) -> bool:
+	return not _slots.is_empty() and pos.y < (_slots[0] as Vector2).y - 90.0 * minf(size.y / 720.0, 4.0)
+
 func slot_at(at: Vector2) -> int:
 	for i in _slots.size():
 		if (at - (_slots[i] as Vector2)).length() < _slot_r + 6.0:
@@ -290,7 +294,7 @@ func _draw_all() -> void:
 		var dgap := 50.0
 		var dx0 := W - 34.0 - dgap * (n_d - 1)
 		var dyy := H - 62.0
-		Glyph.text(self, sans, Vector2(dx0 + dgap * (n_d - 1) * 0.5, dyy - 48.0), "Dream   ·   %s: all of them" % Keys.name(KEY_I), 12, Color(0.8, 0.78, 1.0, 0.85), 0)
+		Glyph.text(self, sans, Vector2(dx0 + dgap * (n_d - 1) * 0.5, dyy - 48.0), "Dream   ·   %s: all of them" % Keys.name(Keys.k(KEY_TAB)), 12, Color(0.8, 0.78, 1.0, 0.85), 0)
 		for i in n_d:
 			var mid: String = g.dream_bar[i]
 			var mv: Dictionary = Dream.moves[mid]

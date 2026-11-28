@@ -309,10 +309,14 @@ static func form_time(p: Dictionary, weave_id: String) -> float:
 	return weaves[weave_id].form * maxf(1.0 - TUNE.mastery_speed * mastery_level(p, weave_id), 0.5) * aff
 
 ## Size, reach and the length of what a weave does (burns, stuns, holds) grow with
-## the square root of its power: a weave twice as strong is twice the damage over
-## about 1.4 times the radius, not four times the effect.
+## its power: steeply (the user, 27 Nov: a weak weave small and short, a strong one
+## wide and far), power to the 0.7, from a third of the written size to three and a half
+## times it. A weave twice as strong reaches about 1.6 times as far.
 static func reach(p: Dictionary, weave_id: String, stamina := -1.0) -> float:
-	return clampf(sqrt(scale(p, weave_id, stamina)), 0.5, 2.2)
+	return reach_of(scale(p, weave_id, stamina))
+
+static func reach_of(k: float) -> float:
+	return clampf(pow(maxf(k, 0.01), TUNE.get("reach_exp", 0.7)), 0.3, 3.5)
 
 ## A tired channeller draws less of the Power, so the weave costs less too.
 static func draw_of(p: Dictionary, weave_id: String, stamina := -1.0) -> float:

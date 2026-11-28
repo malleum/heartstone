@@ -86,8 +86,8 @@ working on abilities; the user's rulings there are final).
 - `tools/weave.sh <id>` (one weave side-on at six moments; `DEMO=<m>` for weaves the bot
   will not choose) and `tools/face.sh <name> [bench args]` (a face, front and three-quarter).
   Weave visuals are built from `src/game/flowfx.gd` (ribbons, fire ball, shell, rock shard).
-- Dream duels: `src/core/dream.gd`, `data/dream.json` (24 moves; a dream bar of eight, I for the
-  inventory); `--activity=dream_spar --foe=warder`, `--dreamdemo[=move,..]` to stage the moves (all
+- Dream duels: `src/core/dream.gd`, `data/dream.json` (24 moves; a dream bar of nine on E R F V T
+  5 Z X C, E Deny; Tab for the inventory, Tab again the trees); `--activity=dream_spar --foe=warder`, `--dreamdemo[=move,..]` to stage the moves (all
   24 by default), `tests/dream_duel.gd [-mix]` for bot-versus-bot numbers (`-mix`: random bars).
 - Camp doorways are live portals into a preloaded fight (`camp.gd` `_portal`; see ARCHITECTURE
   "Doorways you walk through"). `--offline` skips the server; `--timing` prints where opening
@@ -131,8 +131,14 @@ working on abilities; the user's rulings there are final).
 - The camp's yard: `src/game/campyard.gd` (a Sim of the player and six posts, activity `camp_yard`,
   stepped by camp.gd; Map state kept as the camp's); `--ghost=yard` tests it.
 - What's new: `data/changelog.json` (add the release's points when tagging), shown by `Changelog.build`.
-- Forms are not on the bar (`known`): `my_forms`, shown for the weapon in hand beside it
-  (`hud.gd` `_form_icon`), Z/X/R then Shift+number (`game.gd` `_use_form`). Beams, lashes and
+- Keys (24 Nov, the user's plan): channellers hold 1-5 Z X C to weave (`game.gd` `_weave_key`,
+  `Sim.request_cast` `together`: several at once, flows permitting; asking past the flows snaps them
+  all, `overreach`); a click aims the last unaimed weave (`aim_weave`), unclicked ones go where the
+  weaver looks (`set_look`); right click lets go; left click with nothing woven is the weapon.
+  Fighters: 1-4 weapons, 5 Z X C forms of the weapon in hand (`my_forms`, `hud.gd` `_form_icon`).
+  Shift roll (pauses weaving), Space jump/vault, Ctrl duck, Caps Lock throw, Q tie off/rope, Tab
+  inventory (the trees, with the bar strip; level-up picks lit), Alt frees the cursor to drag the bar.
+  Bar limits: `Profile.BAR_WEAVES/WEAPONS/FORMS`. Nothing is learned by practice: unlocks and picks. Beams, lashes and
   cones are pitched by the aim (`Sim.aim_pitch`, `_reach_to_ground`, `_at_height`).
 - Missile forms (`missile` true on a form; `lit`, `blast`, `burn`, `burn_dps` for a fire arrow): `count` and `spread` (a fan), `pierce`; bow forms
   are fully drawn in their own wind. Ghost scripts can wait on the game: `[frame, "when", flag,

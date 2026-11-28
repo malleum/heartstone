@@ -19,6 +19,7 @@ var model: Node3D
 var side: VBoxContainer       # left column: who you are
 var mini: PanelContainer      # its faded corner while it is put away
 var _vel := Vector3.ZERO      # walking, eased
+var _alt_took := false        # Alt freed the cursor (it is taken back on letting go)
 var yard: CampYard            # the practice posts beside the doorways, with a sim of your own
 var yard_slot := 0            # which thing on the bar the yard's clicks use
 var _yard_told := false
@@ -220,11 +221,9 @@ func _ui() -> void:
 	tree.bar_changed.connect(func() -> void:
 		if not Launch.dev():
 			Profile.save(profile))
-	tree.chosen.connect(func(id: String) -> void:
-		# Changing your mind loses what was worked out so far.
-		profile.study = id; profile.study_done = 0.0
-		Profile.save(profile)
-		_sheet())
+	tree.chosen.connect(func(_id: String) -> void:
+		# Nothing is learned by clicking or by practice: a win's unlock keeps it.
+		Toast.say("Kept with a win's unlock", "Win a round and choose it from what the win offers (or take it with a level-up pick in a round).", "info", 4.0))
 	# The sheet put away (H): a small faded corner of it stays, with who you are and
 	# a mark when something is new since you last looked (click it for the sheet).
 	mini = Glyph.card(Color(Glyph.GOLD, 0.2), 0.55); root.add_child(mini)
@@ -349,6 +348,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 		_keys_panel()
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	# Alt held: the cursor back for a moment (let go: the mouse is taken again).
+	if ev is InputEventKey and ev.physical_keycode == Keys.k(KEY_ALT) and not ev.echo:
+		if ev.pressed and captured:
+			_alt_took = true
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif not ev.pressed and _alt_took:
+			_alt_took = false
+			if not menu.visible and not tree.visible:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		return
 	if ev is InputEventMouseMotion and captured:
 		cam_yaw -= ev.relative.x * 0.003
 		cam_pitch = clampf(cam_pitch - ev.relative.y * 0.003, -1.1, 0.5)
@@ -667,13 +676,37 @@ func _process(dt: float) -> void:
 			near = d
 	# Coming up to a doorway, say once what it is (and who is fighting there).
 	var nid: String = "" if near.is_empty() or tree.visible or menu.visible else near.id
-	if nid != _near_id:
-		_near_id = nid
-		if nid != "":
-			var body: String = near.sub
-			for f in fights:
-				body += "\n%s %s fighting now: any doorway joins them." % [", ".join(f.players), "is" if f.players.size() == 1 else "are"]
-			Toast.say(near.name, body, "info" if near.open else "warn", 5.0)
+	# Said above the doorway itself, not in the notices at the side (the user, 27 Nov:
+	# which notice went with which doorway was hard to tell).
+	for d in doors:
+		var show: bool = d.id == nid
+		var lab: Label3D = d.get("notice")
+		if show and lab == null:
+			lab = Label3D.new()
+			lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			lab.no_depth_test = true
+			lab.fixed_size = false
+			lab.pixel_size = 0.008
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.width = 620.0
+			lab.font = Glyph.serif()
+			lab.font_size = 48
+			lab.outline_size = 14
+			lab.outline_modulate = Color(0, 0, 0, 0.85)
+			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+			add_child(lab)
+			lab.global_position = _ground(d.at) + Vector3(0, 4.4, 0)
+			d.notice = lab
+		if lab:
+			if show:
+				var body: String = d.sub
+				for f in fights:
+					body += "\n%s %s fighting now: any doorway joins them." % [", ".join(f.players), "is" if f.players.size() == 1 else "are"]
+				lab.text = d.name + ("\n" + body if body != "" else "")
+				lab.modulate = Color(1.0, 0.95, 0.82) if d.open else Color(1.0, 0.68, 0.45)
+			lab.visible = show
+	_near_id = nid
 
 func _enter(id: String) -> void:
 	set_process(false)
@@ -696,7 +729,8 @@ func _doors() -> void:
 	doors = []
 	var ids := []
 	for id in Rules.activities:
-		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false):
+		# (No doorway to the training yard: it is in the camp itself, CampYard.)
+		if not str(id).begins_with("_") and not Rules.activities[id].get("hidden", false) and Rules.activities[id].get("kind", "") != "training":
 			ids.append(id)
 	# One doorway per mode, in this order (training first, the duel last).
 	# (The training yard is in the camp itself now: CampYard, off to the side.)
@@ -840,10 +874,6 @@ func _sheet() -> void:
 		for f in profile.get("forms", {}):
 			if Rules.forms.has(f):
 				_row(side, Rules.forms[f].name, "form")
-		# What is being worked out between rounds, by fighting.
-		var st_id: String = profile.get("study", "")
-		if Rules.lore(profile).has(st_id):
-			_row(side, "Working out", "%s  %d%%" % [Rules.lore(profile)[st_id].name, int(100.0 * float(profile.get("study_done", 0.0)) / Rules.study_cost(profile, st_id))], Color(0.85, 0.87, 0.95))
 		_button(side, "The weapon and form trees, and your bar  (%s)" % Keys.name(KEY_TAB), func() -> void: _show_tree(true))
 	if channels:
 		_button(side, "The weave tree, and your bar  (%s)" % Keys.name(KEY_TAB), func() -> void: _show_tree(true))

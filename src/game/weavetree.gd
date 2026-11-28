@@ -16,6 +16,11 @@ var pickable := false   # in a round: a known weave can be chosen too (to grow i
 ## In the camp: the hotbar along the bottom; drag what you know onto it, along it to
 ## reorder, off it to take it away; a switch for whether new things go on by themselves.
 var bar_edit := false
+## A fighter's level-up shown on the trees: what can be chosen lights up, and each
+## weapon kind with a point of skill to take has a button over its column.
+var choice_ids: Array = []
+var skill_fams: Array = []
+var _skill_rects := {}
 var _drag := ""          # what is being dragged
 var _drag_from := -1     # its slot on the bar, or -1 from the tree
 var _drag_at := Vector2.ZERO
@@ -144,7 +149,8 @@ func _layout() -> void:
 		for f in fams:
 			total += 1.0 + sib_k * (widest[f] - 1)
 		# (The last step may be staggered down, and has its name under it.)
-		var top := 178.0; var step := minf(100.0, (_sz().y - top - 110.0) / maxf(deepest + 0.3, 1.0))
+		# (Room under it for the bar's strip, weapons with their forms, when it is shown.)
+		var top := 178.0; var step := minf(100.0, (_sz().y - top - (215.0 if bar_edit else 110.0)) / maxf(deepest + 0.3, 1.0))
 		# However many steps a column grows to, they fit: the circles shrink with the
 		# step, leaving room for the name under each (and the staggered sibling).
 		_step_r = maxf(step * 0.26, 11.0)
@@ -208,10 +214,13 @@ func _layout() -> void:
 						if _tier(b) > 0: _pos[b] += push
 
 func _state(id: String) -> String:
+	if choice_ids.has(id):
+		return "open"
 	if Rules.knows(profile, id):
 		return "known"
-	if profile.get("study", "") == id:
-		return "studying"
+	# In a round with picks to spend, only what the level-up offers is open.
+	if not choice_ids.is_empty():
+		return "locked"
 	return "open" if Rules.study_options(profile).has(id) else "locked"
 
 func _glyph(id: String, at: Vector2, r: float, bright: float, spin := 0.0) -> void:
@@ -235,6 +244,13 @@ func _gui_input(ev: InputEvent) -> void:
 			if (_tabs[pg] as Rect2).has_point(at):
 				page = pg
 				return
+		for fam in _skill_rects:
+			if (_skill_rects[fam] as Rect2).has_point(at):
+				chosen.emit("skill:" + fam)
+				return
+		if not choice_ids.is_empty() and hover != "" and choice_ids.has(hover):
+			chosen.emit(hover)
+			return
 		if bar_edit:
 			if _auto_rect().has_point(at):
 				profile.bar_auto = not profile.get("bar_auto", true)
@@ -246,7 +262,7 @@ func _gui_input(ev: InputEvent) -> void:
 				return
 			var slot := _slot_at(at)
 			if slot >= 0:
-				_drag = Profile.bar(profile)[slot]; _drag_from = slot; _drag_at = at; _press_at = at
+				_drag = _strip_slots()[slot].id; _drag_from = slot; _drag_at = at; _press_at = at
 				return
 			if hover != "" and _state(hover) == "known" and Profile.bar_usable(profile).has(hover):
 				_drag = hover; _drag_from = -1; _drag_at = at; _press_at = at
@@ -254,53 +270,118 @@ func _gui_input(ev: InputEvent) -> void:
 		if hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known")):
 			chosen.emit(hover)
 
-# --- the hotbar strip (camp) ---------------------------------------------------------
+# --- the hotbar strip (camp and fight) ---------------------------------------------------
 
-const SLOT := 48.0
+const SLOT := 60.0
+const FSLOT := 40.0
+
+func _weaver() -> bool:
+	return profile.get("cls", "channeller") == "channeller"
 
 func _strip_y() -> float:
-	return _sz().y - 44.0
+	return _sz().y - (88.0 if not _weaver() else 50.0)
 
-func _slot_x(i: int, n: int) -> float:
-	return _sz().x * 0.42 - SLOT * (n - 1) * 0.5 + i * SLOT
+## Every slot of the strip as drawn: {id, at, r, key}. A channeller: eight weaves in a
+## row (1-5, Z X C). One who fights: four weapons (1-4), the forms of each under it
+## (5 Z X C).
+func _strip_slots() -> Array:
+	var out := []
+	var bar := Profile.bar(profile)
+	var y := _strip_y()
+	if _weaver():
+		var ws := bar.filter(func(x: String) -> bool: return Rules.weaves.has(x)).slice(0, Profile.BAR_WEAVES)
+		var n := maxi(ws.size(), 1)
+		for i in ws.size():
+			out.append({id = ws[i], at = Vector2(_sz().x * 0.42 - (SLOT + 8.0) * (n - 1) * 0.5 + i * (SLOT + 8.0), y), r = SLOT * 0.42, key = WEAVE_KEYS[i]})
+	else:
+		var arms := bar.filter(func(x: String) -> bool: return Rules.weapons.has(x) and not Rules.forms.has(x)).slice(0, Profile.BAR_WEAPONS)
+		var colw := FSLOT * 4.0 + 18.0
+		var n := maxi(arms.size(), 1)
+		for i in arms.size():
+			var cx := _sz().x * 0.42 - colw * (n - 1) * 0.5 + i * colw
+			out.append({id = arms[i], at = Vector2(cx, y), r = SLOT * 0.42, key = ARM_KEYS[i]})
+			var fam: String = Rules.weapons[arms[i]].family
+			var fs := bar.filter(func(x: String) -> bool: return Rules.forms.has(x) and Rules.forms[x].family == fam).slice(0, Profile.BAR_FORMS)
+			for k in fs.size():
+				out.append({id = fs[k], at = Vector2(cx - FSLOT * 1.5 + k * FSLOT, y + SLOT * 0.5 + FSLOT * 0.62), r = FSLOT * 0.4, key = FORM_KEYS[k]})
+	return out
+
+const WEAVE_KEYS := ["1", "2", "3", "4", "5", "Z", "X", "C"]
+const ARM_KEYS := ["1", "2", "3", "4"]
+const FORM_KEYS := ["5", "Z", "X", "C"]
+
+func _strip_rect() -> Rect2:
+	var slots := _strip_slots()
+	var x0 := _sz().x * 0.42 - 60.0; var x1 := _sz().x * 0.42 + 60.0
+	for s in slots:
+		x0 = minf(x0, s.at.x - s.r - 14.0); x1 = maxf(x1, s.at.x + s.r + 14.0)
+	var y0 := _strip_y() - SLOT * 0.62
+	var y1 := _strip_y() + (SLOT * 0.62 if _weaver() else SLOT * 0.5 + FSLOT * 1.25)
+	# (Room at the left for its title and how to use it.)
+	return Rect2(x0 - 150.0, y0, x1 - x0 + 150.0, y1 - y0)
 
 func _slot_at(at: Vector2) -> int:
-	var bar := Profile.bar(profile)
-	for i in bar.size():
-		if at.distance_to(Vector2(_slot_x(i, bar.size()), _strip_y())) < SLOT * 0.45:
+	var slots := _strip_slots()
+	for i in slots.size():
+		if at.distance_to(slots[i].at) < float(slots[i].r) + 4.0:
 			return i
 	return -1
 
 func _auto_rect() -> Rect2:
-	var n := Profile.bar(profile).size()
-	return Rect2(_slot_x(n, n) + 10.0, _strip_y() - 14.0, 200.0, 28.0)
+	var sr := _strip_rect()
+	return Rect2(sr.end.x + 14.0, _strip_y() - 16.0, 214.0, 32.0)
 
-## Let go of what was dragged: onto the bar (at the slot under it, or the end), or off
-## it (taken away). A press and let-go without moving, on the tree, still picks.
+## Let go of what was dragged: onto the strip (where it lands among its kind), or off it
+## (taken away). Never more than the class has keys for; a form goes under a weapon
+## of its kind. A press and let-go without moving, on the tree, still picks.
 func _drop(at: Vector2) -> void:
 	var id := _drag; var from := _drag_from
 	_drag = ""; _drag_from = -1
-	var bar: Array = Profile.bar(profile).duplicate()
-	var on_strip := absf(at.y - _strip_y()) < SLOT * 0.8
 	if at.distance_to(_press_at) < 4.0:
-		if from < 0 and hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known")):
+		if from < 0 and hover != "" and (_state(hover) == "open" or (pickable and _state(hover) == "known") or choice_ids.has(hover)):
 			chosen.emit(hover)
 		return
-	if from >= 0:
-		bar.remove_at(from)
-	if on_strip:
-		var idx := bar.size()
-		for i in bar.size():
-			if at.x < _slot_x(i, bar.size() + 1) + SLOT * 0.5:
-				idx = i
+	var bar: Array = Profile.bar(profile).duplicate()
+	var was_on := bar.has(id)
+	bar.erase(id)
+	if _strip_rect().grow(16.0).has_point(at):
+		var slots := _strip_slots().filter(func(s: Dictionary) -> bool: return s.id != id)
+		var mine: Array
+		if Rules.forms.has(id):
+			var fam: String = Rules.forms[id].family
+			if not bar.any(func(x: String) -> bool: return Rules.weapons.has(x) and not Rules.forms.has(x) and Rules.weapons[x].family == fam):
+				_say("Put a %s on the bar first: its forms go under it" % fam)
+				return
+			mine = slots.filter(func(s: Dictionary) -> bool: return Rules.forms.has(s.id) and Rules.forms[s.id].family == fam)
+		elif Rules.weaves.has(id):
+			mine = slots.filter(func(s: Dictionary) -> bool: return Rules.weaves.has(s.id))
+		else:
+			mine = slots.filter(func(s: Dictionary) -> bool: return Rules.weapons.has(s.id) and not Rules.forms.has(s.id))
+		if not was_on and not Profile.bar_room(profile, bar, id):
+			_say("The bar is full there (as many as you have keys for): drag one off first")
+			return
+		# Before the first of its kind it lands left of.
+		var before := ""
+		for s in mine:
+			if at.x < float(s.at.x):
+				before = s.id
 				break
-		bar.erase(id)
-		bar.insert(mini(idx, bar.size()), id)
+		if before != "":
+			bar.insert(bar.find(before), id)
+		elif not mine.is_empty():
+			bar.insert(bar.find(mine.back().id) + 1, id)
+		else:
+			bar.append(id)
 	profile.hotbar = bar
 	var seen: Array = profile.get("bar_seen", [])
 	if not seen.has(id): seen.append(id)
 	profile.bar_seen = seen
 	bar_changed.emit()
+
+var _said := ""
+var _said_t := 0.0
+func _say(text: String) -> void:
+	_said = text; _said_t = 2.5
 
 func _icon(id: String, at: Vector2, r: float, a: float) -> void:
 	if Rules.weaves.has(id):
@@ -312,30 +393,35 @@ func _icon(id: String, at: Vector2, r: float, a: float) -> void:
 		Glyph.weapon(self, at, r, Rules.weapons[id].family, a)
 
 func _draw_strip() -> void:
-	var sans := Glyph.sans()
-	var bar := Profile.bar(profile)
-	var n := bar.size()
-	var y := _strip_y()
-	var x0 := _slot_x(0, n) - SLOT * 0.6
-	var x1 := _slot_x(maxi(n - 1, 0), n) + SLOT * 0.6
-	draw_rect(Rect2(x0, y - SLOT * 0.62, maxf(x1 - x0, SLOT), SLOT * 1.24), Color(0.04, 0.04, 0.06, 0.7))
-	draw_rect(Rect2(x0, y - SLOT * 0.62, maxf(x1 - x0, SLOT), SLOT * 1.24), Color(Glyph.GOLD, 0.35), false, 1.2)
-	Glyph.text(self, sans, Vector2(x0, y - SLOT * 0.62 - 8.0), "Your bar: drag here from the tree, along it to reorder, off it to take away", 12, Color(Glyph.GOLD, 0.8))
-	for i in n:
-		var c := Vector2(_slot_x(i, n), y)
-		draw_circle(c, SLOT * 0.4, Color(0.08, 0.08, 0.1, 0.9))
+	var sans := Glyph.sans(); var serif := Glyph.serif()
+	var slots := _strip_slots()
+	var sr := _strip_rect()
+	# A panel that stands out from the tree: lighter, edged in gold, with a title.
+	draw_rect(sr, Color(0.1, 0.09, 0.07, 0.92))
+	draw_rect(sr, Color(Glyph.GOLD, 0.85), false, 2.0)
+	Glyph.text(self, serif, Vector2(sr.position.x + 12.0, sr.position.y + 26.0), "Your bar", 20, Glyph.GOLD)
+	var hint := ["drag from the tree onto it,", "along it, or off it", "(hold Alt in play: the same)"]
+	for k in hint.size():
+		Glyph.text(self, sans, Vector2(sr.position.x + 12.0, sr.position.y + 44.0 + k * 13.0), hint[k], 11, Color(0.9, 0.85, 0.7))
+	for i in slots.size():
+		var s: Dictionary = slots[i]
+		var r: float = s.r
+		draw_circle(s.at, r + 3.0, Color(0.02, 0.02, 0.03, 0.95))
+		draw_arc(s.at, r + 3.0, 0, TAU, 32, Color(Glyph.GOLD, 0.55), 1.4, true)
+		Glyph.text(self, sans, s.at + Vector2(0, -r - 7.0), s.key, 12 if r > 20.0 else 10, Glyph.GOLD, 0)
 		if i == _drag_from:
 			continue
-		_icon(bar[i], c, SLOT * 0.3, 1.0)
-		if i < 9:
-			Glyph.text(self, sans, c + Vector2(0, -SLOT * 0.45), str(i + 1), 10, Color(0.7, 0.7, 0.75), 0)
-	if n == 0:
-		Glyph.text(self, sans, Vector2(x0 + 8.0, y + 4.0), "(empty)", 12, Color(0.6, 0.6, 0.65))
+		_icon(s.id, s.at, r * 0.72, 1.0)
+	if slots.is_empty():
+		Glyph.text(self, sans, Vector2(sr.position.x + 16.0, _strip_y() + 5.0), "empty: drag something you know here", 13, Color(0.75, 0.72, 0.65))
 	var ar := _auto_rect()
 	var auto: bool = profile.get("bar_auto", true)
-	draw_rect(ar, Color(0.08, 0.08, 0.1, 0.85))
-	draw_rect(ar, Color(Glyph.GOLD, 0.5 if auto else 0.25), false, 1.0)
-	Glyph.text(self, sans, ar.position + Vector2(8, 19), "New things go on the bar: %s" % ("on" if auto else "off"), 12, Glyph.GOLD if auto else Color(0.7, 0.7, 0.75))
+	draw_rect(ar, Color(0.1, 0.09, 0.07, 0.92))
+	draw_rect(ar, Color(Glyph.GOLD, 0.8 if auto else 0.35), false, 1.4)
+	Glyph.text(self, sans, ar.position + Vector2(10, 21), "New things go on the bar: %s" % ("on" if auto else "off"), 13, Glyph.GOLD if auto else Color(0.75, 0.75, 0.8))
+	if _said_t > 0.0:
+		_said_t -= get_process_delta_time()
+		Glyph.text(self, sans, Vector2(sr.position.x, sr.end.y + 18.0), _said, 13, Color(1.0, 0.7, 0.45))
 	if _drag != "":
 		_icon(_drag, _drag_at, SLOT * 0.32, 0.85)
 
@@ -450,13 +536,15 @@ func _draw() -> void:
 				draw_line(Vector2(x, 68), Vector2(x + wd, 68), Color(Glyph.GOLD, 0.8), 2.0, true)
 			_tabs[pg] = Rect2(x - 6, 26, wd + 12, 48)
 			x += wd + 28.0
-		Glyph.text(self, sans, Vector2(42, 92), "One thing is worked out at a time, weapon or form,", 14, Color(0.65, 0.67, 0.75))
-		Glyph.text(self, sans, Vector2(42, 112), "by fighting. Click a tab to switch trees." if page == "forms" else "by fighting. A new weapon replaces your old one of its kind.", 14, Color(0.65, 0.67, 0.75))
+		Glyph.text(self, sans, Vector2(42, 92), "Taken with a level-up pick, or kept with a win's unlock.", 14, Color(0.65, 0.67, 0.75))
+		Glyph.text(self, sans, Vector2(42, 112), "Click a tab to switch trees." if page == "forms" else "A new weapon replaces your old one of its kind.", 14, Color(0.65, 0.67, 0.75))
 	else:
 		Glyph.text(self, serif, Vector2(40, 60), "The Weaves", 38, Color(0.97, 0.94, 0.88))
-		Glyph.text(self, sans, Vector2(42, 86), "One weave is worked out at a time,", 14, Color(0.65, 0.67, 0.75))
-		Glyph.text(self, sans, Vector2(42, 106), "by channelling anything.", 14, Color(0.65, 0.67, 0.75))
-	Glyph.text(self, sans, Vector2(42, _sz().y - 30.0), ("%s or Esc: close" % Keys.name(KEY_TAB)) if pickable else ("%s or Esc: back to the camp" % Keys.name(KEY_T)), 14, Color(0.65, 0.67, 0.75))
+		Glyph.text(self, sans, Vector2(42, 86), "Learned with a level-up pick,", 14, Color(0.65, 0.67, 0.75))
+		Glyph.text(self, sans, Vector2(42, 106), "or kept with a win's unlock.", 14, Color(0.65, 0.67, 0.75))
+	# (Top right, clear of the bar's strip along the bottom.)
+	if not pickable:   # (in a fight the note at the top says it)
+		Glyph.text(self, sans, Vector2(_sz().x * 0.42 + 160.0, 92.0) if bar_edit else Vector2(42, _sz().y - 30.0), "%s or Esc: close" % Keys.name(KEY_TAB), 14, Color(0.65, 0.67, 0.75))
 	# Weaves past the spoiler setting are not drawn, but it should be plain there are more.
 	if not _forms():
 		var hidden := 0
@@ -468,6 +556,15 @@ func _draw() -> void:
 		if hidden > 0 and Settings.story_open:
 			Glyph.text(self, sans, Vector2(42, 126), "%d more from later books, hidden in this fight" % hidden, 13, Color(0.55, 0.57, 0.65))
 	_card(hover if hover != "" else profile.get("study", ""))
+	_skill_rects = {}
+	if _forms() and not skill_fams.is_empty():
+		for fam in skill_fams:
+			if _cols.has(fam):
+				var rr := Rect2(float(_cols[fam]) - 36.0, 112.0, 72.0, 20.0)
+				_skill_rects[fam] = rr
+				draw_rect(rr, Color(0.14, 0.11, 0.05, 0.95))
+				draw_rect(rr, Glyph.GOLD, false, 1.4)
+				Glyph.text(self, Glyph.sans(), rr.position + Vector2(36, 15), "+ skill", 12, Glyph.GOLD, 0)
 	if bar_edit:
 		_draw_strip()
 
@@ -531,15 +628,17 @@ func _card(id: String) -> void:
 				lines.append(["Yours." if mine == id else ("Outgrown: your %s is better." % Rules.weapons[mine].name.to_lower() if mine != "" else "Known."), Glyph.GOLD])
 			else:
 				lines.append(["Known." if _forms() else "Known. Mastery %d." % Rules.mastery_level(profile, id), Glyph.GOLD])
-		"studying":
-			lines.append(["Working it out: %d%%" % int(100.0 * profile.get("study_done", 0.0) / Rules.study_cost(profile, id)), Color.WHITE])
 		"open":
-			lines.append(["Click to study it.", Color.WHITE])
+			# Learned only by a choice: a level-up's pick in a round, or a win's unlock
+			# kept in the camp (no more learning by practice, the user, 27 Nov).
+			if choice_ids.has(id) or (pickable and profile.has("round")):
+				lines.append(["Click to take it (a level-up pick).", Color.WHITE])
+			else:
+				lines.append(["Open: take it with a level-up", Color.WHITE])
+				lines.append(["pick in a round, or keep it", Color.WHITE])
+				lines.append(["with a win's unlock.", Color.WHITE])
 			if _weapons() and mine != "":
 				lines.append(["It will replace your %s." % Rules.weapons[mine].name.to_lower(), Color(0.9, 0.85, 0.6)])
-			if profile.get("study", "") != "" and profile.get("study_done", 0.0) > 0.0:
-				lines.append(["What you have worked out of", Color(1.0, 0.7, 0.45)])
-				lines.append(["%s will be lost." % _table()[profile.study].name, Color(1.0, 0.7, 0.45)])
 		"locked":
 			lines.append(["First you must know one of:" if _weapons() else "First you must know:", Color(0.75, 0.75, 0.8)])
 			for m in Rules.missing_for(profile, id):
@@ -550,13 +649,6 @@ func _card(id: String) -> void:
 				if e.has("skill"): lines.append(["   %s skill %d" % [e.skill[0], int(e.skill[1])], Color(0.9, 0.9, 0.95)])
 			if _forms() and Rules.skill_level(profile, w.family) < int(w.get("skill", 0)):
 				lines.append(["   %s skill %d (you have %d)" % [w.family, int(w.skill), Rules.skill_level(profile, w.family)], Color(0.9, 0.9, 0.95)])
-	if _state(id) != "known":
-		# Channelling comes at roughly 200 a minute of steady weaving.
-		# A fighter spends roughly 250 stamina a minute in a hard fight.
-		var mins := Rules.study_cost(profile, id) / (250.0 if _forms() else 205.0)
-		lines.append(["About %s of %s" % ["%d minutes" % maxi(int(mins), 1) if mins < 90.0 else "%.0f hours" % (mins / 60.0), "fighting" if _forms() else "weaving"], Color(0.7, 0.72, 0.8)])
-		if profile.get("seen", []).has(id):
-			lines.append(["You have seen it woven: half the work.", Color(0.7, 0.9, 0.75)])
 	if w.has("level"):
 		lines.append(["Needs strength %s, or the Talent" % Rules.level_name(int(w.level)), Color(0.7, 0.72, 0.8)])
 	if w.get("base", {}).has("drain"):

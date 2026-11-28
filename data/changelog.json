@@ -1,4 +1,15 @@
 [
+  {"version": "v0.2.16", "date": "27 Nov", "items": [
+    "Fighters' level-ups are on the weapon and form trees (Tab): what can be taken is lit, with + skill over each weapon kind.",
+    "Your bar stands out on the tree pages, in the camp and in a fight (Tab): weapons with their forms beneath them for fighters. The switch for new things going on by themselves is in both.",
+    "Never more on the bar than you have keys for: eight weaves; four weapons and four forms of each.",
+    "Hold Alt in a fight for the cursor: drag the bar's slots to reorder them, or up off the bar to take them away.",
+    "Reaching for a weave without the flows for it makes every weave you are making fall apart, and you reel.",
+    "Weaves grow much more with strength: a weak one small and short, a strong one wide and far.",
+    "Nothing is learned by practice any more: what you keep comes from a win's unlock or a level-up pick.",
+    "Coming up to a doorway, what it is shows above that doorway. The training yard's doorway is gone (the yard is in the camp).",
+    "The controls hints show the new keys."
+  ]},
   {"version": "v0.2.15", "date": "24 Nov", "items": [
     "Rolling while weaving pauses the weaving for the roll, and it goes on by itself afterwards (it was neither paused nor lost).",
     "Tab in the dream world: the dream abilities, then your weaves or weapons and forms, then closed. Outside it, Tab opens your tree for everyone."

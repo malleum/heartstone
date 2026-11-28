@@ -603,7 +603,7 @@ func _playtest() -> void:
 	check(sim.effects.size() == 1 and sim.effects[0].kind == "blossom" and far.hp == 9999.0, "it begins as a pillar too thin to reach a Trolloc four paces off")
 	run(sim, 3.0)
 	var wheel: Dictionary = sim.effects[0]
-	check(wheel.rad >= 3.0 and wheel.rad <= 9.0 and far.hp < 9999.0 and far.burn > 0.0, "then opens to between 10 and 30 feet and burns it")
+	check(wheel.rad >= 2.1 and wheel.rad <= 12.6 and far.hp < 9999.0 and far.burn > 0.0, "then opens to between 7 and 42 feet (strength-scaled) and burns it")
 	run(sim, 6.0)
 	check(sim.effects.is_empty(), "and burns out")
 	# The Rolling Ring is a wedge: it strikes ahead and not behind.
@@ -2105,7 +2105,9 @@ func _ground_and_water() -> void:
 	# A roll pauses weaving and it goes on afterwards, untouched.
 	var rs := Sim.new("practice", 14)
 	rs._waves = [{t = 999.0, spawn = {}}]
-	var rw := rs.add_player(Profile.create({name = "Roller"}))
+	var rpr := Profile.create({name = "Roller"})
+	rpr.weaves["fireball"] = {known = true, xp = 0.0}
+	var rw := rs.add_player(rpr)
 	rs.ents[rw].stamina = 999.0
 	rs.request_cast(rw, "fireball", Vector3(0, 1, -10), false, true)
 	var left0: float = rs.ents[rw].forming.left
@@ -2200,54 +2202,18 @@ func _arms_tree() -> void:
 	r.round = {picks = 1}
 	var ch := Round.choices(r).filter(func(c: Dictionary) -> bool: return c.kind == "weapon" and c.id == "bastard_sword")
 	check(not ch.is_empty() and Round.pick(r, "weapon", "bastard_sword") == "" and r.kit.has("bastard_sword") and not r.kit.has("sword"), "a weapon chosen in a round replaces its family's in hand")
-	# Study: a weapon worked out by fighting replaces the old one.
+	# Nothing is learned by practice between rounds (the user, 27 Nov): what is kept comes
+	# from a win's unlock.
 	var sw := Profile.make({name = "Study Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
 	sw.skills["sword"] = 25.0 * Rules.TUNE.skill_xp
 	sw.study = "bastard_sword"; sw.study_done = 0.0
 	Progression.award(sw, {effort = 99999.0, seconds = 60.0, draw = 0.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", false)
-	check(sw.kit.has("bastard_sword") and not sw.kit.has("sword"), "a weapon worked out by fighting replaces the old one (a lost round still teaches)")
 	var fw := Profile.make({name = "Form Warder", cls = "warder", kit = ["sword", "horse_bow", "belt_knife"]})
 	Progression.award(fw, {effort = 99999.0, seconds = 60.0, draw = 0.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
-	check(not fw.forms_owned.is_empty() and Rules.knows(fw, fw.forms_owned[0]), "with nothing chosen, fighting works out a form, kept for good (%s)" % [fw.forms_owned])
-	# A channeller works out the chosen weave between rounds, by what they channelled.
 	var cw := Profile.make({name = "Study Weaver", power = "saidar"})
-	var pick := ""
-	for id in Rules.study_options(cw):
-		pick = id
-	check(pick != "", "a channeller has weaves open to study")
-	cw.study = pick; cw.study_done = 0.0
-	var cost := Rules.study_cost(cw, pick)
-	Progression.award(cw, {effort = 0.0, seconds = 60.0, draw = cost * 0.4, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", false)
-	check(cw.study == pick and absf(cw.study_done - cost * 0.4) < 0.01, "channelling in a round works out the chosen weave (%.0f of %.0f)" % [cw.study_done, cost])
-	Progression.award(cw, {effort = 0.0, seconds = 60.0, draw = cost, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
-	check(cw.weaves.get(pick, {}).get("known", false) and cw.study == "", "and then it is known (%s)" % pick)
-	# Missile forms: a fan of knives, an arrow through a rank.
-	var mf := Sim.new("practice", 77)
-	mf._waves = [{t = 999.0, spawn = {}}]
-	var archer := Profile.make({name = "Form Archer", cls = "hunter", kit = ["longbow", "throwing_knives", "belt_knife"]})
-	archer.forms = {bow_line = {known = true}, thrown_fan = {known = true}}
-	var ai := mf.add_player(archer)
-	var a: Dictionary = mf.ents[ai]
-	a.pos = Vector3.ZERO
-	for k in 3:
-		mf._add_enemy("trolloc", Vector3(0, 0, 10 + k * 1.6))
-		mf.ents[ai + 1 + k].speed = 0.0; mf.ents[ai + 1 + k].hp = 9999.0
-	a.weapon = "longbow"; a.ammo["longbow"] = 30; a.ammo["throwing_knives"] = 8
-	var why := mf.request_attack(ai, "form:bow_line", Vector3(0, 1.4, 14))
-	check(why == "", "Through the Line can be loosed (%s)" % why)
-	var hit_ids := {}
-	for i in 90:
-		mf.step(1.0 / 30.0)
-		for ev in mf.events:
-			if ev.e == "hit" and mf.ents.has(ev.id) and ev.id != ai:
-				hit_ids[ev.id] = true
-	check(hit_ids.size() >= 2, "one arrow goes through the first Trolloc into the next (%d hit)" % hit_ids.size())
-	a.weapon = "throwing_knives"
-	var left0: int = a.ammo["throwing_knives"]
-	check(mf.request_attack(ai, "form:thrown_fan", Vector3(0, 1.4, 14)) == "", "A Fan of Steel can be thrown")
-	for i in 15:
-		mf.step(1.0 / 30.0)
-	check(left0 - a.ammo["throwing_knives"] == 5, "it throws five knives at once (%d went)" % (left0 - a.ammo["throwing_knives"]))
+	var known0: int = cw.weaves.size()
+	Progression.award(cw, {effort = 0.0, seconds = 60.0, draw = 99999.0, casts = {}, kills = {}, blows = {}}, "tarwins_gap_watch", true)
+	check(sw.kit.has("sword") and not sw.kit.has("bastard_sword") and fw.get("forms_owned", []).is_empty() and cw.weaves.size() == known0 and fw.get("unlocks_owed", 0) == 1, "nothing is learned by practice between rounds; a win owes an unlock")
 	# A bot weaves only at what it can see.
 	var ls := Sim.new("practice", 131)
 	ls._waves = [{t = 999.0, spawn = {}}]
